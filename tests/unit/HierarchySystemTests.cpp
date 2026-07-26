@@ -30,7 +30,7 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 }  // namespace
 
 TEST_CASE("HierarchySystem places a child at the root's position plus its rotated offset",
-         "[hierarchy]") {
+          "[hierarchy]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -56,7 +56,7 @@ TEST_CASE("HierarchySystem places a child at the root's position plus its rotate
 }
 
 TEST_CASE("HierarchySystem records the child's prior WorldTransform into PreviousTransform",
-         "[hierarchy]") {
+          "[hierarchy]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
