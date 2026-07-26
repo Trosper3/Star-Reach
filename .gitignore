@@ -43,6 +43,9 @@
 build/
 Build/
 build-*/
+bin/
+lib/
+out/
 
 # CMake generated files
 CMakeFiles/
@@ -65,5 +68,16 @@ vcpkg_installed/
 *.dwo
 
 # test output & cache
-Testing/
+tests/
 .cache/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.vcxproj
+*.sln
+.vs/
+
+# OS Files
+.DS_Store
+Thumbs.db
