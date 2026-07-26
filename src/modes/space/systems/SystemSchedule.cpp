@@ -2,6 +2,7 @@
 
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/PhysicsSystem.h"
+#include "modes/space/systems/TargetingSystem.h"
 
 namespace sr::space {
 
@@ -22,6 +23,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
         {"HierarchySystem", &hierarchy_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
+        {"TargetingSystem", &targeting_system::Tick},
     };
     return schedule;
 }
