@@ -1,5 +1,7 @@
 #include "modes/space/systems/SystemSchedule.h"
 
+#include "modes/space/systems/HierarchySystem.h"
+
 namespace sr::space {
 
 const std::vector<ScheduledSystem>& TickSchedule() {
@@ -16,7 +18,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   ProjectileSystem
     //   DamageSystem      -- must be last; destruction is the tick's final word
     //
-    static const std::vector<ScheduledSystem> schedule{};
+    static const std::vector<ScheduledSystem> schedule{
+        {"HierarchySystem", &hierarchy_system::Tick},
+    };
     return schedule;
 }
 
