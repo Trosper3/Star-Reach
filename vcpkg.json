@@ -2,10 +2,12 @@
   "name": "star-reach",
   "version-string": "0.1.0",
   "$comment-enet": "ENet is deferred (architecture.md Law 9). Add it here when net/ un-defers, together with the sr_net CMake target.",
+  "$comment-glfw3": "Not used directly, and already a transitive dependency of raylib. Declared explicitly because CMakeLists.txt has to link it by hand on static triplets: raylib is built with USE_EXTERNAL_GLFW=ON but never exports glfw in its link interface, so libraylib.a ships undefined glfw* symbols. See the comment above find_package(glfw3) for why the condition is static-vs-shared rather than per-OS.",
   "dependencies": [
     "entt",
     "nlohmann-json",
     "raylib",
-    "catch2"
+    "catch2",
+    "glfw3"
   ]
 }

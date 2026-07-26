@@ -17,6 +17,28 @@ find_package(EnTT CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(raylib CONFIG REQUIRED)
 
+# vcpkg always builds raylib with USE_EXTERNAL_GLFW=ON on desktop, but raylib's exported target
+# never puts glfw in INTERFACE_LINK_LIBRARIES. When raylib is a SHARED library the omission is
+# harmless -- the DLL/so resolves glfw* internally and glfw shows up only as a runtime hint in
+# IMPORTED_LINK_DEPENDENT_LIBRARIES. When it is STATIC, libraylib.a ships ~90 undefined glfw*
+# symbols that nothing on the link line supplies, and every executable reaching rcore.c.o fails.
+#
+# That is the axis, NOT the operating system: CI was green on x64-windows (dynamic triplet, raylib
+# .dll) and red on x64-linux and arm64-osx (static triplets, libraylib.a). Gating on WIN32 would
+# get the right answer for those three by accident and then break on x64-windows-static, so gate
+# on the property that actually matters. On macOS linking glfw also restores the Cocoa/IOKit
+# frameworks, which went missing through the same hole.
+set(SR_LINK_GLFW OFF)
+get_target_property(SR_RAYLIB_TYPE raylib TYPE)
+if(SR_RAYLIB_TYPE STREQUAL "STATIC_LIBRARY")
+    find_package(glfw3 CONFIG REQUIRED)
+    set(SR_LINK_GLFW ON)
+endif()
+# Printed because the two paths fail very differently and only one of them is visible locally: a
+# gate that silently evaluated false on a static triplet looks exactly like a correct skip on a
+# dynamic one, right up until the link fails on someone else's machine.
+message(STATUS "raylib is a ${SR_RAYLIB_TYPE}; linking glfw explicitly: ${SR_LINK_GLFW}")
+
 # ---------------------------------------------------------------------------------------------
 # Shared compile settings, carried by an INTERFACE target rather than repeated per layer.
 # ---------------------------------------------------------------------------------------------
@@ -105,6 +127,12 @@ add_library(sr_engine STATIC
     src/engine/platform/Window.cpp
 )
 target_link_libraries(sr_engine PUBLIC sr_options raylib)
+if(SR_LINK_GLFW)
+    # PUBLIC, not PRIVATE: the undefined symbols live in raylib's static archive, so glfw has to
+    # stay on the link line of every executable that transitively reaches sr_engine, not just of
+    # sr_engine itself.
+    target_link_libraries(sr_engine PUBLIC glfw)
+endif()
 
 # --- sr_space : the space flight mode ---------------------------------------------------------
 add_library(sr_space STATIC
