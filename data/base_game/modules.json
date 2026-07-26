@@ -1,0 +1,76 @@
+{
+  "modules": [
+    {
+      "id": "armor_plate_i",
+      "displayName": "Composite Plating I",
+      "kind": "armor",
+      "mass": 18.0,
+      "hullBonus": 60.0
+    },
+    {
+      "id": "power_cell_i",
+      "displayName": "Fusion Cell I",
+      "kind": "power_cell",
+      "mass": 22.0,
+      "powerGeneration": 140.0,
+      "hullBonus": 10.0
+    },
+    {
+      "id": "ion_thruster_i",
+      "displayName": "Ion Thruster I",
+      "kind": "engine",
+      "mass": 26.0,
+      "powerDraw": 30.0,
+      "engine": {
+        "thrustNewtons": 5200.0,
+        "turnTorque": 3.2,
+        "maxSpeed": 420.0
+      }
+    },
+    {
+      "id": "pulse_cannon_i",
+      "displayName": "Pulse Cannon I",
+      "kind": "weapon",
+      "mass": 14.0,
+      "powerDraw": 18.0,
+      "weapon": {
+        "damage": 15.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.35,
+        "projectileSpeed": 900.0,
+        "rangeUnits": 750.0,
+        "spreadRadians": 0.015,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "autocannon_i",
+      "displayName": "Autocannon I",
+      "kind": "weapon",
+      "mass": 19.0,
+      "powerDraw": 10.0,
+      "weapon": {
+        "damage": 9.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.14,
+        "projectileSpeed": 1100.0,
+        "rangeUnits": 600.0,
+        "spreadRadians": 0.05,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "deflector_i",
+      "displayName": "Kinetic Deflector I",
+      "kind": "shield_generator",
+      "mass": 20.0,
+      "powerDraw": 35.0,
+      "shield": {
+        "capacity": 180.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 12.0,
+        "rechargeDelaySeconds": 3.5
+      }
+    }
+  ]
+}

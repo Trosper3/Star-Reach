@@ -1,0 +1,30 @@
+# Star Reach formatting.
+#
+# Based on Google with two changes: 4-space indent and a 100-column limit. The column limit is
+# the one that matters -- it is what keeps a deeply nested block visibly uncomfortable, which is
+# a cheap early signal of the same problem the 80-line function cap catches later.
+#
+# This file was previously empty, which is not the same as absent: clang-format errors on an
+# empty config, so the formatting job would have failed on its first run.
+---
+Language: Cpp
+BasedOnStyle: Google
+
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+
+BreakBeforeBraces: Attach
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
