@@ -1,8 +1,11 @@
 {
   "name": "star-reach",
   "version-string": "0.1.0",
+  "$comment-enet": "ENet is deferred (architecture.md Law 9). Add it here when net/ un-defers, together with the sr_net CMake target.",
   "dependencies": [
     "entt",
-    "nlohmann-json"
+    "nlohmann-json",
+    "raylib",
+    "catch2"
   ]
 }

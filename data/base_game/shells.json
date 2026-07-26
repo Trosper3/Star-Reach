@@ -1,0 +1,54 @@
+{
+  "shells": [
+    {
+      "id": "shell_fighter_chassis",
+      "displayName": "Light Fighter Chassis",
+      "kind": "chassis",
+      "hull": 120.0,
+      "mass": 40.0,
+      "moduleSlots": 1,
+      "radius": 22.0,
+      "spriteLayer": "fighter/chassis_light"
+    },
+    {
+      "id": "shell_thruster_mount",
+      "displayName": "Thruster Mount",
+      "kind": "engine",
+      "hull": 45.0,
+      "mass": 12.0,
+      "moduleSlots": 1,
+      "radius": 9.0,
+      "spriteLayer": "fighter/thruster_mount"
+    },
+    {
+      "id": "shell_wing_hardpoint",
+      "displayName": "Wing Hardpoint",
+      "kind": "weapon",
+      "hull": 35.0,
+      "mass": 8.0,
+      "moduleSlots": 1,
+      "radius": 7.0,
+      "spriteLayer": "fighter/wing_hardpoint"
+    },
+    {
+      "id": "shell_power_bay",
+      "displayName": "Power Bay",
+      "kind": "power_cell",
+      "hull": 50.0,
+      "mass": 15.0,
+      "moduleSlots": 1,
+      "radius": 8.0,
+      "spriteLayer": "fighter/power_bay"
+    },
+    {
+      "id": "shell_shield_emitter",
+      "displayName": "Shield Emitter Housing",
+      "kind": "shield",
+      "hull": 40.0,
+      "mass": 10.0,
+      "moduleSlots": 1,
+      "radius": 8.0,
+      "spriteLayer": "fighter/shield_emitter"
+    }
+  ]
+}

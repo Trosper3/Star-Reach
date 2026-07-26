@@ -1,0 +1,112 @@
+name: Build Star Reach
+
+# This file previously sat at .github/build.yaml -- one directory too high. GitHub Actions reads
+# only .github/workflows/*.yml|*.yaml, so CI was silently OFF. Moving it turned CI on.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  # -------------------------------------------------------------------------------------------
+  # The structural checks run FIRST and independently of any compiler.
+  #
+  # architecture.md section 8 calls these the highest-leverage items in the pipeline, and they
+  # are a few seconds of Python each. They gate the expensive matrix build below, so a PR that
+  # grows a god object fails in under a minute instead of after three platform builds.
+  # -------------------------------------------------------------------------------------------
+  enforce:
+    name: Structural enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Size caps (section 2.2)
+        run: python tools/ci/check_sizes.py
+
+      - name: Layer include rules (section 2.3)
+        run: python tools/ci/check_layers.py
+
+      - name: Single content pipeline (Law 10)
+        run: python tools/ci/check_content_pipeline.py
+
+      - name: No empty scaffolding (section 2.4)
+        run: python tools/ci/check_dead_dirs.py
+
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check clang-format
+        run: |
+          clang-format --version
+          find src tests -type f \( -name '*.h' -o -name '*.cpp' \) \
+            -print0 | xargs -0 clang-format --dry-run --Werror
+
+  build:
+    name: ${{ matrix.name }}
+    needs: [enforce]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Windows / MSVC", os: windows-latest }
+          - { name: "Linux / GCC", os: ubuntu-latest }
+          - { name: "macOS / Clang", os: macos-latest }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install raylib's X11/GL build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxkbcommon-dev libwayland-dev \
+            wayland-protocols libxkbcommon-x11-dev
+
+      # Supplies a consistent CMake and Ninja on all three runners, which the presets require.
+      - uses: lukka/get-cmake@latest
+
+      - name: Set up the MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Caching the binary archives is what keeps this job from recompiling raylib and EnTT from
+      # source on every push.
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/vcpkg/archives
+            ${{ env.LOCALAPPDATA }}\vcpkg\archives
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: ${{ runner.os }}-vcpkg-
+
+      # The runners ship vcpkg at VCPKG_INSTALLATION_ROOT; CMakePresets.json reads VCPKG_ROOT.
+      # Exporting one to the other is what lets CI and a contributor's machine share a preset.
+      - name: Point VCPKG_ROOT at the runner's vcpkg
+        shell: bash
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: cmake --preset release
+
+      - name: Build
+        run: cmake --build --preset release
+
+      # No smoke-run of the executable: it now opens a window, and the runners are headless.
+      # Coverage of the startup path lives in tests/integration/ContentTests.cpp, which loads and
+      # validates the same data/base_game files main() does.
+      - name: Test
+        run: ctest --preset release

@@ -68,7 +68,10 @@ vcpkg_installed/
 *.dwo
 
 # test output & cache
-tests/
+# NOTE: this used to be a bare `tests/`, which silently excluded the entire test tree from the
+# repository -- including the CI job that runs it. Ignore test *output*, never test sources.
+tests/**/output/
+Testing/
 .cache/
 
 # IDEs and Editors

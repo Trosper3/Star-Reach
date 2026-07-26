@@ -1,0 +1,95 @@
+{
+  "$comment": "Authored ship blueprints. This file and its siblings are the ONLY source of content (architecture.md Law 10). There is no C++ definition table anywhere in this project, and tools/ci/check_content_pipeline.py fails the build if one appears.",
+  "ships": [
+    {
+      "id": "aegis_vanguard",
+      "schemaVersion": 1,
+      "displayName": "Vanguard",
+      "faction": "aegis_directorate",
+      "mobile": true,
+      "structuralMassLimit": 260.0,
+      "mounts": [
+        {
+          "id": "core",
+          "shell": "shell_fighter_chassis",
+          "modules": ["armor_plate_i"],
+          "localOffset": { "x": 0.0, "y": 0.0 }
+        },
+        {
+          "id": "reactor",
+          "shell": "shell_power_bay",
+          "attachedTo": "core",
+          "modules": ["power_cell_i"],
+          "localOffset": { "x": -6.0, "y": 0.0 }
+        },
+        {
+          "id": "thruster_main",
+          "shell": "shell_thruster_mount",
+          "attachedTo": "core",
+          "modules": ["ion_thruster_i"],
+          "localOffset": { "x": -18.0, "y": 0.0 }
+        },
+        {
+          "id": "wing_port",
+          "shell": "shell_wing_hardpoint",
+          "attachedTo": "core",
+          "modules": ["pulse_cannon_i"],
+          "localOffset": { "x": 6.0, "y": -14.0 },
+          "traverseRadians": 0.35
+        },
+        {
+          "id": "wing_starboard",
+          "shell": "shell_wing_hardpoint",
+          "attachedTo": "core",
+          "modules": ["pulse_cannon_i"],
+          "localOffset": { "x": 6.0, "y": 14.0 },
+          "traverseRadians": 0.35
+        },
+        {
+          "id": "emitter",
+          "shell": "shell_shield_emitter",
+          "attachedTo": "core",
+          "modules": ["deflector_i"],
+          "localOffset": { "x": 2.0, "y": 0.0 }
+        }
+      ]
+    },
+    {
+      "id": "forgotten_scrapper",
+      "schemaVersion": 1,
+      "displayName": "Scrapper",
+      "faction": "the_forgotten",
+      "mobile": true,
+      "structuralMassLimit": 200.0,
+      "mounts": [
+        {
+          "id": "core",
+          "shell": "shell_fighter_chassis",
+          "modules": ["armor_plate_i"],
+          "localOffset": { "x": 0.0, "y": 0.0 }
+        },
+        {
+          "id": "reactor",
+          "shell": "shell_power_bay",
+          "attachedTo": "core",
+          "modules": ["power_cell_i"],
+          "localOffset": { "x": -6.0, "y": 0.0 }
+        },
+        {
+          "id": "thruster_main",
+          "shell": "shell_thruster_mount",
+          "attachedTo": "core",
+          "modules": ["ion_thruster_i"],
+          "localOffset": { "x": -18.0, "y": 0.0 }
+        },
+        {
+          "id": "gun_nose",
+          "shell": "shell_wing_hardpoint",
+          "attachedTo": "core",
+          "modules": ["autocannon_i"],
+          "localOffset": { "x": 16.0, "y": 0.0 }
+        }
+      ]
+    }
+  ]
+}
