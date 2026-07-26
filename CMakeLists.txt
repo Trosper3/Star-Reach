@@ -140,6 +140,7 @@ add_library(sr_space STATIC
     src/modes/space/data/SystemWorld.cpp
     src/modes/space/factories/RigFactory.cpp
     src/modes/space/systems/HierarchySystem.cpp
+    src/modes/space/systems/PhysicsSystem.cpp
     src/modes/space/systems/SystemSchedule.cpp
 )
 target_link_libraries(sr_space PUBLIC sr_options sr_core sr_shared sr_engine)
