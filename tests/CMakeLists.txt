@@ -9,6 +9,7 @@ add_executable(sr_tests
     unit/SystemWorldTests.cpp
     unit/HierarchySystemTests.cpp
     unit/PhysicsSystemTests.cpp
+    unit/TargetingSystemTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
 )
