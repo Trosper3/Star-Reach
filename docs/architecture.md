@@ -799,7 +799,9 @@ were the same check twice.
 | Link | An illegal *used* dependency, e.g. raylib from `sr_core` |
 | `ctest` | Any authored blueprint that fails validation |
 
-Run all of it locally with `python tools/ci/check_all.py`.
+Run all of it locally with `python tools/ci/check_all.py`. **That script does not run
+clang-format** — it only covers the four structural Python checks. Format separately (§11.8) or a
+correctly-built, correctly-layered PR will still fail CI on whitespace.
 
 ### 11.7 When a rule is wrong
 
@@ -807,3 +809,35 @@ Run all of it locally with `python tools/ci/check_all.py`.
 was cyclic and unbuildable; the fix is documented above rather than worked around. A check that
 gets bypassed with a comment is a check that has stopped existing — which is the entire failure
 mode this document was written to prevent.
+
+### 11.8 Task workflow
+
+**One branch per task, verified locally against exactly what CI runs, then stop for review.** This
+applies to every contributor, human or agent — an agent working a task from this document's §10
+list follows it without being asked each time.
+
+1. `git checkout main && git pull origin main` — start from the tip of `main`, not from whatever
+   the previous task left checked out. Two agents working the same feature name in parallel without
+   this step is exactly how a branch can end up duplicating work that already merged.
+2. `git checkout -b <descriptive-branch-name>` — a new branch per task, never reusing one from an
+   earlier task or stacking unrelated work onto it.
+3. Implement the task.
+4. Run, locally, the same checks `.github/workflows/build.yaml` runs, in this order:
+   - `python tools/ci/check_all.py` — the four structural jobs (§2.2–2.4).
+   - `clang-format --dry-run --Werror` over every changed `.h`/`.cpp`, using **the same
+     clang-format version CI uses** (currently 18.1.3; check the `format` job in
+     `build.yaml` if that drifts). MSVC's `clang-format.exe` is frequently a different version and
+     will pass locally while failing CI — if no matching binary is on `PATH`, install one with
+     `pip install clang-format==<version>` rather than trusting whatever is already installed.
+   - `cmake --preset release` (first time or after a `CMakeLists.txt` change) then
+     `cmake --build --preset release`. **Windows note:** run this from a Developer Command Prompt,
+     or `vcvars64.bat` first — see §7's Windows note; without it, MSVC's own standard headers
+     (`<string>`, `<filesystem>`, …) fail to resolve, which looks like a broken environment but is
+     really just a missing `INCLUDE` path.
+   - `ctest --preset release --output-on-failure`.
+5. **Do not commit.** Leave the branch's changes staged in the working tree and report what
+   changed and what the checks showed. The user reviews the diff and decides whether it lands —
+   committing, amending, or discarding is their call, not an automatic next step.
+
+A task whose checks fail locally is not done — fix it before handing back, the same way a red CI
+run would not be handed back as finished.
