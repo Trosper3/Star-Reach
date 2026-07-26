@@ -74,6 +74,10 @@ tests/**/output/
 Testing/
 .cache/
 
+# Python bytecode (tools/ci/)
+__pycache__/
+*.py[cod]
+
 # IDEs and Editors
 .vscode/
 .idea/
