@@ -60,6 +60,13 @@ endif()
 if(SR_ENABLE_ASAN)
     if(MSVC)
         target_compile_options(sr_options INTERFACE /fsanitize=address)
+        # MSVC's ASan instruments std::string/std::vector with container-overflow annotations
+        # that every linked translation unit must agree on. vcpkg's prebuilt libraries (Catch2,
+        # raylib) are never built with /fsanitize=address, so without this the link fails with
+        # LNK2038 "mismatch detected for annotate_string/annotate_vector" -- Microsoft's own
+        # documented fix for mixing ASan code with non-instrumented static libraries.
+        target_compile_definitions(sr_options INTERFACE _DISABLE_VECTOR_ANNOTATION
+                                                        _DISABLE_STRING_ANNOTATION)
     else()
         target_compile_options(sr_options INTERFACE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(sr_options INTERFACE -fsanitize=address)

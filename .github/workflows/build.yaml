@@ -110,3 +110,41 @@ jobs:
       # validates the same data/base_game files main() does.
       - name: Test
         run: ctest --preset release
+
+  asan:
+    name: AddressSanitizer
+    needs: [enforce]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install raylib's X11/GL build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxkbcommon-dev libwayland-dev \
+            wayland-protocols libxkbcommon-x11-dev
+
+      - uses: lukka/get-cmake@latest
+
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: ${{ runner.os }}-vcpkg-
+
+      - name: Point VCPKG_ROOT at the runner's vcpkg
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: cmake --preset asan
+
+      - name: Build
+        run: cmake --build --preset asan
+
+      # Same headless caveat as the release matrix build above -- ctest runs the unit/integration
+      # suite, not StarReach.exe itself.
+      - name: Test
+        run: ctest --preset asan
