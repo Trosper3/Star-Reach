@@ -4,6 +4,7 @@
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
+#include "modes/space/systems/MiningSystem.h"
 #include "modes/space/systems/NpcAiSystem.h"
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/PartySystem.h"
@@ -37,10 +38,16 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   ProjectileSystem
     //   PartySystem       -- after NpcAiSystem so formation ThrustInput sticks; before
     //                        DamageSystem so PendingDamage is still readable for retaliation
-    //   DamageSystem      -- must be last; destruction is the tick's final word
-    //   LootSystem        -- no ordering constraint against the above: it only reads this
-    //                        tick's settled WorldTransform/CollisionRadius and never spawns a
-    //                        drop itself (Law 5 -- there is no LootFactory yet), so it runs last
+    //   DamageSystem      -- must be last of the combat systems; destruction is the tick's
+    //                        final word there. An Asteroid can be tagged Destroyed by this same
+    //                        generic drain, which is exactly what MiningSystem reacts to next.
+    //   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
+    //                        before LootSystem so a MaterialDrop it spawns this tick is already
+    //                        visible to LootSystem's expiry/pickup pass the same tick.
+    //   LootSystem        -- no ordering constraint against the above beyond that: it only reads
+    //                        this tick's settled WorldTransform/CollisionRadius and never spawns
+    //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
+    //                        last.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"HierarchySystem", &hierarchy_system::Tick},
@@ -55,6 +62,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"ProjectileSystem", &projectile_system::Tick},
         {"PartySystem", &party_system::Tick},
         {"DamageSystem", &damage_system::Tick},
+        {"MiningSystem", &mining_system::Tick},
         {"LootSystem", &loot_system::Tick},
     };
     return schedule;
