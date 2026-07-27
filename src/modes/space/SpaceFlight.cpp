@@ -1,5 +1,6 @@
 #include "modes/space/SpaceFlight.h"
 
+#include "modes/space/render/WorldRenderer.h"
 #include "modes/space/systems/SystemSchedule.h"
 
 namespace sr::space {
@@ -28,9 +29,9 @@ void SpaceFlight::Update(float realDeltaSeconds) {
 }
 
 void SpaceFlight::Draw(float alpha) const {
-    (void)alpha;
-    // render/ lands with the first vertical slice. Camera math belongs in this file (Law 7);
-    // the draw calls themselves belong in modes/space/render/.
+    // Camera math belongs in this file (Law 7); the draw calls themselves belong in
+    // modes/space/render/.
+    render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, alpha);
 }
 
 void SpaceFlight::OnExit() {}
