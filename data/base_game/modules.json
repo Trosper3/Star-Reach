@@ -71,6 +71,17 @@
         "rechargePerSecond": 12.0,
         "rechargeDelaySeconds": 3.5
       }
+    },
+    {
+      "id": "docking_bay_i",
+      "displayName": "Docking Bay I",
+      "kind": "facility",
+      "mass": 25.0,
+      "powerDraw": 20.0,
+      "facility": {
+        "kind": "docking",
+        "capacity": 4
+      }
     }
   ]
 }

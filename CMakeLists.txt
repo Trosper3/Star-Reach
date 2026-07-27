@@ -144,6 +144,7 @@ add_library(sr_space STATIC
     src/modes/space/data/SystemWorld.cpp
     src/modes/space/factories/RigFactory.cpp
     src/modes/space/factories/NpcFactory.cpp
+    src/modes/space/factories/StationFactory.cpp
     src/modes/space/factories/WorldGen.cpp
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/systems/CollisionSystem.cpp
