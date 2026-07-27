@@ -18,7 +18,8 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
 | 📋 | **Planned.** Designed, agreed, not yet written. |
 | 🧊 | **Deferred.** Deliberately unbuilt. Do not start until a shipped feature demands it. |
 
-**Current reality (updated):** the enforcement infrastructure and the interface layer are built.
+**Current reality (updated):** the enforcement infrastructure, the First Vertical Slice (§10), and
+a first wave of §4 systems beyond it are built.
 
 - ✅ **CI is running.** `build.yaml` moved to `.github/workflows/`. Four structural jobs gate a
   three-platform matrix build.
@@ -30,10 +31,17 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
 - ✅ **Blueprint schema** (`shared/blueprints/`), **POD components** (`shared/components/`),
   **JSON registries** (`core/registries/`), **intent queue** (`core/events/`), **fixed timestep**
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
-- ✅ **41 tests pass**, including validation of the real `data/base_game/` content set.
+- ✅ **Factories** — `RigFactory`, `NpcFactory` (`modes/space/factories/`).
+- ✅ **Seven of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `WeaponSystem`,
+  `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` — registered in
+  `SystemSchedule.cpp`.
+- ✅ **Minimal renderer** — `WorldRenderer` (`modes/space/render/`).
+- ✅ **97 tests pass**, including validation of the real `data/base_game/` content set and
+  damage/shield-bypass, hierarchy-propagation, and targeting coverage.
 
-Not built: every entry in §4's system inventory, factories, rendering, and everything marked 🧊.
-`SystemSchedule` is deliberately empty — the ordering rules are written, the systems are not.
+Not built: the other sixteen entries in §4's system inventory (tracked as individual GitHub
+issues), `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, unified serialization, and everything
+marked 🧊.
 
 ---
 
@@ -487,31 +495,33 @@ went** — work with nowhere named to go lands in the orchestrator.
 So the systems are enumerated up front. This list is derived from what the legacy game actually
 does, not from guesswork.
 
-| System | Responsibility | Tier |
-|---|---|:---:|
-| `HierarchySystem` | One pass: parent → child `WorldTransform` propagation (Law 4) | 1 |
-| `PhysicsSystem` | Thrust, mass, momentum, drag, angular acceleration | 1 |
-| `OrbitSystem` | Planet/moon orbits, sun gravity wells, deterministic fast-forward | 1–2 |
-| `CollisionSystem` | Broad-phase spatial grid + narrow-phase convex hull | 1 |
-| `ProjectileSystem` | Advance, expire, cull | 1 |
-| `DamageSystem` | Shield typing, bypass, localized hardpoint destruction | 1 |
-| `WeaponSystem` | Fire control, cooldowns, charge/burst/spread modes | 1 |
-| `TargetingSystem` | Target acquisition, aim-point selection per rig type | 1 |
-| `PowerSystem` | Power budget, load shedding, throttle gating | 1 |
-| `NpcAiSystem` | Steering, state machine (Patrol/Chase/Attack/Flee/Escort) | 1 |
-| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 |
-| `SpawnSystem` | Safe spawn placement, culling, respawn-around-anchor | 1 |
-| `LootSystem` | Drops, material salvage, derelict wrecks, pickup radius | 1 |
-| `MiningSystem` | Asteroid depletion, station mining ticks | 1–2 |
-| `DockingSystem` | Proximity prompts, dock/undock, seated turrets, capture | 1 |
-| `WarpSystem` | Local warp, system warp, galaxy warp, registry handoff | 1 |
-| `CommsSystem` | Hail, dialogue lines, message log | 1 |
-| `ContractSystem` | Contract lifecycle: accept, tick, complete, fail | 1–2 |
-| `DistressSystem` | Distress call generation and response | 1–2 |
-| `TutorialSystem` | Step gating and advancement | 1 |
-| `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 |
-| `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 |
-| `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 |
+| System | Responsibility | Tier | Status |
+|---|---|:---:|:---:|
+| `HierarchySystem` | One pass: parent → child `WorldTransform` propagation (Law 4) | 1 | ✅ |
+| `PhysicsSystem` | Thrust, mass, momentum, drag, angular acceleration | 1 | ✅ |
+| `OrbitSystem` | Planet/moon orbits, sun gravity wells, deterministic fast-forward | 1–2 | 📋 |
+| `CollisionSystem` | Broad-phase spatial grid + narrow-phase convex hull | 1 | 📋 |
+| `ProjectileSystem` | Advance, expire, cull | 1 | ✅ |
+| `DamageSystem` | Shield typing, bypass, localized hardpoint destruction | 1 | ✅ |
+| `WeaponSystem` | Fire control, cooldowns, charge/burst/spread modes | 1 | ✅ |
+| `TargetingSystem` | Target acquisition, aim-point selection per rig type | 1 | ✅ |
+| `PowerSystem` | Power budget, load shedding, throttle gating | 1 | 📋 |
+| `NpcAiSystem` | Steering, state machine (Patrol/Chase/Attack/Flee/Escort) | 1 | ✅ |
+| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | 📋 |
+| `SpawnSystem` | Safe spawn placement, culling, respawn-around-anchor | 1 | 📋 |
+| `LootSystem` | Drops, material salvage, derelict wrecks, pickup radius | 1 | 📋 |
+| `MiningSystem` | Asteroid depletion, station mining ticks | 1–2 | 📋 |
+| `DockingSystem` | Proximity prompts, dock/undock, seated turrets, capture | 1 | 📋 |
+| `WarpSystem` | Local warp, system warp, galaxy warp, registry handoff | 1 | 📋 |
+| `CommsSystem` | Hail, dialogue lines, message log | 1 | 📋 |
+| `ContractSystem` | Contract lifecycle: accept, tick, complete, fail | 1–2 | 📋 |
+| `DistressSystem` | Distress call generation and response | 1–2 | 📋 |
+| `TutorialSystem` | Step gating and advancement | 1 | 📋 |
+| `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 | 📋 |
+| `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | 📋 |
+| `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | 📋 |
+
+Every 📋 row above is tracked as its own GitHub issue.
 
 **Tier** refers to the LOD model in `features.md` §1. Tier 1 runs in the active system's registry
 at 60 Hz; Tier 2 in neighbor registries at ~5 Hz; Tier 3 against `core/galaxy/` on the macro tick.
@@ -522,9 +532,9 @@ branching on tier.
 
 ## 5. Subsystem Standards
 
-**Fixed Timestep Simulation** 📋 — gameplay ticks at a fixed 60 Hz via a time accumulator.
-Rendering interpolates. Determinism must hold regardless of refresh rate or frame spikes, because
-Law 2's coarse-tick catch-up depends on it.
+**Fixed Timestep Simulation** ✅ — gameplay ticks at a fixed 60 Hz via a time accumulator
+(`core/time/FixedTimestep.h`). Rendering interpolates. Determinism must hold regardless of refresh
+rate or frame spikes, because Law 2's coarse-tick catch-up depends on it.
 
 **Unified Serialization** 📋 — one pipeline writes `.sav` files and packs wire packets. It operates
 on **blueprint form only** (Law 3). Entity handles are never serialized. StarReach2's `ByteWriter`
@@ -661,7 +671,7 @@ first project started.
 
 ---
 
-## 10. First Vertical Slice 📋
+## 10. First Vertical Slice ✅
 
 **Target: fly one ship with three hardpoint entities, engage one NPC, and destroy a specific
 hardpoint with targeted fire.**
@@ -691,7 +701,16 @@ contracts, tutorial, comms, atlases, hot-reload, object pools, audio.
 the engine hardpoint stalls the ship, and neither outcome required a special case for what kind of
 craft it was attached to.
 
-Items 1 and 2 are **done**. Items 3–9 are the remaining work.
+**Items 1–9 are done.** `SystemWorld`, `ShipBlueprint`/`RigBlueprint` JSON, `RigFactory`,
+`HierarchySystem`/`PhysicsSystem`/`WeaponSystem`/`ProjectileSystem`/`DamageSystem`/
+`TargetingSystem`, `NpcFactory`/`NpcAiSystem`, `WorldRenderer`, and unit coverage for blueprint
+validation, damage/shield-bypass, and hierarchy propagation all exist and pass
+(`ctest --preset release`: 97/97). The "slice succeeds when" behavioral claim above is backed by
+those unit tests but has not yet been confirmed in an actual play session — that verification is
+still open.
+
+The remaining §4 systems, `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, and unified
+serialization are tracked as individual GitHub issues rather than as a slice checklist.
 
 ---
 

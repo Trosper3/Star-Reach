@@ -8,6 +8,7 @@ add_executable(sr_tests
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
     unit/HierarchySystemTests.cpp
+    unit/OrbitSystemTests.cpp
     unit/PhysicsSystemTests.cpp
     unit/TargetingSystemTests.cpp
     unit/WeaponSystemTests.cpp
