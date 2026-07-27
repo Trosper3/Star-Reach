@@ -27,12 +27,17 @@ struct ScheduledSystem {
 //   1. HierarchySystem runs FIRST. Every system downstream reads WorldTransform flat, and it is
 //      stale until the hierarchy pass has written it.
 //   2. PowerSystem runs before anything it gates (weapons, shields, thrust).
-//   3. PartySystem runs after NpcAiSystem (so its formation ThrustInput isn't immediately reset
+//   3. SpawnSystem runs after HierarchySystem but before anything that reasons about distance or
+//      position this tick (OrbitSystem onward), so a respawned rig's new WorldTransform is
+//      settled before combat/movement systems act on it. It accepts a one-tick lag on a
+//      respawned rig's OWN hardpoint transforms (HierarchySystem already ran this tick) the same
+//      way PhysicsSystem/HierarchySystem's ordering already does.
+//   4. PartySystem runs after NpcAiSystem (so its formation ThrustInput isn't immediately reset
 //      by NpcAiSystem's per-tick clear) and before DamageSystem (so it can still read this
 //      tick's PendingDamage before DamageSystem drains and clears it).
-//   4. DamageSystem runs LAST among simulation systems. Destruction is the tick's final word,
+//   5. DamageSystem runs LAST among simulation systems. Destruction is the tick's final word,
 //      so no system spends work on a hardpoint that is about to stop existing.
-//   5. Intents are drained by the orchestrator after the whole list has run, never mid-list --
+//   6. Intents are drained by the orchestrator after the whole list has run, never mid-list --
 //      otherwise a system's view of this tick's input depends on its position.
 const std::vector<ScheduledSystem>& TickSchedule();
 

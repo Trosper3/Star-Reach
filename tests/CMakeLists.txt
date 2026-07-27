@@ -16,6 +16,7 @@ add_executable(sr_tests
     unit/TargetingSystemTests.cpp
     unit/WeaponSystemTests.cpp
     unit/ProjectileSystemTests.cpp
+    unit/SpawnSystemTests.cpp
     unit/DamageSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     integration/ContentTests.cpp

@@ -150,6 +150,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/PhysicsSystem.cpp
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
+    src/modes/space/systems/SpawnSystem.cpp
     src/modes/space/systems/TargetingSystem.cpp
     src/modes/space/systems/WeaponSystem.cpp
     src/modes/space/systems/SystemSchedule.cpp

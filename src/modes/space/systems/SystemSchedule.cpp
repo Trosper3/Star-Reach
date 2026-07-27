@@ -9,6 +9,7 @@
 #include "modes/space/systems/PhysicsSystem.h"
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
+#include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
 
@@ -22,6 +23,8 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   HierarchySystem   -- must be first; everything below reads WorldTransform
     //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
     //                        tags, before anything that gates on it
+    //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
+    //                        anything below reasons about position or distance this tick
     //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
     //                        wells before PhysicsSystem integrates it, same as thrust
     //   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
@@ -38,6 +41,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
         {"HierarchySystem", &hierarchy_system::Tick},
         {"PowerSystem", &power_system::Tick},
+        {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
