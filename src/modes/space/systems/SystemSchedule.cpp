@@ -2,6 +2,7 @@
 
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/CommsSystem.h"
+#include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/DockingSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
@@ -53,6 +54,10 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
     //                        before LootSystem so a MaterialDrop it spawns this tick is already
     //                        visible to LootSystem's expiry/pickup pass the same tick.
+    //   ContractSystem    -- after DamageSystem for the same reason as MiningSystem: it credits
+    //                        Bounty kills off this tick's Destroyed rig roots. Independent of
+    //                        MiningSystem (Asteroid-tagged vs FactionRef-tagged Destroyed
+    //                        entities never overlap).
     //   LootSystem        -- no ordering constraint against the above beyond that: it only reads
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
@@ -76,6 +81,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"PartySystem", &party_system::Tick},
         {"DamageSystem", &damage_system::Tick},
         {"MiningSystem", &mining_system::Tick},
+        {"ContractSystem", &contract_system::Tick},
         {"LootSystem", &loot_system::Tick},
         {"CommsSystem", &comms_system::Tick},
     };
