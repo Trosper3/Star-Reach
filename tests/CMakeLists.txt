@@ -25,6 +25,7 @@ add_executable(sr_tests
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp
+    unit/DistressSystemTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
     integration/NpcFactoryTests.cpp

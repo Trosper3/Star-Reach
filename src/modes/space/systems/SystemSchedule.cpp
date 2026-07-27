@@ -4,6 +4,7 @@
 #include "modes/space/systems/CommsSystem.h"
 #include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
+#include "modes/space/systems/DistressSystem.h"
 #include "modes/space/systems/DockingSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
@@ -58,6 +59,8 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        Bounty kills off this tick's Destroyed rig roots. Independent of
     //                        MiningSystem (Asteroid-tagged vs FactionRef-tagged Destroyed
     //                        entities never overlap).
+    //   DistressSystem    -- after DamageSystem so a ShipUnderAttack call sees this tick's
+    //                        Destroyed tag on its npcTarget.
     //   LootSystem        -- no ordering constraint against the above beyond that: it only reads
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
@@ -82,6 +85,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"DamageSystem", &damage_system::Tick},
         {"MiningSystem", &mining_system::Tick},
         {"ContractSystem", &contract_system::Tick},
+        {"DistressSystem", &distress_system::Tick},
         {"LootSystem", &loot_system::Tick},
         {"CommsSystem", &comms_system::Tick},
     };
