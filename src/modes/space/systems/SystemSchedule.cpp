@@ -2,6 +2,7 @@
 
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/DamageSystem.h"
+#include "modes/space/systems/DockingSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/MiningSystem.h"
@@ -30,6 +31,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
     //                        wells before PhysicsSystem integrates it, same as thrust
     //   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
+    //   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
+    //                        are zeroed before TargetingSystem/NpcAiSystem see it this same
+    //                        tick; removes Targetable the instant docking completes.
     //   TargetingSystem
     //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
     //   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
@@ -55,6 +59,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
+        {"DockingSystem", &docking_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
         {"NpcAiSystem", &npc_ai_system::Tick},
         {"WeaponSystem", &weapon_system::Tick},

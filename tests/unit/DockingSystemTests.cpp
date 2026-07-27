@@ -1,0 +1,255 @@
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include "core/events/IntentQueue.h"
+#include "core/registries/ContentLibrary.h"
+#include "modes/space/data/SystemWorld.h"
+#include "modes/space/systems/DockingSystem.h"
+#include "shared/components/Docking.h"
+#include "shared/components/Health.h"
+#include "shared/components/Identity.h"
+#include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
+
+using sr::Destroyed;
+using sr::Docked;
+using sr::DockingBay;
+using sr::DockPrompt;
+using sr::DockRequest;
+using sr::FactionId;
+using sr::FactionRef;
+using sr::Health;
+using sr::ParentRig;
+using sr::Rig;
+using sr::Targetable;
+using sr::ThrustInput;
+using sr::UndockRequest;
+using sr::Vec2;
+using sr::Velocity;
+using sr::WorldTransform;
+using sr::space::SystemContext;
+using sr::space::SystemWorld;
+namespace docking_system = sr::space::docking_system;
+
+namespace {
+
+SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
+                          const sr::core::ContentLibrary& content, float dt = 1.0f / 60.0f) {
+    return SystemContext{world, intents, content, dt, 0};
+}
+
+entt::entity MakeShip(entt::registry& registry, const Vec2& position, const char* faction) {
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, position, 0.0f);
+    registry.emplace<FactionRef>(root, FactionId(faction));
+    registry.emplace<Targetable>(root);
+    registry.emplace<Velocity>(root, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<ThrustInput>(root, 1.0f, 0.0f, 0.0f);
+    return root;
+}
+
+// A station root with one docking-bay hardpoint at `bayPosition`.
+entt::entity MakeStation(entt::registry& registry, const Vec2& stationPosition,
+                         const Vec2& bayPosition, const char* faction, entt::entity& outBay) {
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, stationPosition, 0.0f);
+    registry.emplace<FactionRef>(root, FactionId(faction));
+
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, root);
+    registry.emplace<WorldTransform>(bay, bayPosition, 0.0f);
+    registry.emplace<DockingBay>(bay);
+    outBay = bay;
+
+    return root;
+}
+
+}  // namespace
+
+TEST_CASE("DockingSystem prompts a Targetable rig within range of a same-faction bay",
+          "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<DockPrompt>(ship));
+    CHECK(registry.get<DockPrompt>(ship).bay == bay);
+}
+
+TEST_CASE("DockingSystem does not prompt a rig out of range", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{9000.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
+}
+
+TEST_CASE("DockingSystem does not prompt a rig near a hostile-faction bay", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "reavers", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
+}
+
+TEST_CASE("DockingSystem docks a rig whose DockRequest names the prompted bay", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    const entt::entity station =
+        MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+    registry.emplace<DockRequest>(ship, bay);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<Docked>(ship));
+    CHECK(registry.get<Docked>(ship).station == station);
+    CHECK(registry.get<Docked>(ship).bay == bay);
+    CHECK_FALSE(registry.all_of<Targetable>(ship));
+    CHECK_FALSE(registry.all_of<DockRequest>(ship));
+}
+
+TEST_CASE("DockingSystem drops a DockRequest naming a bay that is not in range", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity farBay = entt::null;
+    MakeStation(registry, Vec2{9000.0f, 0.0f}, Vec2{9000.0f, 0.0f}, "aegis", farBay);
+    const entt::entity ship = MakeShip(registry, Vec2{0.0f, 0.0f}, "aegis");
+    registry.emplace<DockRequest>(ship, farBay);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Docked>(ship));
+    CHECK_FALSE(registry.all_of<DockRequest>(ship));
+}
+
+TEST_CASE("DockingSystem heals a docked rig's living hardpoints but not a destroyed one",
+          "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, station);
+    registry.emplace<WorldTransform>(bay, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<DockingBay>(bay);
+
+    const entt::entity ship = registry.create();
+    registry.emplace<Docked>(ship, station, bay);
+
+    Rig rig;
+    const entt::entity living = registry.create();
+    registry.emplace<Health>(living, 50.0f, 100.0f);
+    rig.children.push_back(living);
+    const entt::entity dead = registry.create();
+    registry.emplace<Health>(dead, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(dead);
+    rig.children.push_back(dead);
+    registry.emplace<Rig>(ship, rig);
+
+    // 1 second at 0.15 max/s -- exactly the ~6.7s-to-full formula ported from legacy.
+    docking_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Health>(living).current == Catch::Approx(65.0f));
+    CHECK(registry.get<Health>(dead).current == Catch::Approx(0.0f));
+}
+
+TEST_CASE("DockingSystem zeroes a docked rig's Velocity and ThrustInput", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity ship = registry.create();
+    registry.emplace<Docked>(ship, station, entt::null);
+    registry.emplace<Rig>(ship);
+    registry.emplace<Velocity>(ship, Vec2{500.0f, -20.0f}, 3.0f);
+    registry.emplace<ThrustInput>(ship, 1.0f, -1.0f, 0.5f);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    const Velocity& velocity = registry.get<Velocity>(ship);
+    CHECK(velocity.linear.x == 0.0f);
+    CHECK(velocity.linear.y == 0.0f);
+    CHECK(velocity.angular == 0.0f);
+    const ThrustInput& thrust = registry.get<ThrustInput>(ship);
+    CHECK(thrust.forward == 0.0f);
+    CHECK(thrust.strafe == 0.0f);
+    CHECK(thrust.turn == 0.0f);
+}
+
+TEST_CASE("DockingSystem undocks a rig with an UndockRequest and restores Targetable",
+          "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity ship = registry.create();
+    registry.emplace<Docked>(ship, station, entt::null);
+    registry.emplace<Rig>(ship);
+    registry.emplace<UndockRequest>(ship);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Docked>(ship));
+    CHECK_FALSE(registry.all_of<UndockRequest>(ship));
+    CHECK(registry.all_of<Targetable>(ship));
+}
+
+TEST_CASE("DockingSystem never docks a rig with its own bay", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    // A station is itself a rig root with FactionRef + Targetable, so it is also a candidate
+    // "docker" -- it must never resolve its own bay as an eligible target.
+    const entt::entity station = registry.create();
+    registry.emplace<WorldTransform>(station, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    registry.emplace<Targetable>(station);
+
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, station);
+    registry.emplace<WorldTransform>(bay, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<DockingBay>(bay);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(station));
+}
