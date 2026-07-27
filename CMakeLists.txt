@@ -140,6 +140,7 @@ add_library(sr_space STATIC
     src/modes/space/data/SystemWorld.cpp
     src/modes/space/factories/RigFactory.cpp
     src/modes/space/factories/NpcFactory.cpp
+    src/modes/space/render/WorldRenderer.cpp
     src/modes/space/systems/DamageSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/NpcAiSystem.cpp
