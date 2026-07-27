@@ -146,6 +146,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/NpcAiSystem.cpp
     src/modes/space/systems/OrbitSystem.cpp
     src/modes/space/systems/PhysicsSystem.cpp
+    src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
     src/modes/space/systems/TargetingSystem.cpp
     src/modes/space/systems/WeaponSystem.cpp

@@ -5,6 +5,7 @@
 #include "modes/space/systems/NpcAiSystem.h"
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/PhysicsSystem.h"
+#include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
@@ -17,17 +18,20 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     // a dead abstraction (architecture.md section 2.4) and will be deleted at review.
     //
     //   HierarchySystem   -- must be first; everything below reads WorldTransform
+    //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
+    //                        tags, before anything that gates on it
     //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
     //                        wells before PhysicsSystem integrates it, same as thrust
-    //   PhysicsSystem
+    //   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
     //   TargetingSystem
     //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
-    //   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
+    //   WeaponSystem      -- scales cooldown recovery by PowerBudget.satisfaction
     //   ProjectileSystem
     //   DamageSystem      -- must be last; destruction is the tick's final word
     //
     static const std::vector<ScheduledSystem> schedule{
         {"HierarchySystem", &hierarchy_system::Tick},
+        {"PowerSystem", &power_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
