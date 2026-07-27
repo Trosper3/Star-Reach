@@ -1,7 +1,9 @@
 #include "modes/space/render/WorldRenderer.h"
 
 #include <raylib.h>
+#include <algorithm>
 
+#include "modes/space/render/LightingPass.h"
 #include "shared/blueprints/Taxonomy.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Identity.h"
@@ -50,16 +52,30 @@ Color ColorForProjectile(DamageType type) {
     return type == DamageType::Energy ? SKYBLUE : YELLOW;
 }
 
+// Scales a placeholder color by LightingPass's per-object brightness (LightingPass.h) -- the
+// closest thing to shading this renderer has until a real sprite/shader pipeline exists.
+// Channels clip at 255 rather than wrapping, which is what reproduces the "washes toward white
+// near the light source" overexposure look without an actual additive blend.
+Color ApplyBrightness(Color base, float brightness) {
+    const auto Scale = [brightness](unsigned char channel) {
+        return static_cast<unsigned char>(
+            std::clamp(static_cast<float>(channel) * brightness, 0.0f, 255.0f));
+    };
+    return Color{Scale(base.r), Scale(base.g), Scale(base.b), base.a};
+}
+
 // Rig roots: a nose-forward triangle sized by the broad-phase collision radius (Physics.h). The
-// player's rig is cyan so it reads distinctly against NPC opposition without needing a HUD marker
-// yet -- shared/ui/ has no HUD theme to borrow from (architecture.md section 3, still 📋).
+// player's rig is cyan so it reads distinctly against NPC opposition without needing a HUD
+// marker yet (shared/ui/ exists now, but modes/space/ui/ -- the thing that would actually draw
+// one -- is still a separate, dependent issue).
 void DrawShips(const entt::registry& registry, float alpha) {
     for (auto [entity, xf, prev, radius] :
          registry.view<WorldTransform, PreviousTransform, CollisionRadius>(entt::exclude<Destroyed>)
              .each()) {
         const Vec2 position = InterpolatedPosition(xf, prev, alpha);
         const float rotation = InterpolatedRotation(xf, prev, alpha);
-        const Color color = registry.all_of<PlayerControlled>(entity) ? SKYBLUE : ORANGE;
+        const Color baseColor = registry.all_of<PlayerControlled>(entity) ? SKYBLUE : ORANGE;
+        const Color color = ApplyBrightness(baseColor, LightForObject(registry, position));
 
         const Vec2 nose = position + Rotated(Vec2{radius.value, 0.0f}, rotation);
         const Vec2 left =
@@ -84,7 +100,9 @@ void DrawHardpoints(const entt::registry& registry, float alpha) {
         (void)entity;
         const Vec2 position = InterpolatedPosition(xf, prev, alpha);
         const float drawRadius = radius.value > 0.0f ? radius.value : kHardpointMinRadius;
-        DrawCircleV(ToRaylib(position), drawRadius, ColorForShell(role.kind));
+        const Color color =
+            ApplyBrightness(ColorForShell(role.kind), LightForObject(registry, position));
+        DrawCircleV(ToRaylib(position), drawRadius, color);
     }
 }
 

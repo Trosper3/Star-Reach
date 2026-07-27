@@ -7,6 +7,7 @@
 #include "modes/space/factories/NpcFactory.h"
 #include "shared/blueprints/Ids.h"
 #include "shared/components/Health.h"
+#include "shared/components/Lighting.h"
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
@@ -33,11 +34,13 @@ int RandomInt(Rng& rng, int lo, int hi) {
 
 constexpr float kSunGravityRange = 2200.0f;
 constexpr float kSunGravityStrength = 260.0f;
+constexpr float kSunLightRange = 6000.0f;
 
 void SpawnSun(entt::registry& registry) {
     const entt::entity sun = registry.create();
     registry.emplace<WorldTransform>(sun, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<GravityWell>(sun, kSunGravityRange, kSunGravityStrength);
+    registry.emplace<LightSource>(sun, kSunLightRange);
 }
 
 // -- Planets ----------------------------------------------------------------------------------
