@@ -118,6 +118,7 @@ add_library(sr_core STATIC
     src/core/diplomacy/Reputation.cpp
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
+    src/core/galaxy/Discovery.cpp
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp
@@ -151,6 +152,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
+    src/modes/space/systems/DiscoverySystem.cpp
     src/modes/space/systems/DistressSystem.cpp
     src/modes/space/systems/DockingSystem.cpp
     src/modes/space/systems/FactionEconomySystem.cpp

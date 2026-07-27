@@ -2,6 +2,7 @@
 
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
+#include "core/galaxy/Discovery.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 
@@ -37,6 +38,12 @@ struct SystemContext {
     // fixture predating FactionEconomySystem (#30) constructs a SystemContext without one. Only
     // FactionEconomySystem reads or writes through it today.
     core::economy::FactionEconomy* economy = nullptr;
+
+    // Galaxy-wide per-faction discovered-system knowledge (Law 8 -- core/galaxy/, not this or
+    // any registry). Same nullable-pointer shape as `economy` above, for the same reason: most
+    // systems never touch it, and every test fixture predating DiscoverySystem (#32) constructs
+    // a SystemContext without one.
+    core::galaxy::DiscoveryState* discovery = nullptr;
 
     entt::registry& Registry() const { return world.Registry(); }
 };

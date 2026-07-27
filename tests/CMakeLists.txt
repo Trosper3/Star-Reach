@@ -18,6 +18,8 @@ add_executable(sr_tests
     unit/ProjectileSystemTests.cpp
     unit/SpawnSystemTests.cpp
     unit/DamageSystemTests.cpp
+    unit/DiscoveryTests.cpp
+    unit/DiscoverySystemTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
     unit/NpcAiSystemTests.cpp
