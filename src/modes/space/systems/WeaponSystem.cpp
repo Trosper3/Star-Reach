@@ -1,0 +1,119 @@
+#include "modes/space/systems/WeaponSystem.h"
+
+#include <algorithm>
+#include <cmath>
+#include <optional>
+
+#include "shared/components/Combat.h"
+#include "shared/components/Physics.h"
+#include "shared/components/Power.h"
+#include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
+#include "shared/math/Angle.h"
+#include "shared/math/Vec2.h"
+
+namespace sr::space::weapon_system {
+namespace {
+
+constexpr float kAimToleranceRadians = 0.03f;
+
+// The world position a hardpoint should aim at: TargetingSystem's selected hardpoint if it is
+// still alive, else the rig root it belongs to. Nullopt if the rig has no target this tick.
+std::optional<Vec2> AimPointPosition(const entt::registry& registry, const Target& target) {
+    const entt::entity point = target.hardpoint != entt::null ? target.hardpoint : target.rig;
+    if (point == entt::null || !registry.valid(point)) {
+        return std::nullopt;
+    }
+    const auto* xf = registry.try_get<WorldTransform>(point);
+    return xf != nullptr ? std::optional<Vec2>(xf->position) : std::nullopt;
+}
+
+float RigSatisfaction(const entt::registry& registry, entt::entity rigRoot) {
+    const auto* budget = registry.try_get<PowerBudget>(rigRoot);
+    return budget != nullptr ? budget->satisfaction : 1.0f;
+}
+
+// Turns `arc` toward `aimPoint` at its rated traverse speed. Returns true if the mount is
+// currently aimed within tolerance of a target that is inside its arc -- i.e. it can hit right
+// now, not just eventually.
+bool AimAt(FiringArc& arc, const WorldTransform& mountXf, const Vec2& aimPoint, float dt) {
+    const float rawOffset = AngleDelta(mountXf.rotation, ToAngle(aimPoint - mountXf.position));
+    const bool withinArc = std::abs(rawOffset) <= arc.halfWidthRadians;
+    const float desiredOffset = std::clamp(rawOffset, -arc.halfWidthRadians, arc.halfWidthRadians);
+
+    arc.currentOffset = RotateToward(arc.currentOffset, desiredOffset, arc.turnRatePerSecond * dt);
+
+    return withinArc &&
+           std::abs(AngleDelta(arc.currentOffset, desiredOffset)) <= kAimToleranceRadians;
+}
+
+// Evenly fans `count` pellets across the weapon's spread cone rather than jittering them
+// randomly -- a fixed fan keeps fire resolution a pure function of the weapon's stats, which is
+// what Law 2's coarse-tick fast-forward needs to replay a tick identically.
+float PelletDirection(float baseDirection, float spreadRadians, int index, int count) {
+    if (count <= 1) {
+        return baseDirection;
+    }
+    const float t = static_cast<float>(index) / static_cast<float>(count - 1) - 0.5f;
+    return baseDirection + spreadRadians * t;
+}
+
+void SpawnProjectiles(entt::registry& registry, entt::entity shooter, const Weapon& weapon,
+                      const WorldTransform& mountXf, const Vec2& aimPoint) {
+    const float baseDirection = ToAngle(aimPoint - mountXf.position);
+    const int count = std::max(weapon.projectilesPerShot, 1);
+
+    for (int i = 0; i < count; ++i) {
+        const float direction = PelletDirection(baseDirection, weapon.spreadRadians, i, count);
+        const entt::entity projectile = registry.create();
+        registry.emplace<WorldTransform>(projectile, mountXf.position, direction);
+        registry.emplace<PreviousTransform>(projectile, mountXf.position, direction);
+        registry.emplace<Velocity>(projectile, FromAngle(direction) * weapon.projectileSpeed, 0.0f);
+        registry.emplace<Projectile>(projectile, weapon.damage, weapon.damageType, shooter,
+                                     weapon.rangeUnits);
+    }
+}
+
+}  // namespace
+
+void Tick(const SystemContext& ctx) {
+    entt::registry& registry = ctx.Registry();
+
+    for (auto [root, rig, target] : registry.view<Rig, Target>().each()) {
+        const bool wantsToFire = registry.all_of<FireIntent>(root);
+        const float satisfaction = RigSatisfaction(registry, root);
+        const std::optional<Vec2> aimPoint =
+            target.rig != entt::null ? AimPointPosition(registry, target) : std::nullopt;
+
+        for (const entt::entity hardpoint : rig.children) {
+            auto* weapon = registry.try_get<Weapon>(hardpoint);
+            auto* arc = registry.try_get<FiringArc>(hardpoint);
+            const auto* mountXf = registry.try_get<WorldTransform>(hardpoint);
+            if (weapon == nullptr || arc == nullptr || mountXf == nullptr ||
+                registry.all_of<Destroyed>(hardpoint)) {
+                continue;
+            }
+
+            weapon->cooldown = std::max(0.0f, weapon->cooldown - ctx.dt * satisfaction);
+
+            if (!aimPoint.has_value()) {
+                continue;
+            }
+
+            const bool onTarget = AimAt(*arc, *mountXf, *aimPoint, ctx.dt);
+            const float rangeSq = weapon->rangeUnits * weapon->rangeUnits;
+            const bool inRange = DistanceSquared(mountXf->position, *aimPoint) <= rangeSq;
+
+            if (wantsToFire && onTarget && inRange && weapon->cooldown <= 0.0f) {
+                SpawnProjectiles(registry, root, *weapon, *mountXf, *aimPoint);
+                weapon->cooldown = weapon->fireIntervalSeconds;
+            }
+        }
+    }
+
+    // One-shot per tick: whatever set it (input/AI) must set it again next tick.
+    registry.clear<FireIntent>();
+}
+
+}  // namespace sr::space::weapon_system

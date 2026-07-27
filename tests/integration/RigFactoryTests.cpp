@@ -52,7 +52,7 @@ TEST_CASE("A blueprint becomes a parent entity plus one child per mount", "[fact
     for (const entt::entity child : rig.children) {
         CHECK(world.Registry()
                   .all_of<sr::ParentRig, sr::MountRef, sr::Health, sr::LocalTransform,
-                          sr::WorldTransform>(child));
+                          sr::WorldTransform, sr::HitRadius>(child));
         CHECK(world.Registry().get<sr::ParentRig>(child).root == result.root);
     }
 }

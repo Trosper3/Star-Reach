@@ -10,6 +10,9 @@ add_executable(sr_tests
     unit/HierarchySystemTests.cpp
     unit/PhysicsSystemTests.cpp
     unit/TargetingSystemTests.cpp
+    unit/WeaponSystemTests.cpp
+    unit/ProjectileSystemTests.cpp
+    unit/DamageSystemTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
 )
