@@ -27,9 +27,12 @@ struct ScheduledSystem {
 //   1. HierarchySystem runs FIRST. Every system downstream reads WorldTransform flat, and it is
 //      stale until the hierarchy pass has written it.
 //   2. PowerSystem runs before anything it gates (weapons, shields, thrust).
-//   3. DamageSystem runs LAST among simulation systems. Destruction is the tick's final word,
+//   3. PartySystem runs after NpcAiSystem (so its formation ThrustInput isn't immediately reset
+//      by NpcAiSystem's per-tick clear) and before DamageSystem (so it can still read this
+//      tick's PendingDamage before DamageSystem drains and clears it).
+//   4. DamageSystem runs LAST among simulation systems. Destruction is the tick's final word,
 //      so no system spends work on a hardpoint that is about to stop existing.
-//   4. Intents are drained by the orchestrator after the whole list has run, never mid-list --
+//   5. Intents are drained by the orchestrator after the whole list has run, never mid-list --
 //      otherwise a system's view of this tick's input depends on its position.
 const std::vector<ScheduledSystem>& TickSchedule();
 
