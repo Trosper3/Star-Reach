@@ -144,6 +144,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
+    src/modes/space/systems/LootSystem.cpp
     src/modes/space/systems/NpcAiSystem.cpp
     src/modes/space/systems/OrbitSystem.cpp
     src/modes/space/systems/PartySystem.cpp
