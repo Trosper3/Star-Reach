@@ -176,6 +176,7 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
 
     registry.emplace<BodyMass>(root, std::max(aggregate.mass, 1.0f));
     registry.emplace<CollisionRadius>(root, std::max(aggregate.extent, 1.0f));
+    registry.emplace<RamCooldown>(root);
     registry.emplace<Velocity>(root);
     registry.emplace<ThrustInput>(root);
     registry.emplace<PowerBudget>(root);

@@ -7,6 +7,7 @@ add_executable(sr_tests
     unit/FixedTimestepTests.cpp
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
+    unit/CollisionSystemTests.cpp
     unit/HierarchySystemTests.cpp
     unit/OrbitSystemTests.cpp
     unit/PhysicsSystemTests.cpp
