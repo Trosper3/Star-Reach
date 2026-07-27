@@ -3,6 +3,7 @@ include(Catch)
 
 add_executable(sr_tests
     unit/MathTests.cpp
+    unit/HudThemeTests.cpp
     unit/ValidationTests.cpp
     unit/FixedTimestepTests.cpp
     unit/IntentQueueTests.cpp
@@ -42,7 +43,7 @@ add_executable(sr_tests
 # Tests link sr_space, which pulls the whole graph. The genuinely interesting property is that
 # unit/ValidationTests and unit/MathTests would link against sr_shared ALONE -- no renderer, no
 # registry, no mode. If that ever stops being true, something has leaked downward.
-target_link_libraries(sr_tests PRIVATE sr_space Catch2::Catch2WithMain)
+target_link_libraries(sr_tests PRIVATE sr_space sr_shared_ui Catch2::Catch2WithMain)
 
 # The integration test validates the real shipped content, not a fixture. Authored data that
 # cannot be instantiated should fail CI, not a player's session.
