@@ -13,8 +13,10 @@ add_executable(sr_tests
     unit/WeaponSystemTests.cpp
     unit/ProjectileSystemTests.cpp
     unit/DamageSystemTests.cpp
+    unit/NpcAiSystemTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
+    integration/NpcFactoryTests.cpp
 )
 
 # Tests link sr_space, which pulls the whole graph. The genuinely interesting property is that
