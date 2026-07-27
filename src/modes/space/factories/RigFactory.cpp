@@ -5,6 +5,7 @@
 
 #include "shared/blueprints/Validation.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -78,6 +79,13 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
             aggregate.propulsion.turnTorque += module.engine.turnTorque;
             aggregate.propulsion.maxSpeed =
                 std::max(aggregate.propulsion.maxSpeed, module.engine.maxSpeed);
+            break;
+        case ModuleKind::Facility:
+            // The only FacilityKind with a live-side consumer so far (DockingSystem, issue #24).
+            // Repair/Manufacturing/Research/Storage stay data-only until a system reads them.
+            if (module.facility.kind == FacilityKind::Docking) {
+                registry.emplace_or_replace<DockingBay>(hardpoint);
+            }
             break;
         default: break;
     }

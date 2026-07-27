@@ -143,6 +143,7 @@ add_library(sr_space STATIC
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
+    src/modes/space/systems/DockingSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/LootSystem.cpp
     src/modes/space/systems/MiningSystem.cpp
