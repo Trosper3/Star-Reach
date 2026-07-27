@@ -11,6 +11,8 @@ add_executable(sr_tests
     unit/ValidationTests.cpp
     unit/ByteStreamTests.cpp
     unit/BlueprintSerializationTests.cpp
+    unit/SaveMigratorTests.cpp
+    unit/SaveFileTests.cpp
     unit/FixedTimestepTests.cpp
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
