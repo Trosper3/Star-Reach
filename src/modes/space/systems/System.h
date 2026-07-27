@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -30,6 +31,12 @@ struct SystemContext {
     // behaviour derive it from this, never from GetTime() -- Law 2's fast-forward depends on
     // every time-dependent value being a pure function of tick count.
     unsigned long long tick;
+
+    // Galaxy-wide faction stock (Law 8 -- core/economy/, not this or any registry). A pointer,
+    // not a reference, and defaulted to nullptr: most systems never touch it, and every test
+    // fixture predating FactionEconomySystem (#30) constructs a SystemContext without one. Only
+    // FactionEconomySystem reads or writes through it today.
+    core::economy::FactionEconomy* economy = nullptr;
 
     entt::registry& Registry() const { return world.Registry(); }
 };

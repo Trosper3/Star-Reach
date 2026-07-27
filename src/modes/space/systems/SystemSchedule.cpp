@@ -6,6 +6,7 @@
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/DistressSystem.h"
 #include "modes/space/systems/DockingSystem.h"
+#include "modes/space/systems/FactionEconomySystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/MiningSystem.h"
@@ -71,6 +72,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        last.
     //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
     //                        SensorRange/DisplayName and writes its own singleton CommsLog.
+    //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
+    //                        outside every registry, so there is nothing this-tick for it to
+    //                        race against.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -93,6 +97,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"DistressSystem", &distress_system::Tick},
         {"LootSystem", &loot_system::Tick},
         {"CommsSystem", &comms_system::Tick},
+        {"FactionEconomySystem", &faction_economy_system::Tick},
     };
     return schedule;
 }
