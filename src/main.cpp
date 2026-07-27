@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <iostream>
 
+#include "core/economy/FactionEconomy.h"
 #include "core/registries/ContentLibrary.h"
 #include "engine/platform/Window.h"
 #include "modes/space/SpaceFlight.h"
@@ -59,7 +60,8 @@ int main() {
         return 1;
     }
 
-    sr::space::SpaceFlight mode(content);
+    sr::core::economy::FactionEconomy economy;
+    sr::space::SpaceFlight mode(content, economy);
     mode.OnEnter();
 
     while (!window.ShouldClose()) {

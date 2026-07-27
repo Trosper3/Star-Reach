@@ -5,8 +5,9 @@
 
 namespace sr::space {
 
-SpaceFlight::SpaceFlight(const core::ContentLibrary& content)
-    : world_("sol", "Sol"), content_(content) {}
+SpaceFlight::SpaceFlight(const core::ContentLibrary& content,
+                         core::economy::FactionEconomy& economy)
+    : world_("sol", "Sol"), content_(content), economy_(economy) {}
 
 void SpaceFlight::OnEnter() {
     // Factories populate the world here once they land (first vertical slice, step 5-7):
@@ -18,8 +19,8 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     clock_.Advance(realDeltaSeconds);
 
     while (clock_.ConsumeStep()) {
-        const SystemContext ctx{world_, intents_, content_, core::kFixedDeltaSeconds,
-                                clock_.ElapsedTicks()};
+        const SystemContext ctx{
+            world_, intents_, content_, core::kFixedDeltaSeconds, clock_.ElapsedTicks(), &economy_};
         RunTick(ctx);
     }
 

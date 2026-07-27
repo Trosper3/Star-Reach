@@ -114,6 +114,7 @@ target_link_libraries(sr_shared PUBLIC sr_options EnTT::EnTT)
 # and keeps the faction simulation unit-testable. A link error is a better guardian than a
 # paragraph.
 add_library(sr_core STATIC
+    src/core/economy/FactionEconomy.cpp
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp
@@ -147,6 +148,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/DamageSystem.cpp
     src/modes/space/systems/DistressSystem.cpp
     src/modes/space/systems/DockingSystem.cpp
+    src/modes/space/systems/FactionEconomySystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/LootSystem.cpp
     src/modes/space/systems/MiningSystem.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
@@ -24,7 +25,7 @@ namespace sr::space {
 // does not; it belongs in systems/.
 class SpaceFlight {
 public:
-    explicit SpaceFlight(const core::ContentLibrary& content);
+    SpaceFlight(const core::ContentLibrary& content, core::economy::FactionEconomy& economy);
 
     void OnEnter();
 
@@ -48,6 +49,7 @@ private:
     SystemWorld world_;
     core::IntentQueue intents_;
     const core::ContentLibrary& content_;
+    core::economy::FactionEconomy& economy_;
     core::FixedTimestep clock_;
 
     // Presentation state, and the only state this class is permitted to own.
