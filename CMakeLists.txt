@@ -142,6 +142,7 @@ add_library(sr_space STATIC
     src/modes/space/factories/NpcFactory.cpp
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/systems/CollisionSystem.cpp
+    src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
     src/modes/space/systems/DockingSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
