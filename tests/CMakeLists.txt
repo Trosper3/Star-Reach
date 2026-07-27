@@ -43,6 +43,7 @@ add_executable(sr_tests
     unit/DiplomacyMatrixTests.cpp
     unit/ReputationTests.cpp
     unit/TerritoryTests.cpp
+    unit/FactionDecisionEngineTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
     integration/NpcFactoryTests.cpp
