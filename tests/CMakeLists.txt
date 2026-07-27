@@ -22,6 +22,7 @@ add_executable(sr_tests
     unit/MiningSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
+    unit/WarpSystemTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
     integration/NpcFactoryTests.cpp
