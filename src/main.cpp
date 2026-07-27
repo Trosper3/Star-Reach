@@ -4,6 +4,8 @@
 #include "core/economy/FactionEconomy.h"
 #include "core/registries/ContentLibrary.h"
 #include "engine/platform/Window.h"
+#include "modes/IGameMode.h"
+#include "modes/main_menu/MainMenu.h"
 #include "modes/space/SpaceFlight.h"
 
 namespace {
@@ -61,18 +63,30 @@ int main() {
     }
 
     sr::core::economy::FactionEconomy economy;
-    sr::space::SpaceFlight mode(content, economy);
-    mode.OnEnter();
+    sr::modes::main_menu::MainMenu menu;
+    sr::space::SpaceFlight game(content, economy);
+
+    // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
+    // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and
+    // main_menu is that second mode.
+    sr::modes::IGameMode* activeMode = &menu;
+    activeMode->OnEnter();
 
     while (!window.ShouldClose()) {
-        mode.Update(window.FrameTime());
+        activeMode->Update(window.FrameTime());
+
+        if (activeMode == &menu && menu.ShouldStartGame()) {
+            activeMode->OnExit();
+            activeMode = &game;
+            activeMode->OnEnter();
+        }
 
         window.BeginFrame();
-        mode.Draw(mode.InterpolationAlpha());
+        activeMode->Draw();
         window.EndFrame();
     }
 
-    mode.OnExit();
+    activeMode->OnExit();
     window.Close();
     return 0;
 }
