@@ -164,6 +164,9 @@ add_library(sr_space STATIC
     src/modes/space/render/IconRenderer.cpp
     src/modes/space/render/LightingPass.cpp
     src/modes/space/render/WorldRenderer.cpp
+    src/modes/space/ui/AvionicsMenu.cpp
+    src/modes/space/ui/BridgeView.cpp
+    src/modes/space/ui/CockpitHud.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
