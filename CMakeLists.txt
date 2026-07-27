@@ -145,6 +145,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
+    src/modes/space/systems/DistressSystem.cpp
     src/modes/space/systems/DockingSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/LootSystem.cpp
