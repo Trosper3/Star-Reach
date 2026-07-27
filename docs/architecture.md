@@ -521,7 +521,8 @@ does, not from guesswork.
 | `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | 📋 |
 | `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | 📋 |
 
-Every 📋 row above is tracked as its own GitHub issue.
+Every 📋 row above is tracked as its own GitHub issue. Most are independently startable; the few
+that are not are listed in §11.9, not here — check there before picking one up.
 
 **Tier** refers to the LOD model in `features.md` §1. Tier 1 runs in the active system's registry
 at 60 Hz; Tier 2 in neighbor registries at ~5 Hz; Tier 3 against `core/galaxy/` on the macro tick.
@@ -860,3 +861,29 @@ list follows it without being asked each time.
 
 A task whose checks fail locally is not done — fix it before handing back, the same way a red CI
 run would not be handed back as finished.
+
+### 11.9 Cross-issue dependencies
+
+Most 📋 work in §3/§4/§5 is independent — pick an issue, build it standalone (a legacy port or a
+fresh system against a bare `SystemWorld`), no other issue needs to land first. A few issues say
+otherwise directly in their body. This table is the one place those are collected, so a contributor
+picking a task does not have to re-read every open issue to notice one:
+
+| Task | Depends on | Why |
+|---|---|---|
+| `WarpSystem` (#25) | Unified Serialization (#33) — conditional | Only if the registry-to-registry handoff needs wire/save-shaped serialization. Check at the start of #25 whether a lighter handoff suffices; if so this is not actually blocking. |
+| Save Schema Migration (#34) | Unified Serialization (#33) | Saves are one of that pipeline's two outputs (§5) — there is no schema to migrate until it exists. |
+| `modes/space/ui/` (#36) | `shared/ui/` HUD theme (#35) | `CockpitHud`/`AvionicsMenu`/`BridgeView` are built against `sr_shared_ui`'s primitives, which do not exist on disk until #35 lands. |
+| `FactionDecisionSystem` (#31) | `FactionEconomySystem` (#30), `core/diplomacy/` (#42) | The 4-facet decision engine reads and writes `core/economy/` and `core/diplomacy/` state that #30 and #42 are what create it. |
+
+**Before starting a task, check this table.** If it names a dependency, confirm that dependency has
+actually **merged to `main`** — an open PR is not enough, since the branch you cut in §11.8 step 1
+still would not have the code. If the dependency has not merged, stop and pick a different task
+rather than implementing against code that does not exist yet; the alternative is a branch that
+cannot build, or one that silently re-implements what the dependency was going to supply.
+
+These are prose notes in each issue body today, not GitHub's native tracked-dependency links (an
+issue's `blocked_by`/`blocking` count is 0 for all of them as of this writing) — this table is what
+makes them enforceable in practice. Maintain it by hand: add a row in the same PR that notices a new
+dependency, and delete the row (not mark it done) once its target merges — an empty table is the
+signal that everything open is independently startable again.
