@@ -90,6 +90,36 @@
           "localOffset": { "x": 16.0, "y": 0.0 }
         }
       ]
+    },
+    {
+      "id": "aegis_outpost",
+      "schemaVersion": 1,
+      "displayName": "Outpost",
+      "faction": "aegis_directorate",
+      "mobile": false,
+      "structuralMassLimit": 500.0,
+      "mounts": [
+        {
+          "id": "core",
+          "shell": "shell_station_core",
+          "modules": ["armor_plate_i"],
+          "localOffset": { "x": 0.0, "y": 0.0 }
+        },
+        {
+          "id": "reactor",
+          "shell": "shell_power_bay",
+          "attachedTo": "core",
+          "modules": ["power_cell_i"],
+          "localOffset": { "x": -30.0, "y": 0.0 }
+        },
+        {
+          "id": "dock",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["docking_bay_i"],
+          "localOffset": { "x": 30.0, "y": 0.0 }
+        }
+      ]
     }
   ]
 }

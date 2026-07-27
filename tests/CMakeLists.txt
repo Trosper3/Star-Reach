@@ -35,6 +35,7 @@ add_executable(sr_tests
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
     integration/NpcFactoryTests.cpp
+    integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp
 )
 

@@ -49,6 +49,26 @@
       "moduleSlots": 1,
       "radius": 8.0,
       "spriteLayer": "fighter/shield_emitter"
+    },
+    {
+      "id": "shell_station_core",
+      "displayName": "Station Core Hub",
+      "kind": "chassis",
+      "hull": 300.0,
+      "mass": 150.0,
+      "moduleSlots": 1,
+      "radius": 45.0,
+      "spriteLayer": "station/core_hub"
+    },
+    {
+      "id": "shell_facility_bay",
+      "displayName": "Facility Bay",
+      "kind": "facility",
+      "hull": 80.0,
+      "mass": 20.0,
+      "moduleSlots": 1,
+      "radius": 14.0,
+      "spriteLayer": "station/facility_bay"
     }
   ]
 }
