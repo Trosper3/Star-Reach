@@ -17,6 +17,7 @@
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
+#include "modes/space/systems/TutorialSystem.h"
 #include "modes/space/systems/WarpSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
 
@@ -52,6 +53,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   DamageSystem      -- must be last of the combat systems; destruction is the tick's
     //                        final word there. An Asteroid can be tagged Destroyed by this same
     //                        generic drain, which is exactly what MiningSystem reacts to next.
+    //   TutorialSystem    -- after DamageSystem, before MiningSystem: its DestroyAsteroid step
+    //                        reads the same this-tick Destroyed tag MiningSystem is about to
+    //                        consume by destroying the entity outright.
     //   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
     //                        before LootSystem so a MaterialDrop it spawns this tick is already
     //                        visible to LootSystem's expiry/pickup pass the same tick.
@@ -83,6 +87,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"ProjectileSystem", &projectile_system::Tick},
         {"PartySystem", &party_system::Tick},
         {"DamageSystem", &damage_system::Tick},
+        {"TutorialSystem", &tutorial_system::Tick},
         {"MiningSystem", &mining_system::Tick},
         {"ContractSystem", &contract_system::Tick},
         {"DistressSystem", &distress_system::Tick},
