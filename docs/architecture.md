@@ -33,14 +33,15 @@ a first wave of §4 systems beyond it are built.
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
 - ✅ **Factories** — `RigFactory`, `NpcFactory` (`modes/space/factories/`).
 
-- ✅ **Eight of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `PowerSystem`,
-  `WeaponSystem`, `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` —
-  registered in `SystemSchedule.cpp`.
+- ✅ **Eleven of the §4 systems** — `HierarchySystem`, `PowerSystem`, `OrbitSystem`,
+  `PhysicsSystem`, `TargetingSystem`, `NpcAiSystem`, `WeaponSystem`, `CollisionSystem`,
+  `ProjectileSystem`, `PartySystem`, `DamageSystem` — registered in `SystemSchedule.cpp`.
 - ✅ **Minimal renderer** — `WorldRenderer` (`modes/space/render/`).
-- ✅ **108 tests pass**, including validation of the real `data/base_game/` content set and
-  damage/shield-bypass, hierarchy-propagation, targeting, and power-budget/load-shedding coverage
+- ✅ **119 tests pass**, including validation of the real `data/base_game/` content set and
+  damage/shield-bypass, hierarchy-propagation, targeting, power-budget/load-shedding, mass/momentum
+  ramming-collision, and party formation/retaliation coverage.
 
-Not built: the other fifteen entries in §4's system inventory (tracked as individual GitHub
+Not built: the other twelve entries in §4's system inventory (tracked as individual GitHub
 issues), `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, unified serialization, and everything
 marked 🧊.
 
@@ -508,7 +509,7 @@ does, not from guesswork.
 | `TargetingSystem` | Target acquisition, aim-point selection per rig type | 1 | ✅ |
 | `PowerSystem` | Power budget, load shedding, throttle gating | 1 | ✅ |
 | `NpcAiSystem` | Steering, state machine (Patrol/Chase/Attack/Flee/Escort) | 1 | ✅ |
-| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | 📋 |
+| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | 🚧 |
 | `SpawnSystem` | Safe spawn placement, culling, respawn-around-anchor | 1 | 📋 |
 | `LootSystem` | Drops, material salvage, derelict wrecks, pickup radius | 1 | 📋 |
 | `MiningSystem` | Asteroid depletion, station mining ticks | 1–2 | 📋 |
