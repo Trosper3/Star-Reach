@@ -121,6 +121,7 @@ add_library(sr_core STATIC
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp
+    src/core/serialization/BlueprintSerialization.cpp
 )
 target_link_libraries(sr_core PUBLIC sr_options sr_shared nlohmann_json::nlohmann_json)
 

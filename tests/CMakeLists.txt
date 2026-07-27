@@ -4,6 +4,8 @@ include(Catch)
 add_executable(sr_tests
     unit/MathTests.cpp
     unit/ValidationTests.cpp
+    unit/ByteStreamTests.cpp
+    unit/BlueprintSerializationTests.cpp
     unit/FixedTimestepTests.cpp
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
