@@ -52,4 +52,10 @@ struct CollisionRadius {
     float value = 0.0f;
 };
 
+// Set by CollisionSystem after a rig takes ramming damage; gates repeat damage every tick while
+// two hulls are still overlapping, until the ships have separated and reapproached.
+struct RamCooldown {
+    float secondsRemaining = 0.0f;
+};
+
 }  // namespace sr

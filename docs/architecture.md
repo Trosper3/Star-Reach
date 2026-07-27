@@ -32,14 +32,15 @@ a first wave of §4 systems beyond it are built.
   **JSON registries** (`core/registries/`), **intent queue** (`core/events/`), **fixed timestep**
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
 - ✅ **Factories** — `RigFactory`, `NpcFactory` (`modes/space/factories/`).
-- ✅ **Seven of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `WeaponSystem`,
-  `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` — registered in
-  `SystemSchedule.cpp`.
+- ✅ **Eight of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `WeaponSystem`,
+  `CollisionSystem`, `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` —
+  registered in `SystemSchedule.cpp`.
 - ✅ **Minimal renderer** — `WorldRenderer` (`modes/space/render/`).
-- ✅ **97 tests pass**, including validation of the real `data/base_game/` content set and
-  damage/shield-bypass, hierarchy-propagation, and targeting coverage.
+- ✅ **107 tests pass**, including validation of the real `data/base_game/` content set and
+  damage/shield-bypass, hierarchy-propagation, targeting, and mass/momentum ramming-collision
+  coverage.
 
-Not built: the other sixteen entries in §4's system inventory (tracked as individual GitHub
+Not built: the other fifteen entries in §4's system inventory (tracked as individual GitHub
 issues), `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, unified serialization, and everything
 marked 🧊.
 
@@ -500,7 +501,7 @@ does, not from guesswork.
 | `HierarchySystem` | One pass: parent → child `WorldTransform` propagation (Law 4) | 1 | ✅ |
 | `PhysicsSystem` | Thrust, mass, momentum, drag, angular acceleration | 1 | ✅ |
 | `OrbitSystem` | Planet/moon orbits, sun gravity wells, deterministic fast-forward | 1–2 | 📋 |
-| `CollisionSystem` | Broad-phase spatial grid + narrow-phase convex hull | 1 | 📋 |
+| `CollisionSystem` | Broad-phase spatial grid + narrow-phase convex hull | 1 | ✅ |
 | `ProjectileSystem` | Advance, expire, cull | 1 | ✅ |
 | `DamageSystem` | Shield typing, bypass, localized hardpoint destruction | 1 | ✅ |
 | `WeaponSystem` | Fire control, cooldowns, charge/burst/spread modes | 1 | ✅ |
