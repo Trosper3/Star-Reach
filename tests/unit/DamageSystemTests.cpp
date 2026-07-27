@@ -1,0 +1,215 @@
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include "core/events/IntentQueue.h"
+#include "core/registries/ContentLibrary.h"
+#include "modes/space/data/SystemWorld.h"
+#include "modes/space/systems/DamageSystem.h"
+#include "shared/blueprints/Taxonomy.h"
+#include "shared/components/Health.h"
+#include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
+
+using Catch::Approx;
+using sr::DamageType;
+using sr::Destroyed;
+using sr::Health;
+using sr::PendingDamage;
+using sr::Propulsion;
+using sr::Rig;
+using sr::ShellKind;
+using sr::ShellRole;
+using sr::Shield;
+using sr::Targetable;
+using sr::space::SystemContext;
+using sr::space::SystemWorld;
+namespace damage_system = sr::space::damage_system;
+
+namespace {
+
+SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
+                          const sr::core::ContentLibrary& content, float dt = 1.0f / 60.0f) {
+    return SystemContext{world, intents, content, dt, 0};
+}
+
+}  // namespace
+
+TEST_CASE("DamageSystem applies matching-type damage to the shield before the hull", "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(20.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+    CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(3.5f));
+    CHECK_FALSE(registry.all_of<PendingDamage>(hardpoint));
+}
+
+TEST_CASE("DamageSystem lets mismatched damage bypass the shield entirely", "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 20.0f, DamageType::Energy, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(80.0f));
+}
+
+TEST_CASE("DamageSystem spills damage exceeding shield capacity onto the hull", "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    // rechargeCooldown starts mid-count so the regen pass this tick cannot perturb `current`
+    // before the damage pass reads it.
+    registry.emplace<Shield>(hardpoint, 10.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 1.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(0.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(80.0f));
+    CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(3.5f));
+}
+
+TEST_CASE("DamageSystem destroys a hardpoint whose hull reaches zero", "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 5.0f, 100.0f);
+    registry.emplace<PendingDamage>(hardpoint, 10.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Health>(hardpoint).current == Approx(0.0f));
+    CHECK(registry.all_of<Destroyed>(hardpoint));
+}
+
+TEST_CASE("DamageSystem regenerates an undamaged shield once its cooldown has elapsed",
+          "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Shield>(hardpoint, 50.0f, 100.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+
+    damage_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(60.0f));
+}
+
+TEST_CASE("DamageSystem does not regenerate a shield while its post-hit cooldown is counting down",
+          "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Shield>(hardpoint, 50.0f, 100.0f, DamageType::Kinetic, 10.0f, 3.5f, 2.0f);
+
+    damage_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(1.0f));
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
+}
+
+TEST_CASE(
+    "DamageSystem marks a rig destroyed and untargetable once every hardpoint is gone "
+    "(no protected core)",
+    "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Targetable>(root);
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(hardpoint);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(root));
+    CHECK_FALSE(registry.all_of<Targetable>(root));
+}
+
+TEST_CASE("DamageSystem zeroes a rig's propulsion once its last living engine hardpoint dies",
+          "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Propulsion>(root, 5000.0f, 3.0f, 400.0f);
+
+    const entt::entity armor = registry.create();
+    registry.emplace<Health>(armor, 50.0f, 50.0f);
+    registry.emplace<ShellRole>(armor, ShellKind::Armor);
+
+    const entt::entity engine = registry.create();
+    registry.emplace<Health>(engine, 0.0f, 45.0f);
+    registry.emplace<ShellRole>(engine, ShellKind::Engine);
+    registry.emplace<Destroyed>(engine);
+
+    registry.get<Rig>(root).children = {armor, engine};
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(root));
+    const auto& propulsion = registry.get<Propulsion>(root);
+    CHECK(propulsion.thrustNewtons == Approx(0.0f));
+    CHECK(propulsion.turnTorque == Approx(0.0f));
+    CHECK(propulsion.maxSpeed == Approx(0.0f));
+}
+
+TEST_CASE("DamageSystem leaves propulsion untouched while an engine hardpoint is still alive",
+          "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Propulsion>(root, 5000.0f, 3.0f, 400.0f);
+
+    const entt::entity engine = registry.create();
+    registry.emplace<Health>(engine, 45.0f, 45.0f);
+    registry.emplace<ShellRole>(engine, ShellKind::Engine);
+    registry.get<Rig>(root).children.push_back(engine);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(5000.0f));
+}

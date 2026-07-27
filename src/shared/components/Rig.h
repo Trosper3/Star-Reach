@@ -28,6 +28,13 @@ struct ShellRole {
     ShellKind kind = ShellKind::Armor;
 };
 
+// Per-hardpoint hit radius, copied from ShellDef::radius at instantiation. ProjectileSystem's
+// hit test reads this. CollisionRadius (Physics.h) is a different granularity entirely -- the
+// rig-root broad-phase circle, not a per-hardpoint narrow-phase one.
+struct HitRadius {
+    float value = 0.0f;
+};
+
 // Structural adjacency from MountBlueprint::attachedTo, resolved to a handle.
 //
 // Deliberately separate from ParentRig. ParentRig is the flat root link that HierarchySystem
