@@ -158,6 +158,7 @@ add_library(sr_space STATIC
     src/modes/space/factories/NpcFactory.cpp
     src/modes/space/factories/StationFactory.cpp
     src/modes/space/factories/WorldGen.cpp
+    src/modes/space/render/IconRenderer.cpp
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
@@ -183,7 +184,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/WeaponSystem.cpp
     src/modes/space/systems/SystemSchedule.cpp
 )
-target_link_libraries(sr_space PUBLIC sr_options sr_core sr_shared sr_engine)
+target_link_libraries(sr_space PUBLIC sr_options sr_core sr_shared sr_engine sr_shared_ui)
 
 # --- StarReach : the executable ---------------------------------------------------------------
 add_executable(StarReach src/main.cpp)

@@ -1,5 +1,6 @@
 #include "modes/space/SpaceFlight.h"
 
+#include "modes/space/render/IconRenderer.h"
 #include "modes/space/render/WorldRenderer.h"
 #include "modes/space/systems/SystemSchedule.h"
 
@@ -32,7 +33,12 @@ void SpaceFlight::Update(float realDeltaSeconds) {
 void SpaceFlight::Draw(float alpha) const {
     // Camera math belongs in this file (Law 7); the draw calls themselves belong in
     // modes/space/render/.
-    render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, alpha);
+    const render::CameraView camera{cameraTarget_, cameraZoom_};
+    render::DrawWorld(world_, camera, alpha);
+    // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world space
+    // to screen space itself, so its reticle stays a fixed pixel size under zoom instead of
+    // scaling with the world like WorldRenderer's sprites do.
+    render::DrawTargetReticle(world_.Registry(), camera, alpha);
 }
 
 void SpaceFlight::OnExit() {}
