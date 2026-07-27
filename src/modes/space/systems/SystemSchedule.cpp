@@ -1,6 +1,7 @@
 #include "modes/space/systems/SystemSchedule.h"
 
 #include "modes/space/systems/CollisionSystem.h"
+#include "modes/space/systems/CommsSystem.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/DockingSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
@@ -56,6 +57,8 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
+    //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
+    //                        SensorRange/DisplayName and writes its own singleton CommsLog.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -74,6 +77,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"DamageSystem", &damage_system::Tick},
         {"MiningSystem", &mining_system::Tick},
         {"LootSystem", &loot_system::Tick},
+        {"CommsSystem", &comms_system::Tick},
     };
     return schedule;
 }
