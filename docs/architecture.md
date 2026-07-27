@@ -32,14 +32,14 @@ a first wave of §4 systems beyond it are built.
   **JSON registries** (`core/registries/`), **intent queue** (`core/events/`), **fixed timestep**
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
 - ✅ **Factories** — `RigFactory`, `NpcFactory` (`modes/space/factories/`).
-- ✅ **Seven of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `WeaponSystem`,
-  `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` — registered in
-  `SystemSchedule.cpp`.
+- ✅ **Eight of the §4 systems** — `HierarchySystem`, `PhysicsSystem`, `PowerSystem`,
+  `WeaponSystem`, `ProjectileSystem`, `DamageSystem`, `TargetingSystem`, `NpcAiSystem` —
+  registered in `SystemSchedule.cpp`.
 - ✅ **Minimal renderer** — `WorldRenderer` (`modes/space/render/`).
-- ✅ **97 tests pass**, including validation of the real `data/base_game/` content set and
-  damage/shield-bypass, hierarchy-propagation, and targeting coverage.
+- ✅ **108 tests pass**, including validation of the real `data/base_game/` content set and
+  damage/shield-bypass, hierarchy-propagation, targeting, and power-budget/load-shedding coverage.
 
-Not built: the other sixteen entries in §4's system inventory (tracked as individual GitHub
+Not built: the other fifteen entries in §4's system inventory (tracked as individual GitHub
 issues), `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, unified serialization, and everything
 marked 🧊.
 
@@ -505,7 +505,7 @@ does, not from guesswork.
 | `DamageSystem` | Shield typing, bypass, localized hardpoint destruction | 1 | ✅ |
 | `WeaponSystem` | Fire control, cooldowns, charge/burst/spread modes | 1 | ✅ |
 | `TargetingSystem` | Target acquisition, aim-point selection per rig type | 1 | ✅ |
-| `PowerSystem` | Power budget, load shedding, throttle gating | 1 | 📋 |
+| `PowerSystem` | Power budget, load shedding, throttle gating | 1 | ✅ |
 | `NpcAiSystem` | Steering, state machine (Patrol/Chase/Attack/Flee/Escort) | 1 | ✅ |
 | `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | 📋 |
 | `SpawnSystem` | Safe spawn placement, culling, respawn-around-anchor | 1 | 📋 |
