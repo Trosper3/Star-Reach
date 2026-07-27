@@ -5,11 +5,14 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/factories/StationFactory.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 
 using sr::DockingBay;
+using sr::FacilityKind;
+using sr::FacilityRef;
 using sr::FactionRef;
 using sr::Propulsion;
 using sr::Rig;
@@ -62,6 +65,8 @@ TEST_CASE("StationFactory attaches DockingBay to the mount carrying a docking mo
         rig_factory::FindHardpoint(registry, result.root, sr::MountId("dock"));
     REQUIRE((dock != entt::null));
     CHECK(registry.all_of<DockingBay>(dock));
+    REQUIRE(registry.all_of<FacilityRef>(dock));
+    CHECK(registry.get<FacilityRef>(dock).kind == FacilityKind::Docking);
 }
 
 TEST_CASE("StationFactory spawns a rig with no Propulsion, matching mobile: false",

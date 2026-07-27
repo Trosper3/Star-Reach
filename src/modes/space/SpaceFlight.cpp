@@ -2,6 +2,9 @@
 
 #include "modes/space/render/WorldRenderer.h"
 #include "modes/space/systems/SystemSchedule.h"
+#include "modes/space/ui/AvionicsMenu.h"
+#include "modes/space/ui/BridgeView.h"
+#include "modes/space/ui/CockpitHud.h"
 
 namespace sr::space {
 
@@ -16,6 +19,12 @@ void SpaceFlight::OnEnter() {
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
+    // Polled once per real frame, same as the window itself -- IsKeyPressed's "pressed this
+    // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
+    // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
+    // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
+    ui::avionics_menu::Update(world_.Registry());
+
     clock_.Advance(realDeltaSeconds);
 
     while (clock_.ConsumeStep()) {
@@ -33,6 +42,11 @@ void SpaceFlight::Draw() const {
     // Camera math belongs in this file (Law 7); the draw calls themselves belong in
     // modes/space/render/.
     render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, InterpolationAlpha());
+
+    // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
+    ui::cockpit_hud::Draw(world_.Registry());
+    ui::avionics_menu::Draw(world_.Registry());
+    ui::bridge_view::Draw(world_.Registry());
 }
 
 void SpaceFlight::OnExit() {}
