@@ -34,6 +34,7 @@ void SpaceFlight::Draw() const {
     // Camera math belongs in this file (Law 7); the draw calls themselves belong in
     // modes/space/render/.
     const render::CameraView camera{cameraTarget_, cameraZoom_};
+    const float alpha = InterpolationAlpha();
     render::DrawWorld(world_, camera, alpha);
     // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world space
     // to screen space itself, so its reticle stays a fixed pixel size under zoom instead of
