@@ -111,6 +111,7 @@ target_link_libraries(sr_shared PUBLIC sr_options EnTT::EnTT)
 # and keeps the faction simulation unit-testable. A link error is a better guardian than a
 # paragraph.
 add_library(sr_core STATIC
+    src/core/ai/FactionDecisionEngine.cpp
     src/core/diplomacy/DiplomacyMatrix.cpp
     src/core/diplomacy/Reputation.cpp
     src/core/diplomacy/Territory.cpp
