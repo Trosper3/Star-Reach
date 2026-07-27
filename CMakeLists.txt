@@ -138,6 +138,16 @@ if(SR_LINK_GLFW)
     target_link_libraries(sr_engine PUBLIC glfw)
 endif()
 
+# --- sr_shared_ui : the HUD theme -------------------------------------------------------------
+# The one exception to shared/'s "no raylib, no engine/" rule (section 2.1's note; section 2.3's
+# layer table). Header-only, like every previous incarnation of this file -- there is no state
+# to own, only palette constants and draw-time math. An INTERFACE library still needs a real
+# consumer to be exercised by the build; tests/unit/HudThemeTests.cpp is that consumer until
+# modes/space/ui/ (a separate, dependent issue) becomes the real one.
+add_library(sr_shared_ui INTERFACE)
+target_sources(sr_shared_ui INTERFACE src/shared/ui/HudTheme.h)
+target_link_libraries(sr_shared_ui INTERFACE sr_options sr_shared sr_engine)
+
 # --- sr_space : the space flight mode ---------------------------------------------------------
 add_library(sr_space STATIC
     src/modes/space/SpaceFlight.cpp
