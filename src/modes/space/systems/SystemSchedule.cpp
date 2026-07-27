@@ -14,6 +14,7 @@
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
+#include "modes/space/systems/WarpSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
 
 namespace sr::space {
@@ -23,7 +24,10 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     // add the entry in the SAME commit as the system file -- a system with no schedule entry is
     // a dead abstraction (architecture.md section 2.4) and will be deleted at review.
     //
-    //   HierarchySystem   -- must be first; everything below reads WorldTransform
+    //   WarpSystem        -- before HierarchySystem, so a rig teleported this tick has its
+    //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
+    //                        of lagging one tick behind at the pre-warp position.
+    //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
     //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
     //                        tags, before anything that gates on it
     //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
@@ -54,6 +58,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        last.
     //
     static const std::vector<ScheduledSystem> schedule{
+        {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
