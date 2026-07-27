@@ -29,9 +29,13 @@ std::filesystem::path FindContentDirectory() {
     return {};
 }
 
-}  // namespace
-
-int main() {
+// The actual entry point, split from main() below so that function can stay exception-free
+// (clang-tidy's bugprone-exception-escape, section 8's CI/CD table). std::filesystem calls in
+// FindContentDirectory can throw std::filesystem_error on a genuinely broken environment (a
+// permissions failure, a removed drive mid-walk) -- rare, but a clean "STAR REACH: ..." message
+// beats an unhandled-exception crash for the same reason the load/validation failures above
+// already return 1 with a message instead of letting ContentLibrary throw.
+int RunGame() {
     const std::filesystem::path contentDir = FindContentDirectory();
     if (contentDir.empty()) {
         std::cerr << "STAR REACH: could not locate data/base_game\n";
@@ -89,4 +93,20 @@ int main() {
     activeMode->OnExit();
     window.Close();
     return 0;
+}
+
+}  // namespace
+
+// The catch(...) below is exhaustive; the check's static analysis does not seem to trust that a
+// catch-all closes every path here.
+int main() {  // NOLINT(bugprone-exception-escape)
+    try {
+        return RunGame();
+    } catch (const std::exception& e) {
+        std::cerr << "STAR REACH: unhandled exception: " << e.what() << "\n";
+        return 1;
+    } catch (...) {
+        std::cerr << "STAR REACH: unhandled exception of unknown type\n";
+        return 1;
+    }
 }

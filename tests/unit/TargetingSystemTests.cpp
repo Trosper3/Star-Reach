@@ -30,7 +30,7 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
     return SystemContext{world, intents, content, 1.0f / 60.0f, 0};
 }
 
-entt::entity MakeRig(entt::registry& registry, const Vec2& position, FactionId faction) {
+entt::entity MakeRig(entt::registry& registry, const Vec2& position, const FactionId& faction) {
     const entt::entity rig = registry.create();
     registry.emplace<WorldTransform>(rig, position, 0.0f);
     registry.emplace<FactionRef>(rig, faction);
