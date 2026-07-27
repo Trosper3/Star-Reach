@@ -3,6 +3,7 @@
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
+#include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/NpcAiSystem.h"
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/PartySystem.h"
@@ -37,6 +38,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   PartySystem       -- after NpcAiSystem so formation ThrustInput sticks; before
     //                        DamageSystem so PendingDamage is still readable for retaliation
     //   DamageSystem      -- must be last; destruction is the tick's final word
+    //   LootSystem        -- no ordering constraint against the above: it only reads this
+    //                        tick's settled WorldTransform/CollisionRadius and never spawns a
+    //                        drop itself (Law 5 -- there is no LootFactory yet), so it runs last
     //
     static const std::vector<ScheduledSystem> schedule{
         {"HierarchySystem", &hierarchy_system::Tick},
@@ -51,6 +55,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"ProjectileSystem", &projectile_system::Tick},
         {"PartySystem", &party_system::Tick},
         {"DamageSystem", &damage_system::Tick},
+        {"LootSystem", &loot_system::Tick},
     };
     return schedule;
 }
