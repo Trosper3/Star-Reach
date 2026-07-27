@@ -1,0 +1,17 @@
+name: Feature Request
+description: Propose a new game mechanic, macro-economy feature, or engine upgrade.
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: A clear and concise description of the desired feature.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Are there other ways to achieve this within the current architecture?

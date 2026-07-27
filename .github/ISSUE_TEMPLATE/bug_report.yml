@@ -1,0 +1,43 @@
+name: Bug Report
+description: File a bug report for an engine crash, ECS logic error, or unexpected behavior.
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide as much detail as possible.
+  - type: input
+    id: version
+    attributes:
+      label: Engine/Build Version
+      description: What commit hash or release version are you on?
+      placeholder: e.g., v0.1.0 or commit 3a4b5c
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows (MSVC)
+        - Linux (GCC/Clang)
+        - macOS
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we trigger this bug in the simulation?
+      placeholder: |
+        1. Spawn a ship with a modular hull
+        2. Damage the specific hardpoint...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Crash Logs / CMake Output
+      description: Paste any relevant error logs here.
+      render: shell
