@@ -29,10 +29,10 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     intents_.Clear();
 }
 
-void SpaceFlight::Draw(float alpha) const {
+void SpaceFlight::Draw() const {
     // Camera math belongs in this file (Law 7); the draw calls themselves belong in
     // modes/space/render/.
-    render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, alpha);
+    render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, InterpolationAlpha());
 }
 
 void SpaceFlight::OnExit() {}

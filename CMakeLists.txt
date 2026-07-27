@@ -94,9 +94,6 @@ endif()
 #
 # Not yet declared, deliberately (section 2.4 -- no dead abstractions):
 #   sr_net       net/ is deferred with ENet (Law 9). Add with the first wire type.
-#   sr_menu      modes/main_menu/ has no files yet. Add with the first menu.
-#   sr_shared_ui shared/ui/ has no files yet. Add with the first HUD primitive; it is the ONLY
-#                library allowed to sit above both sr_shared and sr_engine.
 # =============================================================================================
 
 # --- sr_shared : the bottom layer -------------------------------------------------------------
@@ -148,6 +145,12 @@ add_library(sr_shared_ui INTERFACE)
 target_sources(sr_shared_ui INTERFACE src/shared/ui/HudTheme.h)
 target_link_libraries(sr_shared_ui INTERFACE sr_options sr_shared sr_engine)
 
+# --- sr_menu : the main menu mode -------------------------------------------------------------
+add_library(sr_menu STATIC
+    src/modes/main_menu/MainMenu.cpp
+)
+target_link_libraries(sr_menu PUBLIC sr_options sr_core sr_shared sr_engine sr_shared_ui)
+
 # --- sr_space : the space flight mode ---------------------------------------------------------
 add_library(sr_space STATIC
     src/modes/space/SpaceFlight.cpp
@@ -184,7 +187,7 @@ target_link_libraries(sr_space PUBLIC sr_options sr_core sr_shared sr_engine)
 
 # --- StarReach : the executable ---------------------------------------------------------------
 add_executable(StarReach src/main.cpp)
-target_link_libraries(StarReach PRIVATE sr_space)
+target_link_libraries(StarReach PRIVATE sr_space sr_menu)
 
 if(SR_BUILD_TESTS)
     enable_testing()

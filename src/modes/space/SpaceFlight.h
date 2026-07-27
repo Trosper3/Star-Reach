@@ -4,6 +4,7 @@
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
+#include "modes/IGameMode.h"
 #include "modes/space/data/SystemWorld.h"
 #include "shared/math/Vec2.h"
 
@@ -23,23 +24,24 @@ namespace sr::space {
 // Law 7 -- lifecycle and routing live here. Presentation math (camera interpolation, viewport
 // scaling, UI layout) belongs here too. Simulation math -- AI, combat resolution, physics --
 // does not; it belongs in systems/.
-class SpaceFlight {
+class SpaceFlight : public modes::IGameMode {
 public:
     SpaceFlight(const core::ContentLibrary& content, core::economy::FactionEconomy& economy);
 
-    void OnEnter();
+    void OnEnter() override;
 
     // Feeds real frame time to the fixed-timestep clock and runs the schedule for each whole
     // step available. Intents are drained after the full schedule has run -- see the ordering
     // rules in SystemSchedule.h.
-    void Update(float realDeltaSeconds);
+    void Update(float realDeltaSeconds) override;
 
-    // `alpha` is the interpolation fraction toward the next tick. Rendering reads it to blend
-    // PreviousTransform toward WorldTransform so a 144 Hz display shows smooth motion over a
-    // 60 Hz simulation.
-    void Draw(float alpha) const;
+    // Reads InterpolationAlpha() internally rather than taking it as a parameter (IGameMode's
+    // contract) -- the interpolation fraction toward the next tick, which rendering uses to
+    // blend PreviousTransform toward WorldTransform so a 144 Hz display shows smooth motion over
+    // a 60 Hz simulation.
+    void Draw() const override;
 
-    void OnExit();
+    void OnExit() override;
 
     SystemWorld& World() { return world_; }
     core::IntentQueue& Intents() { return intents_; }
