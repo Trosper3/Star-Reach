@@ -6,6 +6,7 @@
 #include "shared/blueprints/Validation.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -81,8 +82,12 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
                 std::max(aggregate.propulsion.maxSpeed, module.engine.maxSpeed);
             break;
         case ModuleKind::Facility:
-            // The only FacilityKind with a live-side consumer so far (DockingSystem, issue #24).
-            // Repair/Manufacturing/Research/Storage stay data-only until a system reads them.
+            // FacilityRef is the generic live-side marker every FacilityKind gets, consumed by
+            // BridgeView's tab list (modes/space/ui/, issue #36). DockingBay is DockingSystem's
+            // own direct-use tag (issue #24) and stays in addition to it -- Repair/Manufacturing/
+            // Research/Storage have no tab CONTENT yet, only the tab existing, until each grows
+            // its own system.
+            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }
