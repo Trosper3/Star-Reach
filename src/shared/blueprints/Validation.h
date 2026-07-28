@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,7 +16,7 @@ namespace sr {
 // Validation runs on the BLUEPRINT, before instantiation (Law 3). An invalid design therefore
 // cannot become a live entity, and a corrupt save or a hostile wire packet cannot inject one.
 // That ordering is the whole point: there is no second validation pass on the entity side.
-enum class ValidationRule {
+enum class ValidationRule : std::uint8_t {
     StructuralShell,      // 1. At least one Chassis/Armor shell carrying a module.
     PowerSource,          // 2. At least one PowerCell shell carrying a module.
     PowerBalance,         // 3. Total draw <= total generation.

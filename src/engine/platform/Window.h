@@ -21,6 +21,8 @@ public:
 
     Window(const Window&) = delete;
     Window& operator=(const Window&) = delete;
+    Window(Window&&) = delete;
+    Window& operator=(Window&&) = delete;
 
     // Returns false if the window could not be created.
     bool Open(int width, int height, const std::string& title);

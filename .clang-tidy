@@ -19,6 +19,7 @@ Checks: >
   cppcoreguidelines-special-member-functions,
   -bugprone-easily-swappable-parameters,
   -bugprone-narrowing-conversions,
+  -bugprone-unchecked-optional-access,
   -performance-for-range-copy
 
 # performance-for-range-copy fires on `for (auto [x, y] : registry.view<...>().each())` --
@@ -29,6 +30,12 @@ Checks: >
 # rewriting an established idiom across the whole systems/ tree is a mechanical cleanup PR of its
 # own, not something to fold into "configure clang-tidy in CI." Excluded here; worth a follow-up
 # issue if it turns out to matter at profiled scale.
+#
+# bugprone-unchecked-optional-access fires on every `REQUIRE(x.has_value()); ... x->field` in
+# tests/ -- Catch2's REQUIRE expands through enough expression-template machinery that the
+# check's dataflow analysis cannot see it as a value-narrowing guard, even though REQUIRE aborts
+# the test case immediately on failure and every access after it is genuinely safe. Every hit
+# found while configuring this file was one of these; none were a real bug.
 WarningsAsErrors: "*"
 
 # Only this project's own headers -- not EnTT/raylib/nlohmann_json's, which vcpkg installs and
