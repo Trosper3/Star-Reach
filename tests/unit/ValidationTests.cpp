@@ -8,7 +8,7 @@ namespace {
 
 // A hand-built library. tests/ is one of the three places allowed to construct content types in
 // C++ (Law 10) precisely so a validation test does not need a data file to run.
-class FakeLibrary final : public sr::DefLibrary {
+class FakeLibrary final : public sr::DefLibrary {  // NOLINT(bugprone-exception-escape)
 public:
     void AddShell(const char* id, sr::ShellKind kind, float mass = 10.0f, int slots = 1) {
         sr::ShellDef def;
@@ -62,7 +62,7 @@ FakeLibrary MakeLibrary() {
 }
 
 sr::MountBlueprint Mount(const char* id, const char* shell, const char* attachedTo,
-                         std::vector<const char*> modules) {
+                         const std::vector<const char*>& modules) {
     sr::MountBlueprint mount;
     mount.id = sr::MountId(id);
     mount.shell = sr::ShellId(shell);

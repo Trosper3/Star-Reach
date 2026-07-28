@@ -23,12 +23,14 @@ inline constexpr NetworkId kInvalidNetworkId = 0;
 class SystemWorld {
 public:
     explicit SystemWorld(std::string systemId, std::string displayName = {});
+    ~SystemWorld() = default;
 
     // Non-copyable: a registry is heavyweight and duplicating one would silently break the
     // "exactly one registry per system" invariant that everything above depends on.
     SystemWorld(const SystemWorld&) = delete;
     SystemWorld& operator=(const SystemWorld&) = delete;
     SystemWorld(SystemWorld&&) = default;
+    SystemWorld& operator=(SystemWorld&&) = default;
 
     entt::registry& Registry() { return registry_; }
     const entt::registry& Registry() const { return registry_; }

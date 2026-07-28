@@ -16,7 +16,17 @@ namespace sr {
 // booting the real content set.
 class DefLibrary {
 public:
+    DefLibrary() = default;
     virtual ~DefLibrary() = default;
+
+    // Copy is deleted -- a polymorphic base copied through a base-class reference slices the
+    // derived object. Move stays defaulted: it only ever runs on the concrete derived type (e.g.
+    // NRVO returning a FakeLibrary by value in a test), never through a base pointer, so it does
+    // not carry the same footgun.
+    DefLibrary(const DefLibrary&) = delete;
+    DefLibrary& operator=(const DefLibrary&) = delete;
+    DefLibrary(DefLibrary&&) = default;
+    DefLibrary& operator=(DefLibrary&&) = default;
 
     // Return nullptr when the id is unknown. Callers turn that into a specific, named
     // validation error -- never a silent default.

@@ -19,7 +19,16 @@ namespace sr::modes {
 // names the four methods every orchestrator already had to have.
 class IGameMode {
 public:
+    IGameMode() = default;
     virtual ~IGameMode() = default;
+
+    // Copy is deleted -- a polymorphic base copied through a base-class reference slices the
+    // derived object. Move stays defaulted: it only ever runs on the concrete derived type,
+    // never through a base pointer, so it does not carry the same footgun.
+    IGameMode(const IGameMode&) = delete;
+    IGameMode& operator=(const IGameMode&) = delete;
+    IGameMode(IGameMode&&) = default;
+    IGameMode& operator=(IGameMode&&) = default;
 
     virtual void OnEnter() = 0;
     virtual void Update(float realDeltaSeconds) = 0;

@@ -51,6 +51,49 @@ jobs:
           find src tests -type f \( -name '*.h' -o -name '*.cpp' \) \
             -print0 | xargs -0 clang-format --dry-run --Werror
 
+  clang-tidy:
+    name: clang-tidy
+    needs: [enforce]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install raylib's X11/GL build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxkbcommon-dev libwayland-dev \
+            wayland-protocols libxkbcommon-x11-dev
+
+      - name: Install clang-tidy
+        run: sudo apt-get install -y clang-tidy-18
+
+      # Supplies a consistent CMake and Ninja, which the presets require.
+      - uses: lukka/get-cmake@latest
+
+      - name: Cache vcpkg binary archives
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: ${{ runner.os }}-vcpkg-
+
+      - name: Point VCPKG_ROOT at the runner's vcpkg
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      # clang-tidy reads compile flags (include paths, defines) from compile_commands.json --
+      # this is a real configure, not a lint-only step, because there is no other way to give it
+      # vcpkg's EnTT/raylib/nlohmann_json include paths correctly.
+      - name: Configure (generates compile_commands.json)
+        run: cmake --preset release
+
+      - name: Run clang-tidy
+        run: |
+          clang-tidy-18 --version
+          find src tests -type f -name '*.cpp' -print0 \
+            | xargs -0 clang-tidy-18 -p build/release
+
   build:
     name: ${{ matrix.name }}
     needs: [enforce]

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 // The vocabulary shared by authored content and live components.
@@ -13,14 +14,14 @@ namespace sr {
 // features.md section 3.1. Matching type is absorbed by a shield; a mismatched type bypasses it
 // and lands directly on the hardpoint beneath. Expanding this roster multiplies the shield
 // matrix and the content burden -- it is an open design question, not a free addition.
-enum class DamageType {
+enum class DamageType : std::uint8_t {
     Kinetic,
     Energy,
 };
 
 // What a shell is structurally for. Drives Template validation (features.md section 2.3) and
 // which role components the factory attaches.
-enum class ShellKind {
+enum class ShellKind : std::uint8_t {
     Chassis,    // The rig's root. Carries the structural mass threshold.
     Armor,      // Pure hull, no function.
     PowerCell,  // Generation.
@@ -32,7 +33,7 @@ enum class ShellKind {
 
 // What a module does once mounted. A module is only legal in a shell whose kind accepts it;
 // ModuleDef::compatible lists that explicitly rather than inferring it from the name.
-enum class ModuleKind {
+enum class ModuleKind : std::uint8_t {
     Weapon,
     ShieldGenerator,
     PowerCell,
@@ -43,7 +44,7 @@ enum class ModuleKind {
 
 // Which capability a Facility shell provides once powered. features.md section 4 --
 // component-driven menus read this to decide which Bridge tabs exist.
-enum class FacilityKind {
+enum class FacilityKind : std::uint8_t {
     Repair,
     Manufacturing,
     Research,

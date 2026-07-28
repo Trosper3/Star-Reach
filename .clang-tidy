@@ -1,0 +1,45 @@
+---
+# architecture.md section 8's CI/CD table: ".clang-tidy -- Not yet configured." This is that
+# configuration, wired into CI the same way the `format` job already gates on .clang-format.
+#
+# Scope is deliberately narrow: bug-finding and performance checks, not style/naming (clang-
+# format plus this project's own documented conventions, section 11.2, already cover that -- a
+# readability-identifier-naming config duplicating them would just be a second place for the two
+# to drift). WarningsAsErrors matches every other structural check in this project (section 2.2's
+# size caps, section 2.3's layer rules): hard failure, never a warning that nobody reads.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-use-nullptr,
+  modernize-use-override,
+  modernize-use-equals-default,
+  modernize-use-equals-delete,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-unchecked-optional-access,
+  -performance-for-range-copy
+
+# performance-for-range-copy fires on `for (auto [x, y] : registry.view<...>().each())` --
+# structured-binding-by-value is the iteration idiom every system in modes/space/systems/ already
+# uses (dozens of call sites, architecture.md section 11.3's own system-recipe example among
+# them). Switching to `const auto&` per the check's suggested fix is very likely a real, safe
+# micro-optimization (entt's each() hands back live component references, not temporaries), but
+# rewriting an established idiom across the whole systems/ tree is a mechanical cleanup PR of its
+# own, not something to fold into "configure clang-tidy in CI." Excluded here; worth a follow-up
+# issue if it turns out to matter at profiled scale.
+#
+# bugprone-unchecked-optional-access fires on every `REQUIRE(x.has_value()); ... x->field` in
+# tests/ -- Catch2's REQUIRE expands through enough expression-template machinery that the
+# check's dataflow analysis cannot see it as a value-narrowing guard, even though REQUIRE aborts
+# the test case immediately on failure and every access after it is genuinely safe. Every hit
+# found while configuring this file was one of these; none were a real bug.
+WarningsAsErrors: "*"
+
+# Only this project's own headers -- not EnTT/raylib/nlohmann_json's, which vcpkg installs and
+# this project does not control.
+HeaderFilterRegex: "^.*/src/.*"
+
+FormatStyle: none
