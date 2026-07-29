@@ -18,12 +18,14 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
 | 📋 | **Planned.** Designed, agreed, not yet written. |
 | 🧊 | **Deferred.** Deliberately unbuilt. Do not start until a shipped feature demands it. |
 
-**Current reality (updated):** the enforcement infrastructure, the First Vertical Slice (§10), and
-a first wave of §4 systems beyond it are built.
+**Current reality (updated 2026-07-28):** the enforcement infrastructure, the First Vertical Slice
+(§10), and the **entire §4 system inventory** are built. What remains is only what §3/§5/§6 mark
+🧊 — deliberately deferred until a shipped feature demands it.
 
-- ✅ **CI is running.** `build.yaml` moved to `.github/workflows/`. Four structural jobs gate a
-  three-platform matrix build.
-- ✅ **Layer targets** — `sr_shared`, `sr_core`, `sr_engine`, `sr_space`, `StarReach` (§2.1).
+- ✅ **CI is running.** `build.yaml` moved to `.github/workflows/`. Structural enforcement,
+  formatting, a three-platform matrix build, `.clang-tidy`, and an ASan job all gate `main`.
+- ✅ **Layer targets** — `sr_shared`, `sr_core`, `sr_engine`, `sr_shared_ui`, `sr_menu`, `sr_space`,
+  `StarReach` (§2.1).
 - ✅ **Enforcement scripts** — size caps, layer includes, content pipeline, empty scaffolding
   (§2.2–2.4), in `tools/ci/`. All four verified to fail on planted violations.
 - ✅ **`CMakePresets.json`**, raylib + Catch2 in `vcpkg.json`, a real `.clang-format`
@@ -31,19 +33,29 @@ a first wave of §4 systems beyond it are built.
 - ✅ **Blueprint schema** (`shared/blueprints/`), **POD components** (`shared/components/`),
   **JSON registries** (`core/registries/`), **intent queue** (`core/events/`), **fixed timestep**
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
-- ✅ **Factories** — `RigFactory`, `NpcFactory` (`modes/space/factories/`).
+- ✅ **Factories** — `RigFactory`, `NpcFactory`, `StationFactory`, `WorldGen`
+  (`modes/space/factories/`).
+- ✅ **All twenty-two of the §4 systems** registered in `SystemSchedule.cpp`, plus
+  `core/ai/FactionDecisionEngine` — the tier-3 decision engine §4 lists as `FactionDecisionSystem`.
+  It lives in `core/ai/` rather than `modes/space/systems/` because it reads and writes
+  `core/economy/`/`core/diplomacy/` state directly rather than taking a per-tick `SystemContext`.
+- ✅ **Renderer** — `WorldRenderer`, `LightingPass`, `IconRenderer` (`modes/space/render/`).
+- ✅ **`shared/ui/` HUD theme** (`sr_shared_ui`) and **`modes/space/ui/`** — `CockpitHud`,
+  `AvionicsMenu`, `BridgeView` built against it.
+- ✅ **`IGameMode` + `modes/main_menu/`** — the second mode. `main.cpp` opens on `MainMenu` and
+  switches to `SpaceFlight` on `ShouldStartGame()`.
+- ✅ **`core/diplomacy/`** (`DiplomacyMatrix`, `Reputation`, `Territory`), **`core/economy/`**
+  (`FactionEconomy`), **`core/galaxy/`** (`Discovery`) — the Law 8 galaxy-wide state.
+- ✅ **Unified serialization** (`core/serialization/`: `BlueprintSerialization`, `ByteStream`,
+  `SaveFile`) and **save schema migration** (`SaveMigrator`).
+- ✅ **281 tests pass** (690 assertions), including the coverage the previous snapshot listed plus
+  docking/warp/comms/contract/distress/tutorial/mining/loot lifecycle coverage, faction
+  economy/decision-engine coverage, diplomacy/reputation/territory coverage, discovery coverage,
+  and blueprint-serialization/save-migration coverage.
 
-- ✅ **Eleven of the §4 systems** — `HierarchySystem`, `PowerSystem`, `OrbitSystem`,
-  `PhysicsSystem`, `TargetingSystem`, `NpcAiSystem`, `WeaponSystem`, `CollisionSystem`,
-  `ProjectileSystem`, `SpawnSystem`, `PartySystem`, `DamageSystem` — registered in `SystemSchedule.cpp`.
-- ✅ **Minimal renderer** — `WorldRenderer` (`modes/space/render/`).
-- ✅ **119 tests pass**, including validation of the real `data/base_game/` content set and
-  damage/shield-bypass, hierarchy-propagation, targeting, power-budget/load-shedding, mass/momentum
-  ramming-collision, party formation/retaliation coverage, and spawn-culling/safe-placement coverage
-
-Not built: the other twelve entries in §4's system inventory (tracked as individual GitHub
-issues), `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, unified serialization, and everything
-marked 🧊.
+Not built: everything §3/§5/§6 mark 🧊 — `net/` (multiplayer), the asset pipeline (atlases, UUID
+asset IDs, audio banks, hot-reload), memory pooling, and release packaging. All are deliberately
+deferred; do not start any of them until a shipped feature demands it (§2.5).
 
 ---
 
@@ -299,7 +311,7 @@ becoming an archaeology expedition.
 
 ---
 
-## 2. Enforcement 📋
+## 2. Enforcement ✅
 
 Five mechanisms, in descending order of value. None is expensive; together they are the reason to
 expect a different outcome this time.
@@ -447,10 +459,15 @@ StarReach/
 │   │                        # 🧊 graphics/ input/ memory/ assets/ — add with first consumer
 │   │
 │   ├── core/                # Universe truths. No raylib, no modes, no registry instance.
+│   │   ├── ai/               # ✅ FactionDecisionEngine — the 4-facet decision engine
+│   │   ├── diplomacy/        # ✅ DiplomacyMatrix, Reputation, Territory (Law 8)
+│   │   ├── economy/          # ✅ FactionEconomy
 │   │   ├── events/          # ✅ Intent.h, IntentQueue.h (Law 9)
+│   │   ├── galaxy/           # ✅ Discovery — system discovery as shared faction knowledge
 │   │   ├── registries/      # ✅ JsonReader, BlueprintJson, ContentLibrary
+│   │   ├── serialization/    # ✅ BlueprintSerialization, ByteStream, SaveFile, SaveMigrator
 │   │   ├── time/            # ✅ FixedTimestep.h
-│   │   │                    # 📋 diplomacy/ economy/ galaxy/ algorithms/ serialization/
+│   │   │                    # 📋 algorithms/
 │   │
 │   ├── shared/              # THE BOTTOM LAYER (§2.1). No raylib, no core/.
 │   │   ├── blueprints/      # ✅ Ids, Taxonomy, ModuleDef, ShellDef, RigBlueprint,
@@ -458,23 +475,23 @@ StarReach/
 │   │   ├── components/      # ✅ Identity, Transform, Rig, Health, Physics, Power,
 │   │   │                    #    Combat, Targeting  — all POD
 │   │   ├── math/            # ✅ Vec2.h, Angle.h
-│   │   └── ui/              # 📋 HUD theme — becomes sr_shared_ui, the only lib above
+│   │   └── ui/              # ✅ HudTheme.h — sr_shared_ui, the only lib above
 │   │                        #    both sr_shared and sr_engine
 │   │
 │   ├── net/                 # 🧊 Deferred; Law 9's intent discipline is NOT deferred
 │   │
 │   └── modes/
-│       ├── IGameMode.h      # 📋 Lands with the second mode, not before
-│       ├── main_menu/       # 📋
+│       ├── IGameMode.h      # ✅ Lands with the second mode
+│       ├── main_menu/       # ✅ MainMenu — the second mode
 │       │
 │       ├── space/
 │       │   ├── SpaceFlight.cpp/.h   # ✅ Lifecycle + routing ONLY. 6 members, cap 25 (Law 6)
 │       │   ├── data/               # ✅ SystemWorld — owns the registry + NetworkId mapping
-│       │   ├── systems/            # ✅ System.h (the contract) + SystemSchedule (empty)
-│       │   │                       # 📋 the ~23 systems in §4
-│       │   ├── factories/          # 📋 WorldGen, NpcFactory, StationFactory, RigFactory
-│       │   ├── render/             # 📋 WorldRenderer, LightingPass, IconRenderer
-│       │   └── ui/                 # 📋 CockpitHud, AvionicsMenu, BridgeView
+│       │   ├── systems/            # ✅ System.h (the contract) + all 22 systems in §4,
+│       │   │                       #    registered in SystemSchedule.cpp
+│       │   ├── factories/          # ✅ WorldGen, NpcFactory, StationFactory, RigFactory
+│       │   ├── render/             # ✅ WorldRenderer, LightingPass, IconRenderer
+│       │   └── ui/                 # ✅ CockpitHud, AvionicsMenu, BridgeView
 │       │
 │       └── planet/          # 🧊 YAGNI BOUNDARY — DO NOT BUILD
 │                            #    Not present on disk. Keeping core/ mode-agnostic is a
@@ -488,7 +505,7 @@ StarReach/
 
 ---
 
-## 4. The System Inventory 📋
+## 4. The System Inventory ✅
 
 Previous versions of this document named three systems (`CombatSystem`, `NpcAiSystem`, `WorldGen`).
 StarReach2 actually needed about twenty. **The gap between those numbers is where 12,947 lines
@@ -501,7 +518,7 @@ does, not from guesswork.
 |---|---|:---:|:---:|
 | `HierarchySystem` | One pass: parent → child `WorldTransform` propagation (Law 4) | 1 | ✅ |
 | `PhysicsSystem` | Thrust, mass, momentum, drag, angular acceleration | 1 | ✅ |
-| `OrbitSystem` | Planet/moon orbits, sun gravity wells, deterministic fast-forward | 1–2 | 📋 |
+| `OrbitSystem` | Planet/moon orbits, sun gravity wells, deterministic fast-forward | 1–2 | ✅ |
 | `CollisionSystem` | Broad-phase spatial grid + narrow-phase convex hull | 1 | ✅ |
 | `ProjectileSystem` | Advance, expire, cull | 1 | ✅ |
 | `DamageSystem` | Shield typing, bypass, localized hardpoint destruction | 1 | ✅ |
@@ -510,21 +527,22 @@ does, not from guesswork.
 | `PowerSystem` | Power budget, load shedding, throttle gating | 1 | ✅ |
 | `NpcAiSystem` | Steering, state machine (Patrol/Chase/Attack/Flee/Escort) | 1 | ✅ |
 | `SpawnSystem` | Safe spawn placement, culling, respawn-around-anchor | 1 | ✅ |
-| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | 🚧 |
-| `LootSystem` | Drops, material salvage, derelict wrecks, pickup radius | 1 | 📋 |
-| `MiningSystem` | Asteroid depletion, station mining ticks | 1–2 | 📋 |
-| `DockingSystem` | Proximity prompts, dock/undock, seated turrets, capture | 1 | 📋 |
-| `WarpSystem` | Local warp, system warp, galaxy warp, registry handoff | 1 | 📋 |
-| `CommsSystem` | Hail, dialogue lines, message log | 1 | 📋 |
-| `ContractSystem` | Contract lifecycle: accept, tick, complete, fail | 1–2 | 📋 |
-| `DistressSystem` | Distress call generation and response | 1–2 | 📋 |
-| `TutorialSystem` | Step gating and advancement | 1 | 📋 |
-| `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 | 📋 |
-| `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | 📋 |
-| `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | 📋 |
+| `PartySystem` | Escort formations, retaliation propagation, party warp | 1 | ✅ |
+| `LootSystem` | Drops, material salvage, derelict wrecks, pickup radius | 1 | ✅ |
+| `MiningSystem` | Asteroid depletion, station mining ticks | 1–2 | ✅ |
+| `DockingSystem` | Proximity prompts, dock/undock, seated turrets, capture | 1 | ✅ |
+| `WarpSystem` | Local warp, system warp, galaxy warp, registry handoff | 1 | ✅ |
+| `CommsSystem` | Hail, dialogue lines, message log | 1 | ✅ |
+| `ContractSystem` | Contract lifecycle: accept, tick, complete, fail | 1–2 | ✅ |
+| `DistressSystem` | Distress call generation and response | 1–2 | ✅ |
+| `TutorialSystem` | Step gating and advancement | 1 | ✅ |
+| `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 | ✅ |
+| `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | ✅ *(as `core/ai/FactionDecisionEngine`, see §3)* |
+| `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | ✅ |
 
-Every 📋 row above is tracked as its own GitHub issue. Most are independently startable; the few
-that are not are listed in §11.9, not here — check there before picking one up.
+All twenty-two rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
+cross-issue dependencies among them; that table is now empty since every dependency target has
+merged).
 
 **Tier** refers to the LOD model in `features.md` §1. Tier 1 runs in the active system's registry
 at 60 Hz; Tier 2 in neighbor registries at ~5 Hz; Tier 3 against `core/galaxy/` on the macro tick.
@@ -539,12 +557,13 @@ branching on tier.
 (`core/time/FixedTimestep.h`). Rendering interpolates. Determinism must hold regardless of refresh
 rate or frame spikes, because Law 2's coarse-tick catch-up depends on it.
 
-**Unified Serialization** 📋 — one pipeline writes `.sav` files and packs wire packets. It operates
-on **blueprint form only** (Law 3). Entity handles are never serialized. StarReach2's `ByteWriter`
-and `ByteReader` port directly.
+**Unified Serialization** ✅ — one pipeline (`core/serialization/`: `BlueprintSerialization`,
+`ByteStream`, `SaveFile`) writes `.sav` files and is shaped to pack wire packets once `net/`
+un-defers. It operates on **blueprint form only** (Law 3). Entity handles are never serialized.
+StarReach2's `ByteWriter`/`ByteReader` ported directly as `ByteStream`.
 
-**Save Schema Migration** 📋 — saves carry a `schemaVersion` header, processed through
-`SaveMigrator` to convert older layouts forward.
+**Save Schema Migration** ✅ — saves carry a `schemaVersion` header, processed through
+`SaveMigrator` (`core/serialization/`) to convert older layouts forward.
 
 **Memory Pooling** 🧊 — object pools for projectiles and particles. **Do not build until profiling
 shows allocation stalls.** EnTT's storage already gives contiguous iteration; this is a second
@@ -620,8 +639,8 @@ macOS.
 | **Matrix build** | ✅ | `windows-latest` (MSVC), `ubuntu-latest` (GCC), `macos-latest` (Clang) |
 | **Tests** | ✅ | Catch2 via `ctest --preset release` |
 | **Content validation** | ✅ | Every `data/base_game/` blueprint must pass `Validate()` — runs inside the test suite, so unbuildable authored data fails CI rather than a player's session |
-| **`.clang-tidy`** | 📋 | Not yet configured |
-| **ASan** | 📋 | The `asan` preset exists; no CI job runs it yet |
+| **`.clang-tidy`** | ✅ | Configured (`.clang-tidy`), its own job in `build.yaml`, gates `main` |
+| **ASan** | ✅ | The `asan` preset is wired into its own CI job |
 
 The enforcement job runs **first and independently of any compiler**, so a PR that grows a god
 object fails in under a minute rather than after three platform builds.
@@ -708,12 +727,15 @@ craft it was attached to.
 `HierarchySystem`/`PhysicsSystem`/`WeaponSystem`/`ProjectileSystem`/`DamageSystem`/
 `TargetingSystem`, `NpcFactory`/`NpcAiSystem`, `WorldRenderer`, and unit coverage for blueprint
 validation, damage/shield-bypass, and hierarchy propagation all exist and pass
-(`ctest --preset release`: 97/97). The "slice succeeds when" behavioral claim above is backed by
-those unit tests but has not yet been confirmed in an actual play session — that verification is
-still open.
+(`ctest --preset release`, and the full suite via `sr_tests.exe`: 281 test cases / 690 assertions
+as of 2026-07-28). The "slice succeeds when" behavioral claim above is backed by those unit tests
+but **has not yet been confirmed in an actual play session** — that verification is still open,
+and per the project's build/verify split it is the kind of check the user runs, not something
+confirmed by a build log.
 
-The remaining §4 systems, `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, and unified
-serialization are tracked as individual GitHub issues rather than as a slice checklist.
+All remaining §4 systems, `modes/space/ui/`, `shared/ui/`, `modes/main_menu/`, and unified
+serialization have since landed too (§0's "Current reality" summary). What's left is only what
+§3/§5/§6 mark 🧊.
 
 ---
 
@@ -866,17 +888,17 @@ run would not be handed back as finished.
 
 ### 11.9 Cross-issue dependencies
 
-Most 📋 work in §3/§4/§5 is independent — pick an issue, build it standalone (a legacy port or a
-fresh system against a bare `SystemWorld`), no other issue needs to land first. A few issues say
-otherwise directly in their body. This table is the one place those are collected, so a contributor
-picking a task does not have to re-read every open issue to notice one:
+*(This table is currently empty — every dependency it tracked has merged, per the maintenance rule
+below. That is the intended steady state, not a gap: it means everything currently open is
+independently startable. The mechanism stays documented here for the next 📋 item that has one.)*
+
+Most work in §3/§4/§5 is independent — pick an issue, build it standalone (a legacy port or a fresh
+system against a bare `SystemWorld`), no other issue needs to land first. A few issues say
+otherwise directly in their body; when one does, add a row here so a contributor picking a task
+does not have to re-read every open issue to notice it:
 
 | Task | Depends on | Why |
 |---|---|---|
-| `WarpSystem` (#25) | Unified Serialization (#33) — conditional | Only if the registry-to-registry handoff needs wire/save-shaped serialization. Check at the start of #25 whether a lighter handoff suffices; if so this is not actually blocking. |
-| Save Schema Migration (#34) | Unified Serialization (#33) | Saves are one of that pipeline's two outputs (§5) — there is no schema to migrate until it exists. |
-| `modes/space/ui/` (#36) | `shared/ui/` HUD theme (#35) | `CockpitHud`/`AvionicsMenu`/`BridgeView` are built against `sr_shared_ui`'s primitives, which do not exist on disk until #35 lands. |
-| `FactionDecisionSystem` (#31) | `FactionEconomySystem` (#30), `core/diplomacy/` (#42) | The 4-facet decision engine reads and writes `core/economy/` and `core/diplomacy/` state that #30 and #42 are what create it. |
 
 **Before starting a task, check this table.** If it names a dependency, confirm that dependency has
 actually **merged to `main`** — an open PR is not enough, since the branch you cut in §11.8 step 1
@@ -884,8 +906,8 @@ still would not have the code. If the dependency has not merged, stop and pick a
 rather than implementing against code that does not exist yet; the alternative is a branch that
 cannot build, or one that silently re-implements what the dependency was going to supply.
 
-These are prose notes in each issue body today, not GitHub's native tracked-dependency links (an
-issue's `blocked_by`/`blocking` count is 0 for all of them as of this writing) — this table is what
-makes them enforceable in practice. Maintain it by hand: add a row in the same PR that notices a new
+These are prose notes in each issue body, not GitHub's native tracked-dependency links (an issue's
+`blocked_by`/`blocking` count is 0 for all of them as of this writing) — this table is what makes
+them enforceable in practice. Maintain it by hand: add a row in the same PR that notices a new
 dependency, and delete the row (not mark it done) once its target merges — an empty table is the
 signal that everything open is independently startable again.
