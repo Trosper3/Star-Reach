@@ -18,9 +18,17 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
 | 📋 | **Planned.** Designed, agreed, not yet written. |
 | 🧊 | **Deferred.** Deliberately unbuilt. Do not start until a shipped feature demands it. |
 
-**Current reality (updated 2026-07-28):** the enforcement infrastructure, the First Vertical Slice
-(§10), and the **entire §4 system inventory** are built. What remains is only what §3/§5/§6 mark
-🧊 — deliberately deferred until a shipped feature demands it.
+**Current reality (updated 2026-07-29):** the enforcement infrastructure, the First Vertical Slice
+(§10), and the **twenty-two ✅ rows of the §4 system inventory** are built. What remains is what
+§3/§5/§6 mark 🧊 — deliberately deferred until a shipped feature demands it — plus the new **§12**
+batch.
+
+**Start here if you are picking up a design feature.** `features.md` gained a set of 📋 design
+sections (knowledge networks, sub-commanders, faction survival by Three Pillars, seeding, the
+navigation map, template negotiation) that had *no architectural counterpart* — a specification of
+behaviour with no answer to which directory, which layer, or which system. **§12 is that answer**,
+one subsection per feature, and §11.9's dependency table now has rows again because this batch has
+real ordering. Read §12 before §11.3's recipe, not after.
 
 - ✅ **CI is running.** `build.yaml` moved to `.github/workflows/`. Structural enforcement,
   formatting, a three-platform matrix build, `.clang-tidy`, and an ASan job all gate `main`.
@@ -53,9 +61,20 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
   economy/decision-engine coverage, diplomacy/reputation/territory coverage, discovery coverage,
   and blueprint-serialization/save-migration coverage.
 
-Not built: everything §3/§5/§6 mark 🧊 — `net/` (multiplayer), the asset pipeline (atlases, UUID
-asset IDs, audio banks, hot-reload), memory pooling, and release packaging. All are deliberately
-deferred; do not start any of them until a shipped feature demands it (§2.5).
+Not built, and the two categories are **not** the same thing:
+
+- 🧊 **Deferred, do not start** — everything §3/§5/§6 mark: `net/` (multiplayer), the asset pipeline
+  (atlases, UUID asset IDs, audio banks, hot-reload), memory pooling, release packaging. Prohibited
+  until a shipped feature demands one (§2.5).
+- 📋 **Designed and startable** — the §12 batch: `core/knowledge/`, `core/galaxy/Seeding`,
+  `ResearchSystem`, `CommanderSystem`, `TemplateMarketSystem`, the recovery-run wreck record, and
+  `NavigationMap`. These are the opposite of 🧊: they are waiting for someone to pick them up. Check
+  §11.9 for ordering first — `KnowledgeNetwork` gates three of them, and two entries (§12.4 seeding,
+  §12.5 recovery run) are independently startable today.
+
+Four §12 entries carry an ❓ that should be settled before or during implementation; §12.7 (template
+negotiation) is the one that genuinely **cannot** be started from the documents as written, because
+its roll formula does not exist yet.
 
 ---
 
@@ -464,6 +483,11 @@ StarReach/
 │   │   ├── economy/          # ✅ FactionEconomy
 │   │   ├── events/          # ✅ Intent.h, IntentQueue.h (Law 9)
 │   │   ├── galaxy/           # ✅ Discovery — system discovery as shared faction knowledge
+│   │   │                     # 📋 Seeding — the §12.4 seed cascade (pure, deterministic)
+│   │   │                     # 📋 WreckRecord — death wrecks that outlive a demoted
+│   │   │                     #    registry (§12.5). Entity form lives in LootSystem.
+│   │   ├── knowledge/        # 📋 KnowledgeNetwork — §12.1. The Law 8 store for
+│   │   │                     #    unlocks, Templates, and intel. NOT a component.
 │   │   ├── registries/      # ✅ JsonReader, BlueprintJson, ContentLibrary
 │   │   ├── serialization/    # ✅ BlueprintSerialization, ByteStream, SaveFile, SaveMigrator
 │   │   ├── time/            # ✅ FixedTimestep.h
@@ -474,6 +498,8 @@ StarReach/
 │   │   │                    #    ShipBlueprint, DefLibrary, Validation
 │   │   ├── components/      # ✅ Identity, Transform, Rig, Health, Physics, Power,
 │   │   │                    #    Combat, Targeting  — all POD
+│   │   │                    # 📋 Commander (§12.2), NetworkOwner (§12.1) — both hold a
+│   │   │                    #    stable id into core/, never the data itself
 │   │   ├── math/            # ✅ Vec2.h, Angle.h
 │   │   └── ui/              # ✅ HudTheme.h — sr_shared_ui, the only lib above
 │   │                        #    both sr_shared and sr_engine
@@ -491,7 +517,10 @@ StarReach/
 │       │   │                       #    registered in SystemSchedule.cpp
 │       │   ├── factories/          # ✅ WorldGen, NpcFactory, StationFactory, RigFactory
 │       │   ├── render/             # ✅ WorldRenderer, LightingPass, IconRenderer
+│       │   │                       # 📋 IconRenderer gains the §12.6 map icon bake
 │       │   └── ui/                 # ✅ CockpitHud, AvionicsMenu, BridgeView
+│       │                           # 📋 NavigationMap — §12.6. Stays in the mode per
+│       │                           #    Law 11 until a second consumer appears.
 │       │
 │       └── planet/          # 🧊 YAGNI BOUNDARY — DO NOT BUILD
 │                            #    Not present on disk. Keeping core/ mode-agnostic is a
@@ -539,10 +568,22 @@ does, not from guesswork.
 | `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 | ✅ |
 | `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | ✅ *(as `core/ai/FactionDecisionEngine`, see §3)* |
 | `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | ✅ |
+| `ResearchSystem` | Reverse-engineering jobs: cost, progress, unlock into a network | 1–2 | 📋 |
+| `CommanderSystem` | AI sub-commander standing orders, fleet dispatch, death | 1 / 2–3 | 📋 |
+| `TemplateMarketSystem` | Template pitch, valuation, negotiation roll, royalty accrual | 2–3 | 📋 |
 
-All twenty-two rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
-cross-issue dependencies among them; that table is now empty since every dependency target has
-merged).
+All twenty-two ✅ rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
+cross-issue dependencies among them).
+
+**The three 📋 rows are new**, added by the §12 pass that gave `features.md`'s design sections
+architecture homes. They are listed here rather than left to be discovered because that is this
+section's entire purpose — §4 exists because naming only three systems is how 12,947 lines ended up
+in an orchestrator. Two further design sections deliberately do **not** appear as new systems:
+
+- **Knowledge networks** (`features.md` §2.5) are a `core/` store, not a ticking system — nothing
+  about them needs to run per frame. See §12.1.
+- **Faction survival** (`features.md` §5.1) is a new entry point on the existing
+  `core/ai/FactionDecisionEngine`, not a system of its own. See §12.3.
 
 **Tier** refers to the LOD model in `features.md` §1. Tier 1 runs in the active system's registry
 at 60 Hz; Tier 2 in neighbor registries at ~5 Hz; Tier 3 against `core/galaxy/` on the macro tick.
@@ -888,17 +929,24 @@ run would not be handed back as finished.
 
 ### 11.9 Cross-issue dependencies
 
-*(This table is currently empty — every dependency it tracked has merged, per the maintenance rule
-below. That is the intended steady state, not a gap: it means everything currently open is
-independently startable. The mechanism stays documented here for the next 📋 item that has one.)*
-
 Most work in §3/§4/§5 is independent — pick an issue, build it standalone (a legacy port or a fresh
 system against a bare `SystemWorld`), no other issue needs to land first. A few issues say
 otherwise directly in their body; when one does, add a row here so a contributor picking a task
-does not have to re-read every open issue to notice it:
+does not have to re-read every open issue to notice it.
+
+The §12 work is the first batch since the §4 inventory to have real ordering. `KnowledgeNetwork` is
+the load-bearing one — three separate features read or write it, and building any of them against a
+store that does not exist means inventing a throwaway one:
 
 | Task | Depends on | Why |
 |---|---|---|
+| `ResearchSystem` (§12.1) | `core/knowledge/KnowledgeNetwork` | A completed research job's only output is a grant into a network. Without the store there is nothing to grant to. |
+| `CommanderSystem` (§12.2) | `core/knowledge/KnowledgeNetwork` | Each sub-commander owns a network (`features.md` §4.1); the `Commander` component holds a `NetworkId` into it. |
+| `TemplateMarketSystem` (§12.7) | `core/knowledge/KnowledgeNetwork` | A sale copies a Template from the seller's network into the buyer's. Both ends are the store. |
+| Faction survival (§12.3) | `CommanderSystem` (§12.2) | The Leadership pillar is "player alive **or** any sub-commander alive". The predicate cannot be written, let alone tested, before commanders exist. |
+| Recovery run (§12.5) | — *(none)* | Deliberately independent: it extends the existing `LootSystem` and adds one `core/galaxy/` record. Startable today. |
+| Seeding (§12.4) | — *(none)* | Pure functions in `sr_core`. Startable today, and the natural first pick. |
+| Navigation map (§12.6) | Seeding (§12.4) | Zoom levels 1–2 render systems the player has never visited, which only exist as seed output until instantiated. |
 
 **Before starting a task, check this table.** If it names a dependency, confirm that dependency has
 actually **merged to `main`** — an open PR is not enough, since the branch you cut in §11.8 step 1
@@ -911,3 +959,249 @@ These are prose notes in each issue body, not GitHub's native tracked-dependency
 them enforceable in practice. Maintain it by hand: add a row in the same PR that notices a new
 dependency, and delete the row (not mark it done) once its target merges — an empty table is the
 signal that everything open is independently startable again.
+
+---
+
+## 12. Implementing The 📋 Design Sections
+
+`features.md` says **what** the game does. This section says **where the code goes**, and it exists
+because the two were written months apart: the design sections landed as agreed design with no
+architectural counterpart, which meant a contributor picking one up had a specification of behaviour
+and no answer to "which directory, which layer, which system."
+
+Every subsection below gives the same five things, because those are what §11.3's recipe actually
+needs: **home**, **types**, **systems**, **persistence**, **tests**. Where a real design question is
+still open it is marked ❓ and left open — those are decisions for the project owner, and guessing
+them here would bury a choice inside an architecture note where nobody would look for it.
+
+**None of this is built.** Everything in §12 is 📋.
+
+### 12.1 Knowledge Networks — `features.md` §2.5
+
+**Home:** `core/knowledge/KnowledgeNetwork.h/.cpp` (new directory, `sr_core`).
+
+**Why `core/` and not a component — this is forced, not chosen.** Two existing laws decide it
+between them:
+
+- Law 8 puts galaxy-wide, mode-agnostic state in `core/`. A faction's network has to be readable on
+  the Tier 3 macro tick, where `features.md` §1.1's boundary rule says *no registry exists at all*.
+  A component is therefore unreadable exactly when the faction simulation needs it.
+- Law 2's first hard rule says entity handles never cross a system boundary, a save file, or the
+  wire. A network outlives any particular registry — it survives the player warping away, and it
+  survives the death of the ship that was carrying its owner.
+
+**The apparent contradiction, resolved.** `features.md` §4.1 says each sub-commander *holds* a
+network, which sounds like per-entity data. It is not: the commander **entity** holds a stable
+`NetworkId`, and the network itself lives in `core/`. This is the same shape Law 3 already uses for
+blueprints — the volatile thing points at the durable thing, never the reverse.
+
+```
+shared/components/NetworkOwner.h   POD: { NetworkId network; }   <- on the entity
+core/knowledge/KnowledgeNetwork    the store, keyed by NetworkId <- the actual data
+```
+
+**Types:**
+
+| Type | Notes |
+|---|---|
+| `NetworkId` | Stable integer or string id. **Not** an `entt::entity` (Law 2, §11.4) |
+| `NetworkOwnerKind` | `Player`, `Commander`, `Faction` — the three owners in `features.md` §2.5 |
+| `KnowledgeNetwork` | Holds unlocked blueprint ids, saved Templates, discovered system ids |
+| `KnowledgeStore` | Owns all networks; `Get`, `Grant`, `Copy`, `Create`, `Destroy` |
+
+**Systems:** none. This is a store, not a ticking system — nothing about it needs to run per frame.
+Its writers are `ResearchSystem` (grants an unlock), `TemplateMarketSystem` (copies on sale), and
+`DiscoverySystem` (already built; would grant discovered systems). Name the writers in the header
+comment, per §11.4's "document the writer" rule — a store that everything writes and nothing owns is
+exactly what that rule exists to prevent.
+
+**Persistence:** this is the part with real consequences. Networks are save state, so
+`core/serialization/SaveFile` gains a networks section and `schemaVersion` **must** be bumped with a
+matching `SaveMigrator` step. Old saves have no networks; the migration decides what an existing
+save's player starts with. Serialize blueprint **ids**, never blueprint bodies — the content library
+already owns those, and duplicating them into saves would break Law 10's single content pipeline the
+moment a JSON stat changes.
+
+**Tests:** grant/copy/destroy round-trips; a save→load→save cycle preserving contents; destroying a
+network leaves other owners' networks untouched. All headless — `sr_core` links no renderer.
+
+❓ **Open (raised, deliberately not answered here):** whether a network has a capturable physical
+host, so a faction can *steal* designs rather than only destroy the holder. `features.md` §2.5
+raises it. It changes the type — a raidable network needs a location and an owner entity — so it is
+cheaper to decide before this is built than after.
+
+### 12.2 AI Sub-Commanders — `features.md` §4.1
+
+**Home:** `shared/components/Commander.h` (POD) + `modes/space/systems/CommanderSystem.*`.
+
+**Types:** `Commander { NetworkId network; CommanderOrders orders; FactionId faction; }`, POD per
+§11.4 — no methods, no owning pointers. The commanded vessel is the entity carrying the component,
+which is what makes "destroying the capital destroys them" fall out for free rather than needing a
+special case.
+
+**Systems:** `CommanderSystem`, spanning tiers, so **two entry points, never one function branching
+on tier** (§4, §11.3):
+
+| Entry | Tier | Does |
+|---|---|---|
+| `Tick` | 1 | Standing orders in the active system: dispatch, retreat, defend |
+| `TickCoarse` | 2–3 | Abstract order resolution against `core/galaxy/` records — no steering, no projectiles |
+
+**Persistence:** commanders are entities, so they serialize through the normal per-system save (Law
+2). Their `NetworkId` is stable and survives; their `entt::entity` does not.
+
+**Tests:** a commander's death releases its network reference without destroying the network; orders
+survive a Tier 1 → 2 demotion and back.
+
+❓ **Open:** recruitment, competence/personality traits, and whether a rival can turn one
+(`features.md` §4.1). None of the three block the component or the system skeleton — build the
+mechanism, leave the roster policy open.
+
+### 12.3 Faction Survival — `features.md` §5.1
+
+**Home:** a new entry point on the existing `core/ai/FactionDecisionEngine`, **not** a new system.
+
+**Why not its own system.** It runs on the same macro tick as the 4-facet engine and reads exactly
+the state that engine already reads — `core/economy/FactionEconomy` (footprint),
+`core/diplomacy/Territory` (territory), and the command-module query. A separate system would
+duplicate the reads and add a directory with one function in it, which §2.4 exists to prevent.
+
+**Types:** `SurvivalPillars { bool commandStructure; bool leadership; bool economicFootprint; }` —
+returning all three rather than a bare bool, so the UI and the collapse handler can say *which*
+pillar went, and so a test can assert on one pillar at a time.
+
+**The player is not a special case.** `features.md` §3.3 defines Hard Game Over as this same
+predicate applied to the player's faction. One implementation, eleven possible factions. If the
+player ends up needing a separate code path, something has gone wrong in the modelling — that
+equivalence is the whole reason `features.md` §5.1 was rewritten.
+
+**Tests:** each pillar independently sufficient; all three lost ⇒ collapse; collapse scatters ships
+to rogue and unclaims territory; the same predicate returns the same answer for a player faction as
+for an AI one, given the same inputs.
+
+❓ **Open:** "economic footprint" is not quantified in `features.md` §5.1. Any production > 0? A
+threshold? Held territory alone? This needs a number before the predicate can be written.
+
+### 12.4 Procedural Seeding — `features.md` §7
+
+**Home:** `core/galaxy/Seeding.h/.cpp` — pure functions, no state, `sr_core`.
+
+**This is the most implementation-sensitive section in §12, and the reason is not obvious.**
+`features.md` §7.1 specifies a *schema* (`parent seed + coordinates -> child seed`), not an
+*algorithm*. Two contributors given that sentence will produce two incompatible galaxies from the
+same seed, and neither will be wrong by the document.
+
+So the algorithm is pinned here:
+
+- **Use an explicitly specified 64-bit mixer** — SplitMix64 or PCG, with the constants written into
+  the header. Not "a hash function."
+- **Never `std::hash`.** It is implementation-defined; libstdc++, libc++, and MSVC disagree. A
+  galaxy generated on Windows would not match the same seed on Linux, which breaks determinism
+  across exactly the three platforms CI builds.
+- **Never `std::shuffle`/`std::uniform_int_distribution` for persisted results.** Distribution
+  implementations are also unspecified across standard libraries. Roll the arithmetic by hand.
+- Coordinate encoding — bit widths and packing order — is part of the format. Write it down; changing
+  it silently regenerates every galaxy.
+
+**Tests, and these are not optional here:** same seed ⇒ same output, asserted against **hardcoded
+expected values** committed in the test. That is what turns "deterministic" from an aspiration into
+something CI can catch, and it fails loudly on any platform that disagrees. Also: generation is
+order-independent (visiting C first yields the same C).
+
+**The boundary that will actually bite:** `features.md` §7.2's rule that anything a player or faction
+could have changed is *not* seed-derived. Seeds supply the stage; `core/galaxy/` records supply the
+play. A `Seeding.h` that regenerates mutable state on revisit silently undoes player actions, and it
+will look like a save bug rather than a generation bug.
+
+### 12.5 The Recovery Run — `features.md` §3.3 Tier 2
+
+**Home:** `LootSystem` (already built) for the live entity; `core/galaxy/WreckRecord` for the
+durable one.
+
+**This section exists because the design has a hole, and it is better to name it than to let it be
+discovered mid-implementation.** `features.md` §3.3 says the player's cargo drops as a wreck
+recoverable within a time limit. But the player respawns at an allied station, potentially in another
+system — so the system holding the wreck demotes to Tier 2 or 3. `features.md` §1.1's boundary rule
+is absolute: *Tier 3 must never require entity data.* A wreck that exists only as an entity therefore
+evaporates when the player leaves, which is precisely when the recovery run is supposed to be
+happening.
+
+**Recommended resolution:** the wreck is dual-form, the same way everything else in this codebase is
+(Law 3). It is an entity while its system is resident, and a `core/galaxy/WreckRecord`
+(position, manifest of blueprint ids, expiry) when the system demotes. Demotion writes the record;
+promotion re-instantiates the entity from it. That reuses the promotion/demotion path
+`features.md` §1.1 already requires rather than inventing a parallel one.
+
+❓ **Open, and this is a design decision rather than an architecture one:** whether the wreck
+survives demotion at all. The alternative — the wreck expires the moment its system demotes — is
+much cheaper and defensible ("recover it now or lose it"), but it silently makes the recovery run
+impossible whenever you respawn in another system, which is the common case. The recommendation above
+assumes it should survive. **Confirm before building.**
+
+Related and still open in `features.md` §9: the window's duration, wall-clock vs. in-game time, and
+whether the wreck is marked on the navigation map.
+
+### 12.6 The Navigation Map — `features.md` §8
+
+**Home:** `modes/space/ui/NavigationMap.*`, plus a map-icon bake in the existing
+`modes/space/render/IconRenderer`.
+
+**Why the mode and not `shared/`.** Law 11's tie-breaker: put it in the mode, promote when a second
+consumer actually appears. `modes/planet/` is 🧊 and explicitly must not be built, so there is no
+second consumer today. Promoting early is what left `src/shared/ui/menus/` empty in StarReach2.
+
+**The layer rule that constrains the whole design** (§2.3): `modes/*/ui/` **must not include
+`systems/`**. So the map reads `core/galaxy/` records and emits **Intents** (Law 9) for anything that
+changes state — an RTS move order at zoom level 3 is a `MoveFleetRequest`, not a direct write. This
+is checkable in CI, so a design that requires the map to call into a system will fail the build
+rather than fail review.
+
+**Zoom levels 1–3 are UI over `core/galaxy/`; level 4 is the existing render path.** That split is
+what keeps the map cheap: levels 1–3 need no registry at all, which is also why they still work for
+systems the player has never visited (§12.4 supplies those).
+
+**Icon culling is a correctness rule, not an optimisation.** `features.md` §8.2 scopes ship and fleet
+icons to level 3 and culls them entirely above it. Below level 3 there is no per-ship data to draw —
+Tier 3 systems have no entities — so an implementation that tries to draw ship icons at level 1 is
+not slow, it is reading state that does not exist.
+
+❓ **Open:** whether level 3 shows everything in a system or only what the player has sensor coverage
+of (`features.md` §9). This changes what `NavigationMap` queries — `Discovery` alone, or `Discovery`
+plus a live sensor check — so it is worth settling before the query layer is written.
+
+### 12.7 Template Negotiation — `features.md` §2.6
+
+**Home:** `modes/space/systems/TemplateMarketSystem.*`, Tier 2–3.
+
+**Types:** a pitch is an **Intent** (Law 9) — the UI never resolves a sale directly. Royalty accrual
+is faction-level economic state, so it belongs in `core/economy/FactionEconomy` next to the stock it
+pays out of, not in a component.
+
+**The sale itself is a network copy** (§12.1) — `Copy(sellerNetwork, buyerNetwork, templateId)`.
+That single line is why `features.md` §2.1's "selling a Template sells data, not an object" works,
+and why a faction keeps manufacturing your design after its stations die.
+
+**Tests:** a sold Template survives destruction of the buyer's stations; selling the same Template to
+two factions at war is permitted (`features.md` §2.6 says so explicitly); royalties accrue against
+Tier 3 production without the player present.
+
+❓ **Open, and blocking:** the negotiation roll formula. `features.md` §2.6 says the attempt "rolls
+against faction disposition" — reputation tier, `features.md` §5.3 relation band, and archetype —
+but assigns no
+weights, and §9 still lists the royalty rate scale and posthumous payment as undecided. This is the
+one §12 entry that cannot be started from the documents as written.
+
+### 12.8 The Constraints That Apply To All Of It
+
+Restated here because they are the ones most likely to be missed by someone implementing a single
+feature end-to-end:
+
+| Rule | Where | Bites when |
+|---|---|---|
+| No `entt::entity` in anything persistent | Law 2, §11.4 | A network, wreck record, or Template holds a handle. Works locally, corrupts on warp. |
+| `sr_core` links no raylib | Law 8, §2.1 | Anything in `core/knowledge/` or `core/galaxy/` touches a `Texture2D`. Fails at link, which is the point. |
+| `modes/*/ui/` must not include `systems/` | §2.3 | The navigation map calls a system directly instead of emitting an Intent. |
+| Tier 3 must not require entity data | `features.md` §1.1 | Wrecks, commanders, or networks are read on the macro tick as components. |
+| Content is JSON only | Law 10 | A research recipe or royalty table gets written as a C++ table. CI rejects it. |
+| One entry point per tier | §4, §11.3 | `CommanderSystem` branches on tier inside `Tick` instead of exposing `TickCoarse`. |
+| Register in the same commit | §2.4, §11.3 | A new system lands without its `SystemSchedule.cpp` entry, so it never runs and nothing says so. |
