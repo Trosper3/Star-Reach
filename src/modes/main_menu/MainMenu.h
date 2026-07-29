@@ -4,6 +4,15 @@
 
 #include "modes/IGameMode.h"
 
+namespace sr::engine {
+// Forward-declared rather than included: both members below are references, so the definitions
+// are only needed in the .cpp. That keeps <raylib.h> (which TextureCache.h/FontCache.h do
+// include) out of this header, for the same reason engine/platform/Window.h keeps it out of its
+// own.
+class TextureCache;
+class FontCache;
+}  // namespace sr::engine
+
 namespace sr::modes::main_menu {
 
 // The title-screen orchestrator -- the second IGameMode, landing in the same commit as the
@@ -18,17 +27,26 @@ namespace sr::modes::main_menu {
 // it depends on already built, rather than as a 1,249-line file ported whole and immediately
 // over every cap in section 2.2.
 //
-// Law 6: the only state below is presentation state -- a starfield and a "start requested" flag.
+// Law 6: the only state below is presentation state -- a starfield, and the two flags main()
+// polls to route to the next mode.
 class MainMenu : public IGameMode {
 public:
+    // Both caches are owned by main() and handed in, exactly the shape ContentLibrary and
+    // FactionEconomy already have there -- deliberately not a global. A globally reachable
+    // cache is ambient state every file can touch, which is the "what I need is already in
+    // scope" pressure Law 6 exists to remove.
+    MainMenu(engine::TextureCache& textures, engine::FontCache& fonts);
+
     void OnEnter() override;
     void Update(float realDeltaSeconds) override;
     void Draw() const override;
     void OnExit() override;
 
-    // Not part of IGameMode: main() polls this to decide when to switch modes. Orchestrating
-    // *which* mode runs next is main()'s job, not something every mode implements identically.
+    // Not part of IGameMode: main() polls these to decide when to switch modes or stop the loop
+    // entirely. Orchestrating *which* mode runs next (or whether to keep running at all) is
+    // main()'s job, not something every mode implements identically.
     bool ShouldStartGame() const { return startRequested_; }
+    bool QuitRequested() const { return quitRequested_; }
 
 private:
     struct Star {
@@ -38,12 +56,17 @@ private:
         float radius = 0.0f;
     };
     static constexpr int kStarCount = 200;
+
+    engine::TextureCache& textures_;
+    engine::FontCache& fonts_;
     std::array<Star, kStarCount> stars_{};
 
     bool startRequested_ = false;
+    bool quitRequested_ = false;
 
     void InitStars();
     void UpdateStars(float realDeltaSeconds);
+    void DrawBackground() const;
     void DrawStars() const;
 };
 

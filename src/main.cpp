@@ -3,6 +3,8 @@
 
 #include "core/economy/FactionEconomy.h"
 #include "core/registries/ContentLibrary.h"
+#include "engine/assets/FontCache.h"
+#include "engine/assets/TextureCache.h"
 #include "engine/platform/Window.h"
 #include "modes/IGameMode.h"
 #include "modes/main_menu/MainMenu.h"
@@ -66,8 +68,17 @@ int RunGame() {
         return 1;
     }
 
+    // Art lives beside the authored JSON under data/base_game/ so the same FindContentDirectory
+    // walk resolves both, and so the eventual data/mods/ overlay covers textures for free with
+    // the same precedence rules it will use for content. Owned here and passed by reference,
+    // exactly like `content` and `economy` -- never a global (see MainMenu's constructor).
+    sr::engine::TextureCache textures(contentDir / "textures");
+    // Fonts live beside textures under data/base_game/ -- same FindContentDirectory walk, same
+    // "not a global" ownership shape (see MainMenu's constructor comment).
+    sr::engine::FontCache fonts(contentDir / "fonts");
+
     sr::core::economy::FactionEconomy economy;
-    sr::modes::main_menu::MainMenu menu;
+    sr::modes::main_menu::MainMenu menu(textures, fonts);
     sr::space::SpaceFlight game(content, economy);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
@@ -78,6 +89,10 @@ int RunGame() {
 
     while (!window.ShouldClose()) {
         activeMode->Update(window.FrameTime());
+
+        if (activeMode == &menu && menu.QuitRequested()) {
+            break;
+        }
 
         if (activeMode == &menu && menu.ShouldStartGame()) {
             activeMode->OnExit();
@@ -91,6 +106,12 @@ int RunGame() {
     }
 
     activeMode->OnExit();
+    // Before Window::Close(), not after: unloading a texture/font once CloseWindow() has
+    // destroyed the GL context is undefined. TextureCache/FontCache's destructors guard the same
+    // hazard for other teardown orders, but this scope closes the window explicitly, so the
+    // unload has to be explicit too.
+    textures.UnloadAll();
+    fonts.UnloadAll();
     window.Close();
     return 0;
 }

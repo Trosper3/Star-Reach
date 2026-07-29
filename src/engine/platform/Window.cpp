@@ -12,7 +12,11 @@ bool Window::Open(int width, int height, const std::string& title) {
     if (open_) {
         return true;
     }
-    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    // FLAG_VSYNC_HINT deliberately omitted: it ties glfwSwapBuffers to the display's vblank,
+    // and some Intel UHD Graphics driver versions stall indefinitely on that wait on Windows
+    // (first EndDrawing() never returns). SetTargetFPS below still caps the frame rate without
+    // the driver-level blocking wait.
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(width, height, title.c_str());
     open_ = IsWindowReady();
     if (open_) {
