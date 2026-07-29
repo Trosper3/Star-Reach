@@ -82,6 +82,9 @@ jobs:
       - name: Point VCPKG_ROOT at the runner's vcpkg
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
+      - name: Sync vcpkg to the pinned baseline
+        run: bash tools/ci/sync_vcpkg_baseline.sh
+
       # clang-tidy reads compile flags (include paths, defines) from compile_commands.json --
       # this is a real configure, not a lint-only step, because there is no other way to give it
       # vcpkg's EnTT/raylib/nlohmann_json include paths correctly.
@@ -142,6 +145,10 @@ jobs:
         shell: bash
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
+      - name: Sync vcpkg to the pinned baseline
+        shell: bash
+        run: bash tools/ci/sync_vcpkg_baseline.sh
+
       - name: Configure
         run: cmake --preset release
 
@@ -180,6 +187,9 @@ jobs:
 
       - name: Point VCPKG_ROOT at the runner's vcpkg
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
+
+      - name: Sync vcpkg to the pinned baseline
+        run: bash tools/ci/sync_vcpkg_baseline.sh
 
       - name: Configure
         run: cmake --preset asan

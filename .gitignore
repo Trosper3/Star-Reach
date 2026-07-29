@@ -61,6 +61,11 @@ compile_commands.json
 *.bak
 *.swp
 
+# Scratch diagnostic logs dropped at the repo root by local tool runs. The `*.log` rule above misses
+# these because they are named `*_log.txt`; pin_release_log.txt and statictest_log.txt reached main
+# that way. Root-anchored so a genuine data file named `..._log.txt` under data/ is unaffected.
+/*_log.txt
+
 # vcpkg
 vcpkg_installed/
 
