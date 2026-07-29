@@ -67,14 +67,17 @@ Not built, and the two categories are **not** the same thing:
   (atlases, UUID asset IDs, audio banks, hot-reload), memory pooling, release packaging. Prohibited
   until a shipped feature demands one (§2.5).
 - 📋 **Designed and startable** — the §12 batch: `core/knowledge/`, `core/galaxy/Seeding`,
-  `ResearchSystem`, `CommanderSystem`, `TemplateMarketSystem`, the recovery-run wreck record, and
-  `NavigationMap`. These are the opposite of 🧊: they are waiting for someone to pick them up. Check
-  §11.9 for ordering first — `KnowledgeNetwork` gates three of them, and two entries (§12.4 seeding,
-  §12.5 recovery run) are independently startable today.
+  `ResearchSystem`, `CommanderSystem`, `TemplateMarketSystem`, Faction Survival, the recovery-run
+  wreck record, and `NavigationMap`. These are the opposite of 🧊: they are waiting for someone to
+  pick them up. Check §11.9 for ordering first — `KnowledgeNetwork` gates three of them, Faction
+  Survival gates on `CommanderSystem`, and two entries (§12.4 seeding, §12.5 recovery run) are
+  independently startable today.
 
 Four of §12's open ❓s have since been settled (economic footprint §12.3, wreck-survives-demotion
-§12.5, sensor-gated fog of war §12.6, and the negotiation roll's three-step shape §12.7) — all seven
-entries are now startable, none blocking. Two ❓s remain, and neither blocks anything: §12.1's network
+§12.5, sensor-gated fog of war §12.6, and the negotiation roll's three-step shape §12.7), and
+`ResearchSystem` — previously named only as a `KnowledgeNetwork` writer with no home of its own — now
+has the same five-part treatment as everything else, folded into §12.1. All eight items in the §12
+batch are now startable, none blocking. Two ❓s remain, and neither blocks anything: §12.1's network
 raiding and §12.2's sub-commander recruitment/loyalty are both scoped as "build the mechanism, leave
 the roster policy open."
 
@@ -1031,6 +1034,41 @@ network leaves other owners' networks untouched. All headless — `sr_core` link
 host, so a faction can *steal* designs rather than only destroy the holder. `features.md` §2.5
 raises it. It changes the type — a raidable network needs a location and an owner entity — so it is
 cheaper to decide before this is built than after.
+
+#### ResearchSystem — `features.md` §2.4
+
+**Why this lives inside §12.1 rather than its own numbered entry.** `ResearchSystem` appears in §4's
+system table and in §11.9's dependency table, but until now it had no home/types/persistence/tests of
+its own — only a passing mention above as a `KnowledgeNetwork` writer. Its only externally visible
+output *is* a grant into the network, so it is specified here, next to the store it writes into,
+rather than opening a new top-level number for one system.
+
+**Home:** `modes/space/systems/ResearchSystem.*`, Tier 1–2 (§4).
+
+**Types:**
+
+| Type | Notes |
+|---|---|
+| `ResearchJob` | `{ ItemId item; float progress; float cost; NetworkId targetNetwork; }` — POD, §11.4 |
+| Held by | A `StationFacility` component on the station entity running it — a job is per-station state, not a rig, so `Rig::children` (Law 4) does not apply. A station running two reverse-engineering jobs at once holds `std::vector<ResearchJob>` on that one component. |
+
+**Systems:** `ResearchSystem::Tick` advances `progress` for every resident station's jobs against
+`dt` and the facility's tier (`features.md` §2.4's "time" and "facility-tier" cost factors). On
+completion it calls `KnowledgeStore::Grant(targetNetwork, item)` and clears the job. No
+`TickCoarse` — see persistence below for why one isn't needed.
+
+**Persistence — the same hole §12.5 found, resolved the same way.** A job only advances while its
+station's system is resident (Tier 1–2). If the system demotes mid-job — the player warps away,
+`features.md` §1.1 — an entity-only job would either silently vanish or silently freeze with no
+record of why. Following §12.5's precedent exactly: demotion writes a `core/galaxy/ResearchRecord`
+(station id, item, progress, cost) and tears down the entity's `ResearchJob`; promotion
+re-instantiates it, with elapsed time banked the same way `FactionEconomy`'s aggregate production
+already fast-forwards. A job resumes at the progress it would have reached had the station stayed
+resident, not at the progress it had when the player left.
+
+**Tests:** progress advances correctly against facility tier and `dt`; completion grants exactly
+once and clears the job; a demote→promote cycle resumes at the caught-up progress, not the frozen
+one; two concurrent jobs at the same station complete independently.
 
 ### 12.2 AI Sub-Commanders — `features.md` §4.1
 
