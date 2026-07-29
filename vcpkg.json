@@ -1,13 +1,18 @@
 {
   "name": "star-reach",
   "version-string": "0.1.0",
+  "builtin-baseline": "40f3c709db80acf154ac4b17a1f83c564ebd022e",
   "$comment-enet": "ENet is deferred (architecture.md Law 9). Add it here when net/ un-defers, together with the sr_net CMake target.",
   "$comment-glfw3": "Not used directly, and already a transitive dependency of raylib. Declared explicitly because CMakeLists.txt has to link it by hand on static triplets: raylib is built with USE_EXTERNAL_GLFW=ON but never exports glfw in its link interface, so libraylib.a ships undefined glfw* symbols. See the comment above find_package(glfw3) for why the condition is static-vs-shared rather than per-OS.",
+  "$comment-raylib-pin": "Pinned below 6.0 deliberately -- vcpkg's raylib port added -DCUSTOMIZE_BUILD=ON when it updated to 6.0 (vcpkg commit e8c2ec9120), which has a config.h-parsing bug that silently enables SUPPORT_CUSTOM_FRAME_CONTROL, making EndDrawing() a no-op for buffer swap/event poll: the app runs (CPU ticks, no crash) but the window never presents a frame and never processes input. Confirmed against a from-scratch minimal raylib program, independent of anything in this codebase -- not a driver/GPU/linkage issue. Tracked upstream at https://github.com/microsoft/vcpkg/issues/51576; a fix exists on raylib's master branch but is not yet in a tagged release, and vcpkg's port has not adopted it. Re-evaluate un-pinning once that issue closes.",
   "dependencies": [
     "entt",
     "nlohmann-json",
     "raylib",
     "catch2",
     "glfw3"
+  ],
+  "overrides": [
+    { "name": "raylib", "version": "5.5" }
   ]
 }

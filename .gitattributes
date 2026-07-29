@@ -1,0 +1,5 @@
+# Shell scripts must keep LF endings in the blob regardless of a contributor's core.autocrlf.
+# This repo is developed primarily on Windows but tools/ci/*.sh run on the Linux runners, where a
+# CRLF script fails with a bare "\r: command not found" that reads like a broken script rather than
+# a line-ending problem.
+*.sh text eol=lf

@@ -28,16 +28,32 @@ find_package(raylib CONFIG REQUIRED)
 # get the right answer for those three by accident and then break on x64-windows-static, so gate
 # on the property that actually matters. On macOS linking glfw also restores the Cocoa/IOKit
 # frameworks, which went missing through the same hole.
+#
+# Do NOT gate on the target's TYPE property alone. raylib's vcpkg config reports
+# TYPE == SHARED_LIBRARY on x64-linux even though what it actually points at is libraylib.a, so a
+# TYPE-only gate evaluated false on precisely the triplets that need glfw and CI failed with ~90
+# undefined glfw* symbols while cheerfully logging "raylib is a SHARED_LIBRARY". The imported
+# location is the trustworthy signal: it is the file that will actually be put on the link line.
+#
+# The suffix test is correct on dynamic Windows too, where IMPORTED_LOCATION is raylib.dll (the
+# .lib import library hangs off IMPORTED_IMPLIB), so it does not match and glfw stays off.
 set(SR_LINK_GLFW OFF)
 get_target_property(SR_RAYLIB_TYPE raylib TYPE)
-if(SR_RAYLIB_TYPE STREQUAL "STATIC_LIBRARY")
+get_target_property(SR_RAYLIB_LOC raylib IMPORTED_LOCATION_RELEASE)
+if(NOT SR_RAYLIB_LOC)
+    get_target_property(SR_RAYLIB_LOC raylib IMPORTED_LOCATION)
+endif()
+if(SR_RAYLIB_TYPE STREQUAL "STATIC_LIBRARY"
+   OR SR_RAYLIB_LOC MATCHES "${CMAKE_STATIC_LIBRARY_SUFFIX}$")
     find_package(glfw3 CONFIG REQUIRED)
     set(SR_LINK_GLFW ON)
 endif()
 # Printed because the two paths fail very differently and only one of them is visible locally: a
 # gate that silently evaluated false on a static triplet looks exactly like a correct skip on a
-# dynamic one, right up until the link fails on someone else's machine.
-message(STATUS "raylib is a ${SR_RAYLIB_TYPE}; linking glfw explicitly: ${SR_LINK_GLFW}")
+# dynamic one, right up until the link fails on someone else's machine. The location is printed
+# alongside the type precisely because the type turned out to be the untrustworthy half.
+message(STATUS "raylib TYPE=${SR_RAYLIB_TYPE} location=${SR_RAYLIB_LOC}; "
+               "linking glfw explicitly: ${SR_LINK_GLFW}")
 
 # ---------------------------------------------------------------------------------------------
 # Shared compile settings, carried by an INTERFACE target rather than repeated per layer.
@@ -137,6 +153,8 @@ target_link_libraries(sr_core PUBLIC sr_options sr_shared nlohmann_json::nlohman
 # Zero game knowledge. Note the absence of sr_core and sr_shared below: that omission is the
 # enforcement. engine/ is the layer a second game could be built on.
 add_library(sr_engine STATIC
+    src/engine/assets/TextureCache.cpp
+    src/engine/assets/FontCache.cpp
     src/engine/platform/Window.cpp
 )
 target_link_libraries(sr_engine PUBLIC sr_options raylib)
