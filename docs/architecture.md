@@ -72,9 +72,11 @@ Not built, and the two categories are **not** the same thing:
   §11.9 for ordering first — `KnowledgeNetwork` gates three of them, and two entries (§12.4 seeding,
   §12.5 recovery run) are independently startable today.
 
-Four §12 entries carry an ❓ that should be settled before or during implementation; §12.7 (template
-negotiation) is the one that genuinely **cannot** be started from the documents as written, because
-its roll formula does not exist yet.
+Four of §12's open ❓s have since been settled (economic footprint §12.3, wreck-survives-demotion
+§12.5, sensor-gated fog of war §12.6, and the negotiation roll's three-step shape §12.7) — all seven
+entries are now startable, none blocking. Two ❓s remain, and neither blocks anything: §12.1's network
+raiding and §12.2's sub-commander recruitment/loyalty are both scoped as "build the mechanism, leave
+the roster policy open."
 
 ---
 
@@ -1079,8 +1081,12 @@ equivalence is the whole reason `features.md` §5.1 was rewritten.
 to rogue and unclaims territory; the same predicate returns the same answer for a player faction as
 for an AI one, given the same inputs.
 
-❓ **Open:** "economic footprint" is not quantified in `features.md` §5.1. Any production > 0? A
-threshold? Held territory alone? This needs a number before the predicate can be written.
+**Economic footprint, settled:** any production greater than zero anywhere in
+`core/economy/FactionEconomy` counts as a surviving footprint. The pillar fails only when the
+faction produces nothing at all — not a threshold, not territory alone. This is the simplest
+predicate that still matches §5.1's intent ("can this faction still function"), and it keeps the
+test in the row above (each pillar independently sufficient) a one-line assertion:
+`economy.TotalProduction(faction) > 0.0f`.
 
 ### 12.4 Procedural Seeding — `features.md` §7
 
@@ -1132,11 +1138,9 @@ happening.
 promotion re-instantiates the entity from it. That reuses the promotion/demotion path
 `features.md` §1.1 already requires rather than inventing a parallel one.
 
-❓ **Open, and this is a design decision rather than an architecture one:** whether the wreck
-survives demotion at all. The alternative — the wreck expires the moment its system demotes — is
-much cheaper and defensible ("recover it now or lose it"), but it silently makes the recovery run
-impossible whenever you respawn in another system, which is the common case. The recommendation above
-assumes it should survive. **Confirm before building.**
+**Settled: the wreck survives demotion.** The dual-form resolution above is confirmed, not merely
+recommended — a wreck that expired on demotion would make the recovery run impossible whenever the
+player respawns in another system, which is the common case, not the exception.
 
 Related and still open in `features.md` §9: the window's duration, wall-clock vs. in-game time, and
 whether the wreck is marked on the navigation map.
@@ -1165,9 +1169,14 @@ icons to level 3 and culls them entirely above it. Below level 3 there is no per
 Tier 3 systems have no entities — so an implementation that tries to draw ship icons at level 1 is
 not slow, it is reading state that does not exist.
 
-❓ **Open:** whether level 3 shows everything in a system or only what the player has sensor coverage
-of (`features.md` §9). This changes what `NavigationMap` queries — `Discovery` alone, or `Discovery`
-plus a live sensor check — so it is worth settling before the query layer is written.
+**Settled: sensor-coverage only.** Level 3 does not show every icon present in the resident registry
+— it queries `Discovery` plus a live sensor-range check against the player's own sensors, so a
+hostile fleet outside detection range does not appear. This is the query layer's actual shape: not
+"read the registry," but "read the registry, then filter by the same sensor gate `DiscoverySystem`
+already uses for system-level intel." Requires `DiscoverySystem` (or a range check it exposes) to be
+queryable from `modes/space/ui/`, which — per §2.3's `modes/*/ui/` must not include `systems/` rule —
+means the sensor check itself must live in `core/galaxy/` or be exposed as read-only data, not as a
+call into the system.
 
 ### 12.7 Template Negotiation — `features.md` §2.6
 
@@ -1185,11 +1194,42 @@ and why a faction keeps manufacturing your design after its stations die.
 two factions at war is permitted (`features.md` §2.6 says so explicitly); royalties accrue against
 Tier 3 production without the player present.
 
-❓ **Open, and blocking:** the negotiation roll formula. `features.md` §2.6 says the attempt "rolls
-against faction disposition" — reputation tier, `features.md` §5.3 relation band, and archetype —
-but assigns no
-weights, and §9 still lists the royalty rate scale and posthumous payment as undecided. This is the
-one §12 entry that cannot be started from the documents as written.
+**The roll, settled as three steps, not one.** `features.md` §2.6 reads as three separate
+mechanics compressed into one paragraph — "on speaking terms," "evaluates the design on its own
+terms," and "rolls against disposition" are three different questions, not one roll standing in for
+all of them. Splitting them is what makes each one independently testable:
+
+1. **Gate — can the player even pitch?** Relation band (`features.md` §5.3) must be Neutral or
+   better. Below that, `TemplateMarketSystem` refuses the Intent before evaluating anything else —
+   this is what "on speaking terms" means structurally.
+2. **Accept — does the faction want this design at all?** Deterministic, no roll: the Template's
+   category must fit the faction's `features.md` §6.2 archetype weighting, beat what they currently
+   manufacture, and be affordable against `core/economy/FactionEconomy` stock. A design that fails
+   any of these is rejected outright and stays in the seller's network (§2.5) — nothing here is
+   random, so this step is unit-testable as a pure predicate.
+3. **Rate roll — the only step that is actually a roll.** Runs only if step 2 accepted. It can raise
+   or lower the payout; it can never undo an acceptance.
+
+   ```cpp
+   float rateBonus =
+       0.5f * reputation.Score(faction)              // core/diplomacy/Reputation, -100..100
+     + 0.4f * relation.Value(faction, sellerFaction)  // core/diplomacy/DiplomacyMatrix, -100..100
+     + (archetypeFits ? 20.0f : -10.0f);
+   rateBonus = std::clamp(rateBonus, -100.0f, 100.0f);
+   float payoutMultiplier = 1.0f + rateBonus / 200.0f;  // 0.5x .. 1.5x the base lump sum / royalty rate
+   ```
+
+**These weights are a placeholder, not a balance pass.** `0.5f`, `0.4f`, `20.0f`, and the
+`payoutMultiplier` curve are provisional in the same sense §6.4 flags its two tuned numbers as the
+*only* tuned numbers in the design — they make `TemplateMarketSystem` buildable and testable now,
+and get tuned later against the headless `tools/economy_sim` (`architecture.md` §3) once there is a
+game to playtest against. Do not treat the specific constants as final; treat the three-step shape
+as final.
+
+❓ **Still open, and no longer blocking:** the base royalty rate scale itself (what a royalty *unit*
+is worth before `payoutMultiplier` is applied) and whether a royalty stream survives the seller's
+death — `features.md` §9 still lists both as undecided. Step 3's formula multiplies whatever that
+base rate turns out to be; it does not depend on knowing it in advance.
 
 ### 12.8 The Constraints That Apply To All Of It
 
