@@ -30,6 +30,8 @@ add_executable(sr_tests
     unit/DamageSystemTests.cpp
     unit/DiscoveryTests.cpp
     unit/DiscoverySystemTests.cpp
+    unit/KnowledgeNetworkTests.cpp
+    unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
     unit/NpcAiSystemTests.cpp

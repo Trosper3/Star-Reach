@@ -3,7 +3,9 @@
 #include "core/serialization/SaveMigrator.h"
 
 using sr::ShipBlueprint;
+using sr::core::knowledge::KnowledgeStore;
 using sr::core::serialization::Migrate;
+using sr::core::serialization::MigrateKnowledgeStore;
 
 namespace {
 
@@ -35,4 +37,29 @@ TEST_CASE("Migrate refuses a schema version newer than this build understands", 
 TEST_CASE("Migrate refuses a schema version below the historical floor of 1", "[save-migrator]") {
     CHECK_FALSE(Migrate(MakeBlueprint(0)).has_value());
     CHECK_FALSE(Migrate(MakeBlueprint(-1)).has_value());
+}
+
+TEST_CASE("MigrateKnowledgeStore passes the current schema version through unchanged",
+          "[save-migrator]") {
+    KnowledgeStore original;
+    const auto id = original.Create(sr::core::knowledge::NetworkOwnerKind::Player);
+
+    const auto migrated =
+        MigrateKnowledgeStore(sr::core::knowledge::kKnowledgeSchemaVersion, std::move(original));
+
+    REQUIRE(migrated.has_value());
+    CHECK(migrated->Get(id) != nullptr);
+}
+
+TEST_CASE("MigrateKnowledgeStore refuses a schema version newer than this build understands",
+          "[save-migrator]") {
+    CHECK_FALSE(
+        MigrateKnowledgeStore(sr::core::knowledge::kKnowledgeSchemaVersion + 1, KnowledgeStore{})
+            .has_value());
+}
+
+TEST_CASE("MigrateKnowledgeStore refuses a schema version below the historical floor of 1",
+          "[save-migrator]") {
+    CHECK_FALSE(MigrateKnowledgeStore(0, KnowledgeStore{}).has_value());
+    CHECK_FALSE(MigrateKnowledgeStore(-1, KnowledgeStore{}).has_value());
 }

@@ -37,6 +37,7 @@ struct ShellIdTag {};
 struct BlueprintIdTag {};
 struct FactionIdTag {};
 struct MountIdTag {};
+struct KnowledgeNetworkIdTag {};
 
 using ModuleId = StringId<ModuleIdTag>;
 using ShellId = StringId<ShellIdTag>;
@@ -46,6 +47,13 @@ using FactionId = StringId<FactionIdTag>;
 // Mount ids are unique only within one blueprint, which is what lets a Template be relocated
 // or re-parented without a global rename.
 using MountId = StringId<MountIdTag>;
+
+// Stable id for a knowledge network (architecture.md 12.1, core/knowledge/KnowledgeNetwork.h).
+// Named `KnowledgeNetworkId` rather than the bare `NetworkId` architecture.md 12.1's table uses --
+// `sr::space::NetworkId` (modes/space/data/SystemWorld.h) already owns that name for a completely
+// different concept, a per-registry entity-addressing id. Different namespace, so it would still
+// compile, but the two are unrelated enough that sharing a name would mislead more than it saves.
+using KnowledgeNetworkId = StringId<KnowledgeNetworkIdTag>;
 
 }  // namespace sr
 

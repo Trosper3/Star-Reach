@@ -140,10 +140,12 @@ add_library(sr_core STATIC
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
     src/core/galaxy/Discovery.cpp
+    src/core/knowledge/KnowledgeNetwork.cpp
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp
     src/core/serialization/BlueprintSerialization.cpp
+    src/core/serialization/KnowledgeSerialization.cpp
     src/core/serialization/SaveFile.cpp
     src/core/serialization/SaveMigrator.cpp
 )
