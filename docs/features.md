@@ -894,8 +894,10 @@ because several others resolve automatically once it is settled.
 theme, Engineering view, and station services are referenced throughout both documents and specified
 nowhere as screens or flows. Much of this game is menus. StarReach2 accumulated roughly 5,000 lines
 across a dozen menu files with no unifying spec, which is why they are the messiest port target in
-`architecture.md` §9. *§8 now specifies the navigation map, which was the largest single piece of
-this — the rest remains open.*
+`architecture.md` §9. *§8 specifies the navigation map, and `architecture.md` §12.9–§12.12 now give
+Template creation, station services, cargo/hardpoint equip, and construction/refit/grafting the same
+treatment — the remaining unspecified pieces are the HUD theme's full screen inventory and whichever
+of §12.12's `EngineerMenu` question resolves to a genuinely new mechanic.*
 
 **Damage type roster.** Kinetic and Energy are the baseline. Does the roster expand? Each added type
 multiplies the shield-matching matrix and the loadout puzzle — and also the content burden.

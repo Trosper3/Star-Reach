@@ -81,6 +81,17 @@ batch are now startable, none blocking. Two ❓s remain, and neither blocks anyt
 raiding and §12.2's sub-commander recruitment/loyalty are both scoped as "build the mechanism, leave
 the roster policy open."
 
+**A second §12 batch (§12.9–§12.12) covers the docked-station "meso loop" UI** — Template creation,
+station trade/repair/merge, cargo & hardpoint equip, and construction/refit/grafting. Unlike the
+first batch, these were not `features.md` design sections waiting on an architecture home; they were
+`../StarReach2` menu files (`CustomizeMenu`, `StationServicesMenu`, `StorageMenu`, `ModulesMenu`,
+`BuildMenu`, `RefactorMenu`, `EngineerMenu`) with no representation anywhere in either document —
+not ✅, not 📋, not 🧊. `TemplateMarketSystem` (§12.7) has had nothing to sell and `CargoHold`'s own
+doc comment named its future reader by name; this batch closes both. §12.9 (Template creation) is
+the load-bearing one and depends on `KnowledgeNetwork` (#78); §12.10–§12.12 are independently
+startable today, except `MergeModuleRequest` within §12.10, which is blocked on a module-tier
+content decision that does not yet exist anywhere in the schema.
+
 ---
 
 ## 0. Why This Document Is Structured Around Enforcement
@@ -520,12 +531,18 @@ StarReach/
 │       │   ├── data/               # ✅ SystemWorld — owns the registry + NetworkId mapping
 │       │   ├── systems/            # ✅ System.h (the contract) + all 22 systems in §4,
 │       │   │                       #    registered in SystemSchedule.cpp
+│       │   │                       # 📋 ResearchSystem, CommanderSystem, TemplateMarketSystem
+│       │   │                       #    (§12.1-12.2, 12.7); StationServicesSystem,
+│       │   │                       #    ModuleEquipSystem, ConstructionSystem (§12.10-12.12)
 │       │   ├── factories/          # ✅ WorldGen, NpcFactory, StationFactory, RigFactory
 │       │   ├── render/             # ✅ WorldRenderer, LightingPass, IconRenderer
 │       │   │                       # 📋 IconRenderer gains the §12.6 map icon bake
 │       │   └── ui/                 # ✅ CockpitHud, AvionicsMenu, BridgeView
 │       │                           # 📋 NavigationMap — §12.6. Stays in the mode per
 │       │                           #    Law 11 until a second consumer appears.
+│       │                           # 📋 CustomizeMenu, StationServicesMenu, StorageMenu,
+│       │                           #    ModulesMenu, BuildMenu, RefactorMenu (§12.9-12.12) —
+│       │                           #    the docked "meso loop" menus, ported from StarReach2
 │       │
 │       └── planet/          # 🧊 YAGNI BOUNDARY — DO NOT BUILD
 │                            #    Not present on disk. Keeping core/ mode-agnostic is a
@@ -576,14 +593,23 @@ does, not from guesswork.
 | `ResearchSystem` | Reverse-engineering jobs: cost, progress, unlock into a network | 1–2 | 📋 |
 | `CommanderSystem` | AI sub-commander standing orders, fleet dispatch, death | 1 / 2–3 | 📋 |
 | `TemplateMarketSystem` | Template pitch, valuation, negotiation roll, royalty accrual | 2–3 | 📋 |
+| `StationServicesSystem` | Buy/sell modules & materials, hull repair, module merge (§12.10) | 1 | 📋 |
+| `ModuleEquipSystem` | Mount/unmount modules onto an already-live rig (§12.11) | 1 | 📋 |
+| `ConstructionSystem` | Player-initiated station/ship build via `StationFactory`/`RigFactory` (§12.12) | 1 | 📋 |
 
 All twenty-two ✅ rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
 cross-issue dependencies among them).
 
-**The three 📋 rows are new**, added by the §12 pass that gave `features.md`'s design sections
-architecture homes. They are listed here rather than left to be discovered because that is this
-section's entire purpose — §4 exists because naming only three systems is how 12,947 lines ended up
-in an orchestrator. Two further design sections deliberately do **not** appear as new systems:
+**The six 📋 rows are new.** The first three (`ResearchSystem`, `CommanderSystem`,
+`TemplateMarketSystem`) were added by the §12 pass that gave `features.md`'s design sections
+architecture homes. The last three (`StationServicesSystem`, `ModuleEquipSystem`,
+`ConstructionSystem`, §12.10–§12.12) were added by a second pass surveying `../StarReach2`'s menu
+files directly — they back UI that was never a numbered `features.md` section but existed as
+working code and as components already built anticipating them (`CargoHold`'s doc comment names
+`StorageMenu` as a future consumer by name). They are listed here rather than left to be discovered
+because that is this section's entire purpose — §4 exists because naming only three systems is how
+12,947 lines ended up in an orchestrator. Two further design sections deliberately do **not** appear
+as new systems:
 
 - **Knowledge networks** (`features.md` §2.5) are a `core/` store, not a ticking system — nothing
   about them needs to run per frame. See §12.1.
@@ -952,6 +978,9 @@ store that does not exist means inventing a throwaway one:
 | Recovery run (§12.5) | — *(none)* | Deliberately independent: it extends the existing `LootSystem` and adds one `core/galaxy/` record. Startable today. |
 | Seeding (§12.4) | — *(none)* | Pure functions in `sr_core`. Startable today, and the natural first pick. |
 | Navigation map (§12.6) | Seeding (§12.4) | Zoom levels 1–2 render systems the player has never visited, which only exist as seed output until instantiated. |
+| Template creation (§12.9) | `KnowledgeNetwork` (§12.1) | `SaveTemplateRequest`'s only consumer is `KnowledgeStore::Grant` — no store, nowhere to save to. |
+| `MergeModuleRequest` within §12.10 | — *(content schema, not an issue)* | No module tier/grade concept exists in `ModuleDef` yet; buy/sell/repair in the same menu do not depend on it and can land first. |
+| §12.11's `ModuleEquipSystem` | — *(design decision, not an issue)* | The `factories/` layering question must be resolved (extract shared attach logic, or amend the rule) before, not during, implementation. |
 
 **Before starting a task, check this table.** If it names a dependency, confirm that dependency has
 actually **merged to `main`** — an open PR is not enough, since the branch you cut in §11.8 step 1
@@ -1283,3 +1312,158 @@ feature end-to-end:
 | Content is JSON only | Law 10 | A research recipe or royalty table gets written as a C++ table. CI rejects it. |
 | One entry point per tier | §4, §11.3 | `CommanderSystem` branches on tier inside `Tick` instead of exposing `TickCoarse`. |
 | Register in the same commit | §2.4, §11.3 | A new system lands without its `SystemSchedule.cpp` entry, so it never runs and nothing says so. |
+
+### 12.9 Template Creation — `features.md` §2.2–2.3 (`CustomizeMenu`)
+
+**This is the load-bearing gap in the batch above it.** `TemplateMarketSystem` (§12.7) sells a
+Template out of a network; `KnowledgeNetwork` (§12.1) stores "saved Templates" as one of its three
+categories. Neither has ever had a producer. Nothing today lets a player actually assemble shells,
+components, and modules into a named design and put it in their network — StarReach2's
+`CustomizeMenu.h` (237 lines) is the only place that ever did, and it was never migrated.
+
+**Home:** `modes/space/ui/CustomizeMenu.*`. Stays in the mode per Law 11 — `modes/planet/` is 🧊
+and not a second consumer.
+
+**Types:** none new. A Template *is* a `ShipBlueprint`/`RigBlueprint` (`shared/blueprints/`,
+already built) — the wizard assembles one in local UI state (not a component, not persisted) and
+runs the existing `Validation.h` against it before offering to save. The draft never touches a
+registry; nothing is instantiated until (if ever) it is equipped.
+
+**Systems:** none new. `Draw`/`Update` emit a `SaveTemplateRequest` Intent (Law 9) carrying the
+finished, validated blueprint; the consumer is `KnowledgeStore::Grant(playerNetwork, blueprint)`
+(§12.1) — a store call, not a tick, so no new system owns it. `modes/*/ui/` must not include
+`systems/` (§2.3), which this satisfies exactly the way `AvionicsMenu` already does for
+`DockRequest`.
+
+**Persistence:** none beyond what §12.1 already specifies — the Template is stored by
+`KnowledgeNetwork` as a blueprint id, not re-specified here.
+
+**Depends on:** #78 (`core/knowledge/KnowledgeNetwork`) — there is nowhere to `Grant` into
+without it. Confirm it has merged before starting (§11.9).
+
+**Tests:** an invalid draft (fails any of `Validation.h`'s nine rules) cannot be saved and reports
+which rule failed; a valid draft round-trips into the network and back out with identical content.
+
+❓ **Open:** whether saving a Template with an already-used name overwrites it, versions it, or is
+rejected. Not raised in `features.md` — a genuine gap in the design doc, not just the architecture
+one.
+
+### 12.10 Docked Station Services — `StationServicesMenu`
+
+**Not a numbered `features.md` section — closed over the Meso loop's "dock at vessels with
+Facility... modules" (§1) and the "component-driven menus" idea `features.md` §4 states for the
+Bridge specifically.** `BridgeView` (built, `modes/space/ui/BridgeView.h`) already says explicitly
+that its tabs have "no CONTENT behind them yet — Repair/Manufacturing/Research/Storage are each
+their own future system." This section is that content for the *visiting-any-station* case: buying
+and selling modules/materials for credits, paying to repair hull, and merging duplicate modules to
+a higher grade — StarReach2's `StationServicesMenu.h` (124 lines).
+
+**This is a distinct interaction from `BridgeView`.** `BridgeView` is the command surface for a
+station or capital the player *owns* (`features.md` §4, Bridge & Fleet Command). This is what
+happens when the player docks anywhere, including a station they do not own and never will —
+ordinary commerce, not fleet command. Both are gated by `FacilityRef` (`shared/components/
+Facility.h`), which is why the underlying "which tabs exist" query should be shared rather than
+reimplemented — see the promotion note below.
+
+**Home:** `modes/space/ui/StationServicesMenu.*` (mode-owned per Law 11), plus a new
+`modes/space/systems/StationServicesSystem.*` (Tier 1) to consume its Intents — this needs a
+system, unlike §12.9, because buy/sell/repair/merge validate against and mutate live components
+(`Wallet`, `CargoHold`, `Health`) that must stay consistent under the same-tick intent-consumption
+idiom every other system already uses (`DockRequest`, `SpendRequest`).
+
+**Promotion note (Law 11):** StarReach2's `StorageMenu.h` explicitly says its slot-rendering and
+trash-can widgets are "used by `ModulesMenu` too." That is the second-consumer case Law 11's
+tie-breaker exists for. Do not fork the drag-and-drop grid between this menu and §12.11's — land
+the shared widget where the second consumer actually appears, in the same commit.
+
+**Types:** none new beyond components already built (`Wallet`, `CargoHold`, `shared/components/
+Loot.h`; `FacilityRef`, `shared/components/Facility.h`). New Intents: `BuyItemRequest`,
+`SellItemRequest`, `RepairRequest { float fraction }`, `MergeModuleRequest { ModuleId a, b }` —
+same POD-Intent shape as `Docking.h`'s `DockRequest`.
+
+**Systems:** `StationServicesSystem::Tick` consumes the four requests above the same tick they're
+set, debits/credits `Wallet`, moves entries between `CargoHold` and the station's own stock, and
+restores `Health` proportional to `RepairRequest::fraction` × credits spent.
+
+**Tests:** buying debits `Wallet` and adds to `CargoHold`; selling is the exact inverse; repair
+spend scales with the requested fraction and refuses when `Wallet.credits` is insufficient; merge
+consumes two same-tier modules and yields exactly one higher-tier module.
+
+❓ **Open, and it blocks `MergeModuleRequest` specifically:** no module "tier/grade" concept exists
+in `ModuleDef` (`shared/blueprints/`) yet. `features.md` never specifies what a merge upgrades —
+stats, rarity, both? This needs a content-schema decision before the merge path can be built; buy/
+sell/repair do not depend on it and can land first.
+
+### 12.11 Cargo & Hardpoint Equip UI — `StorageMenu` / `ModulesMenu`
+
+**Already anticipated and left unwired.** `shared/components/Loot.h`'s `CargoHold` comment says
+plainly: "the ids/quantities a save or a future StorageMenu UI would read... this is simply where
+`LootSystem` puts what it collects until a consumer reads it." This section is that consumer:
+StarReach2's `StorageMenu.h` (46 lines, cargo/module slot grid) and `ModulesMenu.h` (73 lines,
+equip/unequip onto a rig's live hardpoints).
+
+**Home:** `modes/space/ui/StorageMenu.*` and `modes/space/ui/ModulesMenu.*` — or one shared grid
+widget between them per §12.10's promotion note, decided in whichever commit lands second.
+
+**Types:** none new beyond `CargoHold`/`Wallet`. New Intents: `MountModuleRequest { ModuleId
+module, entt::entity mount }`, `UnmountModuleRequest { entt::entity mount }`.
+
+**Systems:** a new `modes/space/systems/ModuleEquipSystem.*` (Tier 1) consumes the two requests
+above.
+
+❓ **Open, and worth resolving before writing this system — a real layering question, not a
+placeholder.** Attaching a module to an *already-instantiated* rig is the same operation
+`RigFactory::AttachModule` performs at construction time (`shared/components/Facility.h`'s comment
+names it directly). But §2.3's table forbids `modes/space/systems/` from including
+`factories/`. Equip-from-storage during play is a case the original layer rule did not anticipate,
+because no runtime equip mechanic existed when the rule was written. Two honest resolutions, either
+acceptable, neither decided here per §11.7 ("change the rule in the same PR, with the reasoning
+written down"):
+
+1. Extract the minimal attach logic `RigFactory::AttachModule` and `ModuleEquipSystem` both need
+   into a function `shared/` can hold (it is pure: given a mount entity and a `ModuleId`, attach
+   the components), so neither side includes the other.
+2. Reclassify runtime equip as assembly and grant `ModuleEquipSystem` a factory-layer exemption,
+   documented as a rule amendment here.
+
+Option 1 is recommended — it is Law 5's "factories first" principle applied literally, and it
+avoids special-casing the layer rule for one system.
+
+**Tests:** equip attaches a module component set `PowerSystem`/`DamageSystem` already read and
+removes it from `CargoHold`; unmount is the exact inverse; equip refused when the module's
+`ModuleKind` doesn't match the mount's declared kind (mirrors `Validation.h`'s existing
+`ModuleCompatibility` rule, applied live instead of at blueprint time).
+
+### 12.12 Construction, Refit & Grafting — `BuildMenu` / `RefactorMenu` / `EngineerMenu`
+
+**The least specified of this batch — bundled deliberately, because each piece is smaller and
+less certain than §12.9–12.11 and none blocks the others.**
+
+**`BuildMenu` — player-initiated construction.** `architecture.md` Law 9 already names
+`BuildStationRequest` and `PlaceShipRequest` as the canonical Intent examples — this was
+anticipated from the first draft of the intent-queue discipline and never built against. StarReach2's
+`BuildMenu.h` (59 lines) reads player `CargoHold`/`Wallet` for affordability, then hands off to
+placement mode. **Home:** `modes/space/ui/BuildMenu.*`, a new `modes/space/systems/
+ConstructionSystem.*` (Tier 1) consuming `BuildStationRequest`/`PlaceShipRequest` and calling the
+already-built `StationFactory`/`RigFactory` — construction is assembly (Law 5), so this is the one
+place in this batch where a system legitimately drives a factory as its documented job, not a
+violation of §12.11's layer question. **Tests:** a request is refused when unaffordable against
+`Wallet`/`CargoHold`; an affordable request spends the cost exactly once and instantiates via the
+existing factory.
+
+**`RefactorMenu` — live ship refit at the Component tier.** Distinct from §12.11's `ModulesMenu` in
+which rung of Law 4's `Shell -> Component -> Module` hierarchy it edits: `ModulesMenu` mounts
+Modules onto existing slots, `RefactorMenu` swaps the **Components** those slots are built from —
+StarReach2's version drags a fixed `ComponentDef` palette onto the player's *live* ship (not a
+Template draft, unlike §12.9). **Home:** `modes/space/ui/RefactorMenu.*`. Likely reuses
+§12.11's `ModuleEquipSystem` resolution once decided, since swapping a Component is structurally
+the same "detach live entity, attach new one, keep the parent rig intact" operation.
+
+**`EngineerMenu` — attribute grafting between cargo items.** ❓ **Open, and genuinely unresolved
+rather than merely unbuilt:** whether this is a distinct crafting mechanic (StarReach2's version
+transplants primary/secondary attributes between two owned items, gated by "Mythic-blocked
+primaries") or the same mechanic `ResearchSystem` (§12.1) already covers under a different name.
+`features.md` §2.4's reverse-engineering loop turns loot into permanently manufacturable
+blueprints; `EngineerMenu` mutates two *already-owned* item instances against each other, which is
+a different shape and may be a genuinely separate feature, not a research variant. Recommend
+deciding this before scoping a home for it — the two are easy to accidentally build twice.
