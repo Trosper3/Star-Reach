@@ -156,6 +156,7 @@ add_library(sr_core STATIC
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
     src/core/galaxy/Discovery.cpp
+    src/core/galaxy/Seeding.cpp
     src/core/knowledge/KnowledgeNetwork.cpp
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
