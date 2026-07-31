@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <iostream>
+#include <optional>
 
 #include "core/economy/FactionEconomy.h"
 #include "core/galaxy/WreckRecord.h"
@@ -32,6 +33,31 @@ std::filesystem::path FindContentDirectory() {
     return {};
 }
 
+// Loads and validates data/base_game/, printing a one-line summary on success or an error on
+// failure. Split out of RunGame below so this "load, validate, report" concern doesn't count
+// against RunGame's own function-length cap (tools/ci/check_sizes.py) -- the twenty-minute
+// extraction the cap exists to force, per that tool's own docstring.
+std::optional<sr::core::ContentLibrary> LoadGameContent(const std::filesystem::path& contentDir) {
+    sr::core::ContentLibrary content;
+    const sr::core::LoadReport load = content.LoadFromDirectory(contentDir);
+    if (!load.ok()) {
+        std::cerr << "STAR REACH: " << load.Summary() << "\n";
+        return std::nullopt;
+    }
+
+    // Authored content that cannot be instantiated is a build error, not a runtime surprise.
+    // The same check runs in CI against the same files.
+    const sr::core::LoadReport validation = content.ValidateAll();
+    if (!validation.ok()) {
+        std::cerr << "STAR REACH: " << validation.Summary() << "\n";
+        return std::nullopt;
+    }
+
+    std::cout << "STAR REACH: loaded " << content.ShellCount() << " shells, "
+              << content.ModuleCount() << " modules, " << content.ShipCount() << " ships\n";
+    return content;
+}
+
 // The actual entry point, split from main() below so that function can stay exception-free
 // (clang-tidy's bugprone-exception-escape, section 8's CI/CD table). std::filesystem calls in
 // FindContentDirectory can throw std::filesystem_error on a genuinely broken environment (a
@@ -45,23 +71,10 @@ int RunGame() {
         return 1;
     }
 
-    sr::core::ContentLibrary content;
-    const sr::core::LoadReport load = content.LoadFromDirectory(contentDir);
-    if (!load.ok()) {
-        std::cerr << "STAR REACH: " << load.Summary() << "\n";
+    const std::optional<sr::core::ContentLibrary> content = LoadGameContent(contentDir);
+    if (!content.has_value()) {
         return 1;
     }
-
-    // Authored content that cannot be instantiated is a build error, not a runtime surprise.
-    // The same check runs in CI against the same files.
-    const sr::core::LoadReport validation = content.ValidateAll();
-    if (!validation.ok()) {
-        std::cerr << "STAR REACH: " << validation.Summary() << "\n";
-        return 1;
-    }
-
-    std::cout << "STAR REACH: loaded " << content.ShellCount() << " shells, "
-              << content.ModuleCount() << " modules, " << content.ShipCount() << " ships\n";
 
     sr::engine::Window window;
     if (!window.Open(1600, 900, "Star Reach")) {
@@ -84,7 +97,7 @@ int RunGame() {
     // back out of, never a global.
     sr::core::galaxy::WreckLedger wreckLedger;
     sr::modes::main_menu::MainMenu menu(textures, fonts);
-    sr::space::SpaceFlight game(content, economy, wreckLedger);
+    sr::space::SpaceFlight game(*content, economy, wreckLedger);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
     // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and
