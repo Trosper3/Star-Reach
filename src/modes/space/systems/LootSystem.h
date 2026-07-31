@@ -36,7 +36,7 @@ void Tick(const SystemContext& ctx);
 
 // `entity` must carry DeathWreck and WorldTransform. Destroys `entity`.
 core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::entity entity,
-                                              const std::string& systemId);
+                                             const std::string& systemId);
 
 // Re-instantiates a DeathWreck entity from `record` into `registry`, contents intact.
 entt::entity PromoteDeathWreck(entt::registry& registry, const core::galaxy::WreckRecord& record);

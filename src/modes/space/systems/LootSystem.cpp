@@ -135,7 +135,7 @@ void Tick(const SystemContext& ctx) {
 }
 
 core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::entity entity,
-                                              const std::string& systemId) {
+                                             const std::string& systemId) {
     const DeathWreck& wreck = registry.get<DeathWreck>(entity);
     const WorldTransform& xf = registry.get<WorldTransform>(entity);
 
