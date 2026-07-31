@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "core/economy/FactionEconomy.h"
+#include "core/galaxy/WreckRecord.h"
 #include "core/registries/ContentLibrary.h"
 #include "engine/assets/FontCache.h"
 #include "engine/assets/TextureCache.h"
@@ -78,8 +79,12 @@ int RunGame() {
     sr::engine::FontCache fonts(contentDir / "fonts");
 
     sr::core::economy::FactionEconomy economy;
+    // Owned here and passed by reference, exactly like `content` and `economy` -- galaxy-wide
+    // state a system warp (architecture.md section 12.5) demotes wrecks into and promotes them
+    // back out of, never a global.
+    sr::core::galaxy::WreckLedger wreckLedger;
     sr::modes::main_menu::MainMenu menu(textures, fonts);
-    sr::space::SpaceFlight game(content, economy);
+    sr::space::SpaceFlight game(content, economy, wreckLedger);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
     // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and

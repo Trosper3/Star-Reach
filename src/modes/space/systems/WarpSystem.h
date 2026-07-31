@@ -12,14 +12,12 @@ namespace sr::space::warp_system {
 // legacy StarReach2's BeginLocalWarp (its only caller was the galaxy map's in-system "warp to"
 // click) charged no fuel and enforced no range limit, so neither does this.
 //
-// System warp and galaxy warp are NOT implemented here. Both require a "clean handoff" between
-// two DIFFERENT entt::registry instances (Law 2: serialize out of A, instantiate into B, tear
-// down A), which needs a container of multiple SystemWorlds addressable by system id -- there is
-// no such container anywhere in this codebase yet (core/galaxy/ does not exist on disk;
-// SpaceFlight holds exactly one SystemWorld as a direct member). That is a bigger prerequisite
-// than Unified Serialization (#33) alone, though #33 is also needed once it exists, per
-// architecture.md section 11.9's dependency note: the handoff moves a rig from live form back to
-// blueprint form and forward again, which is exactly what #33's pipeline is for.
+// System warp is NOT implemented here -- it lives in SpaceFlight.cpp's WarpToSystem (issue #96),
+// not in this file, because tearing down and rebuilding a SystemWorld needs the mode-level power
+// SystemContext deliberately withholds from every system (Law 6/7). A SystemWarpRequest
+// (shared/components/Warp.h) is what a future producer sets; this file never reads it. Galaxy
+// warp (cross-galaxy travel) is still entirely unimplemented -- it needs a system-adjacency/
+// topology graph core/galaxy/ does not have yet.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::warp_system

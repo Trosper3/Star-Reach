@@ -1,17 +1,28 @@
 #include "modes/space/SpaceFlight.h"
 
+#include <functional>
+#include <string>
+#include <vector>
+
+#include "modes/space/factories/RigFactory.h"
+#include "modes/space/factories/WorldGen.h"
 #include "modes/space/render/IconRenderer.h"
 #include "modes/space/render/WorldRenderer.h"
+#include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/SystemSchedule.h"
 #include "modes/space/ui/AvionicsMenu.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
+#include "shared/components/Identity.h"
+#include "shared/components/Loot.h"
+#include "shared/components/Warp.h"
 
 namespace sr::space {
 
 SpaceFlight::SpaceFlight(const core::ContentLibrary& content,
-                         core::economy::FactionEconomy& economy)
-    : world_("sol", "Sol"), content_(content), economy_(economy) {}
+                         core::economy::FactionEconomy& economy,
+                         core::galaxy::WreckLedger& wreckLedger)
+    : world_("sol", "Sol"), content_(content), economy_(economy), wreckLedger_(wreckLedger) {}
 
 void SpaceFlight::OnEnter() {
     // Factories populate the world here once they land (first vertical slice, step 5-7):
@@ -34,9 +45,91 @@ void SpaceFlight::Update(float realDeltaSeconds) {
         RunTick(ctx);
     }
 
+    // Copied out before WarpToSystem runs, never read from `request` after: WarpToSystem replaces
+    // world_'s registry, which is exactly what `request` lives in.
+    bool warpRequested = false;
+    std::string targetSystemId;
+    Vec2 spawnPosition;
+    float spawnRotation = 0.0f;
+    for (auto [entity, request] : world_.Registry().view<SystemWarpRequest>().each()) {
+        targetSystemId = request.targetSystemId;
+        spawnPosition = request.spawnPosition;
+        spawnRotation = request.spawnRotation;
+        warpRequested = true;
+        break;  // Exactly one PlayerControlled entity can hold this (shared/components/Identity.h).
+    }
+    if (warpRequested) {
+        WarpToSystem(std::move(targetSystemId), spawnPosition, spawnRotation);
+    }
+
     // Drained after the whole schedule, never mid-list: a system's view of this tick's input
     // must not depend on its position in the order.
     intents_.Clear();
+}
+
+void SpaceFlight::WarpToSystem(std::string targetSystemId, Vec2 spawnPosition,
+                               float spawnRotation) {
+    entt::registry& departing = world_.Registry();
+
+    entt::entity player = entt::null;
+    for (auto [entity] : departing.view<PlayerControlled>().each()) {
+        player = entity;
+        break;
+    }
+    if (player == entt::null) {
+        return;  // Nothing to hand off -- OnEnter hasn't placed a player yet (pre-existing gap).
+    }
+
+    const BlueprintId blueprint = departing.get<BlueprintRef>(player).id;
+    const FactionId faction = departing.get<FactionRef>(player).id;
+    const CargoHold cargo =
+        departing.all_of<CargoHold>(player) ? departing.get<CargoHold>(player) : CargoHold{};
+    const Wallet wallet =
+        departing.all_of<Wallet>(player) ? departing.get<Wallet>(player) : Wallet{};
+
+    // Demote every DeathWreck left behind (architecture.md section 12.5) -- collected first,
+    // since CollapseDeathWreck destroys the entity it's given and destroying mid-iteration over
+    // the same view it came from is unsafe.
+    std::vector<entt::entity> wrecks;
+    for (const entt::entity entity : departing.view<DeathWreck>()) {
+        wrecks.push_back(entity);
+    }
+    for (const entt::entity wreck : wrecks) {
+        wreckLedger_.Add(loot_system::CollapseDeathWreck(departing, wreck, world_.SystemId()));
+    }
+
+    // Tear down the departing SystemWorld and stand up the destination. Move-assignment destroys
+    // everything still in `world_` before replacing it -- Law 2's "clean handoff": nothing
+    // survives this line except what was captured above. `departing` is dangling after this.
+    world_ = SystemWorld(targetSystemId);
+
+    // Seeded from the target system's id alone, not a real galaxy coordinate -- there is no
+    // system-adjacency/topology store yet to derive a proper core::galaxy::Seeding cascade from
+    // (architecture.md section 12.5's noted follow-up). Deterministic per id in the meantime.
+    const unsigned int seed = static_cast<unsigned int>(std::hash<std::string>{}(targetSystemId));
+    world_gen::PopulateSystem(world_, content_, seed);
+
+    const rig_factory::SpawnResult spawned = rig_factory::Spawn(
+        world_, content_,
+        rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
+    if (!spawned.ok()) {
+        return;  // Unreachable in practice -- the blueprint just came from a live rig.
+    }
+
+    entt::registry& arriving = world_.Registry();
+    arriving.emplace<PlayerControlled>(spawned.root);
+    // Session inventory carries over; hardpoint damage/refits do not -- there is no live-rig-to-
+    // blueprint snapshot in this codebase yet (WarpToSystem's own doc comment, SpaceFlight.h).
+    arriving.emplace<CargoHold>(spawned.root, cargo);
+    arriving.emplace<Wallet>(spawned.root, wallet);
+
+    // Promote every wreck this system is owed back into an entity now that it's resident again.
+    for (const core::galaxy::WreckLedger::Id id : wreckLedger_.IdsForSystem(targetSystemId)) {
+        if (const core::galaxy::WreckRecord* record = wreckLedger_.Find(id)) {
+            loot_system::PromoteDeathWreck(arriving, *record);
+            wreckLedger_.Remove(id);
+        }
+    }
 }
 
 void SpaceFlight::Draw() const {

@@ -19,6 +19,16 @@ const WreckRecord* WreckLedger::Find(Id id) const {
     return it == records_.end() ? nullptr : &it->second;
 }
 
+std::vector<WreckLedger::Id> WreckLedger::IdsForSystem(const std::string& systemId) const {
+    std::vector<Id> ids;
+    for (const auto& [id, record] : records_) {
+        if (record.systemId == systemId) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
 void WreckLedger::Tick(float dt) {
     std::vector<Id> expired;
     for (auto& [id, record] : records_) {

@@ -54,6 +54,7 @@ add_executable(sr_tests
     integration/NpcFactoryTests.cpp
     integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp
+    integration/SpaceFlightSystemWarpTests.cpp
 )
 
 # Tests link sr_space, which pulls the whole graph. The genuinely interesting property is that
