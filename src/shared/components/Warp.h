@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "shared/math/Vec2.h"
 
 // Components are plain-old-data (Law 1): no virtual methods, no inheritance, no owning pointers,
@@ -13,6 +15,17 @@ namespace sr {
 // in-system "warp to" click) charged no fuel and enforced no range limit, so neither does this.
 struct WarpRequest {
     Vec2 targetPosition;
+};
+
+// Set by input or AI; consumed by SpaceFlight, NOT WarpSystem. A system-level handoff (tear down
+// this SystemWorld, stand up `targetSystemId`'s) can only happen where SystemContext's no-mode-
+// pointer boundary doesn't apply -- SpaceFlight.cpp is the only place that is (Law 6/7). No
+// player-facing trigger exists yet (no galaxy map/destination picker), so this is set only by
+// tests until one lands (architecture.md section 12.5's follow-up).
+struct SystemWarpRequest {
+    std::string targetSystemId;
+    Vec2 spawnPosition;
+    float spawnRotation = 0.0f;
 };
 
 }  // namespace sr

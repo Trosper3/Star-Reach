@@ -48,6 +48,12 @@ public:
     // Ages every stored record by dt and drops any whose recovery window has closed.
     void Tick(float dt);
 
+    // Ids of every currently-stored record for `systemId`. Used by whatever re-instantiates a
+    // system's wrecks when it becomes resident again (architecture.md section 12.5) -- there can
+    // be more than one, since nothing caps how many times a player dies and leaves before
+    // returning.
+    std::vector<Id> IdsForSystem(const std::string& systemId) const;
+
     std::size_t Count() const { return records_.size(); }
 
 private:
