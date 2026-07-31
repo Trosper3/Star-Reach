@@ -128,6 +128,11 @@ add_library(sr_shared STATIC
 )
 target_link_libraries(sr_shared PUBLIC sr_options EnTT::EnTT)
 
+# Precompiled header: EnTT is header-only and heavily templated, and every one of sr_shared's
+# ten files touching entt::registry re-parses it from scratch without this. PRIVATE -- a PCH is
+# a build-time speedup, not part of the public interface, so it is never forced onto a consumer.
+target_precompile_headers(sr_shared PRIVATE <entt/entity/registry.hpp>)
+
 # --- sr_core : universe truths ----------------------------------------------------------------
 # Registries, intents, time. Mode-agnostic, registry-agnostic, and render-agnostic (Law 8).
 # It CANNOT link raylib, and that single constraint is what makes the headless tools possible
@@ -151,6 +156,12 @@ add_library(sr_core STATIC
 )
 target_link_libraries(sr_core PUBLIC sr_options sr_shared nlohmann_json::nlohmann_json)
 
+# Precompiled header: nlohmann_json is the one heavy header sr_core's registries/ files actually
+# use. Deliberately NOT entt::registry or raylib.h here -- sr_core uses neither (Law 8), and a PCH
+# that included them would be silent scope creep past what check_layers.py's #include-grep would
+# ever flag, since a PCH-injected header never appears as an #include line in the source itself.
+target_precompile_headers(sr_core PRIVATE <nlohmann/json.hpp>)
+
 # --- sr_engine : hardware abstraction ---------------------------------------------------------
 # Zero game knowledge. Note the absence of sr_core and sr_shared below: that omission is the
 # enforcement. engine/ is the layer a second game could be built on.
@@ -167,6 +178,9 @@ if(SR_LINK_GLFW)
     target_link_libraries(sr_engine PUBLIC glfw)
 endif()
 
+# Precompiled header: raylib.h is sr_engine's entire reason to exist.
+target_precompile_headers(sr_engine PRIVATE <raylib.h>)
+
 # --- sr_shared_ui : the HUD theme -------------------------------------------------------------
 # The one exception to shared/'s "no raylib, no engine/" rule (section 2.1's note; section 2.3's
 # layer table). Header-only, like every previous incarnation of this file -- there is no state
@@ -182,6 +196,7 @@ add_library(sr_menu STATIC
     src/modes/main_menu/MainMenu.cpp
 )
 target_link_libraries(sr_menu PUBLIC sr_options sr_core sr_shared sr_engine sr_shared_ui)
+target_precompile_headers(sr_menu PRIVATE <raylib.h>)
 
 # --- sr_space : the space flight mode ---------------------------------------------------------
 add_library(sr_space STATIC
@@ -222,6 +237,10 @@ add_library(sr_space STATIC
     src/modes/space/systems/SystemSchedule.cpp
 )
 target_link_libraries(sr_space PUBLIC sr_options sr_core sr_shared sr_engine sr_shared_ui)
+
+# Precompiled header: sr_space is the largest target by file count (34 .cpp) and the only one
+# that genuinely needs both entt::registry (systems/, factories/) and raylib.h (render/, ui/).
+target_precompile_headers(sr_space PRIVATE <entt/entity/registry.hpp> <raylib.h>)
 
 # --- StarReach : the executable ---------------------------------------------------------------
 add_executable(StarReach src/main.cpp)
