@@ -100,6 +100,30 @@ void TickDerelictWrecks(entt::registry& registry) {
     }
 }
 
+void TickDeathWrecks(entt::registry& registry, float dt) {
+    std::vector<entt::entity> toDestroy;
+    for (auto [wreck, deathWreck, xf] : registry.view<DeathWreck, WorldTransform>().each()) {
+        entt::entity collector = entt::null;
+        if (FindCollectorInRange(registry, xf.position, 0.0f, collector)) {
+            for (const ModuleId& moduleId : deathWreck.modules) {
+                AddModule(registry, collector, moduleId);
+            }
+            for (const MaterialStack& stack : deathWreck.materials) {
+                AddMaterial(registry, collector, stack.materialId, stack.quantity);
+            }
+            toDestroy.push_back(wreck);
+            continue;
+        }
+        deathWreck.lifetimeSeconds -= dt;
+        if (deathWreck.lifetimeSeconds <= 0.0f) {
+            toDestroy.push_back(wreck);
+        }
+    }
+    for (const entt::entity wreck : toDestroy) {
+        registry.destroy(wreck);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -107,6 +131,30 @@ void Tick(const SystemContext& ctx) {
     TickLootDrops(registry, ctx.dt);
     TickMaterialDrops(registry, ctx.dt);
     TickDerelictWrecks(registry);
+    TickDeathWrecks(registry, ctx.dt);
+}
+
+core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::entity entity,
+                                              const std::string& systemId) {
+    const DeathWreck& wreck = registry.get<DeathWreck>(entity);
+    const WorldTransform& xf = registry.get<WorldTransform>(entity);
+
+    core::galaxy::WreckRecord record;
+    record.systemId = systemId;
+    record.position = xf.position;
+    record.modules = wreck.modules;
+    record.materials = wreck.materials;
+    record.lifetimeSeconds = wreck.lifetimeSeconds;
+
+    registry.destroy(entity);
+    return record;
+}
+
+entt::entity PromoteDeathWreck(entt::registry& registry, const core::galaxy::WreckRecord& record) {
+    const entt::entity entity = registry.create();
+    registry.emplace<WorldTransform>(entity, record.position, 0.0f);
+    registry.emplace<DeathWreck>(entity, record.modules, record.materials, record.lifetimeSeconds);
+    return entity;
 }
 
 }  // namespace sr::space::loot_system
