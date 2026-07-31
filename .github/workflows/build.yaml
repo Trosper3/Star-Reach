@@ -130,14 +130,16 @@ jobs:
 
       # Windows Defender's real-time scanning inspects every object/lib/exe write during
       # compilation, a well-documented 2-4x slowdown for C++ builds specifically on Windows
-      # runners. The runner is destroyed after the job, so excluding its own workspace/vcpkg
-      # dirs from scanning carries none of the risk a permanent exclusion on a real machine would.
-      - name: Exclude build directories from Windows Defender scanning
+      # runners. Scoped to the workspace only, not the vcpkg archive cache below: the workspace
+      # is destroyed with the runner at the end of every job, but the cache is restored by
+      # actions/cache and persists across runs -- excluding it would mean a poisoned cache entry
+      # stays unscanned on every future job that restores it, a materially different risk than
+      # "gone in an hour." The workspace is also where the actual object-file write volume this
+      # step targets lives, so narrowing to it costs little of the speedup.
+      - name: Exclude the workspace from Windows Defender scanning
         if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
-          Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\vcpkg"
+        run: Add-MpPreference -ExclusionPath "${{ github.workspace }}"
 
       # Caching the binary archives is what keeps this job from recompiling raylib and EnTT from
       # source on every push.
