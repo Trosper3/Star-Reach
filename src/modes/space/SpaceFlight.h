@@ -62,7 +62,7 @@ private:
     // into entities. Hardpoint damage/refits are NOT preserved -- there is no live-rig-to-
     // blueprint snapshot capability in this codebase yet (a separate, larger piece of work); the
     // player's rig comes back in its pristine, freshly-spawned state every time.
-    void WarpToSystem(std::string targetSystemId, Vec2 spawnPosition, float spawnRotation);
+    void WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition, float spawnRotation);
 
     SystemWorld world_;
     core::IntentQueue intents_;

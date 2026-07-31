@@ -59,7 +59,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
         break;  // Exactly one PlayerControlled entity can hold this (shared/components/Identity.h).
     }
     if (warpRequested) {
-        WarpToSystem(std::move(targetSystemId), spawnPosition, spawnRotation);
+        WarpToSystem(targetSystemId, spawnPosition, spawnRotation);
     }
 
     // Drained after the whole schedule, never mid-list: a system's view of this tick's input
@@ -67,7 +67,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     intents_.Clear();
 }
 
-void SpaceFlight::WarpToSystem(std::string targetSystemId, Vec2 spawnPosition,
+void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition,
                                float spawnRotation) {
     entt::registry& departing = world_.Registry();
 
