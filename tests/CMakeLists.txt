@@ -65,6 +65,13 @@ target_link_libraries(sr_tests PRIVATE sr_space sr_shared_ui Catch2::Catch2WithM
 target_precompile_headers(sr_tests PRIVATE <catch2/catch_test_macros.hpp>
                                             <entt/entity/registry.hpp>)
 
+# SYSTEM: see CMakeLists.txt's sr_shared declaration for why this is explicit rather than relied
+# on as a default. sr_tests is the job clang-tidy spends the most time on (50 of 106 files).
+target_include_directories(sr_tests SYSTEM PRIVATE
+    $<TARGET_PROPERTY:Catch2::Catch2WithMain,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:EnTT::EnTT,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
 # The integration test validates the real shipped content, not a fixture. Authored data that
 # cannot be instantiated should fail CI, not a player's session.
 target_compile_definitions(sr_tests PRIVATE

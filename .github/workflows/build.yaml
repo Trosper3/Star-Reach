@@ -94,14 +94,15 @@ jobs:
       - name: Run clang-tidy
         run: |
           clang-tidy-18 --version
-          # Bare xargs runs one clang-tidy-18 process at a time -- each invocation independently
-          # re-parses its own file with a full analysis pass, a heavier per-file cost than a
-          # normal compile, and doing that serially across 106 files (56 src + 50 tests) on a
-          # multi-core runner is most of this job's wall time. -P "$(nproc)" runs one process per
-          # available core instead; files are independent of each other, so this is the standard
-          # LLVM run-clang-tidy pattern, not a correctness risk.
+          # -P "$(nproc)" alone does nothing here: without -n, xargs packs as many of the 106
+          # filenames as fit on one command line into a SINGLE clang-tidy-18 invocation (they all
+          # fit -- confirmed against a real run: one continuous "[N/106] Processing file" counter
+          # from a single process, not 106 separate ones), so there was only ever one job for -P
+          # to schedule. -n 1 forces one file per invocation, which is what actually lets -P fan
+          # out across cores -- files are independent of each other, so this is the standard LLVM
+          # run-clang-tidy pattern, not a correctness risk.
           find src tests -type f -name '*.cpp' -print0 \
-            | xargs -0 -P "$(nproc)" clang-tidy-18 -p build/release
+            | xargs -0 -n 1 -P "$(nproc)" clang-tidy-18 -p build/release
 
   build:
     name: ${{ matrix.name }}

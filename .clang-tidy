@@ -42,4 +42,12 @@ WarningsAsErrors: "*"
 # this project does not control.
 HeaderFilterRegex: "^.*/src/.*"
 
+# Explicit even though it matches clang-tidy's own default, because this is the option that
+# actually matters for cost, not just noise: HeaderFilterRegex above only filters what gets
+# DISPLAYED. SystemHeaders: false is what stops diagnostics from being generated at all for
+# headers the compiler recognizes as system headers (CMakeLists.txt now marks EnTT/raylib/
+# nlohmann_json/Catch2's include dirs SYSTEM for exactly this reason) -- the difference between
+# analyzing and discarding 4.2 million diagnostics per CI run versus never generating them.
+SystemHeaders: false
+
 FormatStyle: none
