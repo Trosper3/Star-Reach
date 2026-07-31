@@ -46,6 +46,21 @@ struct MaterialStack {
     int quantity = 0;
 };
 
+// The player's cargo, dropped as a recoverable wreck at their death location (features.md
+// section 3.3 Tier 2) rather than deleted outright. Distinct from DerelictWreck: this carries
+// the manifest the player actually lost and always has a recovery window. Blueprint-form
+// manifest (Law 3), the same shape as CargoHold below, so it copies verbatim into
+// core/galaxy/WreckRecord when its system demotes (architecture.md section 12.5) and back when
+// it promotes.
+struct DeathWreck {
+    std::vector<ModuleId> modules;
+    std::vector<MaterialStack> materials;
+
+    // features.md section 9 leaves the recovery window's exact duration (and wall-clock vs.
+    // in-game time) open; three minutes is a generous placeholder, not a tuned value.
+    float lifetimeSeconds = 180.0f;
+};
+
 // Collected-but-not-yet-equipped modules and materials, in blueprint form (Law 3) -- entity
 // handles never enter this, only the ids/quantities a save or a future StorageMenu UI would
 // read. Not yet wired to core/economy/ or any StorageMenu (both unbuilt); this is simply where
