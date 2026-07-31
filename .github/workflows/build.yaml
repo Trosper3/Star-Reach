@@ -94,8 +94,15 @@ jobs:
       - name: Run clang-tidy
         run: |
           clang-tidy-18 --version
+          # -P "$(nproc)" alone does nothing here: without -n, xargs packs as many of the 106
+          # filenames as fit on one command line into a SINGLE clang-tidy-18 invocation (they all
+          # fit -- confirmed against a real run: one continuous "[N/106] Processing file" counter
+          # from a single process, not 106 separate ones), so there was only ever one job for -P
+          # to schedule. -n 1 forces one file per invocation, which is what actually lets -P fan
+          # out across cores -- files are independent of each other, so this is the standard LLVM
+          # run-clang-tidy pattern, not a correctness risk.
           find src tests -type f -name '*.cpp' -print0 \
-            | xargs -0 clang-tidy-18 -p build/release
+            | xargs -0 -n 1 -P "$(nproc)" clang-tidy-18 -p build/release
 
   build:
     name: ${{ matrix.name }}
@@ -127,6 +134,19 @@ jobs:
       - name: Set up the MSVC environment
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
+
+      # Windows Defender's real-time scanning inspects every object/lib/exe write during
+      # compilation, a well-documented 2-4x slowdown for C++ builds specifically on Windows
+      # runners. Scoped to the workspace only, not the vcpkg archive cache below: the workspace
+      # is destroyed with the runner at the end of every job, but the cache is restored by
+      # actions/cache and persists across runs -- excluding it would mean a poisoned cache entry
+      # stays unscanned on every future job that restores it, a materially different risk than
+      # "gone in an hour." The workspace is also where the actual object-file write volume this
+      # step targets lives, so narrowing to it costs little of the speedup.
+      - name: Exclude the workspace from Windows Defender scanning
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Add-MpPreference -ExclusionPath "${{ github.workspace }}"
 
       # Caching the binary archives is what keeps this job from recompiling raylib and EnTT from
       # source on every push.
