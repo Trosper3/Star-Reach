@@ -1,11 +1,18 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <fstream>
 
+#include "core/serialization/KnowledgeSerialization.h"
 #include "core/serialization/SaveFile.h"
 
 using sr::ShipBlueprint;
+using sr::core::knowledge::KnowledgeStore;
+using sr::core::knowledge::NetworkEntryKind;
+using sr::core::knowledge::NetworkOwnerKind;
+using sr::core::serialization::LoadKnowledgeStore;
 using sr::core::serialization::LoadShipBlueprint;
+using sr::core::serialization::SaveKnowledgeStore;
 using sr::core::serialization::SaveShipBlueprint;
 
 namespace {
@@ -64,6 +71,71 @@ TEST_CASE("LoadShipBlueprint returns nullopt for a save from a newer schema vers
 
     REQUIRE(SaveShipBlueprint(path, fromTheFuture));
     CHECK_FALSE(LoadShipBlueprint(path).has_value());
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("SaveKnowledgeStore then LoadKnowledgeStore round-trips every network", "[save-file]") {
+    const std::filesystem::path path = TempSavePath("sr_save_knowledge_roundtrip.sav");
+
+    KnowledgeStore original;
+    const auto player = original.Create(NetworkOwnerKind::Player);
+    original.Grant(player, NetworkEntryKind::UnlockedBlueprint, "pulse_cannon_i");
+    original.Grant(player, NetworkEntryKind::SavedTemplate, "aegis_vanguard");
+    original.Grant(player, NetworkEntryKind::DiscoveredSystem, "sol");
+    const auto faction = original.Create(NetworkOwnerKind::Faction);
+    original.Grant(faction, NetworkEntryKind::SavedTemplate, "reaver_raider");
+
+    REQUIRE(SaveKnowledgeStore(path, original));
+    const auto loaded = LoadKnowledgeStore(path);
+    REQUIRE(loaded.has_value());
+
+    const auto* loadedPlayer = loaded->Get(player);
+    REQUIRE(loadedPlayer != nullptr);
+    CHECK(loadedPlayer->unlockedBlueprints.contains("pulse_cannon_i"));
+    CHECK(loadedPlayer->savedTemplates.contains("aegis_vanguard"));
+    CHECK(loadedPlayer->discoveredSystems.contains("sol"));
+    REQUIRE(loaded->Get(faction) != nullptr);
+    CHECK(loaded->Get(faction)->savedTemplates.contains("reaver_raider"));
+
+    // save -> load -> save again must preserve the same contents (issue #78's explicit test).
+    const std::filesystem::path resavedPath = TempSavePath("sr_save_knowledge_resaved.sav");
+    REQUIRE(SaveKnowledgeStore(resavedPath, *loaded));
+    const auto reloaded = LoadKnowledgeStore(resavedPath);
+    REQUIRE(reloaded.has_value());
+    REQUIRE(reloaded->Get(player) != nullptr);
+    CHECK(reloaded->Get(player)->unlockedBlueprints == loadedPlayer->unlockedBlueprints);
+    CHECK(reloaded->Get(player)->savedTemplates == loadedPlayer->savedTemplates);
+    CHECK(reloaded->Get(player)->discoveredSystems == loadedPlayer->discoveredSystems);
+
+    std::filesystem::remove(path);
+    std::filesystem::remove(resavedPath);
+}
+
+TEST_CASE("LoadKnowledgeStore returns nullopt for a nonexistent file", "[save-file]") {
+    const std::filesystem::path path = TempSavePath("sr_save_knowledge_does_not_exist.sav");
+    std::filesystem::remove(path);
+    CHECK_FALSE(LoadKnowledgeStore(path).has_value());
+}
+
+TEST_CASE("LoadKnowledgeStore returns nullopt for a save from a newer schema version",
+          "[save-file]") {
+    const std::filesystem::path path = TempSavePath("sr_save_knowledge_future_schema.sav");
+
+    // SaveKnowledgeStore always writes the current schema version, so this writes the bytes
+    // directly to simulate a save from a future build -- the same shape SaveFileTests uses for
+    // ShipBlueprint, adapted since KnowledgeStore has no schemaVersion field of its own to bump.
+    sr::core::serialization::ByteWriter writer;
+    writer.Put(sr::core::knowledge::kKnowledgeSchemaVersion + 1);
+    KnowledgeStore empty;
+    sr::core::serialization::Encode(writer, empty);
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    const auto& data = writer.Data();
+    file.write(reinterpret_cast<const char*>(data.data()),
+               static_cast<std::streamsize>(data.size()));
+    file.close();
+
+    CHECK_FALSE(LoadKnowledgeStore(path).has_value());
 
     std::filesystem::remove(path);
 }

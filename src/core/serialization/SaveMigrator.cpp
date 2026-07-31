@@ -22,4 +22,19 @@ std::optional<ShipBlueprint> Migrate(ShipBlueprint blueprint) {
     return blueprint;
 }
 
+std::optional<sr::core::knowledge::KnowledgeStore> MigrateKnowledgeStore(
+    int schemaVersion, sr::core::knowledge::KnowledgeStore store) {
+    if (schemaVersion > sr::core::knowledge::kKnowledgeSchemaVersion) {
+        return std::nullopt;  // From a newer game version; refuse to guess.
+    }
+    if (schemaVersion < 1) {
+        return std::nullopt;  // 1 has been the floor since KnowledgeStore saves existed.
+    }
+
+    // Add the next step here when kKnowledgeSchemaVersion bumps, mirroring Migrate(ShipBlueprint)
+    // above. Falls through unchanged below for the current version -- there is only one so far.
+
+    return store;
+}
+
 }  // namespace sr::core::serialization

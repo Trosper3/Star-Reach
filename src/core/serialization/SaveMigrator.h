@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "shared/blueprints/ShipBlueprint.h"
 
 // Save schema migration (architecture.md section 5, section 9's legacy migration table -- a
@@ -25,5 +26,13 @@ namespace sr::core::serialization {
 // bump has one place to add a step, instead of every save-reading call site growing its own ad
 // hoc version check.
 std::optional<ShipBlueprint> Migrate(ShipBlueprint blueprint);
+
+// Migrates `store` forward to kKnowledgeSchemaVersion. `schemaVersion` is passed in separately --
+// unlike ShipBlueprint, KnowledgeStore carries no version field of its own (KnowledgeNetwork.h's
+// header comment explains why); SaveFile.h's LoadKnowledgeStore reads the leading version field it
+// wrote and hands it here. Same floor/ceiling rules as Migrate(ShipBlueprint): nullopt for a
+// version newer than this build understands, and nullopt below 1.
+std::optional<sr::core::knowledge::KnowledgeStore> MigrateKnowledgeStore(
+    int schemaVersion, sr::core::knowledge::KnowledgeStore store);
 
 }  // namespace sr::core::serialization
