@@ -25,6 +25,7 @@
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/StationServicesSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
+#include "modes/space/systems/TemplateMarketSystem.h"
 #include "modes/space/systems/TutorialSystem.h"
 #include "modes/space/systems/WarpSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
@@ -39,6 +40,7 @@ namespace sr::space {
 //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
 //                        of lagging one tick behind at the pre-warp position.
 //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
+//   ModuleEquipSystem -- before PowerSystem, so a mount/unmount counts in this tick's budget.
 //   ConstructionSystem, ModuleEquipSystem -- before PowerSystem, so a freshly built rig or a
 //                        mount/unmount lands in this same tick's power budget.
 //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
@@ -80,8 +82,9 @@ namespace sr::space {
 //                        this tick's settled WorldTransform/CollisionRadius and never spawns
 //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
 //                        last.
-//   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem -- no ordering
-//                        constraint among these or the above: each touches only its own state.
+//   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem, TemplateMarketSystem
+//                        -- no ordering constraint among these or the above: each touches
+//                        only its own state, or only core/ for the latter two.
 //
 const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
@@ -113,6 +116,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"FactionEconomySystem", &faction_economy_system::Tick},
         {"DiscoverySystem", &discovery_system::Tick},
         {"CommanderSystem", &commander_system::Tick},
+        {"TemplateMarketSystem", &template_market_system::Tick},
     };
     return schedule;
 }

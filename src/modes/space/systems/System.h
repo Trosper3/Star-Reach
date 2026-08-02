@@ -1,8 +1,11 @@
 #pragma once
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
 #include "core/galaxy/Discovery.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 
@@ -45,6 +48,21 @@ struct SystemContext {
     // a SystemContext without one.
     core::galaxy::DiscoveryState* discovery = nullptr;
 
+    // The galaxy-wide store behind architecture.md 12.1's knowledge networks and 12.7's Template
+    // sales (Law 8 -- core/knowledge/, not this or any registry). Same nullable-pointer shape as
+    // `economy`/`discovery` above, for the same reason: most systems never touch it, and every
+    // test fixture predating ResearchSystem (#81) constructs a SystemContext without one.
+    core::knowledge::KnowledgeStore* knowledge = nullptr;
+
+    // Galaxy-wide faction-vs-faction relations (Law 8 -- core/diplomacy/). Same nullable-pointer
+    // shape as the others; only TemplateMarketSystem (#83) reads through it today, for its
+    // pitch-gate and rate-roll steps.
+    core::diplomacy::DiplomacyMatrix* diplomacy = nullptr;
+
+    // Galaxy-wide per-actor standing with each faction (Law 8 -- core/diplomacy/). Same
+    // nullable-pointer shape as the others; only TemplateMarketSystem (#83) reads through it
+    // today, for its rate-roll step.
+    core::diplomacy::Reputation* reputation = nullptr;
     // The same ContentLibrary `content` above points at, but non-const -- EngineerSystem
     // (architecture.md 12.12) is the only writer, registering a merged module so its id resolves
     // everywhere else `content.FindModule` already does. Same nullable-pointer shape as
