@@ -250,6 +250,8 @@ add_library(sr_space STATIC
     src/modes/space/systems/ConstructionSystem.cpp
     src/modes/space/systems/EngineerSystem.cpp
     src/modes/space/systems/RefactorSystem.cpp
+    src/modes/space/ui/CustomizeMenu.cpp
+    src/modes/space/systems/CommanderSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
     src/modes/space/systems/DamageSystem.cpp

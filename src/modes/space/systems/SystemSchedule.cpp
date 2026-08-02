@@ -1,6 +1,7 @@
 #include "modes/space/systems/SystemSchedule.h"
 
 #include "modes/space/systems/CollisionSystem.h"
+#include "modes/space/systems/CommanderSystem.h"
 #include "modes/space/systems/CommsSystem.h"
 #include "modes/space/systems/ConstructionSystem.h"
 #include "modes/space/systems/ContractSystem.h"
@@ -76,8 +77,12 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
-    //   CommsSystem, FactionEconomySystem, DiscoverySystem -- no ordering constraint among
-    //                        these or the above: each touches only its own state.
+    //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
+    //                        SensorRange/DisplayName and writes its own singleton CommsLog.
+    //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
+    //                        outside every registry, so there is nothing this-tick for it to
+    //                        race against.
+    //   DiscoverySystem, CommanderSystem -- no ordering constraint; each touches only its state.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -105,6 +110,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"CommsSystem", &comms_system::Tick},
         {"FactionEconomySystem", &faction_economy_system::Tick},
         {"DiscoverySystem", &discovery_system::Tick},
+        {"CommanderSystem", &commander_system::Tick},
     };
     return schedule;
 }
