@@ -1128,9 +1128,18 @@ survive a Tier 1 → 2 demotion and back.
 (`features.md` §4.1). None of the three block the component or the system skeleton — build the
 mechanism, leave the roster policy open.
 
-### 12.3 Faction Survival — `features.md` §5.1
+### 12.3 Faction Survival — `features.md` §5.1 ✅ Built
 
 **Home:** a new entry point on the existing `core/ai/FactionDecisionEngine`, **not** a new system.
+`EvaluateSurvival`/`HasCollapsed`/`CollapseFaction` (2026-08-01). `hasCommandStructure` and
+`hasLeadership` are supplied by the caller rather than computed here -- Tier 3 has no registry to
+answer either question against, the same "caller supplies what `core/` can't compute" shape
+`EvaluateRaidDispatch`'s `roll` and `EvaluateColonization`'s `candidateSystemId` already use.
+`CollapseFaction` applies the one Tier-3-native consequence (`Territory::ReleaseAll`, new);
+scattering surviving ships to rogue needs a registry and is left for a future Tier 1 consumer, the
+same "correctly-shaped, independently-tested bridge, no caller yet" shape `WreckRecord` (§12.5)
+landed in before #97's warp-system wiring. `FactionEconomy` gained `TotalProduction` (cumulative
+lifetime deposits, never reduced by `Spend`) as the Economic Footprint pillar's real data source.
 
 **Why not its own system.** It runs on the same macro tick as the 4-facet engine and reads exactly
 the state that engine already reads — `core/economy/FactionEconomy` (footprint),

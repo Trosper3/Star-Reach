@@ -2,9 +2,11 @@
 
 #include <entt/entity/registry.hpp>
 #include <optional>
+#include <string>
 
 #include "modes/space/render/WorldRenderer.h"
 #include "shared/math/Vec2.h"
+#include "shared/ui/HudTheme.h"
 
 // modes/space/render/ -- IconRenderer, alongside WorldRenderer (architecture.md section 3).
 //
@@ -35,5 +37,12 @@ Vec2 WorldToScreen(const Vec2& worldPosition, const CameraView& camera);
 // TargetWorldPosition returns nullopt. Must be called between BeginDrawing/EndDrawing, OUTSIDE
 // BeginMode2D/EndMode2D -- it does its own world-to-screen projection.
 void DrawTargetReticle(const entt::registry& registry, const CameraView& camera, float alpha);
+
+// A fixed-size dot with an optional label beneath it, at a SCREEN-space position the caller has
+// already projected (WorldToScreen above, or a map's own layout for positions with no world
+// coordinate at all -- architecture.md 12.6's galaxy/region zoom levels). The map-icon bake that
+// issue's Home line names: NavigationMap (modes/space/ui/) is the first consumer, for both
+// discovered-system markers (no world position) and sensor-gated hostile blips (projected).
+void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& label);
 
 }  // namespace sr::space::render

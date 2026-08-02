@@ -78,4 +78,39 @@ std::optional<ColonizeDirective> EvaluateColonization(const FactionId& faction,
                                                       const diplomacy::Territory& territory,
                                                       const std::string& candidateSystemId);
 
+// features.md 5.1's Three Pillars -- a faction remains active as long as it holds at least one.
+// One implementation applied identically to every faction, the player's included: features.md
+// 3.3's Hard Game Over is this same predicate on the player's own faction (architecture.md
+// 12.3's "the player is not a special case").
+struct SurvivalPillars {
+    bool commandStructure = false;
+    bool leadership = false;
+    bool economicFootprint = false;
+};
+
+// `hasCommandStructure` (at least one station/capital carrying a command module) and
+// `hasLeadership` (the faction head or an AI sub-commander, architecture.md #82, still alive)
+// are supplied by the caller rather than queried here: answering either needs a registry, and
+// Tier 3 -- this runs on the same macro tick as ComputeFacets/EvaluateColonization -- has none
+// (features.md 1.1). The same "caller supplies what core/ can't compute" shape
+// EvaluateRaidDispatch's `roll` and EvaluateColonization's `candidateSystemId` already use.
+// Economic Footprint is the one pillar with a real Tier-3-native data source (settled,
+// architecture.md 12.3): any lifetime production at all, economy.TotalProduction(faction) > 0 --
+// not a threshold, not territory alone.
+SurvivalPillars EvaluateSurvival(const economy::FactionEconomy& economy, const FactionId& faction,
+                                 bool hasCommandStructure, bool hasLeadership);
+
+// True only when every pillar is lost -- collapse (features.md 5.1), irreversible. Separate from
+// SurvivalPillars itself so a caller/test can assert on one pillar without also computing
+// collapse.
+bool HasCollapsed(const SurvivalPillars& pillars);
+
+// Applies collapse's one Tier-3-native consequence: every system `faction` holds becomes
+// unclaimed (features.md 5.1). The other named consequence -- surviving ships scattering into
+// rogue scavenger groups -- needs registry access this file does not have (Tier 3) and is a
+// future Tier 1 consumer's job to wire up, the same "correctly-shaped, independently-tested
+// bridge, no real caller yet" shape architecture.md 12.5's WreckRecord landed in before its
+// eventual warp-system wiring (#97) existed.
+void CollapseFaction(diplomacy::Territory& territory, const FactionId& faction);
+
 }  // namespace sr::core::ai
