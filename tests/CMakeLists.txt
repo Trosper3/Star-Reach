@@ -45,6 +45,8 @@ add_executable(sr_tests
     unit/RefactorSystemTests.cpp
     unit/EngineerMenuTests.cpp
     unit/RefactorMenuTests.cpp
+    unit/StationServicesSystemTests.cpp
+    unit/StationServicesMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp

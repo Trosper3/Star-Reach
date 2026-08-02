@@ -246,6 +246,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/BuildMenu.cpp
     src/modes/space/ui/EngineerMenu.cpp
     src/modes/space/ui/RefactorMenu.cpp
+    src/modes/space/ui/StationServicesMenu.cpp
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
@@ -271,6 +272,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
     src/modes/space/systems/SpawnSystem.cpp
+    src/modes/space/systems/StationServicesSystem.cpp
     src/modes/space/systems/TargetingSystem.cpp
     src/modes/space/systems/TutorialSystem.cpp
     src/modes/space/systems/WarpSystem.cpp
