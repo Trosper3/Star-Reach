@@ -50,6 +50,10 @@ enum class FacilityKind : std::uint8_t {
     Research,
     Docking,
     Storage,
+    // Grants EngineerMenu (module merging) and RefactorMenu (hardpoint deletion) at whatever
+    // station/ship carries this facility. FacilityStats::level (ModuleDef.h) is only meaningful
+    // for this kind -- the engineer's skill tier, 1-5, scales EngineerSystem's merge formula.
+    Engineering,
 };
 
 std::string_view ToString(DamageType value);

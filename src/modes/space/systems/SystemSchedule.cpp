@@ -8,6 +8,7 @@
 #include "modes/space/systems/DiscoverySystem.h"
 #include "modes/space/systems/DistressSystem.h"
 #include "modes/space/systems/DockingSystem.h"
+#include "modes/space/systems/EngineerSystem.h"
 #include "modes/space/systems/FactionEconomySystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
@@ -18,6 +19,7 @@
 #include "modes/space/systems/PhysicsSystem.h"
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
+#include "modes/space/systems/RefactorSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
 #include "modes/space/systems/TutorialSystem.h"
@@ -46,6 +48,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
     //                        are zeroed before TargetingSystem/NpcAiSystem see it this same
     //                        tick; removes Targetable the instant docking completes.
+    //   EngineerSystem, RefactorSystem -- after DockingSystem; both gate on Docked.
     //   TargetingSystem
     //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
     //   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
@@ -85,6 +88,8 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"DockingSystem", &docking_system::Tick},
+        {"EngineerSystem", &engineer_system::Tick},
+        {"RefactorSystem", &refactor_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
         {"NpcAiSystem", &npc_ai_system::Tick},
         {"WeaponSystem", &weapon_system::Tick},

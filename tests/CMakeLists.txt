@@ -39,6 +39,9 @@ add_executable(sr_tests
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
     unit/BuildMenuTests.cpp
+    unit/RefactorSystemTests.cpp
+    unit/EngineerMenuTests.cpp
+    unit/RefactorMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp
@@ -53,6 +56,7 @@ add_executable(sr_tests
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
     integration/ConstructionSystemTests.cpp
+    integration/EngineerSystemTests.cpp
     integration/NpcFactoryTests.cpp
     integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp

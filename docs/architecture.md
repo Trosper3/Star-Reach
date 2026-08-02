@@ -595,7 +595,9 @@ does, not from guesswork.
 | `TemplateMarketSystem` | Template pitch, valuation, negotiation roll, royalty accrual | 2–3 | 📋 |
 | `StationServicesSystem` | Buy/sell modules & materials, hull repair, module merge (§12.10) | 1 | 📋 |
 | `ModuleEquipSystem` | Mount/unmount modules onto an already-live rig (§12.11) | 1 | 📋 |
-| `ConstructionSystem` | Player-initiated station/ship build via `StationFactory`/`RigFactory` (§12.12) | 1 | 📋 |
+| `ConstructionSystem` | Player-initiated station/ship build via `StationFactory`/`RigFactory` (§12.12) | 1 | ✅ |
+| `EngineerSystem` | Merge two owned same-kind modules into one, level-scaled loss (§12.12) | 1 | ✅ |
+| `RefactorSystem` | Delete a live hardpoint, returning its modules to storage (§12.12) | 1 | ✅ |
 
 All twenty-two ✅ rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
 cross-issue dependencies among them).
@@ -1437,9 +1439,11 @@ removes it from `CargoHold`; unmount is the exact inverse; equip refused when th
 ### 12.12 Construction, Refit & Grafting — `BuildMenu` / `RefactorMenu` / `EngineerMenu`
 
 **The least specified of this batch — bundled deliberately, because each piece is smaller and
-less certain than §12.9–12.11 and none blocks the others.**
+less certain than §12.9–12.11 and none blocks the others.** Both ❓s below have since been
+settled by the project owner (2026-08-01); this section records the resolution rather than the
+open question, the same way §0 tracks every other settled ❓ in this batch.
 
-**`BuildMenu` — player-initiated construction.** `architecture.md` Law 9 already names
+**`BuildMenu` — player-initiated construction. ✅ Built.** `architecture.md` Law 9 already names
 `BuildStationRequest` and `PlaceShipRequest` as the canonical Intent examples — this was
 anticipated from the first draft of the intent-queue discipline and never built against. StarReach2's
 `BuildMenu.h` (59 lines) reads player `CargoHold`/`Wallet` for affordability, then hands off to
@@ -1447,23 +1451,46 @@ placement mode. **Home:** `modes/space/ui/BuildMenu.*`, a new `modes/space/syste
 ConstructionSystem.*` (Tier 1) consuming `BuildStationRequest`/`PlaceShipRequest` and calling the
 already-built `StationFactory`/`RigFactory` — construction is assembly (Law 5), so this is the one
 place in this batch where a system legitimately drives a factory as its documented job, not a
-violation of §12.11's layer question. **Tests:** a request is refused when unaffordable against
+violation of §12.11's layer question (`tools/ci/check_layers.py` carries a narrow, named exemption
+for `ConstructionSystem.cpp`, per §11.7). **Tests:** a request is refused when unaffordable against
 `Wallet`/`CargoHold`; an affordable request spends the cost exactly once and instantiates via the
 existing factory.
 
-**`RefactorMenu` — live ship refit at the Component tier.** Distinct from §12.11's `ModulesMenu` in
-which rung of Law 4's `Shell -> Component -> Module` hierarchy it edits: `ModulesMenu` mounts
-Modules onto existing slots, `RefactorMenu` swaps the **Components** those slots are built from —
-StarReach2's version drags a fixed `ComponentDef` palette onto the player's *live* ship (not a
-Template draft, unlike §12.9). **Home:** `modes/space/ui/RefactorMenu.*`. Likely reuses
-§12.11's `ModuleEquipSystem` resolution once decided, since swapping a Component is structurally
-the same "detach live entity, attach new one, keep the parent rig intact" operation.
+**`EngineerMenu` — module merging. ✅ Built, settled.** Not a `ResearchSystem` (§12.1) variant —
+genuinely the distinct mechanic the original ❓ raised: the player merges two owned modules of the
+*same* `ModuleKind` into one, at a level-scaled loss on the secondary module's contribution.
+**Home:** `modes/space/ui/EngineerMenu.*`, a new `modes/space/systems/EngineerSystem.*` (Tier 1).
+Gated by docking at a station/ship carrying a living `FacilityKind::Engineering` hardpoint (a new
+facility kind); `FacilityStats::level`/`FacilityRef::level` (1–5, `ModuleDef.h`/`Facility.h`) is the
+engineer's skill tier. **Formula, per numeric field on the module** (mass, power draw/generation,
+hull bonus, and whichever kind-specific stat block matches):
+`primaryValue + secondaryValue * (level * 0.1)` — level 1 preserves 10% of the secondary module's
+stats, level 5 preserves 50%. A placeholder scale, not a tuned value, the same category §12.7's
+rate-roll weights are flagged as. **The mechanism this needed and didn't have:** a merged module is
+genuinely new content, generated at runtime, not authored in `data/base_game/`. It is built by
+plain declaration and field assignment (never an initializer), the same Law 10 shape §12.9's
+`CustomizeMenu` Template draft already uses, and registered via a new
+`ContentLibrary::RegisterCraftedModule` — a small runtime-registered overlay `FindModule` checks
+before the JSON-loaded set, so the merged id resolves everywhere `content.FindModule` already does
+(equip, construction, a future save). **Tests:** a same-`ModuleKind` merge scales the secondary's
+stats by level and produces a module that resolves via `FindModule`; refused when not docked at a
+living Engineering facility, when the two modules are not the same `ModuleKind`, or when either id
+is not actually held (merging a module with itself requires two distinct owned copies, not one
+counted twice).
 
-**`EngineerMenu` — attribute grafting between cargo items.** ❓ **Open, and genuinely unresolved
-rather than merely unbuilt:** whether this is a distinct crafting mechanic (StarReach2's version
-transplants primary/secondary attributes between two owned items, gated by "Mythic-blocked
-primaries") or the same mechanic `ResearchSystem` (§12.1) already covers under a different name.
-`features.md` §2.4's reverse-engineering loop turns loot into permanently manufacturable
-blueprints; `EngineerMenu` mutates two *already-owned* item instances against each other, which is
-a different shape and may be a genuinely separate feature, not a research variant. Recommend
-deciding this before scoping a home for it — the two are easy to accidentally build twice.
+**`RefactorMenu` — hardpoint deletion, settled as a narrower scope than "component swap."** The
+original wording speculated a live Shell swap at "the Component tier" of Law 4's
+`Shell -> Component -> Module` model; no `ComponentDef` type exists to swap (`ShellDef`/`ModuleDef`
+are the only two authored tiers), and the settled mechanic is simpler: delete a hardpoint from the
+player's own live rig while docked at a living `FacilityKind::Engineering` facility (the same gate
+`EngineerMenu` uses). **Home:** `modes/space/ui/RefactorMenu.*`, a new `modes/space/systems/
+RefactorSystem.*` (Tier 1). **Types:** a new `shared/components/Rig.h` component,
+`MountedModules { std::vector<ModuleId> ids; }`, written once by `RigFactory` at construction so a
+later deletion knows what to hand back. **Rules:** a hardpoint another hardpoint's
+`StructuralAttachment` still points at cannot be deleted (would orphan its children — deletion is
+scoped to leaves); a deletion whose returned modules would not fit the player's `CargoHold` is
+refused whole, not partially applied — `CargoHold` gained a `capacity` field (0 = unlimited, so
+every pre-existing `CargoHold` is unaffected) and `CargoHoldHasRoomFor` for this check. **Tests:**
+deleting a leaf hardpoint returns its `MountedModules` to `CargoHold` and removes it from `Rig`;
+refused when `CargoHold` has no room, when another hardpoint depends on it, or when the hardpoint
+does not belong to the requester's own rig.

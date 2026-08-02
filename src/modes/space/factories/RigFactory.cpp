@@ -87,7 +87,8 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
             // own direct-use tag (issue #24) and stays in addition to it -- Repair/Manufacturing/
             // Research/Storage have no tab CONTENT yet, only the tab existing, until each grows
             // its own system.
-            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind);
+            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind,
+                                                     module.facility.level);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }
@@ -117,6 +118,7 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
     aggregate.mass += shell.mass;
     aggregate.extent = std::max(aggregate.extent, Length(mount.localOffset) + shell.radius);
 
+    MountedModules mounted;
     for (const ModuleId& moduleId : mount.modules) {
         const ModuleDef* module = content.FindModule(moduleId);
         if (module == nullptr) {
@@ -124,7 +126,9 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
         }
         hull += module->hullBonus;
         AttachModule(registry, hardpoint, *module, mount, aggregate);
+        mounted.ids.push_back(moduleId);
     }
+    registry.emplace<MountedModules>(hardpoint, std::move(mounted));
 
     registry.emplace<Health>(hardpoint, hull, hull);
     return hardpoint;

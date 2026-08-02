@@ -3,6 +3,7 @@
 #include <entt/entity/entity.hpp>
 #include <vector>
 
+#include "shared/blueprints/Ids.h"
 #include "shared/blueprints/Taxonomy.h"
 
 namespace sr {
@@ -50,5 +51,12 @@ struct StructuralAttachment {
 // A tag rather than a bool inside Health, so systems iterate only live hardpoints via
 // entt exclusion instead of branching per entity.
 struct Destroyed {};
+
+// Which ModuleId(s) RigFactory attached to this hardpoint at construction time. Written once, at
+// spawn, by RigFactory::CreateHardpoint. RefactorSystem reads this to know which modules a
+// deleted hardpoint returns to CargoHold (architecture.md 12.12).
+struct MountedModules {
+    std::vector<ModuleId> ids;
+};
 
 }  // namespace sr
