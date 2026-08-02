@@ -1,6 +1,7 @@
 #include "modes/space/systems/SystemSchedule.h"
 
 #include "modes/space/systems/CollisionSystem.h"
+#include "modes/space/systems/CommanderSystem.h"
 #include "modes/space/systems/CommsSystem.h"
 #include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
@@ -76,8 +77,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
     //                        outside every registry, so there is nothing this-tick for it to
     //                        race against.
-    //   DiscoverySystem   -- no ordering constraint: it only reads PlayerControlled/FactionRef
-    //                        and writes core/galaxy/'s DiscoveryState, outside every registry.
+    //   DiscoverySystem, CommanderSystem -- no ordering constraint; each touches only its state.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -102,6 +102,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"CommsSystem", &comms_system::Tick},
         {"FactionEconomySystem", &faction_economy_system::Tick},
         {"DiscoverySystem", &discovery_system::Tick},
+        {"CommanderSystem", &commander_system::Tick},
     };
     return schedule;
 }

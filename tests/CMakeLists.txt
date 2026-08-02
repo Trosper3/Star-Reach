@@ -10,6 +10,7 @@ add_executable(sr_tests
     unit/CockpitHudTests.cpp
     unit/BridgeViewTests.cpp
     unit/NavigationMapTests.cpp
+    unit/CustomizeMenuTests.cpp
     unit/ValidationTests.cpp
     unit/ByteStreamTests.cpp
     unit/BlueprintSerializationTests.cpp
@@ -37,6 +38,7 @@ add_executable(sr_tests
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
+    unit/CommanderSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
     unit/WarpSystemTests.cpp
