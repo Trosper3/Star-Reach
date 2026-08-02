@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
 #include "core/galaxy/Discovery.h"
@@ -46,12 +48,31 @@ struct SystemContext {
     // a SystemContext without one.
     core::galaxy::DiscoveryState* discovery = nullptr;
 
-    // The galaxy-wide store behind architecture.md 12.1's knowledge networks (Law 8 --
-    // core/knowledge/, not this or any registry). Same nullable-pointer shape as `economy` and
-    // `discovery` above: most systems never touch it, and every test fixture predating
-    // ResearchSystem (#81) constructs a SystemContext without one. Writers: ResearchSystem grants
-    // an unlock on job completion; TemplateMarketSystem copies a Template on sale.
+    // The galaxy-wide store behind architecture.md 12.1's knowledge networks and 12.7's Template
+    // sales (Law 8 -- core/knowledge/, not this or any registry). Same nullable-pointer shape as
+    // `economy`/`discovery` above, for the same reason: most systems never touch it, and every
+    // test fixture predating ResearchSystem (#81) constructs a SystemContext without one.
+    // Writers: ResearchSystem grants an unlock on job completion; TemplateMarketSystem copies a
+    // Template on sale.
     core::knowledge::KnowledgeStore* knowledge = nullptr;
+
+    // Galaxy-wide faction-vs-faction relations (Law 8 -- core/diplomacy/). Same nullable-pointer
+    // shape as the others; only TemplateMarketSystem (#83) reads through it today, for its
+    // pitch-gate and rate-roll steps.
+    core::diplomacy::DiplomacyMatrix* diplomacy = nullptr;
+
+    // Galaxy-wide per-actor standing with each faction (Law 8 -- core/diplomacy/). Same
+    // nullable-pointer shape as the others; only TemplateMarketSystem (#83) reads through it
+    // today, for its rate-roll step.
+    core::diplomacy::Reputation* reputation = nullptr;
+    // The same ContentLibrary `content` above points at, but non-const -- EngineerSystem
+    // (architecture.md 12.12) is the only writer, registering a merged module so its id resolves
+    // everywhere else `content.FindModule` already does. Same nullable-pointer shape as
+    // `economy`/`discovery`: most systems never touch it, and every test fixture predating
+    // EngineerSystem constructs a SystemContext without one. A separate pointer rather than
+    // making `content` itself non-const, so the "systems only read content" invariant every
+    // other system relies on stays true in the type, not just by convention.
+    core::ContentLibrary* craftedModules = nullptr;
 
     entt::registry& Registry() const { return world.Registry(); }
 };

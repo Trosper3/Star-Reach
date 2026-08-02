@@ -32,12 +32,13 @@ constexpr std::array<std::pair<std::string_view, ModuleKind>, 6> kModuleKinds{{
     {"facility", ModuleKind::Facility},
 }};
 
-constexpr std::array<std::pair<std::string_view, FacilityKind>, 5> kFacilityKinds{{
+constexpr std::array<std::pair<std::string_view, FacilityKind>, 6> kFacilityKinds{{
     {"repair", FacilityKind::Repair},
     {"manufacturing", FacilityKind::Manufacturing},
     {"research", FacilityKind::Research},
     {"docking", FacilityKind::Docking},
     {"storage", FacilityKind::Storage},
+    {"engineering", FacilityKind::Engineering},
 }};
 
 template <typename Table, typename Enum>
@@ -93,6 +94,7 @@ std::string_view ToString(FacilityKind value) {
         case FacilityKind::Research: return "research";
         case FacilityKind::Docking: return "docking";
         case FacilityKind::Storage: return "storage";
+        case FacilityKind::Engineering: return "engineering";
     }
     return "storage";
 }

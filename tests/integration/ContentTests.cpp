@@ -64,3 +64,52 @@ TEST_CASE("An unknown id resolves to nullptr rather than a default", "[content]"
     CHECK(library.FindShell(sr::ShellId("no_such_shell")) == nullptr);
     CHECK(library.FindModule(sr::ModuleId("no_such_module")) == nullptr);
 }
+
+TEST_CASE("RegisterCraftedModule makes a runtime-built module resolvable via FindModule",
+          "[content]") {
+    LoadReport report;
+    ContentLibrary library = LoadShippedContent(report);
+    REQUIRE(report.ok());
+
+    sr::ModuleDef crafted;
+    crafted.id = sr::ModuleId("player_crafted_one");
+    crafted.kind = sr::ModuleKind::Weapon;
+    crafted.weapon.damage = 42.0f;
+    library.RegisterCraftedModule(crafted);
+
+    const sr::ModuleDef* found = library.FindModule(sr::ModuleId("player_crafted_one"));
+    REQUIRE(found != nullptr);
+    CHECK(found->weapon.damage == 42.0f);
+}
+
+TEST_CASE("A crafted module id takes priority over an authored id of the same name", "[content]") {
+    LoadReport report;
+    ContentLibrary library = LoadShippedContent(report);
+    REQUIRE(report.ok());
+
+    sr::ModuleDef crafted;
+    crafted.id = sr::ModuleId("pulse_cannon_i");
+    crafted.kind = sr::ModuleKind::Weapon;
+    crafted.weapon.damage = 999.0f;
+    library.RegisterCraftedModule(crafted);
+
+    const sr::ModuleDef* found = library.FindModule(sr::ModuleId("pulse_cannon_i"));
+    REQUIRE(found != nullptr);
+    CHECK(found->weapon.damage == 999.0f);
+}
+
+TEST_CASE("A crafted module survives reloading the authored content set", "[content]") {
+    LoadReport report;
+    ContentLibrary library = LoadShippedContent(report);
+    REQUIRE(report.ok());
+
+    sr::ModuleDef crafted;
+    crafted.id = sr::ModuleId("player_crafted_two");
+    crafted.kind = sr::ModuleKind::Armor;
+    library.RegisterCraftedModule(crafted);
+
+    const auto reload = library.LoadFromDirectory(std::filesystem::path(SR_DATA_DIR));
+    REQUIRE(reload.ok());
+
+    CHECK(library.FindModule(sr::ModuleId("player_crafted_two")) != nullptr);
+}

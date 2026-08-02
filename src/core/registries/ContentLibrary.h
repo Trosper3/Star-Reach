@@ -26,8 +26,26 @@ public:
     LoadReport LoadFromDirectory(const std::filesystem::path& directory);
 
     const ShellDef* FindShell(const ShellId& id) const override;
+
+    // Checks runtime-registered modules (below) first, then the JSON-loaded set. A crafted id
+    // never collides with an authored one in practice -- RegisterCraftedModule's caller
+    // (EngineerSystem, architecture.md 12.12) derives ids from the two source modules, and
+    // content authors do not use that scheme -- but "crafted wins" is the defined tie-break if
+    // it ever happens, since a crafted module is player state, not swappable authored content.
     const ModuleDef* FindModule(const ModuleId& id) const override;
+
     const ShipBlueprint* FindShip(const BlueprintId& id) const;
+
+    // Registers a module built at runtime rather than loaded from JSON -- architecture.md 12.12's
+    // EngineerMenu, which merges two owned modules into a new one. The merged ModuleDef is
+    // player-generated content, not authored content, the same distinction CustomizeMenu's
+    // Template draft already makes (architecture.md 12.9): its caller builds it by plain
+    // declaration and field assignment rather than an initializer, so Law 10's
+    // check_content_pipeline.py -- which forbids constructing ModuleDef with an initializer
+    // outside core/registries/, tests/, tools/ -- has nothing to flag. Survives
+    // LoadFromDirectory(): reloading the authored set must not erase a player's crafted
+    // inventory.
+    void RegisterCraftedModule(ModuleDef module);
 
     // Runs Validate() over every loaded ship blueprint. Called by the content-validation test
     // and by tools/, so shipping a blueprint that cannot be instantiated fails CI rather than
@@ -49,6 +67,7 @@ private:
     std::unordered_map<std::string, ShellDef> shells_;
     std::unordered_map<std::string, ModuleDef> modules_;
     std::unordered_map<std::string, ShipBlueprint> ships_;
+    std::unordered_map<std::string, ModuleDef> craftedModules_;
 };
 
 }  // namespace sr::core
