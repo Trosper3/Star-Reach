@@ -4,9 +4,6 @@
 #include <unordered_map>
 
 #include "shared/blueprints/Validation.h"
-#include "shared/components/Combat.h"
-#include "shared/components/Docking.h"
-#include "shared/components/Facility.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -14,23 +11,10 @@
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
-#include "shared/math/Angle.h"
+#include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::rig_factory {
 namespace {
-
-// Load-shedding order, consumed by PowerSystem. Higher sheds LAST, so a browning-out rig loses
-// facilities first and engines last -- a legible degradation order rather than everything
-// failing at once.
-int SheddingPriority(ModuleKind kind) {
-    switch (kind) {
-        case ModuleKind::Facility: return 0;
-        case ModuleKind::ShieldGenerator: return 1;
-        case ModuleKind::Weapon: return 2;
-        case ModuleKind::Engine: return 3;
-        default: return 1;
-    }
-}
 
 // Aggregates accumulated across the whole rig while its hardpoints are built.
 struct RigAggregate {
@@ -39,60 +23,26 @@ struct RigAggregate {
     Propulsion propulsion;
 };
 
-// Attaches the role components implied by one module. This is the single place where "what a
-// module IS" (authored data) becomes "what a hardpoint DOES" (live components).
+// Folds one module's mass and (if any) Propulsion contribution into `aggregate`, after
+// shared/rig/ModuleAttachment.h's AttachModuleComponents has already written the module's role
+// components (Weapon/Shield/PowerSource/FacilityRef) -- the same "what a module IS becomes what
+// a hardpoint DOES" step architecture.md 12.11 also needs for live equip, extracted there so
+// modes/space/systems/ never has to include factories/ (section 2.3) to reuse it.
 void AttachModule(entt::registry& registry, entt::entity hardpoint, const ModuleDef& module,
                   const MountBlueprint& mount, RigAggregate& aggregate) {
     aggregate.mass += module.mass;
 
-    if (module.powerGeneration > 0.0f) {
-        registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
-    }
-    if (module.powerDraw > 0.0f) {
-        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
-                                               SheddingPriority(module.kind));
-    }
-
-    switch (module.kind) {
-        case ModuleKind::Weapon: {
-            const WeaponStats& stats = module.weapon;
-            registry.emplace_or_replace<Weapon>(hardpoint, stats.damage, stats.damageType,
-                                                stats.fireIntervalSeconds, stats.projectileSpeed,
-                                                stats.rangeUnits, stats.spreadRadians,
-                                                stats.projectilesPerShot, 0.0f);
-            // A zero traverse is a fixed forward mount, which is still a valid arc.
-            registry.emplace_or_replace<FiringArc>(hardpoint, mount.traverseRadians, 0.0f, kPi);
-            break;
-        }
-        case ModuleKind::ShieldGenerator: {
-            const ShieldStats& stats = module.shield;
-            registry.emplace_or_replace<Shield>(hardpoint, stats.capacity, stats.capacity,
-                                                stats.absorbs, stats.rechargePerSecond,
-                                                stats.rechargeDelaySeconds, 0.0f);
-            break;
-        }
-        case ModuleKind::Engine:
-            // Thrust is a property of the RIG, not of the hardpoint, because acceleration is.
-            // PhysicsSystem reads one Propulsion on the root; DamageSystem recomputes it when an
-            // engine hardpoint dies. That is what makes "destroy the thruster and it stalls"
-            // fall out of the data instead of needing a special case.
-            aggregate.propulsion.thrustNewtons += module.engine.thrustNewtons;
-            aggregate.propulsion.turnTorque += module.engine.turnTorque;
-            aggregate.propulsion.maxSpeed =
-                std::max(aggregate.propulsion.maxSpeed, module.engine.maxSpeed);
-            break;
-        case ModuleKind::Facility:
-            // FacilityRef is the generic live-side marker every FacilityKind gets, consumed by
-            // BridgeView's tab list (modes/space/ui/, issue #36). DockingBay is DockingSystem's
-            // own direct-use tag (issue #24) and stays in addition to it -- Repair/Manufacturing/
-            // Research/Storage have no tab CONTENT yet, only the tab existing, until each grows
-            // its own system.
-            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind);
-            if (module.facility.kind == FacilityKind::Docking) {
-                registry.emplace_or_replace<DockingBay>(hardpoint);
-            }
-            break;
-        default: break;
+    const rig_attachment::PropulsionContribution propulsion =
+        rig_attachment::AttachModuleComponents(registry, hardpoint, module, mount.traverseRadians);
+    if (propulsion.present) {
+        // Thrust is a property of the RIG, not of the hardpoint, because acceleration is.
+        // PhysicsSystem reads one Propulsion on the root; DamageSystem recomputes it when an
+        // engine hardpoint dies. That is what makes "destroy the thruster and it stalls" fall
+        // out of the data instead of needing a special case.
+        aggregate.propulsion.thrustNewtons += propulsion.thrustNewtons;
+        aggregate.propulsion.turnTorque += propulsion.turnTorque;
+        aggregate.propulsion.maxSpeed =
+            std::max(aggregate.propulsion.maxSpeed, propulsion.maxSpeed);
     }
 }
 

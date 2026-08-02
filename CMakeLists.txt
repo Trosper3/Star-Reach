@@ -125,6 +125,7 @@ endif()
 add_library(sr_shared STATIC
     src/shared/blueprints/Taxonomy.cpp
     src/shared/blueprints/Validation.cpp
+    src/shared/rig/ModuleAttachment.cpp
 )
 target_link_libraries(sr_shared PUBLIC sr_options EnTT::EnTT)
 
@@ -243,6 +244,9 @@ add_library(sr_space STATIC
     src/modes/space/ui/AvionicsMenu.cpp
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
+    src/modes/space/ui/InventoryGrid.cpp
+    src/modes/space/ui/StorageMenu.cpp
+    src/modes/space/ui/ModulesMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
@@ -254,6 +258,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/LootSystem.cpp
     src/modes/space/systems/MiningSystem.cpp
+    src/modes/space/systems/ModuleEquipSystem.cpp
     src/modes/space/systems/NpcAiSystem.cpp
     src/modes/space/systems/OrbitSystem.cpp
     src/modes/space/systems/PartySystem.cpp
