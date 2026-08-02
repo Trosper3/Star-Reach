@@ -244,6 +244,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
     src/modes/space/ui/StationServicesMenu.cpp
+    src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/CommanderSystem.cpp

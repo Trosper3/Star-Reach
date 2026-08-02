@@ -15,6 +15,9 @@ constexpr float kReticleHalfSize = 18.0f;
 constexpr float kReticleCorner = 8.0f;
 constexpr float kReticleThickness = 2.0f;
 
+constexpr float kMapMarkerRadius = 5.0f;
+constexpr float kMapMarkerLabelOffset = 10.0f;
+
 }  // namespace
 
 std::optional<Vec2> TargetWorldPosition(const entt::registry& registry, float alpha) {
@@ -56,6 +59,16 @@ void DrawTargetReticle(const entt::registry& registry, const CameraView& camera,
                            kReticleHalfSize * 2.0f, kReticleHalfSize * 2.0f};
     sr::ui::DrawBracketPanel(bounds, Color{0, 0, 0, 0}, sr::ui::kStatusCritical, kReticleCorner,
                              kReticleThickness);
+}
+
+void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& label) {
+    DrawCircle(static_cast<int>(screenPosition.x), static_cast<int>(screenPosition.y),
+               kMapMarkerRadius, color);
+    if (!label.empty()) {
+        DrawText(label.c_str(), static_cast<int>(screenPosition.x - kMapMarkerRadius),
+                 static_cast<int>(screenPosition.y + kMapMarkerLabelOffset), 10,
+                 sr::ui::kValueBright);
+    }
 }
 
 }  // namespace sr::space::render
