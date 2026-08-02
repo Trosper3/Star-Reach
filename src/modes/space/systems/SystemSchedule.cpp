@@ -29,61 +29,61 @@
 
 namespace sr::space {
 
+// Add systems here as they land. Keep the ordering rules in SystemSchedule.h satisfied, and
+// add the entry in the SAME commit as the system file -- a system with no schedule entry is
+// a dead abstraction (architecture.md section 2.4) and will be deleted at review.
+//
+//   WarpSystem        -- before HierarchySystem, so a rig teleported this tick has its
+//                        hardpoints repositioned by the SAME tick's hierarchy pass instead
+//                        of lagging one tick behind at the pre-warp position.
+//   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
+//   ConstructionSystem -- before PowerSystem, so a freshly built rig gets a budget this tick.
+//   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
+//                        tags, before anything that gates on it
+//   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
+//                        anything below reasons about position or distance this tick
+//   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
+//                        wells before PhysicsSystem integrates it, same as thrust
+//   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
+//   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
+//                        are zeroed before TargetingSystem/NpcAiSystem see it this same
+//                        tick; removes Targetable the instant docking completes.
+//   EngineerSystem, RefactorSystem -- after DockingSystem; both gate on Docked.
+//   TargetingSystem
+//   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
+//   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
+//   CollisionSystem   -- reads this tick's settled WorldTransform/Velocity; queues ramming
+//                        PendingDamage the same as ProjectileSystem
+//   ProjectileSystem
+//   PartySystem       -- after NpcAiSystem so formation ThrustInput sticks; before
+//                        DamageSystem so PendingDamage is still readable for retaliation
+//   DamageSystem      -- must be last of the combat systems; destruction is the tick's
+//                        final word there. An Asteroid can be tagged Destroyed by this same
+//                        generic drain, which is exactly what MiningSystem reacts to next.
+//   TutorialSystem    -- after DamageSystem, before MiningSystem: its DestroyAsteroid step
+//                        reads the same this-tick Destroyed tag MiningSystem is about to
+//                        consume by destroying the entity outright.
+//   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
+//                        before LootSystem so a MaterialDrop it spawns this tick is already
+//                        visible to LootSystem's expiry/pickup pass the same tick.
+//   ContractSystem    -- after DamageSystem for the same reason as MiningSystem: it credits
+//                        Bounty kills off this tick's Destroyed rig roots. Independent of
+//                        MiningSystem (Asteroid-tagged vs FactionRef-tagged Destroyed
+//                        entities never overlap).
+//   DistressSystem    -- after DamageSystem so a ShipUnderAttack call sees this tick's
+//                        Destroyed tag on its npcTarget.
+//   LootSystem        -- no ordering constraint against the above beyond that: it only reads
+//                        this tick's settled WorldTransform/CollisionRadius and never spawns
+//                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
+//                        last.
+//   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
+//                        SensorRange/DisplayName and writes its own singleton CommsLog.
+//   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
+//                        outside every registry, so there is nothing this-tick for it to
+//                        race against.
+//   DiscoverySystem, CommanderSystem -- no ordering constraint; each touches only its state.
+//
 const std::vector<ScheduledSystem>& TickSchedule() {
-    // Add systems here as they land. Keep the ordering rules in SystemSchedule.h satisfied, and
-    // add the entry in the SAME commit as the system file -- a system with no schedule entry is
-    // a dead abstraction (architecture.md section 2.4) and will be deleted at review.
-    //
-    //   WarpSystem        -- before HierarchySystem, so a rig teleported this tick has its
-    //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
-    //                        of lagging one tick behind at the pre-warp position.
-    //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
-    //   ConstructionSystem -- before PowerSystem, so a freshly built rig gets a budget this tick.
-    //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
-    //                        tags, before anything that gates on it
-    //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
-    //                        anything below reasons about position or distance this tick
-    //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
-    //                        wells before PhysicsSystem integrates it, same as thrust
-    //   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
-    //   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
-    //                        are zeroed before TargetingSystem/NpcAiSystem see it this same
-    //                        tick; removes Targetable the instant docking completes.
-    //   EngineerSystem, RefactorSystem -- after DockingSystem; both gate on Docked.
-    //   TargetingSystem
-    //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
-    //   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
-    //   CollisionSystem   -- reads this tick's settled WorldTransform/Velocity; queues ramming
-    //                        PendingDamage the same as ProjectileSystem
-    //   ProjectileSystem
-    //   PartySystem       -- after NpcAiSystem so formation ThrustInput sticks; before
-    //                        DamageSystem so PendingDamage is still readable for retaliation
-    //   DamageSystem      -- must be last of the combat systems; destruction is the tick's
-    //                        final word there. An Asteroid can be tagged Destroyed by this same
-    //                        generic drain, which is exactly what MiningSystem reacts to next.
-    //   TutorialSystem    -- after DamageSystem, before MiningSystem: its DestroyAsteroid step
-    //                        reads the same this-tick Destroyed tag MiningSystem is about to
-    //                        consume by destroying the entity outright.
-    //   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
-    //                        before LootSystem so a MaterialDrop it spawns this tick is already
-    //                        visible to LootSystem's expiry/pickup pass the same tick.
-    //   ContractSystem    -- after DamageSystem for the same reason as MiningSystem: it credits
-    //                        Bounty kills off this tick's Destroyed rig roots. Independent of
-    //                        MiningSystem (Asteroid-tagged vs FactionRef-tagged Destroyed
-    //                        entities never overlap).
-    //   DistressSystem    -- after DamageSystem so a ShipUnderAttack call sees this tick's
-    //                        Destroyed tag on its npcTarget.
-    //   LootSystem        -- no ordering constraint against the above beyond that: it only reads
-    //                        this tick's settled WorldTransform/CollisionRadius and never spawns
-    //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
-    //                        last.
-    //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
-    //                        SensorRange/DisplayName and writes its own singleton CommsLog.
-    //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
-    //                        outside every registry, so there is nothing this-tick for it to
-    //                        race against.
-    //   DiscoverySystem, CommanderSystem -- no ordering constraint; each touches only its state.
-    //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
