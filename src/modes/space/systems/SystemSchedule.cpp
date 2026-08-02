@@ -133,7 +133,6 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        last.
     //   CommsSystem, FactionEconomySystem, DiscoverySystem -- no ordering constraint among
     //                        these or the above: each touches only its own state.
-    //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
