@@ -2,6 +2,7 @@
 
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/CommsSystem.h"
+#include "modes/space/systems/ConstructionSystem.h"
 #include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/DiscoverySystem.h"
@@ -34,6 +35,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
     //                        of lagging one tick behind at the pre-warp position.
     //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
+    //   ConstructionSystem -- before PowerSystem, so a freshly built rig gets a budget this tick.
     //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
     //                        tags, before anything that gates on it
     //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
@@ -71,17 +73,13 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
-    //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
-    //                        SensorRange/DisplayName and writes its own singleton CommsLog.
-    //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
-    //                        outside every registry, so there is nothing this-tick for it to
-    //                        race against.
-    //   DiscoverySystem   -- no ordering constraint: it only reads PlayerControlled/FactionRef
-    //                        and writes core/galaxy/'s DiscoveryState, outside every registry.
+    //   CommsSystem, FactionEconomySystem, DiscoverySystem -- no ordering constraint among
+    //                        these or the above: each touches only its own state.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
+        {"ConstructionSystem", &construction_system::Tick},
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},

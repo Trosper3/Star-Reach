@@ -38,6 +38,7 @@ add_executable(sr_tests
     unit/MiningSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
+    unit/BuildMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp
@@ -51,6 +52,7 @@ add_executable(sr_tests
     unit/FactionDecisionEngineTests.cpp
     integration/ContentTests.cpp
     integration/RigFactoryTests.cpp
+    integration/ConstructionSystemTests.cpp
     integration/NpcFactoryTests.cpp
     integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp
