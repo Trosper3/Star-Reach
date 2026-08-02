@@ -1,6 +1,7 @@
 #include "modes/space/systems/SystemSchedule.h"
 
 #include "modes/space/systems/CollisionSystem.h"
+#include "modes/space/systems/CommanderSystem.h"
 #include "modes/space/systems/CommsSystem.h"
 #include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
@@ -100,6 +101,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"CommsSystem", &comms_system::Tick},
         {"FactionEconomySystem", &faction_economy_system::Tick},
         {"DiscoverySystem", &discovery_system::Tick},
+        {"CommanderSystem", &commander_system::Tick},
     };
     return schedule;
 }
