@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <utility>
+
 #include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
@@ -48,11 +50,11 @@ struct Fixture {
     PitchTemplateIntent MakePitch(KnowledgeNetworkId seller, KnowledgeNetworkId buyer,
                                   FactionId sellerFaction, FactionId buyerFaction) {
         PitchTemplateIntent pitch;
-        pitch.sellerNetwork = seller;
-        pitch.buyerNetwork = buyer;
+        pitch.sellerNetwork = std::move(seller);
+        pitch.buyerNetwork = std::move(buyer);
         pitch.templateId = BlueprintId("razor_frigate");
-        pitch.sellerFaction = sellerFaction;
-        pitch.buyerFaction = buyerFaction;
+        pitch.sellerFaction = std::move(sellerFaction);
+        pitch.buyerFaction = std::move(buyerFaction);
         pitch.materialsCost = 100;
         pitch.archetypeFits = true;
         pitch.beatsCurrentManufacture = true;
