@@ -247,7 +247,9 @@ add_library(sr_space STATIC
     src/modes/space/ui/InventoryGrid.cpp
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
+    src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
+    src/modes/space/systems/CommanderSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
     src/modes/space/systems/DamageSystem.cpp
