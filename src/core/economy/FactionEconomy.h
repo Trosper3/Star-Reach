@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 
 #include "shared/blueprints/Ids.h"
 
@@ -22,7 +23,11 @@ class FactionEconomy {
 public:
     int Stock(const FactionId& faction) const;
 
-    // Production/income. amount <= 0 is a no-op.
+    // Production/income. amount <= 0 is a no-op. Skims every royalty stream `faction` owes
+    // (below) before crediting the remainder to `faction` itself -- the mechanism behind
+    // architecture.md 12.7's "royalties accrue against Tier 3 production without the player
+    // present": whatever calls Deposit() to credit a faction's abstract production already runs
+    // with no player or registry involved, so the skim needs no code anywhere else.
     void Deposit(const FactionId& faction, int amount);
 
     // Transactional, all-or-nothing -- ported from legacy StarReach2's SpendFactionStock
@@ -30,8 +35,28 @@ public:
     // amount <= 0 always succeeds without touching the stock.
     bool Spend(const FactionId& faction, int amount);
 
+    // A royalty stream from a sold Template (architecture.md 12.7): every future Deposit() to
+    // `payer` pays `rate` of the deposited amount to `recipient` first. Replaces any existing
+    // stream for the same (payer, templateId) pair -- a re-pitch of the same Template to the
+    // same faction updates the rate rather than stacking a second skim.
+    void AddRoyalty(const FactionId& payer, const BlueprintId& templateId,
+                    const FactionId& recipient, float rate);
+
+    // No-op if no stream exists for this (payer, templateId) pair.
+    void RemoveRoyalty(const FactionId& payer, const BlueprintId& templateId);
+
+    // 0.0 if no stream exists for this (payer, templateId) pair. Test/inspection support.
+    float RoyaltyRate(const FactionId& payer, const BlueprintId& templateId) const;
+
 private:
+    struct RoyaltyStream {
+        BlueprintId templateId;
+        FactionId recipient;
+        float rate = 0.0f;
+    };
+
     std::unordered_map<FactionId, int> stock_;
+    std::unordered_map<FactionId, std::vector<RoyaltyStream>> royalties_;
 };
 
 }  // namespace sr::core::economy

@@ -56,7 +56,38 @@ struct SpawnBlueprintIntent {
     float rotation = 0.0f;
 };
 
-using Intent =
-    std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent, SpawnBlueprintIntent>;
+enum class TemplatePayment : std::uint8_t { LumpSum, Royalty };
+
+// Present a Template from the pitching actor's own network to `buyerFaction`
+// (architecture.md 12.7, features.md 2.6). Tier 2-3 -- TemplateMarketSystem resolves this
+// against core/ state alone (KnowledgeStore, FactionEconomy, DiplomacyMatrix, Reputation), never
+// against a registry, so it carries no entt::entity the way every other intent here already
+// doesn't.
+//
+// `archetypeFits` and `beatsCurrentManufacture` are supplied already-resolved rather than
+// computed by TemplateMarketSystem itself: neither ShipBlueprint nor ModuleDef carries an
+// archetype/task-weighting tag yet (features.md 6.2), the same content-schema gap
+// architecture.md 12.10 flags for MergeModuleRequest's module-tier concept. Building that
+// tagging scheme is a content decision, not this system's to make.
+//
+// `basePayout` is the base lump sum or base royalty rate before TemplateMarketSystem's roll
+// scales it -- architecture.md 12.7 leaves the base scale itself explicitly open
+// (features.md 9), so the caller supplies it rather than this type inventing a number.
+struct PitchTemplateIntent {
+    ActorId actor;
+    KnowledgeNetworkId sellerNetwork;
+    KnowledgeNetworkId buyerNetwork;
+    BlueprintId templateId;
+    FactionId sellerFaction;
+    FactionId buyerFaction;
+    int materialsCost = 0;
+    bool archetypeFits = false;
+    bool beatsCurrentManufacture = false;
+    TemplatePayment payment = TemplatePayment::LumpSum;
+    float basePayout = 0.0f;
+};
+
+using Intent = std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent,
+                            SpawnBlueprintIntent, PitchTemplateIntent>;
 
 }  // namespace sr::core

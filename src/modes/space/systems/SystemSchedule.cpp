@@ -19,6 +19,7 @@
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
+#include "modes/space/systems/TemplateMarketSystem.h"
 #include "modes/space/systems/TutorialSystem.h"
 #include "modes/space/systems/WarpSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
@@ -76,8 +77,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
     //                        outside every registry, so there is nothing this-tick for it to
     //                        race against.
-    //   DiscoverySystem   -- no ordering constraint: it only reads PlayerControlled/FactionRef
-    //                        and writes core/galaxy/'s DiscoveryState, outside every registry.
+    //   DiscoverySystem, TemplateMarketSystem -- no ordering constraint; each touches only core/.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -102,6 +102,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"CommsSystem", &comms_system::Tick},
         {"FactionEconomySystem", &faction_economy_system::Tick},
         {"DiscoverySystem", &discovery_system::Tick},
+        {"TemplateMarketSystem", &template_market_system::Tick},
     };
     return schedule;
 }
