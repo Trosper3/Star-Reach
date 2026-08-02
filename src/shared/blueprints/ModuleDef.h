@@ -42,6 +42,9 @@ struct FacilityStats {
     FacilityKind kind = FacilityKind::Storage;
     float ratePerSecond = 0.0f;  // Repair HP/s, manufacturing progress/s, research points/s.
     int capacity = 0;            // Docking bays, storage slots.
+    // Meaningful only for FacilityKind::Engineering: the engineer's skill tier, 1-5, scaling
+    // EngineerSystem's merge formula (higher preserves more of the secondary module's stats).
+    int level = 1;
 };
 
 // The authored definition of a module: the functional half of the Shell -> Component -> Module

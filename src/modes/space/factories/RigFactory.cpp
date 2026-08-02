@@ -67,6 +67,7 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
     aggregate.mass += shell.mass;
     aggregate.extent = std::max(aggregate.extent, Length(mount.localOffset) + shell.radius);
 
+    MountedModules mounted;
     for (const ModuleId& moduleId : mount.modules) {
         const ModuleDef* module = content.FindModule(moduleId);
         if (module == nullptr) {
@@ -74,7 +75,9 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
         }
         hull += module->hullBonus;
         AttachModule(registry, hardpoint, *module, mount, aggregate);
+        mounted.ids.push_back(moduleId);
     }
+    registry.emplace<MountedModules>(hardpoint, std::move(mounted));
 
     registry.emplace<Health>(hardpoint, hull, hull);
     return hardpoint;
