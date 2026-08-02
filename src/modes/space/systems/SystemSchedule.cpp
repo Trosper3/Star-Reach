@@ -12,6 +12,7 @@
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/MiningSystem.h"
+#include "modes/space/systems/ModuleEquipSystem.h"
 #include "modes/space/systems/NpcAiSystem.h"
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/PartySystem.h"
@@ -36,6 +37,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
     //                        of lagging one tick behind at the pre-warp position.
     //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
+    //   ModuleEquipSystem -- before PowerSystem, so a mount/unmount counts in this tick's budget.
     //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
     //                        tags, before anything that gates on it
     //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
@@ -74,12 +76,13 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
-    //   CommsSystem, FactionEconomySystem, DiscoverySystem -- no ordering constraint among
-    //                        these or the above: each touches only its own state.
+    //   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem -- no ordering
+    //                        constraint among these or the above: each touches only its own state.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
+        {"ModuleEquipSystem", &module_equip_system::Tick},
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
