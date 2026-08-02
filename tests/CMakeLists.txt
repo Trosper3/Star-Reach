@@ -38,6 +38,8 @@ add_executable(sr_tests
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
+    unit/ResearchRecordTests.cpp
+    unit/ResearchSystemTests.cpp
     unit/TemplateMarketSystemTests.cpp
     unit/ModuleAttachmentTests.cpp
     unit/ModuleEquipSystemTests.cpp

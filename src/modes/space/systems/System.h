@@ -52,6 +52,8 @@ struct SystemContext {
     // sales (Law 8 -- core/knowledge/, not this or any registry). Same nullable-pointer shape as
     // `economy`/`discovery` above, for the same reason: most systems never touch it, and every
     // test fixture predating ResearchSystem (#81) constructs a SystemContext without one.
+    // Writers: ResearchSystem grants an unlock on job completion; TemplateMarketSystem copies a
+    // Template on sale.
     core::knowledge::KnowledgeStore* knowledge = nullptr;
 
     // Galaxy-wide faction-vs-faction relations (Law 8 -- core/diplomacy/). Same nullable-pointer
