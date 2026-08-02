@@ -36,6 +36,8 @@ add_executable(sr_tests
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
+    unit/ResearchRecordTests.cpp
+    unit/ResearchSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
     unit/WarpSystemTests.cpp

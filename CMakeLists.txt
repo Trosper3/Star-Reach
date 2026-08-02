@@ -156,6 +156,7 @@ add_library(sr_core STATIC
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
     src/core/galaxy/Discovery.cpp
+    src/core/galaxy/ResearchRecord.cpp
     src/core/galaxy/Seeding.cpp
     src/core/galaxy/WreckRecord.cpp
     src/core/knowledge/KnowledgeNetwork.cpp
@@ -260,6 +261,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/PhysicsSystem.cpp
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
+    src/modes/space/systems/ResearchSystem.cpp
     src/modes/space/systems/SpawnSystem.cpp
     src/modes/space/systems/TargetingSystem.cpp
     src/modes/space/systems/TutorialSystem.cpp

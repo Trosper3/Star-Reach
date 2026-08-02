@@ -3,6 +3,7 @@
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
 #include "core/galaxy/Discovery.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 
@@ -44,6 +45,13 @@ struct SystemContext {
     // systems never touch it, and every test fixture predating DiscoverySystem (#32) constructs
     // a SystemContext without one.
     core::galaxy::DiscoveryState* discovery = nullptr;
+
+    // The galaxy-wide store behind architecture.md 12.1's knowledge networks (Law 8 --
+    // core/knowledge/, not this or any registry). Same nullable-pointer shape as `economy` and
+    // `discovery` above: most systems never touch it, and every test fixture predating
+    // ResearchSystem (#81) constructs a SystemContext without one. Writers: ResearchSystem grants
+    // an unlock on job completion; TemplateMarketSystem copies a Template on sale.
+    core::knowledge::KnowledgeStore* knowledge = nullptr;
 
     entt::registry& Registry() const { return world.Registry(); }
 };
