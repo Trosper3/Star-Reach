@@ -243,6 +243,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/AvionicsMenu.cpp
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
+    src/modes/space/ui/StationServicesMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp
@@ -261,6 +262,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
     src/modes/space/systems/SpawnSystem.cpp
+    src/modes/space/systems/StationServicesSystem.cpp
     src/modes/space/systems/TargetingSystem.cpp
     src/modes/space/systems/TutorialSystem.cpp
     src/modes/space/systems/WarpSystem.cpp

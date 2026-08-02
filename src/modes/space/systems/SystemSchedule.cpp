@@ -18,6 +18,7 @@
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
+#include "modes/space/systems/StationServicesSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
 #include "modes/space/systems/TutorialSystem.h"
 #include "modes/space/systems/WarpSystem.h"
@@ -44,6 +45,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
     //                        are zeroed before TargetingSystem/NpcAiSystem see it this same
     //                        tick; removes Targetable the instant docking completes.
+    //   StationServicesSystem -- after DockingSystem, so a freshly docked rig can trade this tick.
     //   TargetingSystem
     //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
     //   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
@@ -71,13 +73,8 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
-    //   CommsSystem       -- no ordering constraint at all: it only reads WorldTransform/
-    //                        SensorRange/DisplayName and writes its own singleton CommsLog.
-    //   FactionEconomySystem -- no ordering constraint either: its ledger (core/economy/) is
-    //                        outside every registry, so there is nothing this-tick for it to
-    //                        race against.
-    //   DiscoverySystem   -- no ordering constraint: it only reads PlayerControlled/FactionRef
-    //                        and writes core/galaxy/'s DiscoveryState, outside every registry.
+    //   CommsSystem, FactionEconomySystem, DiscoverySystem -- no ordering constraint among
+    //                        these or the above: each touches only its own state.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
@@ -87,6 +84,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"DockingSystem", &docking_system::Tick},
+        {"StationServicesSystem", &station_services_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
         {"NpcAiSystem", &npc_ai_system::Tick},
         {"WeaponSystem", &weapon_system::Tick},
