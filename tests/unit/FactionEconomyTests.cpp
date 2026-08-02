@@ -58,3 +58,18 @@ TEST_CASE("FactionEconomy treats a non-positive spend as an automatic success", 
     CHECK(economy.Spend(FactionId("aegis"), -10));
     CHECK(economy.Stock(FactionId("aegis")) == 0);
 }
+
+TEST_CASE("FactionEconomy starts every faction at zero total production", "[economy]") {
+    FactionEconomy economy;
+    CHECK(economy.TotalProduction(FactionId("aegis")) == 0);
+}
+
+TEST_CASE("TotalProduction accumulates deposits and is not reduced by spending", "[economy]") {
+    FactionEconomy economy;
+    economy.Deposit(FactionId("aegis"), 100);
+    economy.Deposit(FactionId("aegis"), 50);
+    REQUIRE(economy.Spend(FactionId("aegis"), 120));
+
+    CHECK(economy.Stock(FactionId("aegis")) == 30);
+    CHECK(economy.TotalProduction(FactionId("aegis")) == 150);
+}

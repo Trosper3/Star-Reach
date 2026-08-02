@@ -30,8 +30,18 @@ public:
     // amount <= 0 always succeeds without touching the stock.
     bool Spend(const FactionId& faction, int amount);
 
+    // Cumulative lifetime deposits for `faction`, never reduced by Spend() -- features.md 5.1's
+    // Economic Footprint pillar ("any active production") reads this rather than Stock(),
+    // architecture.md 12.3's settled resolution: a faction that earns and immediately spends
+    // everything still has a footprint, but Stock() alone would read it as already collapsed. A
+    // placeholder interpretation of "production" as lifetime-cumulative rather than a per-tick
+    // rate -- FactionEconomySystem has no per-tick production/expense breakdown yet to derive a
+    // truer rate from.
+    int TotalProduction(const FactionId& faction) const;
+
 private:
     std::unordered_map<FactionId, int> stock_;
+    std::unordered_map<FactionId, int> totalProduction_;
 };
 
 }  // namespace sr::core::economy

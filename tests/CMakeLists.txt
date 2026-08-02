@@ -9,6 +9,7 @@ add_executable(sr_tests
     unit/LightingPassTests.cpp
     unit/CockpitHudTests.cpp
     unit/BridgeViewTests.cpp
+    unit/NavigationMapTests.cpp
     unit/CustomizeMenuTests.cpp
     unit/ValidationTests.cpp
     unit/ByteStreamTests.cpp
@@ -44,6 +45,8 @@ add_executable(sr_tests
     unit/CommanderSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
+    unit/StationServicesSystemTests.cpp
+    unit/StationServicesMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp
