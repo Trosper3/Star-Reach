@@ -38,6 +38,10 @@ add_executable(sr_tests
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp
+    unit/ModuleAttachmentTests.cpp
+    unit/ModuleEquipSystemTests.cpp
+    unit/StorageMenuTests.cpp
+    unit/ModulesMenuTests.cpp
     unit/CommanderSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
@@ -62,6 +66,7 @@ add_executable(sr_tests
     integration/RigFactoryTests.cpp
     integration/ConstructionSystemTests.cpp
     integration/EngineerSystemTests.cpp
+    integration/ModuleEquipSystemTests.cpp
     integration/NpcFactoryTests.cpp
     integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp
