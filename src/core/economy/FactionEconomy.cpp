@@ -13,6 +13,7 @@ void FactionEconomy::Deposit(const FactionId& faction, int amount) {
     if (amount <= 0) {
         return;
     }
+    totalProduction_[faction] += amount;
 
     int remaining = amount;
     const auto streamsIt = royalties_.find(faction);
@@ -79,6 +80,11 @@ float FactionEconomy::RoyaltyRate(const FactionId& payer, const BlueprintId& tem
         }
     }
     return 0.0f;
+}
+
+int FactionEconomy::TotalProduction(const FactionId& faction) const {
+    const auto it = totalProduction_.find(faction);
+    return it != totalProduction_.end() ? it->second : 0;
 }
 
 }  // namespace sr::core::economy

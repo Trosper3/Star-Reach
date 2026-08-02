@@ -15,4 +15,14 @@ void Territory::Release(const std::string& systemId) {
     owners_.erase(systemId);
 }
 
+void Territory::ReleaseAll(const FactionId& faction) {
+    for (auto it = owners_.begin(); it != owners_.end();) {
+        if (it->second == faction) {
+            it = owners_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 }  // namespace sr::core::diplomacy

@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "shared/blueprints/Ids.h"
+#include "shared/blueprints/ShipBlueprint.h"
 #include "shared/math/Vec2.h"
 
 // Law 9 -- the multiplayer authority discipline, which is NOT deferred even though ENet is.
@@ -87,7 +88,17 @@ struct PitchTemplateIntent {
     float basePayout = 0.0f;
 };
 
+// Save a finished, already-validated Template draft into the actor's own knowledge network
+// (architecture.md 12.9, features.md 2.2-2.3). CustomizeMenu (modes/space/ui/) emits this on
+// Save rather than calling KnowledgeStore::Grant directly -- Law 9's "UI never mutates game
+// state" holds even though the consumer is a plain store call, not a system tick.
+struct SaveTemplateIntent {
+    ActorId actor;
+    KnowledgeNetworkId targetNetwork;
+    ShipBlueprint blueprint;
+};
+
 using Intent = std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent,
-                            SpawnBlueprintIntent, PitchTemplateIntent>;
+                            SpawnBlueprintIntent, PitchTemplateIntent, SaveTemplateIntent>;
 
 }  // namespace sr::core
