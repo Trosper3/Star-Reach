@@ -74,9 +74,9 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     //                        this tick's settled WorldTransform/CollisionRadius and never spawns
     //                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
     //                        last.
-    //   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem -- no ordering constraint among these
-    //                        or the above: each touches only its own state, outside every
-    //                        registry for the latter two.
+    //   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem -- no ordering
+    //                        constraint among these or the above: each touches only its own
+    //                        state, outside every registry for the latter two.
     //
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
