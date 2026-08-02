@@ -68,7 +68,23 @@ struct DeathWreck {
 struct CargoHold {
     std::vector<ModuleId> modules;
     std::vector<MaterialStack> materials;
+
+    // Total module+material entry limit. 0 means unlimited -- every CargoHold predating this
+    // field (and most test fixtures) still behaves exactly as before. RefactorSystem
+    // (architecture.md 12.12) is the first real gate on it: a hardpoint deletion that would
+    // push the count over capacity is refused rather than dropping modules on the floor.
+    int capacity = 0;
 };
+
+// Free functions, not members -- components are plain-old-data (Law 1); behavior belongs in a
+// system, even a one-line query every caller would otherwise duplicate.
+inline int CargoHoldEntryCount(const CargoHold& cargo) {
+    return static_cast<int>(cargo.modules.size() + cargo.materials.size());
+}
+
+inline bool CargoHoldHasRoomFor(const CargoHold& cargo, int additionalEntries) {
+    return cargo.capacity <= 0 || CargoHoldEntryCount(cargo) + additionalEntries <= cargo.capacity;
+}
 
 // Salvage credits collected from DerelictWreck. Session-local wallet, not the galaxy-wide
 // faction stock Law 2 reserves for core/ -- this is one collector's own total.

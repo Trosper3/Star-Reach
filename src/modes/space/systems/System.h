@@ -63,6 +63,14 @@ struct SystemContext {
     // nullable-pointer shape as the others; only TemplateMarketSystem (#83) reads through it
     // today, for its rate-roll step.
     core::diplomacy::Reputation* reputation = nullptr;
+    // The same ContentLibrary `content` above points at, but non-const -- EngineerSystem
+    // (architecture.md 12.12) is the only writer, registering a merged module so its id resolves
+    // everywhere else `content.FindModule` already does. Same nullable-pointer shape as
+    // `economy`/`discovery`: most systems never touch it, and every test fixture predating
+    // EngineerSystem constructs a SystemContext without one. A separate pointer rather than
+    // making `content` itself non-const, so the "systems only read content" invariant every
+    // other system relies on stays true in the type, not just by convention.
+    core::ContentLibrary* craftedModules = nullptr;
 
     entt::registry& Registry() const { return world.Registry(); }
 };

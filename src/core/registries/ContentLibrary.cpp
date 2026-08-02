@@ -82,8 +82,17 @@ const ShellDef* ContentLibrary::FindShell(const ShellId& id) const {
 }
 
 const ModuleDef* ContentLibrary::FindModule(const ModuleId& id) const {
+    const auto crafted = craftedModules_.find(id.str());
+    if (crafted != craftedModules_.end()) {
+        return &crafted->second;
+    }
     const auto it = modules_.find(id.str());
     return it == modules_.end() ? nullptr : &it->second;
+}
+
+void ContentLibrary::RegisterCraftedModule(ModuleDef module) {
+    const std::string id = module.id.str();
+    craftedModules_[id] = std::move(module);
 }
 
 const ShipBlueprint* ContentLibrary::FindShip(const BlueprintId& id) const {

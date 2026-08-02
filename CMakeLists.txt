@@ -244,6 +244,9 @@ add_library(sr_space STATIC
     src/modes/space/ui/AvionicsMenu.cpp
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
+    src/modes/space/ui/BuildMenu.cpp
+    src/modes/space/ui/EngineerMenu.cpp
+    src/modes/space/ui/RefactorMenu.cpp
     src/modes/space/ui/InventoryGrid.cpp
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
@@ -251,6 +254,9 @@ add_library(sr_space STATIC
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/systems/CollisionSystem.cpp
+    src/modes/space/systems/ConstructionSystem.cpp
+    src/modes/space/systems/EngineerSystem.cpp
+    src/modes/space/systems/RefactorSystem.cpp
     src/modes/space/systems/CommanderSystem.cpp
     src/modes/space/systems/CommsSystem.cpp
     src/modes/space/systems/ContractSystem.cpp

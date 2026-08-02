@@ -3,11 +3,13 @@
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/CommanderSystem.h"
 #include "modes/space/systems/CommsSystem.h"
+#include "modes/space/systems/ConstructionSystem.h"
 #include "modes/space/systems/ContractSystem.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "modes/space/systems/DiscoverySystem.h"
 #include "modes/space/systems/DistressSystem.h"
 #include "modes/space/systems/DockingSystem.h"
+#include "modes/space/systems/EngineerSystem.h"
 #include "modes/space/systems/FactionEconomySystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
@@ -19,6 +21,7 @@
 #include "modes/space/systems/PhysicsSystem.h"
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
+#include "modes/space/systems/RefactorSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/StationServicesSystem.h"
 #include "modes/space/systems/TargetingSystem.h"
@@ -38,6 +41,8 @@ namespace sr::space {
 //                        of lagging one tick behind at the pre-warp position.
 //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
 //   ModuleEquipSystem -- before PowerSystem, so a mount/unmount counts in this tick's budget.
+//   ConstructionSystem, ModuleEquipSystem -- before PowerSystem, so a freshly built rig or a
+//                        mount/unmount lands in this same tick's power budget.
 //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
 //                        tags, before anything that gates on it
 //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
@@ -48,6 +53,7 @@ namespace sr::space {
 //   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
 //                        are zeroed before TargetingSystem/NpcAiSystem see it this same
 //                        tick; removes Targetable the instant docking completes.
+//   EngineerSystem, RefactorSystem -- after DockingSystem; both gate on Docked.
 //   StationServicesSystem -- after DockingSystem, so a freshly docked rig can trade this tick.
 //   TargetingSystem
 //   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
@@ -84,12 +90,15 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
+        {"ConstructionSystem", &construction_system::Tick},
         {"ModuleEquipSystem", &module_equip_system::Tick},
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"DockingSystem", &docking_system::Tick},
+        {"EngineerSystem", &engineer_system::Tick},
+        {"RefactorSystem", &refactor_system::Tick},
         {"StationServicesSystem", &station_services_system::Tick},
         {"TargetingSystem", &targeting_system::Tick},
         {"NpcAiSystem", &npc_ai_system::Tick},

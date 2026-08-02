@@ -77,9 +77,20 @@ RULES: list[tuple[str, list[str], str]] = [
     ),
 ]
 
+# Per-file exemptions from a specific forbidden prefix, documented per architecture.md 11.7
+# ("change the rule, in the same PR, with the reasoning written down") rather than silently
+# bypassed. architecture.md 12.12: construction IS assembly (Law 5) -- ConstructionSystem is "the
+# one place in this batch where a system legitimately drives a factory as its documented job, not
+# a layering violation." A narrow, named exemption rather than removing the rule for every other
+# system, which still may not construct composite objects.
+EXEMPTIONS: dict[str, list[str]] = {
+    "src/modes/space/systems/ConstructionSystem.cpp": ["modes/space/factories/"],
+}
+
 
 def violations_for(rel_posix: str, includes: list[tuple[int, str]]) -> list[tuple[int, str, str]]:
     found = []
+    exempt = EXEMPTIONS.get(rel_posix, [])
     for prefix, forbidden, reason in RULES:
         if not rel_posix.startswith(prefix):
             continue
@@ -90,6 +101,8 @@ def violations_for(rel_posix: str, includes: list[tuple[int, str]]) -> list[tupl
                 if header == bad or header.startswith(bad):
                     if prefix == "src/shared/" and rel_posix.startswith("src/shared/ui/"):
                         continue  # shared/ui/ is exempt from the no-engine/no-raylib rule.
+                    if bad in exempt:
+                        continue
                     found.append((line_no, header, reason))
     return found
 
