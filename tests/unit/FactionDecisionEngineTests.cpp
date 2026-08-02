@@ -5,14 +5,18 @@
 
 using Catch::Approx;
 using sr::FactionId;
+using sr::core::ai::CollapseFaction;
 using sr::core::ai::ColonizeDirective;
 using sr::core::ai::ComputeFacets;
 using sr::core::ai::EvaluateColonization;
 using sr::core::ai::EvaluateRaidDispatch;
+using sr::core::ai::EvaluateSurvival;
 using sr::core::ai::FacetProfile;
+using sr::core::ai::HasCollapsed;
 using sr::core::ai::kReferenceStock;
 using sr::core::ai::RaidDispatchChance;
 using sr::core::ai::RaidDispatchDirective;
+using sr::core::ai::SurvivalPillars;
 using sr::core::diplomacy::Territory;
 using sr::core::economy::FactionEconomy;
 
@@ -96,4 +100,64 @@ TEST_CASE("EvaluateColonization refuses when stock is below the reference amount
     Territory territory;
 
     CHECK_FALSE(EvaluateColonization(FactionId("aegis"), economy, territory, "kepler").has_value());
+}
+
+TEST_CASE("Each survival pillar is independently sufficient to avoid collapse",
+          "[faction-survival]") {
+    FactionEconomy economy;
+    economy.Deposit(FactionId("aegis"), 1);  // Any production at all satisfies the footprint.
+
+    CHECK_FALSE(HasCollapsed(EvaluateSurvival(economy, FactionId("aegis"), true, false)));
+    CHECK_FALSE(HasCollapsed(EvaluateSurvival(economy, FactionId("no-stock"), false, true)));
+    CHECK_FALSE(HasCollapsed(EvaluateSurvival(economy, FactionId("aegis"), false, false)));
+}
+
+TEST_CASE("Losing all three survival pillars is collapse", "[faction-survival]") {
+    FactionEconomy economy;  // No deposits at all -- zero lifetime production.
+    const SurvivalPillars pillars = EvaluateSurvival(economy, FactionId("reavers"), false, false);
+
+    CHECK_FALSE(pillars.commandStructure);
+    CHECK_FALSE(pillars.leadership);
+    CHECK_FALSE(pillars.economicFootprint);
+    CHECK(HasCollapsed(pillars));
+}
+
+TEST_CASE("Economic Footprint reads lifetime production, not current stock", "[faction-survival]") {
+    FactionEconomy economy;
+    economy.Deposit(FactionId("aegis"), 100);
+    REQUIRE(economy.Spend(FactionId("aegis"), 100));  // Stock is now 0.
+
+    // Spending everything does not erase the fact that the faction produced something.
+    CHECK(EvaluateSurvival(economy, FactionId("aegis"), false, false).economicFootprint);
+}
+
+TEST_CASE(
+    "EvaluateSurvival returns the same answer for a player faction as for an AI one, "
+    "given the same inputs",
+    "[faction-survival]") {
+    FactionEconomy economy;
+    economy.Deposit(FactionId("player"), 5);
+    economy.Deposit(FactionId("reavers"), 5);
+
+    const SurvivalPillars playerPillars =
+        EvaluateSurvival(economy, FactionId("player"), true, false);
+    const SurvivalPillars aiPillars = EvaluateSurvival(economy, FactionId("reavers"), true, false);
+
+    CHECK(playerPillars.commandStructure == aiPillars.commandStructure);
+    CHECK(playerPillars.leadership == aiPillars.leadership);
+    CHECK(playerPillars.economicFootprint == aiPillars.economicFootprint);
+    CHECK(HasCollapsed(playerPillars) == HasCollapsed(aiPillars));
+}
+
+TEST_CASE("CollapseFaction unclaims every system the faction owns", "[faction-survival]") {
+    Territory territory;
+    territory.Claim("sol", FactionId("reavers"));
+    territory.Claim("kepler", FactionId("reavers"));
+    territory.Claim("vega", FactionId("aegis"));
+
+    CollapseFaction(territory, FactionId("reavers"));
+
+    CHECK(territory.Owner("sol").empty());
+    CHECK(territory.Owner("kepler").empty());
+    CHECK(territory.Owner("vega") == FactionId("aegis"));  // Untouched.
 }

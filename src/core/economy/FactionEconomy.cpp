@@ -12,6 +12,7 @@ void FactionEconomy::Deposit(const FactionId& faction, int amount) {
         return;
     }
     stock_[faction] += amount;
+    totalProduction_[faction] += amount;
 }
 
 bool FactionEconomy::Spend(const FactionId& faction, int amount) {
@@ -24,6 +25,11 @@ bool FactionEconomy::Spend(const FactionId& faction, int amount) {
     }
     it->second -= amount;
     return true;
+}
+
+int FactionEconomy::TotalProduction(const FactionId& faction) const {
+    const auto it = totalProduction_.find(faction);
+    return it != totalProduction_.end() ? it->second : 0;
 }
 
 }  // namespace sr::core::economy

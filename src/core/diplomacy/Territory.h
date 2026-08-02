@@ -20,6 +20,12 @@ public:
     void Claim(const std::string& systemId, const FactionId& faction);
     void Release(const std::string& systemId);
 
+    // Releases every system `faction` currently owns -- features.md 5.1's "territory becomes
+    // unclaimed" on collapse (architecture.md 12.3). A linear scan rather than a reverse index:
+    // Territory is queried far more often by systemId than walked by faction, and collapse is a
+    // rare, one-shot event, not a per-tick operation.
+    void ReleaseAll(const FactionId& faction);
+
 private:
     std::unordered_map<std::string, FactionId> owners_;
 };
