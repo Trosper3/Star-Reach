@@ -44,4 +44,21 @@ std::optional<ColonizeDirective> EvaluateColonization(const FactionId& faction,
     return ColonizeDirective{faction, candidateSystemId};
 }
 
+SurvivalPillars EvaluateSurvival(const economy::FactionEconomy& economy, const FactionId& faction,
+                                 bool hasCommandStructure, bool hasLeadership) {
+    SurvivalPillars pillars;
+    pillars.commandStructure = hasCommandStructure;
+    pillars.leadership = hasLeadership;
+    pillars.economicFootprint = economy.TotalProduction(faction) > 0;
+    return pillars;
+}
+
+bool HasCollapsed(const SurvivalPillars& pillars) {
+    return !pillars.commandStructure && !pillars.leadership && !pillars.economicFootprint;
+}
+
+void CollapseFaction(diplomacy::Territory& territory, const FactionId& faction) {
+    territory.ReleaseAll(faction);
+}
+
 }  // namespace sr::core::ai
