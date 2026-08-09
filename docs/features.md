@@ -85,8 +85,41 @@ hardpoint, that feature is misplaced.
 ## 2. Engineering, Customization & Reverse Engineering 📋
 
 Engineering is the heart of progression. Objects are modular, built from a hierarchy of **Shells**
-(graphical hardpoint housings), **Modules** (functional stats), **Crafts** (intermediary
-components), and **Raw Materials**.
+(the physical housings that hold modules — also called **components**), **Modules** (functional
+stats), and **Raw Materials**.
+
+**There are two tiers, not three** (settled 2026-08-07). *Shell* and *component* are the same thing
+under two names: the housing a module mounts into, which is also the unit of localized damage
+(§3.2) and the thing a hardpoint *is*. `architecture.md` Law 4 previously described a
+`Shell → Component → Module` model and §12.12 recorded that "no `ComponentDef` type exists" as a gap;
+it is not a gap. **Nothing needs to be added to close it** — `ShellDef` and `ModuleDef` are the
+complete set, and the Law 4 wording should be corrected to `Shell → Module` rather than a third type
+being written.
+
+*"Component" remains fine to say in conversation and in UI copy. It must not become a separate
+authored type.*
+
+> ✅ **Vocabulary settled 2026-08-08, and it went the opposite way to the previous proposal.**
+> Earlier drafts listed "**Crafts** (intermediary components)" as a tier while the rest of this
+> document used *craft* to mean **a vessel**. The word meant two things in one document.
+>
+> **Settled: a *craft* is a crafted item** — an intermediate produced from raw materials and
+> consumed to make modules, shells, and vessels. It is also a **cost input**, not only a
+> manufacturing input: §2.4 prices engineering and research in "materials/crafts" and that reading
+> is now correct as written.
+>
+> **A vessel is a *vessel*, never a "craft."** Every remaining use of *craft* meaning a ship in this
+> document is a defect to be corrected.
+>
+> **This adds authored content that does not exist yet.** `data/base_game/` holds `modules.json`,
+> `shells.json`, and `ships.json` — there is no `materials.json`, no `crafts.json`, and no
+> `MaterialId`/`ItemId` in `shared/blueprints/Ids.h`. `architecture.md` §12.15 item 21 already
+> tripped over the edge of this, typing `ResearchJob::item` as `ModuleId` because no item type
+> exists. Manufacturing (§2.8) needs all of it.
+>
+> ⚠️ **This is not a third rig tier.** Rig composition remains **Shell → Module**, two tiers. The
+> material → craft → module chain is a *manufacturing input* axis and is orthogonal to it. Do not
+> reopen the tier question on the strength of this paragraph.
 
 ### 2.1 The Two Forms of a Ship
 
@@ -112,6 +145,156 @@ texture layers mean custom designs retain a distinct, recognizable silhouette.
 adds **Mass**, which directly degrades turn rate, acceleration, and top speed. There is no
 strictly-best loadout; there is only a loadout suited to a role.
 
+#### The mass and power model 📋
+
+*Settled 2026-08-07. Restated here because it was agreed in conversation and never written down,
+and because the codebase currently implements only half of it.*
+
+| Tier | Adds mass | Draws power |
+|---|:---:|:---:|
+| **Shell / component** | ✅ | ❌ |
+| **Module** | ✅ | ✅ *(may be zero — see §2.7)* |
+
+**Mass and power are recomputed whenever a module or shell is added or removed.** Not on a timer,
+not at spawn only — on every equip, unequip, install, and strip. This is what makes the constraints
+puzzle a live decision at the workbench rather than a number printed on a blueprint.
+
+##### Mass is authored, on everything that has it 📋
+
+*Settled 2026-08-08. A derived model — `mass = k · density · radius²` for shells — was proposed and
+withdrawn the same day.*
+
+**Every authored item carries a `mass` field: shells, modules, crafts, and raw materials.** Simple
+addition, one field, no formula, and the same rule everywhere.
+
+*Why the derived model was withdrawn.* It existed to make §3.5's hull envelope rule (rule 12)
+self-enforcing — that rule bounds a hull's hardpoint count by its authored `hullRadius`, on the
+reasoning that the lever granting capability is the same lever that makes something a capital, which
+only holds if mass follows size. The exploit it guarded against turned out not to be reachable:
+
+- **Players cannot author shells.** `CustomizeMenu` assembles from `shells.json`; nobody can create a
+  huge-but-light chassis in normal play.
+- **Modders are unconstrainable anyway.** Someone who can write `mass: 5` can already write
+  `damage: 10000`. Deriving mass changes which field they edit and nothing else.
+- **Authoring accidents are what validation is for**, not what a formula is for.
+- **And authored mass is more consistent** — modules were always going to be authored, so deriving
+  only shells meant two rules for one concept.
+
+*Optional guard, if wanted:* a **rule 13 — mass sanity** band checking a shell's mass against
+`radius²` within a wide tolerance (say 0.25× – 4× a reference density). Wide enough that a dense
+armour plate and a light hangar frame both pass; narrow enough that a 250× typo fails at load.
+
+##### Cargo has mass, and it is part of the vessel 📋
+
+*Settled 2026-08-08, and it is why materials and crafts need a mass field at all.*
+
+> **A vessel's mass is its structure plus everything in its hold.**
+> Loading cargo degrades turn rate, acceleration, and top speed exactly as bolting on a module does.
+
+This costs almost nothing to build — `BodyMass` already exists and this section already requires mass
+to be recomputed on every change — and it buys a surprising amount:
+
+- **Haulers become a real vessel class with no class system.** A hull with large cargo capacity and
+  strong engines *is* a freighter. Emergent from the fit, per Law 4, with no `ShipType` anywhere.
+- **Mining becomes a decision** rather than a loop: fill up and crawl home, or make two fast trips.
+- **Interdiction gets teeth.** A laden freighter cannot outrun an attacker, which gives The Forgotten
+  (*wreck salvage, ambush, vanishing when outgunned*, §6.2) a target profile that follows from the
+  fiction rather than from a spawn table.
+- **The recovery run (§3.3 Tier 2) gains a shape** — you fly out light and fast, then have to escape
+  heavy.
+- **Stripping salvage on-site becomes tactical.** If a module's materials weigh less than the module,
+  deconstructing a wreck before running is a real choice rather than a convenience.
+- **Blockades and trade routes (§5) become physical.** Hauling capacity stops being a number on a
+  faction record and becomes something with a speed cost attached.
+
+**It applies to NPCs identically** (§6.3) — a laden NPC freighter is visibly slow, which is exactly
+the "read the enemy by its behaviour" property that rule exists to protect.
+
+**Two implementation notes**, both small:
+
+- **Do not cache cargo mass.** Sum it in the same pass that already reads `BodyMass`; it is a short
+  vector, and the alternative is an invalidation bug on every pickup, sale, mining tick, and loot
+  collection. Same reasoning §4.3 applies to Military Weight.
+- **It rides on an existing gap.** `ModuleEquipSystem.h` already documents that rig-wide
+  `BodyMass`/`Propulsion` are *not* recomputed on mount or unmount (`architecture.md` §12.16 item 8).
+  Cargo mass and that fix are one piece of work, not two.
+
+⚠️ **Watch the early-game ratio.** A starter hull that crawls under ten units of ore is miserable.
+Per-unit material mass wants to be negligible when the hold is light and meaningful only when it is
+genuinely full.
+
+##### Storage is a module, and capacity is a mass limit 📋
+
+*Settled 2026-08-08. Storage had never been specified anywhere, and `CargoHold::capacity` existed as
+a bare count added for `RefactorSystem`'s whole-or-nothing check.*
+
+> **Cargo capacity comes from `CargoBay` modules mounted in shells, exactly as power comes from
+> `PowerCell` modules. `CargoHold` is the rig-level aggregate, summed from *living* bays — the same
+> shape `PowerBudget` already uses for `PowerSource`.**
+
+Three things follow, and all three were wanted:
+
+- **Capacity joins the fit puzzle.** More hold costs mass and module slots, so a freighter is a
+  tradeoff rather than a hull property — and combined with cargo mass above, a hauler is simply a
+  vessel that spent its budget on bays and engines. No `ShipType`, per Law 4.
+- **It is upgradeable and expandable with no new mechanic** — a better bay is a better module,
+  acquired, researched, and manufactured like any other.
+- **Shooting a cargo bay spills its contents.** §3.2's localized damage applied to storage: destroy
+  the hardpoint, lose what was in it as salvage. That gives piracy a reason to target a *specific*
+  hardpoint rather than the hull, and it feeds §3.3's recovery run from a direction other than death.
+
+**`capacity` measures mass, not slots.** A bay holds so much mass; slots in `StorageMenu`'s grid are
+presentation, not a second constraint. Volume was considered — a hold full of feathers versus one full
+of lead is a genuine distinction — but it needs a volume stat on every item to express, and the
+gameplay it buys is a second number saying almost what the first one says. One physical limit, with
+"fill up and crawl home" getting a hard stop rather than a soft one.
+
+
+✅ **Mass is conserved through the crafting chain, with a loss at each step** (settled 2026-08-08).
+Materials in ≈ craft out, crafts in ≈ module out. Only raw materials carry an authored mass;
+everything above derives from its recipe. That gives recipe authoring a physical sanity check,
+makes deconstruction-as-inverse fall out for free, and means "why does this cost that much" has an
+answer an author can reason about rather than a number someone picked. **Base price derives the same
+way.** See §2.10.
+
+**A shell cannot be removed while it still holds modules.** Strip its modules first, then pull the
+shell. There is no cascade that silently dumps a shell's contents into cargo, because a cascade
+means the player can lose a fit they did not intend to break, and because "your cargo hold is full"
+then has to unwind a partially-applied operation.
+
+*This reverses existing behaviour:* hardpoint deletion currently returns a shell's modules to cargo
+automatically. The new rule refuses the deletion instead.
+
+#### Hull is a base value that armour modules add to 📋
+
+*Settled 2026-08-07 — and it ratifies what is already built.* `ShellDef.hull` is the hardpoint's own
+hull before module bonuses; armour modules add to it. The alternative considered was a mandatory,
+non-removable armour module supplying all of a shell's hull.
+
+**That alternative is rejected, and it contradicts a rule settled one section earlier.** A shell
+cannot be removed while it holds modules (above). A module that "can never be removed, only replaced"
+would therefore make its shell **permanently unremovable** — you could never strip it to pull the
+hardpoint. The two rules cannot both hold.
+
+Two further reasons:
+
+- **`moduleSlots: 0` is explicitly legal** — `ShellDef` calls it out for "a pure armour plate." Under
+  the module-supplies-hull model a zero-slot shell has nowhere to put its armour module and therefore
+  no hull at all, which is incoherent.
+- **"Cannot be removed, only replaced" is a special case in the equip rules**, and it would be the
+  only module in the game that behaves that way. `ModuleEquipSystem` and `RefactorSystem` would both
+  need to know about it.
+
+Base hull also lets shells differ meaningfully on their own — a thin wing mount and a thick chassis
+are not the same object with different cargo — which is what makes shell tier (§2.2) worth having.
+
+> **This must be enforced in the system, not only in the menu.** The menu should grey the action out
+> — but §2.3's own rationale is that validation exists so "a corrupt save or malicious wire packet
+> cannot inject" an invalid state, and a UI-only rule is bypassed by both. The refusal belongs in
+> the system that consumes the intent, exactly as `RefactorSystem` already refuses to delete a
+> hardpoint another hardpoint depends on. The menu greying out is the courtesy; the system refusing
+> is the rule.
+
 **Template creation** — a finalized configuration is saved as a Template for personal reuse or sale.
 
 ### 2.3 Template Validation Rules 📋
@@ -128,15 +311,51 @@ A blueprint is valid if and only if:
 | 2 | ≥ 1 Power Cell shell with an attached module | Nothing runs without generation |
 | 3 | Net power balance ≥ 0 | Sum of module draw ≤ total generation |
 | 4 | Total mass within the chassis structural threshold | Per-chassis cap from its blueprint |
-| 5 | ≥ 1 Engine shell with an attached module — **mobile craft only** | Stations are exempt |
+| 5 | ≥ 1 Engine shell with an attached module — **mobile vessels only** | Stations are exempt |
 | 6 | No orphaned mounts | Every declared mount references a shell that exists |
 | 7 | Adjacency valid | Every shell connects to the rig graph; no floating islands |
 | 8 | All module and shell IDs resolve in the registry | Blocks typos and missing mod content |
 | 9 | Unique blueprint ID, present `schemaVersion` | Required for saves and migration |
+| 10 | **Separation** — no two mounts closer than `r(A) + r(B)` | Hit circles stay disjoint, so §3.2's manual aim can pick one (§3.5) |
+| 11 | **Attachment** — every mount within `A extent + B extent` of what it attaches to | A mount cannot satisfy rule 7 while floating visually detached (§3.5) |
+| 12 | **Hull envelope** — every mount's centre plus its radius falls within the chassis's `hullRadius` | Bounds the hull. Without it, mounts chain outward indefinitely (§3.5) |
 
 Rules 3 and 4 are the design-facing ones — they are the constraints puzzle. Rules 6–9 are integrity
 checks and should produce distinct, specific error messages in the Engineering UI, never a generic
-"invalid template."
+"invalid template." **Rules 10–12 are pure geometry** (§3.5) and together they are what make a
+hull's hardpoint count emergent rather than authored — see §3.5's ring-capacity formula.
+
+⚠️ **Rule 11 measures a turret's *base* extent, not its drawn extent.** A long barrel legitimately
+sweeps over neighbouring hardpoints; validating against the sprite's full length rejects hulls that
+are correctly built.
+
+#### Mountability is authored on the shell, not hardcoded 📋
+
+*Settled 2026-08-08, prompted by shields needing to sit somewhere other than a dedicated housing.*
+
+Today mountability is a **hardcoded C++ table**:
+
+```cpp
+// Taxonomy.cpp
+case ModuleKind::ShieldGenerator: return shell == ShellKind::Shield;
+```
+
+That is a content rule living in code, which is precisely what `architecture.md` Law 10 exists to
+prevent — and it makes a design question ("which hulls can host a shield generator?") into a code
+change.
+
+> **`ShellDef` declares which `ModuleKind`s it accepts.**
+
+A chassis def can accept `{Armor, ShieldGenerator}`; a wing mount accepts `{Weapon, Armor}`. So only
+certain shells have a shield slot, authored per shell, and **positioning a Bubble generator becomes
+possible and deliberate** (§3.1) — the content author decides which hulls can host one and where.
+
+**This replaced a grade-gated proposal** that would have let any high-grade shell accept shield
+modules. Authored acceptance is more controllable and avoids piling a second benefit onto shell grade,
+which §2.7 already warns compounds badly.
+
+*It also retires a hardcoded table in favour of JSON, which is a Law 10 improvement independent of
+shields.*
 
 ### 2.4 Reverse Engineering & Research 📋
 
@@ -146,6 +365,169 @@ exploration, quests, or salvage are inputs, not trophies.
 **The research loop** — bringing a rare item to a station with a Research/Engineering Facility
 module lets the player spend resources and time to reverse-engineer it. Success makes the item
 permanently manufacturable and available for Template integration.
+
+#### The three workbench mechanics are distinct 📋
+
+*Decided 2026-08-07. Earlier drafts used "engineer better modules" (§1) and "reverse-engineer"
+(this section) loosely enough that they read as one mechanic, and the codebase built them as two
+systems with no stated relationship. They are three, they share only a facility gate, and each has
+its own inputs, costs, and output.*
+
+| Mechanic | Input | Cost | Output | Home |
+|---|---|---|---|---|
+| **Research** | An *undiscovered* module | Time **+** materials/crafts **and/or** credits | The module becomes **craftable** by the researching player or faction | `ResearchSystem` |
+| **Engineering** | Two *alike* modules the actor already owns | Credits **and/or** materials/crafts | **One** module combining both their attributes, at a loss | `EngineerSystem` |
+| **Deconstruction** | Any one module | — | Raw **materials** | `EngineerSystem` (§12.12) |
+
+**Research produces knowledge; engineering and deconstruction produce matter.** That split is the
+§2.5 rule ("knowledge lives in networks, matter lives in ships and stations") applied to the
+workbench: a research unlock lands in a knowledge network and survives the actor's death, while a
+merged module and a pile of salvaged materials sit in a cargo hold and do not.
+
+**The engineering loss is set by the facility's level** (decided 2026-08-07) — a better-equipped
+Engineering facility preserves more of the secondary module's contribution. Skill (§2.7) is a
+property of pilots and commanders and is deliberately *not* wired into the workbench: the facility
+is the thing being upgraded here, and adding a second scaling axis to a merge makes the outcome
+unpredictable to the player for no gain. `EngineerSystem` already scales by `FacilityRef::level`,
+so this decision requires **no code change** — it ratifies what is built.
+
+**Merging is bounded by the grade band, and refused at the ceiling** (settled 2026-08-08, with
+§2.7's quality band). A merge raises the primary module's quality *within* its grade and can never
+push it into the next one — otherwise merging becomes the way to exceed tiers and the rarity ladder
+stops meaning anything. Two consequences:
+
+- **The gain is against the headroom, not the raw value:**
+  `newQuality = primaryQ + (bandMax − primaryQ) × secondaryNorm × (facilityLevel × 0.1)`.
+  A level-5 facility with a perfect secondary closes half the remaining gap. You approach the ceiling
+  and never quite reach it, so the last few percent stay worth chasing and every merge costs a module.
+- **A merge is refused when the primary is already at the ceiling**, so no resources are wasted. That
+  joins `EngineerSystem`'s existing refusals — not docked, no living Engineering facility, not the
+  same `ModuleKind`, either id not actually held.
+
+*This gives merging an identity it previously lacked.* Under a flat stat model, merging was a
+marginal bump on top of "keep the better one." Against a rolled quality it is **how you max out a
+good roll**, which is a goal rather than a rounding error.
+
+#### Facility grade drives all three 📋
+
+*Settled 2026-08-08, replacing the open question of whether deconstruction yield was flat or scaled.*
+`FacilityStats::level` (1–5) **folds into the seven-tier grade** (§2.7) — a facility is a
+`ModuleKind::Facility` module and carries a grade like everything else, and two tier systems for one
+concept would have drifted the moment either was tuned. Existing merge and research scaling constants
+re-derive against seven steps instead of five.
+
+**Deconstruction recovery is a random range, and the range is the facility's grade:**
+
+| Facility grade | Materials recovered |
+|---|---|
+| Common | 20 – 45% |
+| Uncommon | 30 – 55% |
+| Unique | 40 – 65% |
+| Rare | 50 – 75% |
+| Epic | 60 – 85% |
+| Legendary | 70 – 95% |
+| **Mythic** | **80 – 100%** |
+
+Bands overlap in the same shape as §2.7's quality bands, so a lucky Legendary deconstruct can beat an
+unlucky Mythic one. Mythic tops out at exactly 100% — a *chance* at full conservation, never a
+guarantee and never above it (§2.10's conservation-safe rule).
+
+**Randomness belongs here and not in crafting.** A deconstructed item is already gone, so a variable
+yield leaves nothing unpredictable in the player's hands — where a randomised *crafted* mass would
+mean equipping a module and watching your turn rate change by an amount you could not have read
+beforehand. Quality (§2.7) is the per-instance variance; mass stays deterministic.
+
+**Research consumes the sample — probably.** Facility grade sets both the chance the sample survives
+and how long the job takes:
+
+| Facility grade | Sample survives | Research time |
+|---|---:|---:|
+| Common | 5% | 100% |
+| Uncommon | 15% | 88% |
+| Unique | 30% | 76% |
+| Rare | 45% | 64% |
+| Epic | 60% | 52% |
+| Legendary | 75% | 40% |
+| Mythic | 90% | 30% |
+
+> ⚠️ **The survival chance must be shown before the player commits.** Feeding your only Mythic into a
+> Common bench has to be a gamble the player took, not a gotcha the game sprang. Mythic caps at 90%
+> rather than 100% so late-game research keeps a little tension; a surviving sample is not reusable
+> *for research* — the unlock is permanent after one success — so it is loot you keep, not a loop.
+
+**Merging consumes crafts** as well as credits, scaled by the module's grade *and* by how close to
+its band ceiling the merge is pushing it. Since the gain uses the diminishing-returns headroom
+formula, cost and curve agree: **the last few percent are expensive in both directions, and maxing an
+item is a project.**
+
+**Merging applies to modules only, and each exclusion has its own reason:**
+
+| | Mergeable | Why |
+|---|:---:|---|
+| **Modules** | ✅ | They carry a rolled quality, so there is a position within a band to move |
+| **Shells** | ❌ | Position and children — two merged cockpits have no answer to where they sit or what was mounted in them (§2.4 above) |
+| **Crafts** | ❌ | They carry a grade but **no quality roll** (§2.10), so there is nothing to move |
+| **Materials** | ❌ | Fungible. There is no instance to improve |
+
+⚠️ **Every roll above is deterministic from `(item id, tick)`** — the FNV-1a idiom `MiningSystem` and
+`CommsSystem` already use, never a stateful generator. Law 2's fast-forward requires a banked macro
+tick to resolve identically to a played one, and a stateful RNG breaks that silently.
+
+
+
+#### Research cannot fail 📋
+
+*Asked and settled 2026-08-08: should a research job have a chance of outright failure?*
+
+**No — because it already has one, and it is a better one.** The sample-survival roll above *is* the
+failure mechanic. Adding a second roll would mean two probabilities compounding into four outcomes,
+two of which read identically to the player, on top of a material cost and a time cost. Four brakes
+on one action is the pattern that got upkeep cut (§2.7).
+
+The sample roll is also the better-designed risk on its own terms:
+
+- **The odds are known before committing**, so it is a gamble the player took rather than one the
+  game sprang.
+- **The loss is a concrete object** — that Mythic module you found — rather than an abstract span of
+  time, which makes it land.
+- **It scales with facility grade in the direction that motivates upgrading.**
+
+Whereas failing after sixty-four minutes is a pure loss with no decision attached anywhere in it. If
+research ever needs *more* tension, the lever is the sample odds, not a second roll.
+
+**Timing:** the sample is locked for the job's duration and the roll resolves on completion, so the
+moment of resolution coincides with the payoff.
+
+*One variant considered and set aside:* research succeeding at a **capped manufacturing quality**
+when performed at a low-grade facility, liftable by re-researching later. Genuinely interesting —
+degraded success beats binary failure — but it needs a per-unlock quality cap that nothing reads
+today, and §2.4's own dead-abstraction rule says not to author it before its consumer.
+
+#### Do the workbench mechanics apply to shells too? 📋
+
+*Settled 2026-08-07, now that shells carry a grade (§2.7) and are therefore a progression axis of
+their own rather than inert housings.*
+
+| Mechanic | Applies to shells? | Why |
+|---|:---:|---|
+| **Research** | ✅ **Yes** | "Learn to manufacture this cockpit grade" is exactly parallel to a module. Nothing about it depends on the item being a stat block |
+| **Deconstruction** | ✅ **Yes** | A salvaged shell breaking down into materials is the same operation on a different input |
+| **Engineering (merge)** | ❌ **No** | Merging is only coherent for stat blocks. Shells have **position and children** — two cockpits merged into a better one has no answer to where it sits or what happens to what was mounted in it |
+
+**Shell acquisition, for the record:** high-grade shells are found through exploration and salvage,
+or obtained by dealing with factions that already hold them. Research adds a third path — turning a
+single recovered example into something manufacturable — which is what makes finding one matter
+beyond the one hull you bolt it to.
+
+❓ *Open: whether a shell can be **upgraded in place** to a higher grade at an Engineering facility —
+consuming materials, keeping its position and mounted modules.* This is the coherent shell-shaped
+analogue of merging and it is appealing, but it is a new mechanic in `RefactorSystem` territory
+rather than a reuse of an existing one. Deferred; research and deconstruction cover the need first.
+
+❓ *Open, and it is load-bearing:* **nothing manufactures a module.** Research's stated payoff is
+that an item becomes "craftable," and there is no crafting mechanic, system, or menu anywhere in
+the design or the codebase — `ConstructionSystem` builds ships and stations from blueprints, not
+modules. Until this is specified, research has no consumer and its reward is unreachable.
 
 **Faction gates** — access to higher tiers of reverse engineering is influenced by faction alignment
 and reputation tier. High standing with a tech-focused faction (Zenith Collective, AI Concordance)
@@ -180,7 +562,7 @@ A **knowledge network** is the persistent store for everything that is *data* ra
 | Network | Held by | Notes |
 |---|---|---|
 | **Player network** | The player directly | Follows the player across ship loss and respawn |
-| **Sub-commander networks** | Each AI sub-commander (§4.1) | Independent. A commander can hold designs the player does not, and vice versa |
+| **Sub-commander networks** | Each AI sub-commander (§4.5) | Independent. A commander can hold designs the player does not, and vice versa |
 | **Faction network** | The faction as an entity | What a faction manufactures from. Separate from the player's even when the player *leads* that faction |
 
 Separation is the point. Selling a Template to a faction (§2.6) copies it from your network into
@@ -236,6 +618,1559 @@ silhouette because the player armed both is the macro loop working exactly as in
 sits in the buyer's network and keeps being manufactured regardless — the open part is only whether
 the payment stream has anywhere to go.*
 
+### 2.7 Skill 📋
+
+*Raised 2026-08-07, because two mechanics independently asked for it in one sitting and each was
+about to invent its own private version.*
+
+**Skill is carried by a module.** Not a hidden stat, not a menu entry, not a separate entity type —
+a **crew module** that mounts into a component the same way a weapon or a power cell does. A common
+crew module is the default fit; better ones are looted, researched, or manufactured like any other
+module.
+
+| Mechanic | Whose skill | What it scales | Section |
+|---|---|---|---|
+| Combat targeting | The pilot's | Whether hardpoint selection is random or deliberate | §3.2 |
+| Fleet command | The sub-commander's | Standing-order quality and autonomous decisions | §4.5 |
+
+**Engineering is deliberately not on this list.** Merge quality scales with the *facility's* level
+(§2.4), not with a crew module. The workbench is a place you visit, not a person you carry.
+
+**Why the module model is the right one, and not just the cheap one:**
+
+- **It reuses machinery that already exists.** Mounting, unmounting, cargo, loot, research, and
+  manufacturing all work on modules today. A crew module gets every one of those for free, and a
+  skill *stat* would have needed a parallel path for each.
+- **Localized damage kills officers for free** (§3.2). Blow up a capital's bridge component and the
+  commander module mounted in it is gone with it. That is §4.5's "destroying the capital they
+  command destroys them," made sharper and mechanical — you destroy the *bridge*, not the whole
+  ship.
+- **It preserves §4.5's "entities, not menu entries."** A module mounts on a hardpoint, and a
+  hardpoint *is* an entity. The commander lives on that entity. Nothing about §4.5 needs rewriting.
+- **Promotion becomes a physical act.** Moving your best pilot from a fighter's cockpit into a
+  carrier's bridge is a module transfer, not a menu abstraction.
+- **Capture and loss follow the same rules as any other cargo.** An officer can be lost in a wreck
+  and salvaged by someone else, which §2.5's knowledge/matter split already governs: the crew
+  module is matter.
+
+#### One `ModuleKind::Crew`, and what it does is what it rolled 📋
+
+> ⚠️ **Consolidated 2026-08-09. This replaces the two-kind model (`Operator` + `Commander`) settled
+> 2026-08-07.** Both are now a single **`ModuleKind::Crew`** carrying **two rollable stats**.
+
+| Stat | Consumer | A zero roll means |
+|---|---|---|
+| **`operation`** | `TargetingSystem` — biases NPC hardpoint selection (§3.2); flight and gunnery boosts | The crew cannot usefully work the shell they are in |
+| **`command`** | `CommanderSystem` — standing orders and fleet dispatch (§4.5); **command authority** (§4.0) | **The rig cannot command at all**, whatever its comms |
+
+**A rig needs one crew module, not two.** A single `Crew` module covers operating *and* commanding, so
+no shell is ever required to hold a matched pair.
+
+##### Why two kinds became one 📋
+
+The 2026-08-07 model was argued on two grounds, and **both expired on 2026-08-09**:
+
+| Original argument | Why it no longer holds |
+|---|---|
+| *"One kind with two ratings meant every crew module shipped a number that was dead everywhere except one shell type"* — a command rating was dead outside a bridge | §4.0 lets a **cockpit** command. A command rating is now live in every crew slot |
+| Mountability falls out of `IsMountable(ModuleKind, ShellRole)` for free with one rating per kind | Both kinds now mount in exactly the same places, so the table distinguishes nothing |
+
+With both objections gone, two kinds where one is a strict superset of the other is redundant
+taxonomy. One kind is smaller in the enum, smaller in `ModuleAttachment`'s `switch`, and needs no
+"which rating do I read here" rule — because the answer is always *both, and whichever is non-zero
+does its job*.
+
+##### The budget rule is what makes this work 📋
+
+**A consolidated crew module is not strictly better than a specialised one**, and that is not an
+accident of tuning — it falls out of §2.7's existing budget distribution. A grade sets a *total*
+budget and caps how many stats it spreads across, so:
+
+| The roll spent its budget on | You got |
+|---|---|
+| All operation | **An ace pilot.** Zero command — this module cannot command anything |
+| All command | **A fleet admiral.** Baseline operation — brilliant strategist, flies like a rookie |
+| Split | A capable both, excellent at neither |
+
+Your "Operator or Commander" either/or survives exactly, but as a property of **the roll** rather than
+of the taxonomy — and a Mythic that dumped everything into command genuinely does fly worse than a
+good Common that dumped everything into operation. **Nothing is strictly better than anything.**
+
+This is §2.7's own stated goal for the band arriving without a crew-specific rule: *"a Mythic that
+rolls k = 1 is the most potent single-stat item in the game. Specialists stay relevant at every
+tier."* The ace and the admiral are the two single-stat rolls of one kind.
+
+##### What this revises 📋
+
+- **"Two crew modules in the same shell buys nothing"** *(stated below, now false)*. It was true when
+  both carried the same single rating. Two `Crew` modules in one bridge now cover **different
+  functions** — the best `operation` roll flies the hull, the best `command` roll runs the fleet, and
+  they need not be the same module.
+- **The two-berth bridge is justified emergently, not by authored roles.** A bridge with two slots is
+  *better* staffed by two specialists and *adequately* staffed by one generalist. That is a stronger
+  position than the old one: crew stay **optional and authored, never mandatory**, which is what this
+  section wanted from the start.
+- **Each *function* takes the best available rating for that function**, across all living crew on the
+  rig. Not "the highest-rated module operates" — that question is now ambiguous and the per-function
+  reading is the correct one.
+
+**"Crew" rather than "Pilot" or "Officer", deliberately.** The same person who flies a hull works a
+turret and runs a fleet; *where it mounts and what it rolled* decide which of those it is doing. A
+name tied to one job would misread in the other two.
+
+**Promotion still works, and is now simpler.** Moving your best crew module from a fighter's cockpit
+into a capital's bridge is the same physical transfer, and there is no second module to bring along.
+
+**The operation rating does nothing on a ship the player is personally flying** — §3.2 makes the
+player's aim manual, so their marksmanship *is* their piloting skill. It matters on every vessel the
+player **owns but is not sitting in**, which under §4.5 is most of a developed fleet. *This is why the
+player's own cockpit wants a high-`command`, low-`operation` roll: the operation half would be dead
+weight there, and the command half is what lets them command while flying (§4.0).*
+
+#### Four roles, and two of them are buildable today 📋
+
+*Revised 2026-08-08. An earlier draft of this section rejected sensor, damage-control, and navigator
+officers together, on the grounds that each needed a new mechanic first. **That assessment predates
+§8.3's fog-of-war decision by one day and is now half wrong.***
+
+"Consumer" means precisely this: **a system that reads the stat and changes behaviour.** §2.4's rule
+is only that you do not author a number nothing reads. Against the code as it stands:
+
+*Read "role" here as **a stat in `Crew`'s pool**, not as a separate `ModuleKind` — the two-kind model
+this table was written against was consolidated on 2026-08-09 (above). Each row below is a rollable
+stat one crew module may or may not have spent budget on.*
+
+| Role | Consumer | Status |
+|---|---|---|
+| **`operation`** | `TargetingSystem`, `WeaponSystem`, `FiringArc` | ✅ Built or specified |
+| **`command`** | `CommanderSystem`, and command authority (§4.0) | ✅ Specified (§4.5) |
+| **Sensors** | `SensorRange` exists; `DiscoverySystem` reads it — and §8.3 just made sensor coverage **strategic infrastructure** | ✅ **Buildable now** |
+| **Repair** | `DockingSystem`'s dock-repair rate, already listed in this section as a valid boost target | ✅ **Buildable now** |
+| **Damage control** | Needs **in-flight repair**, which does not exist. Docking is the only heal | ❌ New mechanic first |
+| **Navigator** | No skill hook in `WarpSystem` — would need warp charge time, jump accuracy, or fuel | ❌ New mechanic first |
+
+**So there is real runway: four roles before a new mechanic is required.** That also retires the
+claim below that a bridge beyond two berths has nothing to hold — `crewSlots` can scale past 2, and
+each new role still lands in the same commit as its consumer.
+
+The two blocked roles are the natural expansion path, and each is a small feature in its own right
+rather than a stat: in-flight repair would also give §3.3's attrition a counter, and a warp hook
+would give `WarpSystem` its first tuning surface.
+
+> ❌ **Withdrawn 2026-08-09.** This paragraph previously read: *"Settled: two kinds, each gated by
+> what it mounts into. Mountability does the work a single-kind design would have needed a special
+> rule for: a `Commander` fits a bridge and nothing else, so a fleet admiral cannot be stuffed into a
+> fighter cockpit for a targeting bonus."*
+>
+> **Both halves stopped being true on 2026-08-09.** §4.0 deliberately *wants* a commander in a
+> fighter cockpit, and with both kinds mounting in the same slots, mountability distinguishes
+> nothing. The concern the paragraph was protecting against — buying a targeting bonus you did not
+> pay for — is now handled by the shared roll budget instead: a crew module that spent its budget on
+> `command` has baseline `operation`, so a fleet admiral in a cockpit is a *worse* gunner, not a
+> free one. See the consolidation above.
+
+#### Fire control is its own `ModuleKind`, and there is no `Auxiliary` 📋
+
+*Settled 2026-08-08 alongside the turret change above, which needs it.*
+
+**`ModuleKind::FireControl`** — a module that supplies automated tracking. Its stat pool drives
+`FiringArc::turnRatePerSecond` (traverse), lead accuracy, and target reacquisition, stacking with an
+`Operator`'s boost when both are present.
+
+**This retires a dead field.** `turnRatePerSecond` is read by `WeaponSystem` but **hardcoded to
+`kPi`** in `ModuleAttachment.cpp` and authored nowhere — one of three boost targets §2.7 names that
+have no authored input. Fire control is what should drive it.
+
+> ❌ **No `ModuleKind::Auxiliary`.** A catch-all kind becomes a taxonomy dump folder, and it has two
+> concrete costs: `ModuleAttachment`'s `switch (ModuleKind)` could not know which components to
+> attach for an "Auxiliary," and mountability could not distinguish a fire-control unit from a
+> tractor beam. **Each functional module is its own kind.**
+
+**Grouping belongs to presentation, not taxonomy.** An optional *display category* on `ModuleDef` lets
+`CustomizeMenu` and `StorageMenu` show an "Auxiliary" heading over fire control, sensors, and whatever
+follows — so the UI groups freely while the type system stays exact.
+
+#### Crew slots by shell type 📋
+
+Assigned by what a shell *is*. **Grade does not move these** — the turret 0 → 1 tier gate was
+withdrawn on 2026-08-08 (see below); every turret has one slot regardless of grade:
+
+| Shell | `crewSlots` | Who sits there |
+|---|:---:|---|
+| **Bridge** (capital, station) | 2 | One `Crew` module suffices; two lets a specialist fly and another command (§2.7) |
+| **Cockpit** (fighter) | 1 | One `Crew` module — flying, commanding, or a split of both, per its roll |
+| **Chassis** | 0–1 | Optional reserve `Crew` — the co-pilot berth |
+| **Turret** | **1, always** | Crewed = independent tracking; uncrewed = slaved, unless a fire-control module is fitted (§2.7) |
+| Thruster, power bay, wing, armour | 0 | — |
+
+#### Modules provide base stats; officers provide percentages 📋
+
+*Settled 2026-08-07, and it is the rule that keeps crew from becoming stat-sticks.*
+
+> **A module supplies a capability. An officer multiplies it. An officer never creates one.**
+
+An `Operator` in a turret does not give that turret damage — the weapon module does. The officer
+raises its fire rate, traverse, or accuracy by a percentage. **Nothing an officer boosts exists
+without the module underneath it.**
+
+Three properties follow, and all three are wanted:
+
+- **Officers scale with the quality of the fit.** A great gunner on a Mythic turret is worth far more
+  than the same gunner on a Common one. Crew quality and equipment quality reinforce each other
+  instead of substituting.
+- **Officer power is bounded by construction.** A percentage cannot conjure capability from an empty
+  shell, so no amount of crew turns a stripped hull into a warship.
+- **Placement is the decision.** The boost applies to **the shell the officer occupies** — which is
+  what makes "where do I put my best operator" a real question rather than a formality. When that
+  shell is a control shell (cockpit or bridge), the scope widens to the whole rig, which is exactly
+  what a pilot or a commander should do.
+
+**Magnitude comes from the quality band and is spent as a budget** (§2.7's "Budget distribution") —
+an officer's grade sets a total boost budget and caps how many of its role's stats that budget may
+be spread across. A specialist officer concentrates it; a generalist spreads it thinner. This is the
+same mechanism every other module kind uses, not a crew-specific rule.
+
+#### Living and artificial officers ❓
+
+*Proposed 2026-08-08.* Officers come in two flavours, acquired two different ways, and the choice
+between them should be a real one that changes as the player's economy matures.
+
+| | **Living** (hired) | **Artificial** (manufactured) |
+|---|---|---|
+| Acquired by | Credits, at a station | Materials + credits, at a Manufacturing facility (§2.8) |
+| Ongoing cost | **A recurring salary** | **None** — build it once, it works forever |
+| Skill ceiling | Higher | Lower, but perfectly consistent |
+| Mass | Lower | Higher — it is hardware |
+| Researchable | No | **Yes** — it is manufactured content like any other module |
+
+**The strategic shape this produces:** hire early, when credits are easier to come by than a
+production base; build robots later, once you have the pipeline and a standing fleet whose salary
+bill has become the thing limiting you. That is a decision that changes over a campaign rather than
+being answered once.
+
+**It also gives an existing rivalry mechanical teeth.** §5.6 describes Kore Industries ↔ AI
+Concordance as *"labor vs. automation — Kore sees an intelligence that makes workers obsolete; the
+Concordance sees hand-built hydraulics as gross inefficiency."* Today that is pure flavour. With two
+officer flavours it becomes something the player *does*: crewing artificial pleases the Concordance
+and offends Kore, and vice versa. A rivalry the design already committed to gains a lever without
+inventing anything.
+
+#### Upkeep is a general module property, not a crew feature 🧊
+
+*Specified 2026-08-08 and immediately **deferred** the same day — see the note at the end of this
+subsection. Recorded in full because the reasoning is sound and it will be wanted later.*
+
+Salary is built as **upkeep** — a recurring credit cost any module may declare, of which a living
+officer's wage is simply the first user.
+
+**Why general rather than crew-specific.** The machinery is identical whatever is being paid for, and
+a crew-only version would have to be torn open the first time anything else wants a running cost.
+Plausible future users are already visible in this document: facility maintenance, licensed or
+leased technology, and faction tribute (§5).
+
+| | |
+|---|---|
+| **Declared on** | `ModuleDef` — an upkeep figure in credits per period. Zero for almost everything |
+| **Period** | The **macro tick** (§1.1, ~30 s). It already exists, it is the Tier 3 heartbeat, and it accrues identically whether or not the player is in the system |
+| **Paid by** | The rig's `Wallet` for the player; `core/economy/FactionEconomy` for an AI faction |
+| **On non-payment** | **The module is removed** — the officer leaves, the lease lapses. It returns to the market |
+
+**Never accrue debt.** A player returning after a week away should find a thinned-out roster, not an
+unrecoverable deficit. Removal is self-limiting: the bill shrinks as it goes unpaid, so the situation
+always resolves rather than spiralling.
+
+**Artificial officers have zero upkeep**, which is the whole point of them — the trade is a large
+one-time material and research cost against a bill that never arrives.
+
+> 🧊 **Deferred 2026-08-08, and for a good reason: the game already has upkeep.** Repairing hulls,
+> refuelling, and assembling replacement ships are all recurring credit and material sinks that
+> scale with fleet size — which is everything a salary system was going to provide. Adding an
+> abstract bill on top would tax the player twice for the same thing and add a subsystem to
+> maintain. Revisit if and when automation removes enough of those manual sinks that fleet size
+> stops costing anything to sustain.
+>
+> **Living vs. artificial officers survive this intact**, because salary was never their most
+> interesting difference. The real one is that **you cannot mass-produce people.** Living officers
+> are found and hired one at a time; artificial officers are researched once and then manufactured
+> as fast as the production base allows. That is the axis that matters to the Macro loop, and it is
+> the one that makes the Kore ↔ AI Concordance rivalry (§5.6) legible in play.
+
+**Multiple boosts per officer, drawn from one budget** (revised 2026-08-08). An earlier draft
+allowed each kind a single boost, on the reasoning that an `Operator` improving fire rate *and*
+traverse *and* shield regen is "the stat-stick failure wearing a percentage sign." **That failure
+only occurs when each stat receives the full value** — then higher tier means strictly more, with no
+decision attached. Under §2.7's shared budget it does not arise: spreading across three stats gives
+roughly a third each, so breadth is paid for in depth at every tier.
+
+What remains true is that **new *effects* come from new roles**, not from widening an existing role's
+pool past what its consumer systems read.
+
+*Boost targets with a consumer that already exists:* weapon cooldown (`WeaponSystem`), turret
+traverse (`FiringArc`), shield regeneration (`DamageSystem`), thrust and turn rate
+(`PhysicsSystem`), sensor range (`SensorRange`), and dock repair rate (`DockingSystem`). **In-flight
+repair does not exist** — a "heals faster" officer boost needs the docking path or a new mechanic
+first.
+
+#### Officers are modules; the rest of the crew is a complement 📋
+
+*Settled 2026-08-07.* A capital should feel crewed by hundreds, and a hundred crew modules would be
+absurd. The split:
+
+| | Represented as | Mechanically |
+|---|---|---|
+| **Officers** — `operation`, `command`, and future stats | `Crew` **modules** in `crewSlots` | Real. Each stat has exactly one consumer system |
+| **General crew** — sensors, damage control, deck hands, gunners' mates | A **complement** number derived from the hull's shell count | Narrative only, for now |
+
+**Only model a crew role once a system reads it.** That is §2.4 applied to content: a sensors rating
+with no system varying `SensorRange` is a number in a tooltip, and it makes the fit screen longer
+without making a single decision more interesting.
+
+**The complement carries the fiction for free.** A hull's shell count already scales with its size,
+so "this capital berths 340" is derivable rather than authored, appears in UI and comms, and costs
+nothing. If a mechanic later wants it — boarding resistance during a capture (§3.2), or a casualty
+figure when a hull is disabled — it is already there to read.
+
+**The real risk of modelling everyone** is not performance, it is tedium: choosing between two or
+three officers is a decision, and staffing eight posts on every hull is payroll. Each new role must
+justify itself as a *choice the player wants to make*, not as a slot that wants filling.
+
+#### Crew modules draw no power 📋
+
+*Settled 2026-08-07.* A crew module's `powerDraw` is **zero**.
+
+**This is a value, not an exception.** §2.2's rule reads "modules draw power," and the cleanest way
+to keep that universal is for the draw to be a number that happens to be zero — not a carve-out in
+`PowerSystem` for one module kind. A rig that browns out does not un-crew itself.
+
+#### Life support: cut 🧊
+
+*Considered and removed 2026-08-07, before anything was built.* A power-drawing Life Support module
+with a draining reserve was specified in an earlier draft of this section. It is **out of scope** —
+not deferred pending a trigger, simply cut.
+
+**Why it was cut, and the reason is the interesting part.** It was not too complex on its own. It was
+that it coupled to almost everything else decided in the same sitting: it added a mandatory shell to
+every crewed hull (pushing on §3.5's scale question), a second clock for the player to watch, a new
+failure mode to balance, and a new state for §2.9's power levels to mean something in.
+
+**Cutting it deletes an entire state from the crew model.** Life support was the *only* mechanism
+that could kill a crew module while its shell survived. Without it, **crew and shell always die
+together** — which removes the "surviving turret loses its operator" case entirely, and with it the
+fallback-to-slaved-on-crew-death path, from both the design and the code.
+
+What is lost is real but small: cutting power no longer has a human cost, and "kill life support to
+take an intact prize" disappears as a capture route. §2.9 keeps plenty of stakes without it.
+
+#### What limits crew modules instead 📋
+
+With life support gone, a crew module is an ordinary module: **it adds mass, draws no power, and
+carries a skill rating.** Three limiters keep it in check, and they are complementary rather than
+redundant:
+
+| Limiter | Caps | Why it holds up |
+|---|---|---|
+| **`crewSlots`** | *How many* | A hard cap the player cannot buy past. A hull has the slots it has |
+| **Mass** (§2.2) | *The cost of each* | Recurring, not one-time. A hull stuffed with reserve crew turns badly |
+| **Credits / rarity** | *How good* | Gates skill tier, not availability |
+
+**Credits should gate quality, never quantity.** A pure credit cost is a one-time gate, and in a game
+whose §1 pitch is infinite progression, anything priced only in credits stops mattering the moment
+the player is rich. Slots and mass do not evaporate with wealth — a rich player still has N slots and
+still pays the turn rate. So: common crew modules cheap and plentiful, high-skill ones expensive,
+rare, or research-gated.
+
+#### What a crew module needs to actually function 📋
+
+The minimum set, in dependency order. Nothing here should land ahead of its consumer (§2.4).
+
+| # | Piece | Where |
+|---|---|---|
+| 1 | A `ModuleKind` for crew, plus its `ShellRole` mountability rules | `modules.json`, `Taxonomy` |
+| 2 | A skill rating on the module — piloting and command | `ModuleDef` |
+| 3 | **A first reader.** Smallest is `TargetingSystem` biasing its random hardpoint roll | §3.2 |
+| 4 | **The uncrewed-hull rule** — what a rig does when its crew module is destroyed | §3.2, below |
+| 5 | Crew is matter (§2.5): lootable from a wreck, tradeable, deconstructable | existing systems |
+
+Items 1–3 are mechanical. **Item 4 is the design content**, and it is what makes crew modules
+interesting rather than a stat bonus in a box.
+
+#### Proposed: crew degrade, they do not switch off ❓
+
+*Proposed 2026-08-07, pending sign-off. This is the model that answers all of the crew questions
+consistently; each answer below falls out of the one rule rather than being decided separately.*
+
+> **Every crewed function has an operator. If its operator dies, the function falls back to the
+> next-best living crew module on the rig, at reduced effectiveness. Only when nothing is left does
+> the function stop.**
+
+| Situation | Result |
+|---|---|
+| **Cockpit / bridge destroyed** | Flight control falls to any other living crew module on the rig, at reduced skill. None left → uncrewed hull (§3.2) |
+| **Two crew modules in the *same* shell** | **Each function takes the best rating for it** — one may fly while the other commands *(revised 2026-08-09; this row previously read "buys nothing," which was true only while a crew module carried a single rating)*. They still die together, so it buys capability, never survivability |
+| **Two separate cockpits / bridges** | Real redundancy. Kill one, command falls to the other. Costs mass and the hardpoints that could have been guns |
+| **Turret with its own operator** | Acts independently — its own target, its own arc |
+| **Turret with no operator** | Slaved to the hull's aim point: the cursor for the player, the rig's `Target` for an NPC |
+| **No crew anywhere** | Uncrewed hull. Drifts, nothing fires |
+
+**The second row is the design teaching itself.** Stacking crew in one shell does nothing;
+distributing them across the hull is what buys survival. That is §3.2's localized-damage lesson
+delivered through the fit screen, and it is the same "redundancy, not permanence" principle §4.5
+applies to sub-commanders — one rule at two scales.
+
+**A destroyed bridge must not brick a station.** Facilities keep running when the bridge dies — a
+manufacturing bay is a machine, not a decision. What stops is *coordination*: fleet dispatch,
+standing orders, and any hardpoint that depended on the bridge as its fallback operator. Making
+everything on a hull depend on one shell would recreate the **protected core that §3.2 explicitly
+rejects**, merely inverted — one lucky shot disabling an entire station is a single point of failure
+by another name.
+
+#### Crew slots — one authored field carries all of it 📋
+
+*Settled 2026-08-07.* **A shell declares how many crew slots it has.** That single number answers
+every crew question that was still open:
+
+| `crewSlots` | Meaning |
+|:---:|---|
+| **0** | No crew may mount here. A turret on this shell is always **slaved** to the hull's aim point |
+| **≥ 1** | Crew may mount. On the control shell they *operate* it; elsewhere they are **reserve** |
+
+**Reserve pilots are allowed only where a crew slot exists** — not on any shell at a penalty. This
+is the refinement that makes the earlier "distributed crew" idea concrete: a chassis may declare a
+slot for a co-pilot, a wing gun does not, and where redundancy is possible becomes an authored
+property of the hull rather than a universal rule.
+
+It resolves the operator question too. **Operators are optional and authored, never mandatory** — a
+shell with `crewSlots: 0` is simply always slaved. Mandatory operators would mean a capital with
+eight turrets needs eight gunners before it can fight, spending the whole mass budget on crew and
+making a single-seat fighter absurd. Optional turns crew into a **fit decision with a real trade**:
+pay mass and a slot for a gunner, and that turret covers angles you cannot.
+
+#### Shell grade 📋
+
+*Settled 2026-08-07.* Shells carry a **grade** on a shared rarity ladder (common → … → mythic),
+matching the one modules use. **Grade never changes a shell's radius** — a better shell is
+**better, not bigger**, which keeps §3.5's geometry (and therefore a hull's hardpoint count) a
+function of the shell *type* rather than of what dropped. *This previously read "orthogonal to §3.5's
+uniform hit radius"; that model was withdrawn on 2026-08-08, but the property it protected still
+holds and now has to be stated directly rather than inherited.*
+
+**A higher grade is lighter, not heavier.** High-grade shells are hard to find — §2.4's acquisition
+paths are exploration, salvage, faction dealing, and research — and taxing that success with extra
+mass punishes the player for succeeding. Better engineering meaning better strength-to-weight is also
+the more plausible fiction.
+
+*This corrects an earlier draft of this section, which argued grade must cost mass to satisfy §2.2's
+"no strictly-best loadout." That was a misreading.* §2.2 governs **loadouts, not items** — it
+promises there is no single best *configuration*, because finite slots and a finite mass budget force
+a choice between guns, armour, speed, and crew. It does not promise that no item outclasses another.
+Rarity-gated items that are simply better are normal, and the loadout puzzle survives them intact:
+a mythic chassis still has finite slots, and you still cannot fit everything.
+
+**What grade should scale, in order of how immediately useful each is:**
+
+| Property | Field | Payoff |
+|---|---|---|
+| **Module capacity** | `moduleSlots` — **already exists on `ShellDef`** | Immediate. A mythic chassis carries four modules where a common one carries two. Zero new mechanics |
+| **Mass** | `mass` | Immediate. Lighter at higher grade, per above |
+| **Hull** | `hull` | Immediate. Tougher hardpoint, harder to strip |
+| **Crew slots** | `crewSlots` (new) | **Useful only up to two today** — see below |
+
+#### How each property scales across the ladder 📋
+
+**Three mechanisms, one per property, never two on the same property** (revised 2026-08-08 — see
+the quality band below, which replaced what was previously a separate hand-authored hull curve):
+
+| Property | Governed by | Why |
+|---|---|---|
+| **Every capability stat** — `hull`, weapon damage, shield capacity, thrust, officer boost | **The quality band** | One mechanism for everything a higher grade makes *better*. Gives per-item variance for free |
+| **`mass`** | **The settled ladder** — 100% → 70% at Mythic | Must move *down* with grade, so it cannot ride the same band |
+| **`moduleSlots`** | **Step** — +1 at Unique, Epic, Mythic | Discrete, legible, and it caps the compounding |
+| **`crewSlots`** | **Authored per shell, not grade-scaled** — steps as new crew roles ship | See below |
+
+> ⚠️ **Tier must be applied exactly once per property.** An earlier draft of this section carried a
+> separate hull curve (100 → 325%) *alongside* the quality band. Those are the same curve written
+> twice — a Mythic shell would have come out at `325% × 3.0–5.0` = **975–1,625%** of a Common's
+> hull. The hull curve is deleted; `ShellDef.hull` is a base value and the band scales it.
+
+The step axis gives the *"another slot!"* moments; the band fills the gaps and makes two items of
+the same grade differ. Putting both on one property makes the curve unmanageable.
+
+#### The quality band — one roll, every capability stat 📋
+
+*Settled 2026-08-08. This closes a gap neither the ladder nor `ModuleDef` ever covered: the ladder's
+columns are shell properties, and **nothing said what grade does to a module's stats.***
+
+> **A grade defines a multiplier band. Every instance rolls a point in its band at creation.**
+
+| Tier | Band |
+|---|---|
+| Common | ×0.90 – 1.10 |
+| Uncommon | ×1.00 – 1.30 |
+| Unique | ×1.15 – 1.55 |
+| Rare | ×1.35 – 1.85 |
+| Epic | ×1.50 – 2.50 |
+| Legendary | ×2.00 – 3.50 |
+| Mythic | ×3.00 – 5.00 |
+
+**Every adjacent pair overlaps, and that is the load-bearing property.** A high-roll Rare (1.85)
+beats a low-roll Epic (1.50). So every drop is worth reading, a good item stays good for a long
+time, and the ladder does not obsolete itself one tier at a time.
+
+**Why a 5× ceiling is acceptable here.** §2.4 already settled that research has no tier cap and that
+**the gate is economic**. A Mythic is reachable and ruinous to field at scale — that is the same
+decision applied again, not a new one. The brake lives in §2.8's manufacturing cost and input chain,
+never in the ceiling.
+
+**Manufacturing re-rolls quality** (§2.8). Without that, a single Mythic drop rolling 3.0 out of a
+3.0–5.0 band would be permanent, and a 2.0-wide band on a 1-in-1,000 item would be punishing.
+With it, approaching the ceiling becomes an *industrial* pursuit and the production base has a
+reason to keep running past volume — which is §1's Macro loop.
+
+**Merging clamps to the band** (§2.4) — it moves an item up *within* its grade and never out of it.
+Otherwise merging becomes the way to exceed tiers and the ladder stops meaning anything.
+
+**Implementation note:** the mechanism already exists. `ContentLibrary::RegisterCraftedModule` — the
+runtime-registered overlay `FindModule` checks before the JSON set — was built for `EngineerSystem`'s
+merged modules. A rolled instance registers through the identical path.
+
+#### Budget distribution — how a roll is spent 📋
+
+*Settled 2026-08-08, and it applies to **every** module kind, not only crew.*
+
+A grade does two things, not one:
+
+| | |
+|---|---|
+| **Band** | Sets the instance's **total budget** |
+| **Grade** | Caps **how many stats** the budget may be spread across — 1 at Common, rising to the module kind's whole pool at Mythic |
+
+Each `ModuleKind` declares the **stat pool** it may affect, authored in `modules.json`. On creation
+the instance rolls `k` stats within its cap and distributes the budget across them.
+
+> **More stats, less potent each. Fewer stats, more potent each.**
+
+The properties this produces are all wanted:
+
+- **A Mythic that rolls `k = 1` is the most potent single-stat item in the game.** Specialists stay
+  relevant at every tier, and the god-roll is a genuine chase rather than "the biggest number."
+- **A Mythic that rolls its whole pool is a versatile generalist.** Both are Mythic; which you got is
+  the roll.
+- **Higher tier buys a bigger budget *and* more places to put it** — never a strictly-better item, so
+  §2.2's "no strictly-best loadout" survives the ladder intact.
+
+*This supersedes an earlier line in this section warning that multi-stat officers are "the stat-stick
+failure wearing a percentage sign."* That failure only occurs when each stat receives the **full**
+value, making higher tiers strictly dominant with no decision attached. A shared budget removes it:
+the specialist/generalist choice exists identically at every tier.
+
+⚠️ **The one cost, worth entering deliberately:** §6.3's *"read the enemy by its loadout"* weakens
+slightly, since two instances of the same module id can now differ. Grade colour (§2.7) and the
+`ModuleKind`'s pool still read at a glance, so a weapon is always recognisably a weapon — what is no
+longer exact is *how much* of one.
+
+> **Note on "smaller mass per slot":** holding a shell's `mass` flat while `moduleSlots` rises
+> **already** delivers lower mass-per-slot. Reducing `mass` as well is a second, independent buff —
+> which is exactly why §2.2 checks the combined multiplier rather than each curve alone.
+
+⚠️ **Crew slots were the weakest of the four, and are less so as of 2026-08-08.** Crew in the same
+shell die together, so extra berths only pay off if the crew in them do *different jobs* — which
+previously capped the useful count at two. With sensor and repair officers now having live consumers
+(above), **four roles exist and a four-berth bridge has something to hold.** Berths beyond four still
+wait on a new mechanic, so scale `crewSlots` a role at a time rather than ahead of the roster.
+
+> ❌ **The turret `crewSlots` 0 → 1 tier gate is withdrawn (2026-08-08).** An earlier draft made a
+> Common turret permanently slaved and gave it a crew slot only at Unique. That is **illogical and
+> historically backwards**: nothing about a cheap turret prevents a person sitting in it, and in
+> reality manned turrets are the *old* technology while remote and automated stations are the new one.
+
+**Every turret has one crew slot. Independence comes from crew *or* from automation:**
+
+| Turret has | Behaviour |
+|---|---|
+| Neither | **Slaved** to the hull's aim point |
+| A fire-control module **or** a `Crew` module with a non-zero `operation` roll | **Independent** tracking |
+| Both | Independent, and better — they stack |
+
+Automation and crew become two ways to buy one capability, which is the right shape: a cheap turret
+with a good gunner is worth about what an expensive automated one is, and a high-grade fire-control
+module **frees your officer to be somewhere else**. That is a real fit decision rather than a power
+gate.
+
+**Grade still has a turret payoff** — automation *quality* rather than a seat — and crew now matter at
+every tier instead of only above Unique, which is a stronger position for crew modules than the one
+this section originally argued for.
+
+#### Weighted budgets — every roll is worth the same 📋
+
+*Settled 2026-08-08. Without this, the distribution rule above produces rolls that vary in **power**;
+with it, they vary in **shape**, which is the difference between a loot system players read and one
+they vendor from.*
+
+**The problem, made concrete.** An Epic module rolls a bonus budget of +100% to distribute. Spent
+evenly and unweighted:
+
+> `{damage}` → **+100% damage** · `{spread}` → **perfect accuracy** · `{projectileSpeed}` → **+100% speed**
+
+Three Epic weapons, identical to build, wildly different in power. Players would learn to discard
+anything that did not roll damage, and Epic as a tier would become unbalanceable.
+
+**The fix: each attribute carries a weight — the price of one unit of relative improvement.**
+
+```
+improvement(stat) = (share of budget) / weight(stat)
+```
+
+> ⚠️ **Weight is price, not importance.** A *high* weight means the stat is expensive, so a roll buys
+> **less** of it. A *low* weight means cheap, so a roll buys **more**. A light stat is not a weak
+> stat — it is one you get a lot of.
+
+Same Epic budget, weights `damage 2.0`, `spread 1.5`, `range 1.0`, `projectileSpeed 1.8`:
+
+| Roll | Picks | Result | Reads as |
+|---|---|---|---|
+| **A** | damage | +50% damage | A brawler |
+| **B** | damage + spread | +25% damage, spread cut by a third | A precision cannon |
+| **C** | range + speed | +50% range, +28% speed | A sniper |
+
+**All three are worth exactly the same.** Nobody vendors any of them; you take the one that fits your
+build. That is the good kind of variance.
+
+**Two consequences worth having:**
+
+- **Weights are the balance dial, and there is one place to turn it.** If damage proves too strong
+  across the board, raise its weight — every roll then buys less of it. One number, one file, no
+  content re-authoring.
+- **Weights are never player-facing.** The player sees the *result* ("Epic · +50% damage"), so the
+  weights stay invisible balance data. That settles what the item UI has to show.
+
+##### Two more things a pool entry needs 📋
+
+**Direction.** Some stats improve by going *down* — `fireInterval`, `spread`, `rechargeDelay`. A ×3.0
+band on those makes a Mythic module worse. Every entry declares multiply or divide.
+
+**Defaults per kind, overridable per def.** Some stats resist a single global weight:
+
+- **Range is a threshold, not a slope.** Against an equal fighter at 900 range, +10% means firing
+  from outside their reach — decisive. Past that it is worth nothing, because you close anyway. And
+  §3.5 has capitals fighting *beyond visual range*, where range is everything, while fighters brawl
+  inside it, where it barely matters.
+- **Spread's value depends on `projectilesPerShot`.** On a single-projectile weapon it is pure
+  downside. On a multi-projectile one it *is* the identity.
+
+So weights default per `ModuleKind` and may be overridden per `ModuleDef`. A long-range lance prices
+range expensively because it is already good at range; a brawler prices it cheap.
+
+##### The band scales quality; it never changes identity 📋
+
+Excluded from every pool, authored and never rolled:
+
+| Excluded | Why |
+|---|---|
+| `damageType`, `Shield::absorbs`, `FacilityKind` | **Identity.** Rolling them produces a different item |
+| `projectilesPerShot` and other integer fields | A ×1.37 band on an integer of 1 is still 1 — and rolling 1 → 3 turns a cannon into a shotgun, which is an identity change |
+
+##### Pool size is a legibility budget, not a balance dial 📋
+
+Per-stat power is `budget ÷ k`, so pool *size* does not affect balance — a five-stat kind rolling two
+stats and a two-stat kind rolling two get identical treatment. **But a Mythic rolling across twenty
+attributes moves each one imperceptibly and produces an item nobody can read at a glance.**
+
+> **Keep rollable pools to roughly 4–6 entries.** Everything else about a module belongs in its
+> identity attributes.
+
+*This retires the "minimum pool of three" rule proposed earlier the same day.* `PowerCell`
+(generation) and `Armor` (hull) genuinely do one thing, and forcing a third stat onto them would mean
+inventing mechanics with no reader — exactly what §2.4 forbids. **A one-stat kind applies its band
+directly with no distribution, and that is a statement about what the module is, not a degenerate
+case.** The budget is the same either way; armour is simply a specialist by nature.
+
+##### Weapon — the first pool 📋
+
+Derived from what actually changes a weapon's contribution:
+
+```
+effective DPS ≈ damage/shot × shots/sec × hit rate × (1 − overkill waste)
+```
+
+| Stat | Dir | Weight | Reasoning |
+|---|:---:|---:|---|
+| `fireInterval` | ↓ | **2.2** | Linear in DPS **and** cuts overkill waste — see below |
+| `damage` | ↑ | **2.0** | Linear in DPS, but diminishing against small hardpoints |
+| `projectileSpeed` | ↑ | **1.8** | Manual aim (§3.2) makes lead the dominant source of misses |
+| `spread` | ↓ | **1.5** | Gates whether you can hit a *chosen* hardpoint, not merely whether you hit |
+| `range` | ↑ | **1.0** | Threshold rather than slope; expect per-def overrides |
+| `knockback` | ↑ | **0.8** | Control rather than damage; scales with mass ratios |
+
+**Two of these are weighted by decisions this design already made, and that is why they are not
+guesses:**
+
+- **Projectile speed is far more valuable here than in most games.** §3.2 removes target lock, so lead
+  is where shots are lost. §3.5's numbers make that concrete: at 1,200–1,800 units/sec over 800–1,000
+  range, time of flight is **0.44–0.83 s**, and a fighter crossing at ~200 units/sec travels
+  **90–170 units** in that window — several hull-lengths, and far more than a 5-unit wing gun's
+  radius.
+- **Fire rate edges above damage because of localized damage.** Overkill is real here in a way it is
+  not against a single health bar: a shot dealing 500 to a 50-hull wing gun wastes 450. High
+  damage-per-shot has diminishing returns against small hardpoints; high fire rate does not. **So
+  high-damage weapons strip chassis and station cores, while high-fire-rate weapons shred
+  peripherals** — a real tactical distinction that falls out of §3.2 rather than being authored.
+
+**These constants are placeholders**, in the same category as §2.6's negotiation-roll weights and
+§2.4's merge scale: they make the system buildable and testable now, and get tuned later. The
+*structure* is what is settled.
+
+*There is also an empirical route to setting them, eventually:* **weight ∝ measured marginal DPS
+contribution**, from a headless combat harness in the spirit of `tools/economy_sim`. Cheap to build,
+because systems take a bare `SystemContext` with no window and no content file — and it would turn
+this table from a judgement call into a measurement.
+
+##### The remaining pools 📋
+
+**§2.11 now holds the full roster**, including aggregation and power category per kind. Summarised here:
+
+| Kind | Rollable pool |
+|---|---|
+| **Weapon** | ✅ above |
+| **ShieldGenerator** | ✅ §3.1 — capacity · coverageRadius · rechargeDelay · boostMultiplier · rechargePerSecond · bleedThrough · ionResistance |
+| **FireControl** | traverse rate · lead accuracy · reacquisition — *new kind, §2.7* |
+| **Engine** | thrust ↑ · turnTorque ↑ · maxSpeed ↑ |
+| **Facility** | ratePerSecond ↑ · capacity ↑ — *grade separately selects §2.4's recovery/survival/merge rows; not a double-dip, different stats* |
+| **PowerCell** | generation ↑ *(one-stat kind)* |
+| **Armor** | hullBonus ↑ *(one-stat kind)* |
+
+##### Self pools and boost pools 📋
+
+The mechanism is shared; the target is not.
+
+| | Contains | Example |
+|---|---|---|
+| **Self pool** | The module's own stats | A weapon rolls its own damage |
+| **Boost pool** | Stats on *other* modules, multiplied | An `Operator` raises the rig's weapon fire rate (§2.7) |
+
+Same budget, same weights, same directions. **They stack multiplicatively** — a weapon that rolled
+high fire rate, in a turret crewed by an officer who rolled into fire rate, compounds. That is §2.7's
+stated intent ("a module supplies a capability, an officer multiplies it") rather than an accident,
+but it is the sharpest power spike available in a fit and should be watched in tuning.
+
+
+#### The rarity ladder 📋
+
+*Settled 2026-08-07.* **One ladder, shared by shells and modules alike** — seven tiers:
+
+| # | Tier | `moduleSlots` bonus | Mass |
+|:---:|---|:---:|:---:|
+| 1 | Common | +0 | 100% |
+| 2 | Uncommon | +0 | 95% |
+| 3 | Unique | **+1** | 90% |
+| 4 | Rare | +1 | 85% |
+| 5 | Epic | **+2** | 80% |
+| 6 | Legendary | **+3** | 75% |
+| 7 | Mythic | **+4** | 70% |
+
+**The slot curve is back-loaded on purpose.** The top three tiers each add a slot, where the bottom
+four add two between them — reward accelerating exactly where the drop rate becomes brutal. Matching
+the reward curve to the rarity curve is the right shape; a linear ladder would make Legendary and
+Mythic feel like rounding errors on a Rare.
+
+*"Remarkable" was cut on 2026-08-07 — it read as an unranked adjective wedged between two ranked
+ones.* **"Unique" still sits below Rare**, which runs against genre convention where the word means
+one-of-a-kind. That is a deliberate choice, and the mitigation is that **tier colour is the primary
+signal** in every UI surface; the words support the colour rather than the other way round.
+
+**Slots are a bonus, not an absolute.** A shell's authored `moduleSlots` is its Common value and the
+tier adds to it, so a 1-slot wing mount and a 3-slot chassis both improve without a 7 × N authored
+matrix. *Note the proportional asymmetry this creates:* +3 quadruples a 1-slot shell and merely
+doubles a 3-slot one. That favours small shells at high tier, which is probably desirable — it makes
+a mythic wing mount genuinely exciting — but it is a real effect, not an accident.
+
+**Nothing of the sort exists in the codebase today** — not on `ShellDef`, not on `ModuleDef`. The only
+"tier" present is the Engineering facility's unrelated 1–5 skill tier. New construction for both,
+which is why it is specified once here rather than twice later.
+
+#### The two curves multiply — check the combined number, not each one
+
+Against a base-2 shell:
+
+> capacity per unit mass = (6 slots / 70 mass) ÷ (2 slots / 100 mass) = **4.3× a Common shell**
+
+**Slots reaching +4 does not break the scaling — it is gentler overall than the earlier +3 at 50%
+mass**, which came out at 5×. Pulling mass back to 70% more than pays for the extra slot. The extra
+slot is also the better half of the trade to spend on: it is a *visible* reward at exactly the tiers
+that are hardest to reach, where a 5-point mass difference would go unnoticed.
+
+**The remaining thing to watch is the smallest shells.** On a 1-slot wing mount, Mythic gives 5 —
+a 5× rather than a 3×. That concentration is largely self-correcting under §3.2: five modules stacked
+in one hardpoint is five modules lost to one well-aimed shot. Localized damage taxes concentration
+without a balance rule having to.
+
+**Obsolescence is acceptable here specifically.** A player does not choose between a Common and a
+Mythic chassis for *role* reasons — structural shells are not a variety mechanic the way weapons are,
+so "use the best you have" is the correct behaviour and not a failure of §2.2.
+
+#### Drop rates: steep, and safe to make steep 📋
+
+Each tier roughly **one third** as likely as the one below it, reconciled to sum to exactly 100%:
+
+| Tier | Share | Roughly |
+|---|---:|---|
+| Common | 66.70% | 2 in 3 |
+| Uncommon | 22.20% | 1 in 5 |
+| Unique | 7.40% | 1 in 14 |
+| Rare | 2.50% | 1 in 40 |
+| Epic | 0.82% | 1 in 122 |
+| Legendary | 0.28% | 1 in 357 |
+| Mythic | 0.10% | **1 in 1,000** |
+
+*These are seven authored numbers, not a derived ratio — the tail is nudged slightly off a strict
+third so the column totals 100% exactly. That is the right trade: a table of seven values is easier
+to reason about and to hand-tune than a formula plus a correction term.*
+
+**Research is what makes rates this steep safe** (§2.4). One recovered Mythic can be
+reverse-engineered into something manufacturable forever, so a drop rate gates **first acquisition**,
+not ongoing supply. A player does not need Mythics to drop often; they need to find *one*. That is
+also the strongest possible reason to explore.
+
+#### No tier cap on research — the gate is economic 📋
+
+*Settled 2026-08-07.* Research can unlock **any** tier. What stops a single Mythic drop from
+trivialising the top of the ladder is that **building one costs substantially more materials and
+credits than a lower tier** — enough that manufacturing Mythics *at scale* is uneconomical until the
+player has established a real resource pipeline.
+
+**This is a better gate than the facility-tier cap it replaces**, which was the obvious alternative:
+
+- A hard cap is binary and says *"you cannot, come back later."* An economic gate says *"you can, and
+  here is what it will cost you"* — the player chooses, and the answer changes as they grow.
+- It makes the top of the ladder an **industrial achievement rather than a lucky drop**. Finding a
+  Mythic is the beginning; fielding a squadron of them is the accomplishment, and it requires exactly
+  the production base §1's Macro loop is about building.
+- It needs no new mechanism at all. Manufacturing (§2.8) already consumes materials and credits;
+  this is a number on a curve, not a rule.
+
+**Manufacturing cost must therefore climb steeply with tier** — steeper than the stat benefit does,
+or mass-producing Mythics becomes correct as soon as it is possible. Cost scaling roughly against the
+drop-rate curve is the natural starting point.
+
+#### Tier colour 📋
+
+*Settled 2026-08-07.* Colour is the **primary** rank signal, because the ladder's own names do not
+sort on sight — "Unique" reads as top-tier to anyone arriving with genre expectations, and it sits
+third.
+
+The palette is constrained by what `shared/ui/HudTheme.h` has already claimed: `kStatusGood`
+(green `60,210,130`), `kStatusCaution` (amber `235,175,60`), `kStatusCritical` (red `230,70,70`), and
+`kPanelChrome` (steel blue `90,150,190`) — which is the ambient colour of the entire UI. The
+conventional genre ladder collides with three of those four, and its blue would sink into the chrome
+and read as inert panel furniture.
+
+| # | Tier | Colour | RGB |
+|:---:|---|---|---|
+| 1 | Common | Steel | `140, 150, 160` |
+| 2 | Uncommon | Jade | `80, 200, 140` |
+| 3 | Unique | **Cyan** | `60, 205, 215` |
+| 4 | Rare | Azure | `80, 150, 250` |
+| 5 | Epic | Violet | `165, 110, 245` |
+| 6 | Legendary | Gold | `255, 190, 70` |
+| 7 | Mythic | Incandescent | `255, 245, 220` + shimmer |
+
+**Cyan at tier 3 is the load-bearing choice.** It sits naturally between green and blue, so the eye
+reads Unique as *between* Uncommon and Rare without being told — which is exactly the ordering
+problem the name creates.
+
+**Red is deliberately excluded.** `kStatusCritical` owns it and so does hostile targeting; a red top
+tier in a combat HUD would read as "enemy" more strongly than "best." **Mythic as a near-white**
+lets Legendary keep the gold players expect while still escalating past it, and it cannot be confused
+with any status colour.
+
+**Three rules that matter more than the hues:**
+
+1. **Colour must never be the only rank signal.** Perceived luminance across this ramp is *not*
+   monotonic — it dips at Azure and Violet — and forcing monotonicity would push Common toward black,
+   unreadable on the `9,14,20` panel glass. A seven-step ramp cannot be both convention-matching and
+   greyscale-legible. Pair every rarity with a **non-colour cue** — pips, a numeral, or the tier name
+   always visible. That fixes colour-blind legibility and the Unique-ordering problem at once.
+2. **Separate rarity from status by *shape*, not hue.** Jade sits near `kStatusGood` and Gold near
+   `kStatusCaution`; that is unavoidable while matching convention. Render rarity as **name text plus
+   a thin frame or glow, never a filled swatch**, while status stays on bars, needles, and readouts.
+   Same colours, different register, no confusion.
+3. **Give Legendary and Mythic motion.** A slow shimmer on those two and nothing else — no status
+   element ever animates. Motion is the most legible "this is special" channel available, and it
+   makes the top tiers unmistakable at a glance in a crowded cargo list.
+
+*This is the first concrete entry in what §9 still lists as the largest missing document — the UI/UX
+specification. It lives here rather than in a UI section because it is inseparable from the ladder it
+encodes.*
+
+*This also revises the "two crew in the same shell buys nothing" line above:* it buys nothing
+**against that shell being destroyed**, which is still the point. A shell with two slots holds a
+pilot and a spare who die together; a chassis slot and a cockpit slot are what actually survive a
+hit.
+
+**A destroyed turret takes its gunner with it**, so there is no awkward state where a surviving
+turret loses its operator and silently reverts to the player. **Crew and shell always die together** —
+that falls out of there being no sub-hardpoint damage (§3.2), and it is now unconditional since life
+support was cut. A live shell always has whatever crew it was built with, or was destroyed.
+
+The only way a shell loses crew without dying is the player unmounting it — a deliberate act that
+needs no runtime handling at all.
+
+> ⚠️ **Corrected 2026-08-09: this previously read "unmounting it *at a station* … at a workbench,"
+> which described a gate that does not exist and should not.** `ModuleEquipSystem` enforces no
+> location requirement, and that is **deliberate and settled**: any swap is legal at any time,
+> including mid-combat. The cost is not a rule but §3.4 — the simulation never pauses, so time in
+> the fit screen is time spent drifting and targetable, and unmounting your own engine strands you
+> on the spot. What makes the act "deliberate" is that it is unpaused, not that it is stationary.
+>
+> **This has a hard prerequisite the design was not previously paying for:** `ModuleEquipSystem`
+> currently does **not** recompute rig-wide `BodyMass` or `Propulsion` on mount or unmount, so a
+> live refit today changes what a hull carries without changing how it flies. Tolerable while the
+> menu was unreachable; broken the moment live refit is a sanctioned combat action. See §2.11's
+> aggregation rule and `architecture.md` §12.23's `RecomputeRigTotals`.
+
+❓ *Open: does the player have a skill rating?* §3.2's manual aim says the player's piloting skill
+**is their actual marksmanship** — a crew module that biased the player's own shots would contradict
+it. So a player-piloted vessel likely ignores the pilot rating on its crew module, and the player's
+crew modules matter only for work they *delegate*: commanders running fleets elsewhere, and NPC
+pilots flying vessels the player owns but is not sitting in.
+
+### 2.8 Manufacturing 📋
+
+*Raised 2026-08-07. §2.4 states that research makes an item "craftable," and until now nothing in
+this document or the codebase could craft anything except a whole vessel. Research's payoff was
+unreachable.*
+
+**Manufacturing turns knowledge plus materials plus time into matter.** It is the consumer that
+makes research worth doing, and it is the only path by which a design in a knowledge network (§2.5)
+becomes a physical object.
+
+| Output | Is it entity assembly? | Home |
+|---|---|---|
+| **Vessel** (ship, station) | Yes — a composite rig is spawned | `ConstructionSystem` ✅ already built |
+| **Shell** | No — an item lands in a cargo hold | Manufacturing (new) |
+| **Module** | No — an item lands in a cargo hold | Manufacturing (new) |
+| **Craft** (intermediate, §2) | No — an item lands in a cargo hold | Manufacturing (new) |
+
+**`ConstructionSystem` is the right home for vessels and the wrong home for the other three.** Building
+a vessel *is* assembly — it spawns a composite entity through a factory, which is why that system
+carries the codebase's one narrow, named exemption to the layering rule. Manufacturing a module
+produces **inventory**, not an entity; routing it through the same file would widen that exemption
+to cover work that never needed it. Keep the exemption as narrow as it is.
+
+**Gated by facility and by knowledge, both.** Manufacturing requires a living Manufacturing facility
+hardpoint (§4's "a Manufacturing hardpoint enables ship construction," generalized) *and* requires
+that the actor's knowledge network actually holds the design. A faction that bought your Template
+(§2.6) can manufacture it forever precisely because the design sits in their network — that is the
+same gate, applied to them.
+
+**AI factions use this path, not a private one** (§6.3). A faction manufacturing your design must
+pay the same materials and take the same time, or the macro loop is simulating something the player
+cannot reason about.
+
+#### Manufacturing is a queued job 📋
+
+*Settled 2026-08-08.* Structurally it is `ResearchSystem`'s sibling — a facility-hosted job queue
+advanced against `dt` — but it is a **separate queue**, not a shared one. The two mechanics share a
+shape, not a resource.
+
+| | |
+|---|---|
+| **Concurrent slots** | `FacilityStats::capacity`, authored per facility. This retroactively gives `ResearchSystem` a slot limit it currently lacks — today a station can run unbounded concurrent research |
+| **Speed** | `FacilityStats::ratePerSecond` |
+| **Gates** | A living Manufacturing facility hardpoint **and** the design present in the actor's knowledge network (§2.5) |
+| **Survives the player leaving** | A `core/galaxy/ManufacturingRecord`, exactly parallel to the existing `ResearchRecord` — demotion writes it, promotion re-instantiates with elapsed time banked (§1.1) |
+
+**Manufacturing re-rolls quality.** Each unit produced rolls a fresh point in its grade's band
+(§2.7). This is what makes wide top-end bands safe: a single Mythic drop that rolled poorly is not a
+permanent verdict, and approaching a band's ceiling becomes an *industrial* pursuit rather than a
+lottery result. It is also the production base's reason to keep running past raw volume.
+
+#### The cost gate is a supply chain, not a multiplier 📋
+
+*Settled in shape 2026-08-08; the numbers wait on the materials and recipe pass (§9).*
+
+§2.4 requires manufacturing cost to climb **steeper than the stat benefit does**, or mass-producing
+Mythics becomes correct the moment it is possible. Two levers together, and the second matters more:
+
+| Lever | Shape |
+|---|---|
+| **Quantity** | Material cost scales steeply with grade — roughly against the inverse of the drop-rate curve (§2.7), which is ~3× per tier |
+| **Input grade** | A grade-*N* module requires **crafts of grade ≥ N−1**, which must themselves be manufactured |
+
+**The input chain is the interesting half.** It means you cannot build a Mythic weapon until you can
+mass-produce Legendary crafts, which needs Epic crafts beneath them. Mythic production becomes a
+*pipeline* problem rather than a large number — which is exactly the industry §1's Macro loop is
+about building, and a far better reason to hold territory than a cost multiplier is.
+
+It also does not reintroduce the facility-tier cap §2.4 rejected. Nothing says *you may not*; it says
+*here is the industry you will need*. That distinction is the whole point of §2.4's economic gate.
+
+**And it is what stops quality re-rolling from becoming a slot machine.** An unconstrained player
+would spam Mythic production fishing for a 5.0 roll; each attempt costing a full Legendary-craft
+pipeline run is the brake.
+
+❓ *Open, and deliberately deferred: the actual numbers.* Material quantities, craft recipes, and the
+time curve per grade all depend on the materials and crafts content pass that has not happened yet —
+`data/base_game/` has no `materials.json` or `crafts.json` at all (§2). Specify the recipe base
+first, then the scaling; doing it the other way round produces numbers with nothing to multiply.
+
+
+#### The time curve 📋
+
+*Settled 2026-08-08.*
+
+**The framing that decides the whole curve: jobs progress while you play.** A job banks elapsed time
+across demotion (§1.1), so a ten-minute build is not ten minutes of waiting — it is ten minutes of
+flying somewhere else. The curve is therefore tuned against session pacing, not against patience.
+
+**Time scales far more gently than materials, and deliberately so.** Material cost climbs ~3× per
+grade (§2.10) and that is already §2.4's economic gate. Making time climb at the same rate taxes the
+player twice for one thing — **the exact reasoning that cut upkeep** (§2.7: repair, refuel, and
+assembly already provide the sink). Steep materials make this a logistics game; steep time makes it a
+waiting game, and §1's Macro loop wants the former.
+
+> **Base build time doubles per grade. Facility grade divides it by up to ~3.3× (§2.4).**
+
+| Grade | Craft *(base 5s)* | Module / Shell *(base 10s)* |
+|---|---:|---:|
+| Common | 5s | 10s |
+| Uncommon | 10s | 20s |
+| Unique | 20s | 40s |
+| Rare | 40s | 1m 20s |
+| Epic | 1m 20s | 2m 40s |
+| Legendary | 2m 40s | 5m 20s |
+| **Mythic** | **5m 20s** | **10m 40s** |
+
+Sixty-fold across the whole ladder, one rule to remember, and a Mythic bench turns out a Mythic
+module in about three minutes.
+
+**Vessels derive rather than scale.** A vessel is not a grade, it is an assembly:
+
+> **Vessel build time = Σ(its parts' build times) × an assembly factor.**
+
+So **mass, base price, and build time all derive from the recipe by the same rule** (§2.10) — the
+third use of one anchor. A dreadnought takes an hour because it is made of a great many expensive,
+heavy, high-grade parts. Nothing is authored and nothing can drift.
+
+⚠️ **This means `ConstructionSystem` grows a build timer**, which it does not have today. That is a
+feature rather than an oversight to patch quietly: a capital under construction is a window for a
+raid, it gives §6.1's facets something to react to, and it is what makes a shipyard worth defending.
+
+**Research is the one that should feel like an investment**, since its payoff is permanent — the same
+2×-per-grade shape from a six-fold higher base:
+
+| Research target | Base | At a Mythic facility |
+|---|---:|---:|
+| Common | 1m | ~18s |
+| **Mythic** | **~64m** | **~19m** |
+
+Nineteen minutes of *play* to permanently unlock manufacture of the best item in the game is
+proportionate; sixty-four minutes at a crude bench is the reason to build a better one.
+
+**Throughput is the second axis and it already exists.** `FacilityStats::capacity` sets concurrent
+job slots, so a better facility runs more jobs *and* runs each one faster — two multipliers on one
+upgrade, which is what makes investment in industry compound.
+
+
+### 2.9 Power Allocation 📋
+
+*Settled 2026-08-07. §6.3 has always promised that ships "dynamically reallocate power mid-combat —
+dumping shield regeneration into a weapon burst, or cutting engines to hold a shield up." This is
+that mechanic specified. It is also the **counterplay to hardpoint fragility**: the more a single
+lost shell hurts (§3.2), the more the player needs a lever to compensate mid-fight.*
+
+**Every power category runs at one of four levels**, not on/off:
+
+| Level | Draw | Effect |
+|---|---|---|
+| **Offline** | none | Nothing. Run silent, or free the budget entirely |
+| **Reduced** | below nominal | Degraded output |
+| **Normal** | nominal | Baseline |
+| **Boosted** | well above nominal | Above baseline — an overdrive |
+
+**The draw and effect multipliers at each level are module attributes** (Law 10, authored in
+`modules.json`), not global constants. A cheap thruster's boost is a nudge; a military one's is an
+afterburner. Two ships with the same four levels can have completely different boost characters.
+
+**Set per category, not per hardpoint.** The player controls weapons, shields, engines, and
+facilities — four switches, not one per turret. This matches the shed order `PowerSystem` already
+uses and keeps the control surface usable mid-fight. *(Life support was cut, §2.7 — crew draw no
+power and are not a category.)*
+
+#### Only two levels are ever commanded directly 📋
+
+*Settled 2026-08-08, and it collapses sixteen states into four keys.*
+
+**The player boosts. The priority list decides who pays.** Pressing a category's key boosts it; the
+power to fund that boost is taken from the other categories automatically, in the order set by a
+**power priority list** the player configures out of combat. `Reduced` is therefore never commanded —
+it is what happens to something else when you boost.
+
+| Input | Effect |
+|---|---|
+| **Tap** a category key | Toggle **Boosted** |
+| **Hold** a category key | Toggle **Offline** — the deliberate "run silent" or "cut engines" act |
+| — | **Normal** and **Reduced** are results, never inputs |
+
+Four keys, two gestures, all four levels reachable. The interesting configuration happens at leisure
+in a menu; the in-combat action is a single keypress, which is what §4.4's timing constraint demands.
+
+**The four keys are `F` / `G` / `H` / `J`** — weapons, shields, engines, facilities (§3.6). *Until
+2026-08-09 §3.6 listed only three, omitting engines, which made this section's "cut engines" act
+unreachable; that was a defect in the input map rather than a disagreement about the model.*
+
+**The priority list already exists in code.** `PowerLoad::priority` is authored per hardpoint today
+and `PowerSystem` already sheds ascending — *"facilities before shields before engines."* The menu
+exposes and reorders what is already there rather than introducing a parallel concept. Its natural
+home is the avionics surface, alongside the other ship-configuration readouts.
+
+❓ *Open: whether multiple categories may be Boosted simultaneously.* Permitting it is more
+expressive and means the priority list has to fund two demands at once; forbidding it keeps the
+budget arithmetic trivial and the HUD unambiguous.
+
+#### Boost costs nothing extra — and that is the whole design
+
+There is deliberately **no heat, wear, or overdrive resource.** The cost of boosting is that the
+budget must still balance: *power spent boosting shields is power not available to weapons or
+engines*. Reduce something, or you cannot boost anything.
+
+That constraint is sufficient on its own, and adding a second one would only obscure it. It also
+makes the decision continuous and legible — every boost is visibly a trade against the other four
+switches, which is exactly the §2.2 constraints puzzle carried from the workbench into live combat.
+
+**Boost simply does not engage without headroom.** It is not a request that browns out the rest of
+the ship; the UI shows it unavailable and nothing happens.
+
+#### The afterburner is not a special case
+
+Holding **`Ctrl`** for an engine boost is engines set to *Boosted* — the same mechanism, the same
+budget, the same trade. It draws far more than regular flight, so sustained running compromises
+shields or guns. This is the clearest possible demonstration of the system, which is why it should be
+the first thing built on it and the first thing the player meets.
+
+*The afterburner moved from `Shift` to `Ctrl` on 2026-08-09 (§3.6), so `Shift` could take its
+conventional "add to selection / append to queue" meaning for the command system (§4.3). Nothing
+about the mechanism depends on the key.* **`Ctrl` held is the momentary boost; tapping the engines
+key (`H`) is the sustained toggle** — two affordances onto one state, deliberately.
+
+**AI ships use this identically** (§6.3). No AI-only reallocation, no hidden multiplier — an enemy
+that suddenly outruns the player has paid for it somewhere the player can read off its behaviour.
+
+❓ *Open: whether Offline is selectable for every category or only some.* Cutting engines dead
+mid-fight is a legitimate desperate move; cutting them dead by mis-click while being chased is not.
+The likely answer is that Offline is available everywhere but requires a deliberate input rather than
+a single tap on a four-position cycle.
+
+### 2.10 Materials, Crafts & Recipes 📋
+
+*Settled 2026-08-08. `data/base_game/` holds `modules.json`, `shells.json`, and `ships.json` and
+nothing else — there is no material or craft content anywhere, which is why research's payoff has
+been unreachable and why every cost curve in §2.4 and §2.8 has had nothing to be denominated in.*
+
+**The chain is two hops, and no more:**
+
+> **Materials → Crafts → Modules / Shells / Vessels**
+
+Depth comes from **grade**, not from stacking intermediate layers: a Legendary module wants Epic
+crafts, which want Rare crafts, and so on (§2.8's input-grade chain). One intermediate type gives
+arbitrarily deep pipelines; a second would multiply content for the same effect.
+
+#### The governing principle 📋
+
+> **Exploration and combat give you the *first* of a thing. Industry gives you *more* of it.**
+
+This is §2.4's "a drop rate gates first acquisition, not ongoing supply," generalised to the whole
+content set, and it keeps the two gates from ever overlapping:
+
+| Gated by | What it gates |
+|---|---|
+| **Reach** — where you can get to and hold | **Materials.** All of them are minable somewhere |
+| **Achievement** — what you can find, beat, or complete | **High-grade finished items** — crafts, modules, shells, chassis, whole vessels |
+
+**Research is the bridge between them.** It converts a thing you *found* into a thing you can
+*make*, which is what stops the achievement gate from becoming a grind and the reach gate from
+becoming the only progression.
+
+#### Materials — fourteen, real elements, real densities 📋
+
+**Materials are never tiered.** Scarcity is a property of *where they are*, not of a ladder. Real
+elements are used deliberately: they supply free intuition (iron is structural, copper conducts),
+free icons (the periodic abbreviation), and — the useful part — **free mass numbers**, since relative
+density settles what would otherwise be an argument.
+
+| Availability | Material | Rel. mass | Character |
+|---|---|---:|---|
+| **Common** | **Fe** Iron | 7.9 | Bulk structure |
+| | **C** Carbon | 2.2 | Light composites |
+| | **Si** Silicon | 2.3 | Semiconductors |
+| | **Al** Aluminium | 2.7 | Light structure |
+| | **Cu** Copper | 8.9 | Conductors |
+| **Uncommon** | **Ti** Titanium | 4.5 | Strong light structure |
+| | **Ni** Nickel | 8.9 | Alloys, corrosion resistance |
+| | **Ge** Germanium | 5.3 | Optics, sensors |
+| | **Nd** Neodymium | 7.0 | Magnets, emitters |
+| **Rare** | **Ag** Silver | 10.5 | High-grade conductors |
+| | **W** Tungsten | 19.3 | Heat, kinetic mass |
+| | **Ir** Iridium | 22.5 | Armour, extreme heat |
+| | **U** Uranium | 19.0 | Power cores |
+| **Anomalous** | **Xe** *(working name)* | — | Exotic fields. Deposits roll only in anomalous systems |
+
+An iridium-heavy Mythic armour plate is genuinely ten times a carbon composite, and nobody had to
+decide that.
+
+**Distribution is seed-derived, in two rolls per system** (§7.1, pure functions of the coordinate):
+
+1. **Presence** — does this system have a deposit of this material at all? Probability follows the
+   availability band above.
+2. **Abundance** — how rich is it, if present?
+
+**Presence must be able to come out zero**, and that is the whole point. If every system carried a
+trace of everything, §2.8's variety requirement would collapse into a throughput requirement and the
+reason to expand would go with it. A Mythic craft needing eight distinct materials means finding
+eight deposits, which realistically means holding or trading across several systems.
+
+**One mining tool, and the asteroid decides the yield.** Material-specific extraction gear would be a
+second progression axis on a system that already has several, and it would not earn its place.
+
+#### Crafts — seven functional families 📋
+
+Crafts are manufactured intermediates. They **carry a grade** (§2.8's input chain requires it) but
+**do not roll quality** — quality is rolled once, at the finished module or shell. If every link
+rolled, the output distribution would compound across the chain and become impossible to balance or
+to explain.
+
+| Craft | Weighted toward | Feeds |
+|---|---|---|
+| **Alloy Plate** | Fe · Ti · Ni | Structure, chassis, armour shells |
+| **Conductive Coil** | Cu · Ag | Power routing, engines |
+| **Circuit Wafer** | Si · Ge | Targeting, avionics, crew modules |
+| **Optical Array** | Ge · Si · Ag | Sensors, energy weapons |
+| **Power Core** | U · Cu · Ni | Power cells, reactors |
+| **Composite Housing** | C · Al · Ti · Ir | Shells generally |
+| **Field Emitter** | Nd · Ir · Ag · Xe | Shields, Ion weapons |
+
+⚠️ **A craft's weighting is not a gate.** Every craft exists at every grade, and a Common Field
+Emitter is a crude coil of iron and copper — *not* something requiring iridium. An earlier draft of
+this table listed fixed materials per craft, which would have gated a Common shield behind anomalous
+material and broken the ladder at its base. **The weighting decides what a craft leans on where those
+materials are permitted; the grade decides which are permitted at all.**
+
+#### What a grade actually costs 📋
+
+> **Grade sets how many *distinct* materials a recipe demands, how rare the rarest may be, and how
+> much of each.**
+
+| Grade | Distinct materials | Rarest permitted |
+|---|:---:|---|
+| Common | 2 | common only |
+| Uncommon | 3 | common only |
+| Unique | 4 | ≤ uncommon |
+| Rare | 5 | ≤ uncommon |
+| Epic | 6 | ≤ rare |
+| Legendary | 7 | ≤ rare |
+| **Mythic** | **8** | **includes the anomalous material** |
+
+Eight distinct materials out of fourteen is what makes Mythic production a *territory* problem rather
+than a *time* problem, and it is why the material list is fourteen rather than ten — at ten, a Mythic
+recipe would consume most of the set and every craft would converge on the same parts list.
+
+**Quantity scales on top of variety**, steeply — roughly against the inverse of §2.7's drop-rate
+curve (~3× per grade). §2.4 requires cost to climb faster than the stat benefit does, or
+mass-producing Mythics becomes correct the moment it is possible.
+
+#### Recipes are authored on the def, and craft recipes are generated 📋
+
+- **A module's or shell's recipe is a field on its own def** (`ModuleDef.recipe`, `ShellDef.recipe`),
+  so one item is one entry and there is no second file to keep in sync.
+- **Craft recipes are generated** from the grade table above plus the per-craft weighting — never
+  authored as forty-nine rows. Hand-authoring them guarantees that someone edits one grade and not
+  its neighbours, and the curve develops a kink nobody notices.
+
+#### Mass and price both derive from the recipe 📋
+
+*This is the same anchor applied twice, and it is what keeps the content set honest as it grows.*
+
+| | Authored | Derived |
+|---|---|---|
+| **Mass** | Per **material** only | Craft = inputs − loss · Module/shell = inputs − loss · Vessel = its parts |
+| **Base price** | Per **material** only | Craft = inputs + margin · Module = its crafts + margin · Vessel = its parts |
+
+**Fourteen authored masses and fourteen authored prices, and everything else follows.** A module is
+expensive *because* its recipe is brutal, not because someone typed a large number — and adding a new
+module never requires guessing either figure. §3.5's "manufacturing cost scales with total mass"
+stops being a separate rule and becomes the same rule seen from the other end.
+
+**Price is a function, never stored.** Base price is computed once at content load; local supply and
+demand modulate it on query. This is the same discipline §3.5 applies to system radius — *"seed-derived
+and must never be stored, because caching it invites the two to drift."*
+
+#### The three efficiency axes, and why they must not be confused 📋
+
+*Settled 2026-08-08, after an earlier model attached mass loss to the facility and inverted itself:
+if a better facility "loses less," it produces **heavier** items, and since lighter is better at equal
+quality, the worst workshop would make the best goods.*
+
+| Axis | Driven by | Direction |
+|---|---|---|
+| An item's **mass** | The **item's grade** (§2.7's 100% → 70% ladder) | Higher grade = lighter |
+| **Materials consumed** to build it | **Facility grade** | Better facility = less waste |
+| **Materials recovered** on deconstruct | **Facility grade** | Better facility = more back |
+
+**Facility grade is always material efficiency; item grade is always lighter and better.** Nothing
+inverts, and an item's mass stays a property of *the design* rather than of where it happened to be
+built — which matters, because a mass that varied by workshop would mean the same id weighing
+different amounts and a fit screen the player cannot predict.
+
+**§2.7's mass ladder is the refinement loss.** "Mythic is 70% mass" and "30% burned off in the
+making" are one number seen twice, not two mechanisms to reconcile. A Common facility burns 120 units
+to produce that same 70-mass item where a Mythic burns 100; the difference is waste, and waste was
+never in the item.
+
+**Deconstruction is conservation-safe:** it returns up to **the item's own mass**, never the mass
+originally consumed. Refinement loss is permanent, craft → deconstruct → craft always loses, and
+there is no loop.
+
+
+### 2.11 The Module Roster 📋
+
+*Settled 2026-08-08. `ModuleKind` currently holds six values — Weapon, ShieldGenerator, PowerCell,
+Engine, Armor, Facility — and several built systems have no module feeding them at all. This section
+is the full roster, each kind's rollable pool (§2.7), and how per-hardpoint contributions become
+rig-level attributes.*
+
+#### Rig attributes aggregate from living hardpoints 📋
+
+> **Every rig-level attribute is the sum — or the maximum — of contributions from *living*
+> hardpoints. Destroying a hardpoint removes its contribution. Nothing is all-or-nothing.**
+
+This is not a new pattern; it is **the pattern one system already follows and the others do not.**
+`PowerSystem` recomputes `PowerBudget` from living hardpoints every tick. Four things currently break
+it in different ways:
+
+| Attribute | Today |
+|---|---|
+| `Propulsion` | **All-or-nothing** — zeroed only when the *last* engine dies |
+| `BodyMass` | **Never recomputed** on mount or unmount |
+| Shields | Contribution never extends past its own mount (§3.1's defect) |
+| Cargo capacity | Unspecified until now |
+
+**Each attribute declares whether it sums or maxes**, and the distinction is not cosmetic:
+
+| Aggregation | Attributes |
+|---|---|
+| **Sum** | thrust · turnTorque · power generation · cargo slots · shield capacity · hull bonus · fuel capacity |
+| **Max** | **maxSpeed** · sensor range · jump range |
+
+**`maxSpeed` is the instructive one.** Two engines should not double your top speed, but they *should*
+double your acceleration. Sum for thrust and max for top speed delivers exactly that, and it creates a
+real fit distinction: **more engines makes you nimble, better engines makes you fast.** Sensors follow
+the same logic — two radars do not see twice as far, the better one dominates. And multiple
+hyperdrives are **redundancy rather than range**: fuel sums, range maxes, so shooting one out does not
+strand you.
+
+⚠️ **This corrects §3.2's wording.** It reads "destroy a thruster shell and the ship stalls." Under
+proportional contribution a multi-engine hull *slows*; it stalls only when the last engine dies.
+
+> ⚠️ **The `mobile` flag contradicts this rule outright, and it is going** (settled 2026-08-09).
+> `RigFactory` reads a blueprint-authored `mobile` boolean and, when false, **emplaces no
+> `Propulsion` component at all** so that `PhysicsSystem`'s view excludes the rig structurally. The
+> consequence is that a station can never move no matter what is bolted to it — equipping engine
+> shells at runtime changes nothing, because the component physics reads was never created.
+>
+> **Movement must be emergent from living hardpoints like every other rig attribute**, not decided by
+> an authored flag. A rig with engines moves; a rig without them does not; a station that mounts
+> engines becomes mobile. There is no static/mobile vessel class, which is Law 4 — the same rule that
+> removed every other vessel-type branch.
+>
+> `mobile` need not be deleted outright: it still usefully records which factory built a thing and
+> drives `Validation`'s "a mobile craft needs an engine" authoring check. It simply stops deciding
+> whether physics applies. See `architecture.md` §12.25.
+
+#### Costs follow grade; capability follows the band 📋
+
+*Settled 2026-08-08, resolving where `powerDraw` belongs.*
+
+| Property | Governed by | Direction |
+|---|---|---|
+| Every capability stat | **The quality band** (§2.7) | Up |
+| **`mass`** | **The grade ladder** — 100% → 70% | Down |
+| **`powerDraw`** | **The grade ladder** — gentler, ~100% → 85% | Down |
+| `moduleSlots` | Step curve | Up |
+
+**`powerDraw` is not a pool entry on any kind.** It and `mass` are the two costs of §2.2's constraints
+puzzle and should behave identically — having one rollable and the other not was the real
+inconsistency. Keeping it out also stops every pool gaining the same undifferentiated entry, which
+would have pushed Weapon to 7 and ShieldGenerator to 8 against §2.7's 4–6 legibility budget.
+
+**The draw curve is deliberately gentler than mass.** Capability up to ×5, mass at 70%, and draw at
+70% would compound hard against §2.3 rule 3's power balance — and that rule is a hard validation gate
+that blocks a Template from being saved, so it must stay binding.
+
+*What this costs, stated plainly:* you can never find an unusually efficient instance — every Mythic
+weapon draws the same power. That is one build axis less in the loot, traded for a fit whose power
+balance is computable from grades alone rather than by inspecting every instance. If it ever reads as
+flat, the reversible move is to give **one** kind efficiency as its identity, not to open it
+everywhere.
+
+#### The roster 📋
+
+| Kind | Pool | Aggregation | Power category |
+|---|---|---|---|
+| **Weapon** ✅ | fireInterval ↓ · damage ↑ · projectileSpeed ↑ · spread ↓ · range ↑ · knockback ↑ | per-hardpoint | Weapons |
+| **ShieldGenerator** ✅ | capacity ↑ · coverageRadius ↑ *(Bubble)* · rechargeDelay ↓ · boostMultiplier ↑ · rechargePerSecond ↑ · bleedThrough ↓ | sum within a pool | Shields |
+| **Engine** ✅ | thrust ↑ · turnTorque ↑ · maxSpeed ↑ · boostMultiplier ↑ | sum / **max** for maxSpeed | Engines |
+| **PowerCell** ✅ | generation ↑ · surgeMultiplier ↑ | sum | — |
+| **Armor** ✅ | hullBonus ↑ *(+ flatReduction on one family — see below)* | per-hardpoint | — |
+| **Facility** ✅ | ratePerSecond ↑ · capacity ↑ | per-hardpoint | Facilities |
+| **FireControl** 📋 | traverse ↑ · lead accuracy ↑ · reacquisition ↑ | per-hardpoint | Weapons |
+| **Sensor** 📋 | range ↑ | **max** | Facilities |
+| **CargoBay** 📋 | slotCount ↑ · slotCapacity ↑ | sum | Facilities |
+| **Hyperdrive** 📋 | jumpCountdown ↓ · jumpRange ↑ · cooldown ↓ · fuelCapacity ↑ · fuelPerJump ↓ | sum / **max** for range | Facilities |
+| **Comms** 📋 | commsRange ↑ | **max** | Facilities |
+| **Crew** 📋 | `operation` ↑ · `command` ↑ · boost pools (§2.7). Replaced `Operator`/`Commander` on 2026-08-09 | per-hardpoint | Facilities *(zero draw)* |
+
+#### `Comms` — the kind that closes two gaps at once 📋
+
+*Settled 2026-08-09, added by the command system (§4.0/§4.3).*
+
+**`commsRange` gates command reach**, and it has a second consumer that already exists: `CommsSystem`
+is built and gates hailing on **`SensorRange`** — which conflates two different things. Sensors
+*detect*; comms *talk*. `CommsSystem` uses sensor range only because it was the one range stat that
+existed when it was written.
+
+So one module supplies command reach (new), fixes a conflation in built code (`CommsSystem`'s hail
+check moves to `commsRange`), and gains a §2.4 justification from two independent readers rather than
+one. **Aggregation is `max`**, for the same reason sensors are: two radios do not talk twice as far.
+
+**It also gives ECM a better target.** §2.11 already lists ECM/jamming as a planned kind that
+suppresses enemy sensor range; suppressing enemy *comms* range means jamming a hostile commander's
+ability to issue orders at all, which is a far more interesting thing to attack than their radar.
+
+#### `FacilityKind::Construction` — what gates building 📋
+
+*Settled 2026-08-09.* A new `FacilityKind`, carrying **`buildRange`**, on an ordinary Facility module.
+
+- **It gates the player's build mode.** The B key opens placement only if a living Construction
+  hardpoint exists on the player's rig; otherwise the player orders a unit that has one (§4.3).
+- **It gates the Build order** for any unit, per §4.3's emergent-order rule.
+- **`buildRange` bounds placement around the *builder*, not the player** — which is what makes a
+  constructor's position matter and what makes escorting one to the frontier a real task.
+
+**Distinct from `Manufacturing`, deliberately.** §2.8 already split the two systems on principle:
+construction produces *entities*, manufacturing produces *inventory*. Two systems, two gates, two
+kinds. Reusing `Manufacturing` would also couple build mode to §2.8's manufacturing system, which
+does not exist yet.
+
+**No new `ModuleKind` is needed.** Repair, Research, Docking, Storage, and Engineering are all already
+`FacilityKind`s on Facility modules; §2.11's "each functional module is its own kind" rule targets an
+`Auxiliary` catch-all, not the facility sub-taxonomy.
+
+**§2.9's four power categories need no fifth.** `PowerPriorityFor(ModuleKind)` already maps kinds to
+weapons/shields/engines/facilities, and every new kind slots in: **FireControl → weapons** (it is part
+of the gunnery chain), **Sensor, CargoBay, Hyperdrive → facilities** (shed first, non-combat). Worth
+stating, or the next kind added will prompt someone to invent a category.
+
+#### The three kinds that close existing gaps 📋
+
+Each of these has a **built system with nothing feeding it** — the same shape as the shield defect,
+found by grepping rather than by reading the docs.
+
+**`Sensor`.** `SensorRange` exists in `Targeting.h` and `DiscoverySystem` reads it. §8.3 already
+demands this module by name: *"Sensor modules, picket ships, and stations are radar you build,
+position, and defend."* Thin pool today (range); it grows when there is something to detect *against*.
+
+> ⚠️ **Corrected 2026-08-09: this previously said "nothing produces it."** `RigFactory` emplaces
+> `SensorRange` hardcoded at `2000.0f` on every rig root. So it is not an unproduced stat — it is
+> the same shape as `FiringArc::turnRatePerSecond = kPi`: a **hardcoded producer with nothing
+> authored behind it.** The module is still needed and the gap is still real; it is one rung less
+> broken than recorded, and the fix is to make the value come from a module rather than to invent a
+> producer from nothing.
+
+**`CargoBay`.** §2.2 specifies capacity as coming from mounted bays and `CargoHold` aggregating from
+living ones — but the kind was never added.
+
+- `slotCount` — how many distinct stacks. **Variety.**
+- `slotCapacity` — mass per stack. **Bulk.**
+- **Total is derived** (`slotCount × slotCapacity`) and never authored. A hold with 4 × 250 is an ore
+  hauler; 20 × 50 is a trade-goods runner; both carry 1,000.
+
+**`FireControl`.** Supplies automated tracking, driving `FiringArc::turnRatePerSecond` — read by
+`WeaponSystem` but **hardcoded to `kPi`** and authored nowhere.
+
+> **It stays separate from `Weapon`, and merging them would undo §2.7's turret decision.** If tracking
+> were baked into the gun, a cheap weapon could never be independent and the withdrawn tier gate would
+> be back. Separate modules are what make "cheap turret + good gunner ≈ expensive automated turret"
+> true.
+
+**And the tier progression returns properly, through the general mechanic:** a 1-slot turret fits only
+the weapon and is slaved unless crewed; a higher-grade turret with 2 slots (§2.7's step curve) fits
+weapon **plus** fire control and tracks on its own. Grade buys independence — not by a special
+`crewSlots` rule, but because `moduleSlots` steps up.
+
+#### `Hyperdrive` and fuel 📋
+
+*Settled 2026-08-08.* `WarpSystem` performs local, system, and galaxy warp today with **no module and
+no fuel concept at all.**
+
+> **A hyperdrive is required to jump between systems.**
+
+- **`WarpSystem` gains a gate it does not have** — a behaviour change to built code.
+- **Shooting out a hyperdrive prevents escape.** A real tactical objective, and it makes
+  `NpcAiSystem`'s flee behaviour counterable rather than an automatic out.
+- **`jumpCountdown` is the vulnerability window** — the drive spins up, then you are gone. Distinct
+  from `cooldown`, which is the wait *after* a jump. Interdiction becomes "kill them before the
+  countdown ends."
+- **Every hull can carry one, and it costs a slot and mass.** A fighter trades a gun for independence:
+  take the drive and self-deploy, skip it and be a system-defence fighter that rides in a bay (§4.5).
+  Both playstyles exist and neither is mandated.
+- It also creates the **navigator crew role** §2.7 rejected for having "no skill hook in `WarpSystem`."
+
+**Fuel exists, and the design already assumed it did.** §2.7 cut upkeep on the grounds that *"repairing
+hulls, **refuelling**, and assembling replacement vessels are all recurring credit and material sinks."*
+Without refuelling, that argument loses a leg.
+
+> **Power is the tactical resource. Fuel is the strategic one.**
+
+- **Only hyperdrives consume fuel — never engines.** Engines burning fuel puts a second clock in every
+  dogfight and lets you run dry while manoeuvring, which is pure tedium. Jumps burning fuel means you
+  run dry from **over-extending**, which is a decision you made an hour ago.
+- Consumption scales with jump distance and hull mass.
+- **Refuel becomes `StationServicesMenu`'s fourth service**, alongside buy, sell, and repair.
+- **Running dry strands you**, which `DistressSystem` already exists to make interesting.
+
+#### Armour: flat reduction is one family's identity, not a universal stat 📋
+
+*Settled 2026-08-08 after being flagged as potentially overpowered — it is, as a universal stat.*
+
+Flat reduction subtracts a fixed amount from every hit. Its effect is **nonlinear**: against a
+50-damage shot, 5 is a 10% nerf and 25 is a 50% nerf, and beyond that everything floors. It hard-
+counters entire weapon families, which makes it far swingier than its single number suggests.
+
+So it is scoped rather than dropped:
+
+- **One armour family carries it** — ablative or composite plating. Most armour modules are
+  `hullBonus` only, which makes flat reduction rare by construction rather than by a grade gate.
+- **The floor is ~25%**, not 10%. A mismatched weapon should be heavily penalised but **visibly
+  working** — an absolute block means you shoot and nothing happens, with no feedback and no way to
+  read why.
+- **Percentage resistance is rejected** as redundant: it does the same job on a duller curve, and
+  having both means every hit runs shields, then flat reduction, then a percentage — three mitigation
+  steps to reason about, with a multiplicative stacking problem that then needs a cap.
+
+**It earns its place because it completes a two-axis targeting decision.** §3.2's localized damage
+already means high damage-per-shot *wastes* against small hardpoints, favouring fire rate. Flat
+reduction pushes the other way on armoured ones, favouring per-shot damage. Small targets want rate;
+armoured targets want punch.
+
+#### Planned kinds, not yet specified 📋
+
+| Kind | Consumer status | Cost |
+|---|---|---|
+| **Mining laser** | `MiningSystem` is built and scheduled and reads **no module stat** — mining rate is authored nowhere | Small — the same gap-closing shape as Sensor |
+| **Tractor / salvage** | `LootSystem::FindCollectorInRange` already takes an `extraRadius` parameter **that nothing supplies** | Small — the hook exists |
+| **ECM / jamming** | Suppresses enemy sensor range. Genuinely strategic once §8.3's fog is real | Small mechanic, real depth. Wants fog first |
+| **Cloak / stealth** | ⚠️ **The one on this list that is not a module.** Sensors carry only a range; there is nothing to *detect against*. Cloak needs a signature stat on every hull and a detection check — a system, not an attribute | Large |
+
+
 ---
 
 ## 3. Combat & Localized Damage 📋
@@ -256,8 +2191,200 @@ This is the strongest mechanic in the design, because it makes the interesting d
 *before* the fight rather than during it. Reading an enemy's shield type and bringing the mismatched
 weapon is a real tactical choice; "more DPS" is not.
 
-Baseline types are **Kinetic** and **Energy**. ❓ *Whether the roster expands (Ion, Thermal,
-Corrosive) is open — see §9.*
+#### The roster: two shield types, three weapon types 📋
+
+*Settled 2026-08-08, and the reasoning runs opposite to intuition.*
+
+**Adding shield types makes shields weaker, not richer.** Under the bypass rule above, an attacker
+wants a type the defender does *not* have. With two types a random weapon bypasses 50% of the time;
+with four, **75%**. A fighter carrying one shield generator would be bypassed three times in four,
+and the whole mechanic would quietly become capitals-only, since only they can fit enough generators
+to cover a wide spread.
+
+So the two axes are separated:
+
+| Axis | Roster | Rationale |
+|---|---|---|
+| **Shield-matching type** | **Kinetic · Energy** — two, and it stays two | This is the size of the pre-fight decision. Small keeps shields meaningful at fighter scale |
+| **Weapon behaviour** | Unbounded — `penetration` (§3.5), damage-over-time, disable, splash, tracking | Authored stats on `ModuleDef`. No interaction with the shield matrix at all |
+
+Roster variety therefore costs nothing, because it lives on the second axis. **Weapon types are
+Kinetic, Energy, and Ion** — three weapons, two shields.
+
+#### Ion — the third weapon type, and the only one that attacks power 📋
+
+*Settled 2026-08-08.*
+
+> **Ion is absorbed by *every* shield type — it never bypasses — and strips shields quickly. Once
+> through, it deals no hull damage at all. It suppresses the target's power generation for a
+> duration.**
+
+**It is the only weapon that interacts with §2.9.** Every other weapon reduces `Health`; Ion reduces
+the power budget, and `PowerSystem`'s existing priority shed does the rest — facilities drop, then
+shields, then engines, then weapons, visibly and in a readable order.
+
+**It needs no new machinery.** `PowerSystem` already keeps a shed path for the case where
+*generation* drops (a dead power cell), deliberately separate from allocation overcommit. **An ion
+hit is exactly a generation drop**, so Ion writes a temporary reduction to `PowerSource` output and
+every downstream effect already exists.
+
+**It is the disable weapon §3.2 wants and does not have.** Ion the shields down, kill the cockpit,
+take the hull intact — capture (§3.2's uncrewed hull) becomes a plan rather than an accident.
+
+**Never bypassing is what keeps it fair.** With only two shield types, a weapon that bypassed half
+the time *and* suppressed power would be strictly dominant. Being absorbed by everything is the
+price of its unique effect — and it gives Ion a clean role: it is terrible alone, since an ion-only
+vessel kills nothing, and excellent in a mixed group. That pushes varied loadouts and gives §4.3's
+squad orders something to coordinate.
+
+
+#### Coverage: Personal, Bubble, Conformal 📋
+
+*Settled 2026-08-08, and it fixes a defect. Verified in code: `IsMountable` permits a shield module
+only in a `ShellKind::Shield` housing, and `DamageSystem::ApplyToHealthAndShield` looks up the
+`Shield` component **on the hardpoint being damaged**. So a shield generator protects exactly one
+hardpoint — the housing it sits in. **Shields currently protect shields and nothing else.***
+
+That leaves §3.1's headline mechanic with no effect on anything a player would notice, gives §3.2's
+"stripping or bypassing shields lets fire strike a specific hardpoint" nothing to strip, and leaves
+`PowerSystem` with **zero shield references**, so §2.9's shields power category gates nothing.
+
+⚠️ **It is not that shields deplete and then hardpoints become vulnerable — most hardpoints never had
+a shield in front of them at all.** A fighter carrying a 500-capacity Kinetic generator:
+
+| Shot | Intended | Actual |
+|---|---|---|
+| Kinetic → wing gun | Absorbed by the 500 pool | **Full damage.** Shield untouched |
+| Kinetic → chassis | Absorbed by the 500 pool | **Full damage.** Shield untouched |
+| Kinetic → the shield housing | Absorbed | Absorbed ✅ |
+
+So the generator is functionally **500 extra hull on one hardpoint**, and it is the least important
+hardpoint on the vessel. Bringing the *matching* weapon works perfectly well against everything that
+matters, which is why §3.1's pre-fight decision currently buys nothing.
+
+**The correct reading is that the code implements one of three modes and the other two do not exist:**
+
+| Mode | Covers | Centred on | Radius |
+|---|---|---|---|
+| **Personal** | Its own hardpoint only | — | — |
+| **Bubble** | Hardpoints within a radius | **The mount** | **Authored** |
+| **Conformal** | **Every hardpoint on the rig** | The rig | **None — follows the hull** |
+
+`coverage` is an **identity attribute** (§2.7) — authored per module, never rolled. Conformal is the
+premium mode and should be priced and gated as such.
+
+**Implementation is cheaper than it sounds.** Conformal is a *set-membership* question — "is this
+hardpoint on the same rig?" — not a geometry one; only its *rendering* is conformal. Bubble is one
+distance check. Personal is what exists today.
+
+**A hull's size decides which mode suits it, with no per-class rule.** A conformal field on a 50-unit
+fighter is trivial; on a 2,500-unit dreadnought it is enormous and expensive, so capitals distribute
+Bubble generators and **choose what to protect** — batteries or engines, bow or stern. Fighters and
+capitals defend differently because of what fits, not because anything says "capital" (Law 4).
+
+**Destroying a generator therefore opens a hole in a specific part of the hull**, which is §3.2's
+localized damage finally applied to defence rather than only to offence.
+
+#### Shields render on the overlay layer 📋
+
+*Settled 2026-08-08.* §3.5's draw layer 5 already lists "shield shimmer." Drawing the field there,
+**semitransparent**, does three jobs at once:
+
+- **Coverage gaps become visible.** You can see which part of an enemy capital is unshielded and aim
+  there — §3.2's precision aiming gains a second readable dimension.
+- **Damage type becomes readable from the cockpit** if the tint differs by type. §3.1's whole pitch is
+  "read the enemy and bring the mismatched weapon," and today there is no way to read it without a
+  stats panel. A colour on the hull is the diegetic version.
+- **Depletion is legible** if opacity tracks the pool — you see a shield failing before it fails.
+
+Conformal fields draw as an outline offset from the hull silhouette; Bubble fields draw as a dome of
+their radius; Personal fields hug their own hardpoint.
+
+#### Recharge archetypes 📋
+
+*Settled 2026-08-08. Both behaviours fall out of fields that already exist — no new mechanics.*
+
+`DamageSystem` sets `rechargeCooldown = rechargeDelaySeconds` on **every** absorbed hit, so the delay
+decides whether recharge happens at all:
+
+| Archetype | delay | rate | capacity | Strong against | Weak against |
+|---|---|---|---|---|---|
+| **Regenerative** | 0 | low | low | Chip damage, long attrition | Alpha strikes |
+| **Capacitor** | long | high | high | Alpha strikes, burst trades | Sustained fire |
+
+Two genuinely different defensive philosophies out of three numbers already in the schema.
+
+**This also retires a concern raised the same day** — that on a capital under multi-source fire the
+delay never expires and `rechargePerSecond` becomes dead content. That is not a bug, it is **what a
+Capacitor shield is**, and a hull expecting sustained fire should be running Regenerative. The stat is
+regime-specific, and choosing the regime is the decision.
+
+*A third archetype would need new behaviour:* a **Burst** shield refilling in one lump after the
+delay rather than per second. Distinct feel, but a new recharge mode rather than a new number.
+
+#### The shield stat pool 📋
+
+| Stat | Dir | Weight | Notes |
+|---|:---:|---:|---|
+| `capacity` | ↑ | **2.0** | The only stat that always pays. **No overkill applies** — a shield is a pool, not a hardpoint — so it is cleanly linear, unlike weapon damage |
+| `coverageRadius` | ↑ | **1.8** | Bubble only. Decides how many hardpoints benefit at all; somewhat threshold-like |
+| `rechargeDelaySeconds` | ↓ | **1.6** | The archetype dial. Gates whether recharge exists, which is why it outweighs the rate |
+| `boostMultiplier` | ↑ | **1.5** | §2.9's power-level effect — **required, not optional**; see below |
+| `rechargePerSecond` | ↑ | **1.4** | Linear, but only in the regime where recharge runs |
+| `bleedThrough` | ↓ | **1.2** | Fraction passing to the hull even on a match |
+| `ionResistance` | — | **grade** | Reduces Ion's strip rate. **Moved off the pool 2026-08-08** — seven entries broke §2.7's 4–6 legibility budget, and this reads as build quality rather than a design choice. It scales with grade like `mass` and `powerDraw` (§2.11) |
+| `absorbs`, `coverage`, polarizing | — | **excluded** | Identity (§2.7) |
+
+Bubble generators reach six rollable entries and Conformal five — both inside §2.7's 4–6 legibility
+band, once `ionResistance` moves to the grade ladder and `powerDraw` stays off every pool (§2.11).
+
+**`boostMultiplier` is not a new idea, it is a missing one.** §2.9 already states that "the draw and
+effect multipliers at each level are module attributes," shields are one of its four categories, and
+`PowerSystem` contains no shield references at all. This is the piece that lets shields participate in
+power allocation. A large multiplier is a panic button; a small one is steady.
+
+**`bleedThrough` and `ionResistance` are both one line in `DamageSystem`.** Bleed-through gives "hard"
+versus "soft" shields and suits a design whose §3.4 insists nothing is ever actually safe. Ion
+resistance is the counterplay to a weapon deliberately made strong (§3.1) — absorbed by everything,
+strips fast, suppresses power.
+
+#### Reflect, and why it works here specifically 📋
+
+**A reflected shot is a real projectile travelling back down its own firing line**, not abstract
+damage-back. This design suits it unusually well: projectiles are physical entities that damage
+whatever they pass through (§3.2), so a reflection can hit the shooter, the shooter's wingman, or a
+neutral in the way — and it rewards attacking from angles a reflection will not return along.
+
+It is also **cheap**: `ProjectileSystem` already owns the entity, so reflection is flipping its
+velocity and reassigning its source rather than spawning anything.
+
+⚠️ **Keep the fraction small and the property high-grade only.** A high reflect fraction against a
+high-fire-rate weapon reads as unfair rather than clever.
+
+#### Polarizing shields — very advanced 📋
+
+A shield that **retunes which damage type it absorbs at runtime**: the defensive twin of §2.9's power
+reallocation. You read the incoming type and adapt, at a moment of vulnerability — the switch empties
+the pool or drops it offline.
+
+**Deliberately gated as advanced**, present only on high-grade defs. `DamageSystem` already reads
+`absorbs`, so mechanically it is an intent plus a cooldown; the reason to restrict it is balance, not
+cost.
+
+#### Shields are projectile-only, and that gives ramming an identity 📋
+
+*Settled 2026-08-08.* A shield stops projectiles. **It does not stop hulls.**
+
+> **Ramming bypasses shields entirely.**
+
+That is the payoff: mass and momentum matter beyond flavour, and ramming becomes *the* anti-shield
+tactic, available to anyone willing to trade hull for it (§3.7).
+
+**Standoff distance is dropped.** It is only meaningful under a physical-barrier model, and that model
+would hand every shielded vessel free anti-ram defence — quietly neutering a mechanic that already
+works — while also entangling `CollisionSystem`, docking, and friend/foe rules. **Physical shields are
+logged as a deliberate future feature**, with a real anti-ram identity, rather than arriving as a stat.
+
 
 ### 3.2 Localized Hardpoint Destruction
 
@@ -265,7 +2392,8 @@ Ships and stations are physical collections of hardpoints — **each one its own
 single health bar.
 
 **Targeted systems** — stripping or bypassing shields lets fire strike a specific hardpoint.
-Destroy a thruster shell and the ship stalls. Destroy a weapon battery and that firing arc is gone
+Destroy a thruster shell and the vessel *slows* — propulsion is the sum of its living engines
+(§2.11), so it stalls only when the last one dies. Destroy a weapon battery and that firing arc is gone
 permanently.
 
 **Functional degradation** — capitals and stations lose capabilities dynamically as hardpoints are
@@ -273,8 +2401,89 @@ blown apart: repair bays stop healing, manufacturing bays stop building, shield 
 regenerating.
 
 **Uniformity is the point.** A fighter wing, a station battery, and a capital's dorsal turret are
-the same kind of thing to the damage system. There is no per-craft-type special case — see
+the same kind of thing to the damage system. There is no per-vessel-type special case — see
 `architecture.md` Law 4 for why this is stated so emphatically.
+
+**Fighters are included, not exempted** (decided 2026-08-07). A fighter takes localized damage by
+component location exactly as a capital or station does. Localized damage is not a capital-scale
+feature that fighters approximate with a hull bar — if a hull is too small for its hardpoints to be
+individually hit, the hull's scale is wrong, not the mechanic. See §3.5.
+
+#### Who aims, and at what 📋
+
+*Decided 2026-08-07. This section previously said only that fire "strikes a specific hardpoint"
+without saying who chooses it, and the codebase resolved that ambiguity by choosing for everybody.*
+
+**The player aims manually. There is no target lock.** The player's cursor is the aim point;
+turrets slew toward it within their own firing arcs and fire when they bear. Projectiles are
+physical — they damage whatever they actually pass through, including a hull the player never
+"selected" and including friendly or neutral vessels. **The player is never prevented from shooting
+at something**, and never restricted to one designated enemy.
+
+The consequence, and it is intended: *which hardpoint you destroy is a question of marksmanship.*
+§3.1's shield-type decision is made before the fight; this is the decision made during it. A
+subtarget-cycling UI would return the same information at no risk and is explicitly rejected.
+
+**NPCs aim at a random living hardpoint** of the rig they are engaging, re-rolled only when that
+hardpoint dies. Random is the baseline, not the ceiling:
+
+> **Targeting priority is a function of the pilot's or commander's skill — never of their faction
+> archetype or role.** A veteran pilot works an enemy's engines; a conscript sprays. The archetype
+> weighting in §6.2 governs what a *faction* decides to do strategically; it must never reach down
+> into which hardpoint an individual gun is pointed at.
+
+This is consistent with §6.3 rather than an exception to it: §6.3 permits difficulty to be
+expressed through "loadout quality, numbers, and **tactical decisions**," and target selection is a
+tactical decision. It is not a hidden multiplier, and the player is subject to the same physics —
+an unskilled player also sprays.
+
+#### The cockpit is its own shell, at every scale 📋
+
+*Settled 2026-08-07, after first landing the other way. An earlier draft let §3.5's separation
+minimum decide per hull — integrated cockpit on fighters, separate bridge on capitals. **Uniformity
+won instead:** a fighter's cockpit and a capital's bridge are the same kind of thing and are authored
+the same way, per Law 4.*
+
+**Every crewed hull has a discrete crew shell.** Cockpit on a fighter, bridge on a capital or
+station. It is aimable, destructible, and separately mounted at every scale — no hull integrates its
+crew into the chassis.
+
+> ⚠️ **This forced the scale decision (§3.5), it did not sit beside it.** The old 36-unit fighter
+> could not host a chassis *and* a discrete cockpit at any workable separation minimum. Choosing
+> uniformity here is why **fighters grew to 50 units** — §3.5 now settles that, and every existing
+> blueprint is re-authored against it.
+
+The gain is worth the cost: "shoot the pilot" becomes a real shot on a fighter rather than a
+capital-only tactic, disabling stays distinct from killing at every scale, and there is no
+per-vessel-type branch anywhere in the content or the code.
+
+#### The uncrewed hull 📋
+
+> **A rig whose crew module is destroyed is not a wreck. It is an intact, powerless, un-flown ship.**
+
+This is the payoff of crew-modules-plus-localized-damage (§2.7), and it falls out of mechanics
+already decided rather than needing new ones:
+
+- The hull stops steering and stops firing — nothing is left to issue `ThrustInput` or decide to
+  shoot. It keeps its velocity and drifts.
+- It remains a physical, collidable, targetable object. It can still be shot apart.
+- **It can be captured.** An intact hull with a dead crew is the most valuable thing on a
+  battlefield, and taking it is a deliberate act — disable rather than destroy, then claim it.
+- It gives The Forgotten (*Opportunistic Survival*, §6.2) something specific to circle, alongside
+  the death wrecks §3.3 Tier 2 already hands them.
+
+**Disabling is now tactically distinct from killing**, which is the real gain: "shoot the cockpit" and
+"shoot everything" stop being the same plan, and §3.2's promise that precision is rewarded acquires a
+second, larger payoff beyond disabling a firing arc.
+
+❓ *Open: how capture actually works — fly-to-and-hold, a boarding action, a module installed on the
+capturing ship? And whether an AI faction can capture the player's uncrewed hull the same way (§6.3
+says it should).*
+
+❓ *Open: whether a player-piloted vessel losing its crew shell is fatal to the player.* §3.3 says the
+player dies with the vessel they pilot — but an uncrewed hull is by definition not destroyed. The
+consistent reading is that the player **is** the crew of the ship they are flying, so losing that
+shell is a Tier 1 death and the hull is left for someone else to take. That wants confirming.
 
 ### 3.3 The Cost of Failure
 
@@ -329,7 +2538,7 @@ it looks like when the player's side loses all three at once:
 | Pillar | Lost when |
 |---|---|
 | Command Structure | No surviving station or capital carrying a command module |
-| Recognized Leadership Entity | The player is dead **and** every AI sub-commander (§4.1) is destroyed |
+| Recognized Leadership Entity | The player is dead **and** every AI sub-commander (§4.5) is destroyed |
 | Economic Footprint | No production, no holdings, no territory |
 
 **Everything player-owned is wiped — including knowledge.** Networks die with their hosts (§2.5).
@@ -359,12 +2568,57 @@ to build.
 | Faction reputation (reset to baseline) | |
 | Active contracts | |
 
-❓ *Open, and it decides how hard the rest of this design can lean on loss: whether the player may
-simply reload a save instead. If saves are freely loadable, Hard Game Over is a death screen with
-extra steps and every stake above is theatre. That is a legitimate stance — many sandboxes let
-players set their own harshness — but it needs to be stated deliberately rather than left to fall
-out of the save system's design. Decide the save model (free/manual vs. checkpoint vs. single
-persistent slot) and this resolves itself.*
+#### The Hard Game Over screen offers both exits 📋
+
+*Leaning 2026-08-07, pending final confirmation. Earlier drafts left this open on the grounds that
+freely loadable saves make Hard Game Over "a death screen with extra steps."*
+
+**The Hard Game Over screen presents two choices, and neither is hidden:**
+
+| Choice | Result |
+|---|---|
+| **Load last save** | The run continues from the last save. The galaxy reverts with it. |
+| **Continue in this galaxy** | The player restarts as an independent rogue operator (§5.10) in the *same* galaxy — their former territory unclaimed, rogue scavengers flying their old designs |
+
+**Yes, this makes Hard Game Over optional. That is the correct trade.** Offering the reload does not
+make the second option worthless — it makes taking it a *choice the player makes*, which is a
+stronger position for the design than a harshness the player never consented to. A sandbox that
+forces permadeath on a player twenty hours into a run mostly teaches them to back up their save
+directory.
+
+**The design pays no cost for this**, because §3.3 already establishes that restarting as a rogue
+operator "is the identical entry state as a brand-new game, so this is one code path, not two." Both
+buttons lead somewhere that already has to exist.
+
+**What this does mean is that the Three Pillars must not be balanced as if they were a death
+sentence.** Their real job is to make faction collapse legible and consequential for the *AI*
+factions — a ten-faction galaxy becoming six through play (§5.1) — and the player being subject to
+the same rule is what makes that rule honest rather than a special case. The stakes are systemic,
+not punitive.
+
+#### The save model 📋
+
+*Settled 2026-08-08. This was §9's highest-leverage open item.*
+
+> **Free/manual saves, plus a coarse periodic autosave as insurance.
+> Autosave never fires on death, or on the approach to one.**
+
+**The question was never whether Hard Game Over survives a reload** — §3.3 already concedes the
+reload and offers it as a button. **It is whether Tier 2 survives one.** The recovery run is fully
+specified and partly built (`core/galaxy/WreckRecord`, `LootSystem`'s death-wreck path,
+`architecture.md` §12.5's dual-form resolution), and if death is trivially undoable nobody ever flies
+one. It becomes engineering already paid for and never used.
+
+**Free saves keep it alive, precisely because saves are badly timed.** Reloading costs everything
+since the last save; the wreck costs a flight. Often the flight is cheaper — a player who has not
+saved since before a lucrative haul will choose the run every time. That is a real decision, and it
+is a better one than ironman produces.
+
+**The autosave rule is what the whole thing hangs on.** An autosave triggered at or near death
+rewinds the player to thirty seconds before the fight and the recovery run is dead content again.
+Cadence must be coarse and event-based — on dock, on warp, on a multi-minute timer — and death must
+never be a trigger. This is a design constraint, not an implementation detail, and it belongs in the
+issue that builds saving rather than being left to whoever picks it up.
 
 ### 3.4 No Pause, No Safe Zones 📋
 
@@ -377,32 +2631,1173 @@ There are no safe zones. Docking at a friendly station is protection by *circums
 station's guns and its owner's disposition — never by rule. A station that is losing a fight is not
 a refuge, and §3.3 still applies to a player sitting inside one.
 
+#### What docking actually protects against 📋
+
+*Settled 2026-08-07. The code and this section appeared to contradict each other —
+`DockingSystem` removes `Targetable` on dock, which reads as invulnerability. The resolution is that
+they are describing different threats.*
+
+> **A docked vessel cannot be shot. A docked vessel dies with its host.**
+> Nothing is invulnerable; what differs is *how* a thing is vulnerable.
+
+| While docked | Exposed to |
+|---|---|
+| Direct fire, ramming, targeting | **No** — the vessel is not a target |
+| Destruction of the docking facility | **Yes — total.** Every vessel inside is destroyed with it |
+
+This applies identically to the player and to NPCs (Law 4, §6.3). Docking during a losing fight is
+not an escape; it converts a risk you can dodge into one you cannot, and hands your survival to a
+structure someone else is shooting at. §3.4's "protection by circumstance, never by rule" is exactly
+this — the circumstance is whether the host holds.
+
+**It also makes the recovery run (§3.3 Tier 2) reachable from a dock death**: a station's
+destruction should leave the wrecks of what was inside it, not silently delete them.
+
+#### Where the player is, always 📋
+
+*Settled 2026-08-08. This closes an ambiguity that ran through §3.2, §3.3, and §4.5 — the documents
+variously had the player as a pilot, as a walking person on a bridge, and as a docked state flag.*
+
+> **The player is always associated with exactly one shell.
+> Flying, that is their cockpit. Aboard, it is the shell they are currently in.
+> If that shell dies, the player dies.**
+
+Docking places the player **in the docking bay**, alongside the vessel they arrived in (§4.5). From
+there they move to a facility — engineering, manufacturing, research, the bridge — by selecting it.
+**Movement is instant**, because the time cost §3.4 cares about is the interaction itself, not the
+walk. While they are in that facility, they *are* in that hardpoint.
+
+Four things follow, and all four are wanted:
+
+- **It answers §3.2's open question about the crew shell with no special case.** One predicate covers
+  flying and docked alike: lose the shell you occupy, lose the player.
+- **It sharpens what §3.4 already says.** A docked vessel dies with its host; the *player* dies with
+  their **current facility**, which can be destroyed while the station lives. "They blew the
+  engineering bay while you were mid-merge" is a far better death than "the station fell."
+- **Vessel and pilot become independently losable.** Your fighter sits in the bay; if the bay is
+  destroyed you lose the vessel wherever you are, and if your facility is destroyed you are gone but
+  the vessel is not.
+- **It makes the facility menus and §4's component-driven UI the same feature.** Moving between
+  facilities *is* the navigation, each menu is gated on its own hardpoint being alive, and §4's
+  "destroying a hardpoint removes its tab mid-session" falls out rather than being implemented.
+
+> ⚠️ **Every facility menu must display its own hardpoint's health.** Without it, dying in a menu
+> reads as an arbitrary gotcha rather than as the tension it is meant to be. The player has to be
+> able to see it coming, and the component-driven pattern §4 already specifies is where it goes.
+
 This is what gives the engineering and command layers real weight: time spent in a menu is time the
 galaxy spends without the player watching it, and choosing *when* to open one is a tactical decision.
+
+##### Nothing in the code carries this yet 📋
+
+*Verified 2026-08-08.* This subsection is the most-cited model in either document and **no component
+implements it.** `PlayerControlled` is a bare tag on a rig root; there is no field anywhere naming
+the shell the player occupies, so the predicate "lose the shell you occupy, lose the player" has
+nothing to evaluate. What exists is one half of the fiction: `BridgeView` already gates on `Docked`
+and lists the host station's *living* facility hardpoints as tabs — the tab list this section
+describes, computed correctly, with no notion of the player standing in one of them.
+
+`architecture.md` §12.24 specifies the missing piece as **`PlayerLocation { entt::entity shell; }`**
+and makes selecting a tab the act of moving. Two things this section promises fall out of it rather
+than needing to be written: the death predicate becomes uniform across flying and docked, and
+"they blew the engineering bay while you were mid-merge" becomes `DamageSystem` destroying a
+hardpoint that happens to be the one `PlayerLocation` names.
+
+⚠️ **Two gaps behind it, both content rather than design.** `data/base_game/modules.json` authors
+exactly one facility (`docking_bay_i`), so a correct implementation still surfaces a one-tab bridge
+until Storage, Engineering, and Repair facilities are authored — and `WorldGen` spawns no stations
+at all, so there is currently nothing to dock at in a generated system.
+
+### 3.5 Object Scale & Hardpoint Placement 📋
+
+*Settled 2026-08-08. Scale was previously an art decision with no design consequence. §3.2's manual
+aim makes it a mechanical one: if two hardpoints cannot be told apart on screen, they cannot be aimed
+at separately, and localized damage silently degrades into a hull bar.*
+
+#### Hardpoints vary in size, and art matches collision
+
+**A shell's size is authored per type, in JSON, and its hit radius matches its drawn size.** A wing
+gun is small; a chassis is large; a station's main battery is very large. Nothing is uniform.
+
+*A uniform-size model was specified and then withdrawn on 2026-08-08.* It was elegant — one constant,
+hull size derived from hardpoint count — but it forced the chassis into a special case (large art,
+tiny hit circle), made hardpoints on a 2,500-unit hull only ~2 px when the ship was framed, and
+pushed large hulls into the hundreds of hardpoints. Matching size to art fixes all three at once, and
+it is what `ShellDef.radius` already does: wing 7, power bay 8, thruster 9, facility bay 14, chassis
+22, station core 45.
+
+**The rule that follows is simple and is the whole reason size matters.** Projectiles are
+dimensionless; the hit test asks whether a projectile's path passes within a hardpoint's radius. So
+two hardpoints are individually aimable exactly when their hit circles are disjoint:
+
+> **distance between centres ≥ r(A) + r(B)**
+
+**And placement needs an upper bound too**, or a hardpoint satisfies "connected" while floating in
+space beside the hull:
+
+> **r(A) + r(B) ≤ distance ≤ (A's extent + B's extent)**
+
+The lower bound keeps parts separately aimable; the upper keeps them visually attached. Validation
+rule 7 already checks graph connectivity; neither bound is checked today.
+
+**And the hull itself needs an envelope** (settled 2026-08-08), because neither bound stops
+*chaining*: rule 11 lets a mount attach to another mount, so a fighter can legally grow a
+forty-hardpoint tentacle with every pairwise check passing.
+
+> **Rule 12 — hull envelope:** every mount's centre plus its radius falls within `hullRadius` of the
+> chassis, where **`hullRadius` is authored on the chassis shell.**
+
+*This inverts how this section previously read.* An earlier draft treated hull radius **R** as an
+abstract quantity you derived the chassis from (`chassis = 0.5R`). It is the other way round:
+`hullRadius` is the one authored number that says how big a vessel is, and everything else — chassis
+size, peripheral count, mass, manufacturing cost — follows from it.
+
+**Placement is otherwise free.** A hardpoint may sit anywhere on a hull provided it is attached to
+the rig graph and satisfies all three bounds. Players are not restricted to authored slots.
+
+#### Hardpoint count is emergent, not authored 📋
+
+*Settled 2026-08-08. An authored `maxMounts` cap was considered and rejected — rules 10 and 12
+already produce the count, and a second cap would be a hidden vessel-class concept in a design that
+deliberately has none (Law 4).*
+
+Rule 11 puts a peripheral's centre at `c + p` from the chassis centre; rule 10 requires adjacent
+centres to be at least `2p` apart. So the centres lie on a ring of circumference `2π(c + p)`, each
+consuming `2p` of arc:
+
+> **peripherals per ring ≈ π(c + p) / p**
+> `c` = chassis radius · `p` = peripheral radius · another ring fits at `c + 3p` if `c + 4p ≤ hullRadius`
+
+This reproduces the scale table below from pure geometry:
+
+| Hull | `c` | `p` | Rings | Count | Table says |
+|---|---:|---:|:---:|---:|---|
+| Fighter, `hullRadius` 25 | 12 | 6 | 1 | **9** | "~9 at p = 0.25 R" ✓ |
+| Fighter, `hullRadius` 25 | 12 | 2.5 | 1 | **18** | "~18 at p = 0.1 R" ✓ |
+| Station, `hullRadius` 1250 | 625 | 150 | 2 | 16 + 22 = **38** | "20 – 50" ✓ |
+
+**Smaller peripherals mean more of them; the envelope decides how many rings.** That is the design
+lever, chosen per hull, and it is why the scale table below is *descriptive* — a consequence of three
+authored numbers rather than a target to hit.
+
+**Three existing rules bound it from the other directions**, so no further cap is needed:
+
+| Constraint | Caps |
+|---|---|
+| Rule 4 — total mass within the chassis threshold | How many you can afford to **carry** |
+| Rule 3 — net power ≥ 0 | How many you can **run** — more modules need more power cells, which need mounts and mass |
+| Rules 10 + 12 | How many physically **fit** |
+
+**On modding and player Templates, this is self-correcting.** Someone authoring `hullRadius: 1250`
+on a thing named "fighter" has not exploited anything in normal play: **players cannot author
+shells at all** (§2.2), so a Template is assembled only from what `shells.json` already contains. A
+modder who edits `hullRadius` is doing the same thing as a modder who edits `damage`, and is
+unconstrainable either way. The authoring-accident case is what §2.2's optional rule 13 mass-sanity
+band exists for.
+
+**Manufacturing cost scales with total mass** (§2.8), which closes the loop: a bigger envelope is a
+bigger hull is a heavier hull is a more expensive hull.
+
+#### The chassis is the hull
+
+**A chassis's radius is ~50% of its hull's `hullRadius`** — an authoring convention, not a derivation
+(see rule 12 above) — and its sprite carries the ship's silhouette.
+Everything else rings it and protrudes past its edge — which is what a ship *looks* like: a body with
+wings, engines, and turrets attached.
+
+It also makes shooting intuitive with no explanation needed: **hit the middle and you hit structure;
+hit the wing and you kill the gun.**
+
+The geometry that follows, for a hull of radius **R**:
+
+| Quantity | Value | On a 50-unit fighter (R = 25) |
+|---|---|---|
+| Chassis radius | 0.5 R | 12 |
+| Peripheral radius | ≤ 0.25 R | ≤ 6 |
+| Peripheral centre distance | 0.5 R + p | 18 |
+| Outer extent | 0.5 R + 2p | 24 — inside the hull ✅ |
+| Peripherals that fit on one ring | ~9 at p = 0.25 R, ~13 at p = 0.15 R, ~18 at p = 0.1 R | 9–18 |
+
+Smaller peripherals mean more of them — a direct design lever on how finely a hull subdivides under
+localized damage, chosen per hull rather than forced by a constant.
+
+*This is exactly why `aegis_vanguard` fails today:* a chassis radius of 22 on a 36-unit hull swallows
+the entire ship, leaving nowhere legal for anything else. The fix is a smaller chassis radius and a
+bigger hull — both of which the table below supplies.
+
+#### The scale table 📋
+
+| Object | Units | Hardpoints | Note |
+|---|---|---|---|
+| Shuttle / courier | 25 – 40 | 4 – 6 | |
+| **Fighter** | **50** | 7 – 19 | Chassis r ≈ 12, peripherals r ≈ 5 – 6 |
+| Transport | 100 | 10 – 20 | |
+| Corvette / gunship | 150 – 400 | 15 – 30 | |
+| Cruiser | 500 – 1,000 | 20 – 40 | |
+| **Dreadnought / station** | **2,500** (cap) | 20 – 50 | Chassis r ≈ 625; batteries r ≈ 100 – 200 |
+| Asteroid | 20 – 200 | 1 – 8 | |
+| **Planet** | **20,000 – 100,000** | — | Not fightable |
+| **Star** | **40,000 – 350,000** | — | By luminosity class |
+| **System radius** | **400,000 – 2,000,000** | — | By luminosity class |
+
+**Fighter to dreadnought is 50×**, and a dreadnought's batteries stay visible and aimable at
+whole-ship framing: a 150-radius turret on a 2,500-unit hull is ~120 px when the ship is framed at
+1,000 px. Capitals can be fought either whole or section by section, which is a camera choice rather
+than a constraint.
+
+#### Why 2,500 caps a fightable hull
+
+**Operating one.** A player flying a dreadnought must zoom out to see it and its surroundings. That
+is fine, because **operating a capital is positioning, power allocation, and target designation, not
+marksmanship** (§4.0) — its turrets are crewed and target independently (§2.7), so the player flies
+while gunners shoot. It does mean an *uncrewed* capital is nearly useless, which is exactly the
+pressure that makes capital crew slots matter.
+
+**Reading one.** Beyond ~2,500 units a hull stops being comprehensible on screen at any useful zoom.
+Larger structures are scenery or set-pieces, not things fought hardpoint by hardpoint.
+
+**A target schematic panel is still wanted**, though no longer strictly mandatory: a wireframe of the
+current target showing live hardpoint status is how a player reads what they have already stripped
+off a capital, especially when engaging one from outside visual range (§ weapon ranges below).
+
+#### System radius scales with star class 📋
+
+Bigger stars get bigger systems, keeping the star-to-system ratio near 1:20 and giving luminosity
+class a consequence the player *feels* while crossing a system rather than only sees in the lighting.
+
+| Class | Star diameter | System radius |
+|---|---|---|
+| Dwarf | 40,000 – 80,000 | 400,000 – 700,000 |
+| Main sequence | 80,000 – 150,000 | 700,000 – 1,200,000 |
+| Giant | 150,000 – 250,000 | 1,200,000 – 1,600,000 |
+| Supergiant | 250,000 – 350,000 | 1,600,000 – 2,000,000 |
+
+A ratio much below 1:10 crowds every orbit into one shell — a 500,000-diameter star in a
+1,000,000-radius system leaves barely 4:1 between innermost and outermost orbit, which is why the
+star band is capped where it is.
+
+**System radius is seed-derived and must never be stored** (§7.2) — it follows from star class, which
+follows from the seed. Caching it into a record invites the two to drift.
+
+##### The 2,000,000 ceiling exists for a specific reason
+
+`float` precision is relative, so at large coordinates small increments round away entirely:
+
+| System radius | ULP at edge | Movement slower than this is **lost** |
+|---|---|---|
+| 1,000,000 | 0.0625 | ~1.9 units/sec |
+| **2,000,000** | **0.125** | **~3.8 units/sec** |
+| 4,000,000 | 0.25 | ~7.5 units/sec |
+
+`position += velocity * dt` does not change the value when the increment falls below half a ULP. At a
+4,000,000 radius anything drifting under ~7.5 units/sec **freezes** — which would hit drifting
+uncrewed hulls (§3.2), debris, and fine docking adjustments. Capping at 2,000,000 keeps the threshold
+low enough that only barely-moving things are affected, and still leaves a 5× spread between the
+smallest and largest systems.
+
+*This is deterministic precision loss, so it does not desync multiplayer (Law 2 is safe) — a gameplay
+artefact, not a correctness one.*
+
+**Three consequences of variable system size, worth deciding rather than discovering:**
+
+- **Travel time varies with radius.** Either warp velocity scales with system size, or warp is a jump
+  to a target rather than continuous travel. A constant warp speed makes supergiant systems tedious.
+- **Content density.** If orbit *count* stays fixed while radius grows, big systems are proportionally
+  emptier. Either scale body count too, or accept vastness as the character of giant systems — but
+  choose it.
+- **Level 3's zoom-out limit becomes per-system** (fit this system) while its zoom-in limit stays
+  fixed (ship detail). The zoom *range* varies; the scale within it does not (§8.1).
+
+#### Penetration is a weapon property, not a global rule 📋
+
+A projectile stops at the **first** hardpoint it reaches. Universal pass-through would swing a
+weapon's output several-fold on geometry alone, which is unbalanceable, and it deletes the choice of
+*which* hardpoint to hit.
+
+**`penetration` is an authored weapon stat** (Law 10): most weapons stop at the first hardpoint, while
+a railgun or lance passes through N, or until its damage budget is spent. Raking a dreadnought down
+its long axis becomes a real shot to be rewarded for, on the weapons built for it.
+
+It costs almost nothing — resolving hits *in order along the path* is already required to fix the
+tie-break defect (`architecture.md` §12.14 item 17), and penetration is then "take the first N."
+
+#### Weapon range follows hull class
+
+| Class | Range | Relationship |
+|---|---|---|
+| Fighter | 800 – 1,000 | Both combatants on screen; a brawl |
+| Capital | 3,000 – 6,000 | Must exceed own hull length so a bow turret covers the stern |
+
+Capitals therefore fight beyond visual range while fighters fight inside it — a real class distinction
+rather than the same fight at two sizes.
+
+Projectile speed ~1,200 – 1,800 units/sec, giving a per-tick step of 20 – 30 units. **That exceeds the
+diameter of every small hardpoint in the game**, so the swept-segment collision test
+(`architecture.md` §12.16) is mandatory; a point test would tunnel straight through.
+
+#### Rendering: five z-layers 📋
+
+Shells declare a draw order so top-down hulls read with depth:
+
+| Layer | Contents |
+|:---:|---|
+| 1 | **Ventral** — engine housings, drop tanks, under-mounts |
+| 2 | **Hull** — the chassis |
+| 3 | **Hull detail** — panelling, markings, faction livery |
+| 4 | **Dorsal** — turrets, canopy, sensor domes |
+| 5 | **Overlay** — thruster glow, shield shimmer, damage decals |
+
+⚠️ **`ShellDef` needs a second field for this.** `spriteLayer` today is a *string asset key* — it says
+which image, not what order. A z-layer value (1–5) is a separate concept and currently does not exist
+anywhere in code or docs. One string doing two jobs is how the two drift apart. Default the layer per
+shell type, with an optional per-mount override in the blueprint for hulls that want an engine
+mounted ventrally rather than dorsally.
+
+**Within a layer, sort by y-position** (settled 2026-08-08) — **local** y, measured against the hull,
+not world y.
+
+This matters more than it sounds. In a true top-down view nothing is genuinely nearer the camera, so
+the sort is a *tiebreak*, and its job is to be **stable**. Sorting on world y would re-order a hull's
+own parts as it turned, so a turret drawn over its neighbour would pop behind it when the ship rotated
+180°. Local y is fixed relative to the hull, so the stacking never changes.
+
+*A free consequence:* because local y never changes, **the order can be computed once when a rig is
+built and stored**, rather than re-sorted every frame. Sorting between separate rigs can stay
+arbitrary — two ships overlapping at the same altitude have no correct answer anyway.
+
+**Turret sprites rotate** (settled 2026-08-08). A turret's drawn rotation is its mount's world
+rotation **plus `FiringArc::currentOffset`**, so a gun visibly tracks what it is aiming at rather than
+firing sideways out of a fixed barrel.
+
+- **No new field is needed to know which shells rotate.** A hardpoint carrying `FiringArc` rotates;
+  everything else simply inherits the hull's rotation. Engines, plating, and power bays stay put.
+- **Turret art must pivot about its mount point**, so the sprite's centre of rotation is its base, and
+  the barrel points along the sprite's forward axis.
+- **Collision is unaffected** — a hit circle is rotation-invariant.
+- **A long barrel will sweep visually over neighbouring hardpoints**, which looks right and is
+  harmless. But it means rule 11's attachment bound should measure a turret's **base** extent, not its
+  barrel length, or long-barrelled guns will fail a check they are not actually violating.
+
+#### Texture resolution per object class 📋
+
+**The rule: an asset wants roughly the pixels it will ever occupy on screen, and no more.** Maximum
+zoom frames a 50-unit fighter across a ~900 px viewport, giving a ceiling of **18 px per world unit**.
+Large objects are never viewed at that zoom — a dreadnought is fought at ~2–4 px/unit — so their art
+is budgeted against the zoom they are actually seen at.
+
+| Asset | Diameter | Viewed at | Max px | **Ship at** |
+|---|---|---|---|---|
+| Small hardpoint — wing gun, emitter | 10 – 20 units | 18 px/unit | ~360 | **512²** |
+| Medium hardpoint — thruster, bay | 20 – 40 | 18 | ~720 | **1024²** |
+| Fighter / shuttle chassis | 25 – 50 | 18 | ~900 | **1024²** |
+| Capital turret / battery | 200 – 400 | 4 | ~1,600 | **1024²** |
+| Capital chassis (≤ 600 units) | ≤ 600 | 4 | ~2,400 | **2048²** |
+| Capital chassis (> 600 units) | up to 2,500 | 2 – 4 | > 5,000 | **segmented** — tiles from a shared library |
+| Asteroid | 20 – 200 | 8 – 18 | ~1,600 | **1024²** |
+| Planet | 20,000 – 100,000 | fills viewport | ~1,000 | **1024²** |
+| Star | 40,000 – 350,000 | fills viewport | ~1,000 | **2048²** |
+| Thruster plume | 10 – 30 | 18 | ~540 | **512²** |
+| Explosion | 50 – 200 | 8 | ~1,600 | **1024²** |
+| Projectile | 2 – 6 | 18 | ~110 | **128²** |
+| Map icon | fixed screen size | — | 32 – 64 | **generated at runtime** (§8.2) |
+| HUD element | fixed screen size | — | native | **native, never scaled** |
+
+**Only three things justify 2048²**: capital chassis art up to ~600 units, stars, and nothing else.
+**Above ~600 units a chassis must be tiled**, drawn from a shared library of hull segments rather than
+authored whole — that is a memory decision *and* a natural fit for the modular design everything else
+in §2 already uses.
+
+**Budget estimate** at block compression (~1 byte/px) plus mipmaps:
+
+| Category | Count × size | Total |
+|---|---|---|
+| Small/medium hardpoints | 40 mixed | ~30 MB |
+| Fighter and small chassis | 20 × 1024² | ~27 MB |
+| Capital chassis segments | 30 × 2048² | ~160 MB |
+| Asteroids, planets, stars | ~35 mixed | ~67 MB |
+| Effects, projectiles | — | ~10 MB |
+| **Total** | | **~290 MB** |
+
+**The single biggest lever is sharing capital chassis segments.** Authoring unique art per capital
+design multiplies that category by the number of designs; a shared segment library keeps it flat.
+
+⚠️ **Mipmaps are mandatory, not an optimisation.** Objects are viewed across a very wide zoom range by
+design, and an unmipmapped sprite shimmers badly as it shrinks. Budget the ~33% from the start.
+
+**Author at 2048², ship at these sizes.** Downsampling at bake time is free and keeps headroom.
+Shipping the authoring resolution is what turns a texture budget into a problem.
+
+> ✅ **The texture atlas un-defers here** (2026-08-08). `architecture.md` §6 is 🧊, and §2.5 says a
+> deferral ends when *"a shipped feature demands it."* §9's performance budget is that demand: 5,000
+> hardpoint sprites plus 5,000 projectiles is ~10,000 sprites per frame. The quad count is trivial
+> for any GPU; **the texture binds are not**, because every shell type carries its own sprite, and
+> thousands of state changes per frame will stall long before the simulation does.
+>
+> **Only the atlas un-defers.** UUID/hashed asset ids, audio banks, and hot-reload stay 🧊 — recording
+> which piece the trigger actually justifies is what keeps the rest of the deferral honest.
+
+#### Art direction: stylised high resolution 📋
+
+**Flat shading, limited palette, strong silhouettes, hard edges** — not painted realism, and not pixel
+art.
+
+**Why not pixel art**, despite real advantages in production cost, memory, and small-size readability:
+two properties of this design fight it continuously rather than once.
+
+- **Free rotation.** Hulls turn to arbitrary angles and turrets slew continuously within their arcs.
+  Pixel art has no correct answer for a 37° rotation without pre-rendered frames or resampling that
+  destroys the grid.
+- **A ~100:1 zoom range** inside Levels 3–4 alone. Pixel art wants integer scale factors; ours are
+  continuous, and the mipmapping this zoom range makes mandatory is what turns pixel art to mush.
+
+Pixel art remains viable *if* §8's zoom model commits to **discrete integer zoom steps** and accepts
+rotational aliasing as part of the look — a decision about the zoom model, not an art preference, and
+it would also require redoing the chrome-and-glass HUD to match.
+
+**It does not change the resolutions above, but it changes what they buy.** You are paying for **edge
+fidelity, not interior detail**: flat interiors survive downscaling almost losslessly, while hard
+edges are the first thing to break when a sprite is upscaled.
+
+**Two consequences worth planning for:**
+
+- **Damage states and faction/tier colour should be palette shifts and overlay decals, not separate
+  textures.** Flat limited-palette art tints cleanly from a greyscale master, which cuts asset
+  *count* — the real budget, since resolution is settled.
+- **Test block compression early.** BC7 banding and ringing are *more* visible on flat areas adjacent
+  to hard edges than on noisy detail. This style is harder to compress cleanly than painted art,
+  which is the opposite of the usual intuition.
+
+#### ❓ Open: what a destroyed hardpoint looks like
+
+`WorldRenderer` notes that there is no wreck art and that drawing a dead hardpoint identically to a
+live one is wrong. With localized damage as a headline mechanic (§3.2), **a player must be able to
+read a hull's state at a glance** — which of an enemy's turrets are gone, whether its engine is dead.
+
+Three options:
+
+| Option | Cost |
+|---|---|
+| A scorched **variant sprite** per shell | Doubles the shell art library |
+| **Drop the sprite**, leaving a visible gap in the hull | Free, but a hull becomes holes rather than damage |
+| A **damage decal on layer 5** | One overlay reused across every shell |
+
+**Recommendation: the layer-5 overlay.** The flat limited-palette art style (below) makes a single
+scorch/breach decal read correctly over any shell, so it costs one asset rather than one per shell —
+and the five-layer stack already exists to carry it.
+
+#### Enforcement, not documentation
+
+Both placement bounds become **blueprint validation rules** (§2.3), checked by `Validation.h` on every
+authored *and* player-created blueprint and run in CI against `data/base_game/`:
+
+- **Rule 10 — separation:** no two mounts closer than `r(A) + r(B)`.
+- **Rule 11 — attachment:** every mount within `A extent + B extent` of what it attaches to.
+
+A hull that violates either fails to load with a specific error, the same way the other nine rules
+already work. A scale spec that lives only in this document will be violated by the third ship
+somebody authors.
+
+### 3.6 The Input Map 📋
+
+*Consolidated 2026-08-08. Several sections independently claimed keys; this is the single place they
+are reconciled. **All bindings are rebindable in the Settings menu** — these are defaults.*
+
+| Input | Action | Source |
+|---|---|---|
+*Rebuilt 2026-08-09. The previous table predates the command pass (§4.0/§4.3) and contradicted §2.9
+on power. Every row below is current.*
+
+##### Flight
+
+| Input | Action | Source |
+|---|---|---|
+| **W** | Thrust forward | `ThrustInput.forward` |
+| **S** | Reverse thrust — and therefore the brake | `ThrustInput.forward` negative |
+| **A / D** | Turn left / right | `ThrustInput.turn` |
+| **Q / E** | Strafe left / right | `ThrustInput.strafe` |
+| **Ctrl** *(hold)* | **Afterburner** — engines Boosted while held | §2.9 |
+
+**All three axes of `ThrustInput` now have a producer**, which is the point: the component has
+carried `forward`, `strafe`, and `turn` since it was written and nothing has ever set any of them
+for the player (`architecture.md` §12.24).
+
+##### Combat
+
+| Input | Action | Source |
+|---|---|---|
+| **Mouse position** | **Aim point.** The cursor *is* where weapons point — no target lock | §3.2 |
+| **Left mouse** | Fire every **enabled** weapon group — *and place, in build mode* | §3.2 |
+| **1 – 0** | Toggle weapon group 1–10 on/off | below |
+| **F / G / H / J** | Power: weapons · shields · **engines** · facilities. **Tap** = Boosted, **hold** = Offline | §2.9 |
+
+##### Command
+
+| Input | Action | Source |
+|---|---|---|
+| **Right mouse** | **Select** a unit · **drag** = box select · **double-click** = every unit of that `BlueprintId` on screen · **click in world** = issue the armed order | §4.3 |
+| **Shift** | **Add** — to the selection, or **append** the order to the queue instead of replacing it | §4.3 |
+| **Z / X / C / V** | Arm an order: **Move · Attack · Defend · Build** | §4.3 |
+| **N** | Arm **Stop** — halt and clear the unit's queue | §4.3 |
+| **T** | Cycle stance: Hostile → Defensive → Peaceful | §4.3 |
+
+> **Order verbs extend rightward along the bottom row.** `Z X C V` are the four, and a fifth verb
+> takes the next free key to the right — `B` is build mode, so `Stop` lands on `N`, and a sixth would
+> take `M`. Recording the *rule* rather than only the keys, so the next verb has an obvious home
+> instead of a fresh argument.
+
+##### Modes and everything else
+
+| Input | Action | Source |
+|---|---|---|
+| **B** | Build mode — only with a living `FacilityKind::Construction` hardpoint aboard | §2.11 |
+| **R** | Dock / undock | built (`AvionicsMenu`) — **moved off `E`, see below** |
+| **Tab** | *Reserved* — tactical map overlay, where off-screen units are selected (§4.3) | §8.1 |
+| **Scroll** | Zoom — and zooming out far enough *is* the navigation map | §8 |
+| **Esc** | Clear selection; **if nothing is selected**, the pause menu. Singleplayer only | §3.4, §4.3 |
+
+> ⚠️ **`R` for dock is a change to shipped code.** `AvionicsMenu.cpp` declares
+> `constexpr int kDockKey = KEY_E` — the **only** gameplay input that exists in the repository today.
+> `E` is now strafe-right, so this binding must move in the same commit that adds flight controls, or
+> docking and strafing fight over one key.
+
+#### Weapon groups 📋
+
+*Settled 2026-08-09.* **Ten toggleable groups, on `1`–`0`.** Left-click fires every enabled group;
+a disabled group holds fire.
+
+**Why ten assignable groups rather than three automatic ones.** Grouping by §3.1's damage type was
+proposed and rejected: damage type has exactly three values, but §3.1 puts **weapon behaviour on an
+explicitly unbounded axis** — *"penetration, damage-over-time, disable, splash, tracking."* A missile
+rack and an autocannon can both be Kinetic and want entirely different trigger discipline, and damage
+type cannot separate them. Ten groups covers the unbounded axis; three would have covered only the
+capped one.
+
+| | |
+|---|---|
+| **Membership** | A group index on each weapon hardpoint. Assigned by the player out of combat, in the fit screen |
+| **Default** | **Each distinct weapon `ModuleId` takes the next free group**, so a newly built ship arrives sensibly pre-grouped with no player action. A hull with two cannon types and a missile rack boots with three live groups |
+| **Enabled state** | Per rig, not per group definition — a bitmask on the rig root, so it is session state and costs nothing to save |
+| **Destroyed hardpoints** | Simply stop contributing. A group whose every hardpoint is dead is dead, and no bookkeeping is required (§2.11's aggregation rule) |
+
+**What this buys, and it is not just convenience.** §3.1 makes Ion *suppress power* rather than
+damage hull, and §9's capture route is "strip shields, suppress power, kill the crew shell, take the
+hull." That is **impossible today** — with one rig-wide fire command your kinetics destroy the prize
+while your ion is disabling it. Weapon groups are what make the capture route reachable at all.
+
+It also gives finer power control than §2.9's category switch: silencing one group frees budget
+without taking *all* weapons Offline.
+
+#### The rules behind the layout
+
+1. **The left hand never leaves the movement cluster; the right never leaves the mouse.** The mouse
+   is aiming continuously (§3.2), so it can never travel to a menu.
+2. **One action per order.** §4.4's no-pause rule means nothing here is a menu — the only modifier is
+   `Shift`, and it means the same thing everywhere.
+3. **`Shift` means *add*, always.** Add to the selection, or add to the order queue. One mental
+   model, and it is the convention every RTS player already has.
+
+> ⚠️ **Rule 1 is a target, not a guarantee, and this layout bends it.** `H`, `J`, and `6`–`0` sit
+> outside comfortable left-hand reach. That is a deliberate trade: power allocation and weapon groups
+> want *dedicated, always-available* keys more than they want *ideal* ones, and both are toggles
+> rather than continuous inputs, so a brief reach costs a moment rather than a manoeuvre. **The
+> previous version of this section claimed every action key sat in the left-hand cluster; that is no
+> longer true and pretending otherwise would hide a real ergonomic cost.** All bindings are
+> rebindable, which is the mitigation.
+
+**The afterburner moved from `Shift` to `Ctrl`** so `Shift` could take its conventional "add"
+meaning. §2.9's argument for the afterburner — that it is the clearest demonstration of power
+allocation and should be the first thing the player meets — does not depend on which key it sits on.
+`Ctrl` held is a momentary boost; tapping `H` is the sustained toggle. Both reach Boosted, and having
+both is deliberate rather than a collision.
+
+**The navigation map has no dedicated key** — it is the far end of the zoom range, not a screen
+(§8.1). Reaching it costs the same zoom-out that makes you blind to your surroundings, which is the
+tension §3.4 wants. `Tab`'s reserved tactical overlay is a *different* surface: a HUD minimap for
+selecting units you cannot see, not the full map.
+
+❓ *Open: whether Offline should require a deliberate input rather than a hold, since cutting engines
+dead by mis-click while being chased is not a decision anyone means to make.*
+
+❓ *Open: controller support.* Neither document has ever addressed it, and this layout is genuinely
+hostile to a gamepad — a continuous cursor aim point plus box selection plus fourteen discrete
+actions. Recorded now because it is cheap to note and expensive to discover after the UI is built.
+
+
+### 3.7 Collision, Ramming & Structural Destruction 📋
+
+*Settled 2026-08-08. Much of this is already built; what follows records what exists, what changes,
+and two proposals that were considered and declined.*
+
+#### Ram damage already scales with mass and speed ✅
+
+`CollisionSystem::ApplyRamDamage`:
+
+```
+baseDamage = kRamDamagePerSpeed * speedChange
+heavyShare = lighterMass / (massA + massB)      // the heavier side's share
+lightShare = 1 - heavyShare                     // the lighter side's share
+```
+
+A dreadnought of mass 100 ramming a fighter of mass 10 takes **9%** of the damage and deals the
+fighter **91%**. Damage lands on the **nearest living hardpoint to the contact point on each side**,
+so ramming already localizes (§3.2). The heavier rig is not displaced at all; the lighter absorbs the
+whole position correction. `RamCooldown` stops two overlapping hulls exchanging damage every tick.
+
+⚠️ **One gap: total damage does not scale with absolute mass.** `kRamDamagePerSpeed` is a flat
+constant, so two dreadnoughts colliding at 10 units/sec produce the same base damage as two fighters
+at 10 units/sec — only the split differs. Kinetic energy goes as ½mv², so a heavier collision should
+hurt more in absolute terms. Scaling `baseDamage` by reduced mass fixes it, and §2.10's derived masses
+make those numbers real rather than arbitrary.
+
+#### Collision resolves per hardpoint, not against a convex hull 📋
+
+*Settled 2026-08-08.* `CollisionSystem`'s narrow phase currently builds a **convex hull from the rig's
+hardpoints** (`BuildWorldHull`, ported from StarReach2's `CollisionHull.cpp`), which makes every rig a
+solid blob. Replacing it with **per-hardpoint circle tests** produces a property nothing else could:
+
+> **Destroying hardpoints opens holes you can fly through. Damage changes a vessel's physical shape.**
+
+- A fully-armed capital is physically impenetrable; a stripped one is full of gaps. That is §3.2's
+  localized damage extended into geometry.
+- A well-built hull has **contiguous rings by construction** (rule 11 requires attachment), so gaps
+  appear exactly where a capital is *weakly defended* — earned, not arbitrary.
+- Cost is bounded: a fighter's 7 hardpoints against a capital's 50 is 350 circle tests per pair, after
+  the existing broad phase. The real cost is **replacing ported, debugged code**.
+- Two fighters still collide normally — a fighter is mostly chassis, so circles give the same answer a
+  hull would.
+
+**And it combines with two decisions already made.** Nearest-hit-along-the-segment (`architecture.md`
+§12.14 item 17) means a shot at a capital's centre resolves on whatever it crosses *first*, so killing
+the core means **stripping the ring or threading a gap between two peripherals**. §3.5's ring geometry
+becomes tactically meaningful rather than only visual.
+
+⚠️ **Worth confirming:** whether `BuildWorldHull` currently excludes `Destroyed` hardpoints. If not, a
+stripped capital still collides at full size under any model.
+
+#### Destruction cascades along the rig graph 📋
+
+*Settled 2026-08-08. This replaces built behaviour.* `DamageSystem` today kills a rig only when
+`HasLivingHardpoint` returns false — **every** hardpoint must die — and `ShellKind::Chassis` is
+special-cased **nowhere**, so blowing the chassis off a fighter leaves it flying on its wings.
+
+> **Destroying a shell destroys everything attached to it.**
+
+`StructuralAttachment` already exists in `shared/components/Rig.h` and `RefactorSystem` already
+reasons about it ("a hardpoint another hardpoint's attachment points at cannot be deleted — would
+orphan its children"). Everything hangs off the chassis directly or transitively, so **chassis death
+is rig death, with no special case anywhere.**
+
+What this buys:
+
+- **"Hit the middle and you hit structure" (§3.5) becomes literally true**, rather than a description
+  of art.
+- **Partial destruction gains real teeth** — kill a wing root and the guns beyond it go with it,
+  without touching the hull.
+- **It is not the protected core §3.2 rejects.** The chassis is the *most* exposed thing on a hull, at
+  50% of hull radius and dead centre. It is critical, not invulnerable.
+
+⚠️ **This makes one content relationship load-bearing: chassis hull must dominate peripheral hull by a
+wide margin.** Otherwise "shoot the middle" is simply the fastest kill and localized damage becomes
+decorative. The natural version — hull scaling with size, so a 625-radius station core vastly outlasts
+a 150-radius battery — supplies it, but it needs stating so nobody authors a fragile chassis.
+
+**Orphaned children are destroyed and drop salvage** through `LootSystem`'s existing death-wreck path.
+Leaving them as drifting debris would be lovely and is a separate feature.
+
+#### Two proposals considered and declined 📋
+
+**A rig-wide hull pool for shots that hit the vessel but no hardpoint. ❌ Declined.**
+
+The problem it addresses is smaller than it appears: §3.5 puts the chassis at **50% of hull radius,
+dead centre**, so the middle of every vessel is solid. Gaps exist only at the periphery, between
+ring-mounted parts — which is exactly where missing *should* mean missing. The costs are real:
+
+- §3.2 opens by defining vessels as *"physical collections of hardpoints… **not a single health
+  bar**."* A rig-wide pool is that health bar.
+- It weakens precision aiming, which §3.2 makes the core in-fight decision.
+- It contradicts per-hardpoint collision — the same gaps would mean one thing for flying and another
+  for shooting.
+- `architecture.md` §12.14 item 17 already settled one projectile = one hardpoint.
+
+If capital fights read as whiffy in play, the cheaper fixes are more chassis coverage or larger
+peripheral radii — content dials, not mechanics.
+
+**A `shipType` enum to decide what may overfly what. ❌ Prohibited.**
+
+Law 4's uniformity is the most protected decision in the architecture: §3.2 states there is "no
+per-craft-type special case," `architecture.md` §12.14 removed the last one, and §3.5's scale system
+exists precisely so that "fighter" and "capital" are **emergent from `hullRadius` rather than tagged.**
+A `shipType` would be the first thing in the codebase to reintroduce craft classes, and everything
+downstream would begin branching on it. **If a size distinction is ever needed, derive it from a radius
+or mass ratio — a comparison, never a tag.**
+
+#### Altitude bands — designed, and deferred 🧊
+
+*Recorded in full 2026-08-08 rather than left as "maybe," so that whoever picks this up gets the
+version that works instead of re-deriving the one that breaks.*
+
+**Vocabulary, and keep these apart:** §3.5's five-stack is a **draw layer** — render order *within* a
+rig. An **altitude band** is world-space height affecting collision between vessels. The earlier
+"Z-layer / Z-level" naming differed by three characters and would have been confused; these do not.
+
+**The model that works:**
+
+| Rule | |
+|---|---|
+| **Scope** | Bands affect **only** vessel-vessel collision and which hull draws on top. Projectiles, shields, weapons, and sensors ignore them entirely |
+| **Occupancy scales with hull size** | Fighter 1 band · corvette 2 · capital and station **all 3** |
+| **Readability is mandatory** | A **drop shadow offset by band**. Sprite scale is spoken for by §3.5's hull sizes and colour by rarity, faction, and status |
+| **Changing band is a commitment** | A transition window during which you cannot fire or change again |
+| **Binding** | `Space` climb / `Ctrl` dive — free in §3.6 and outside the crowded WASD cluster |
+
+**Size-scaled occupancy is what makes it coherent.** A capital blocks every band, so §3.7's earned
+holes survive intact — you still cannot go over a dreadnought, only through what you have stripped.
+And with altitude readable, ramming is not neutered but **contested**: feint, match, commit.
+
+**Why it is deferred rather than built:**
+
+- **Unreadable altitude would be a dice roll, not attentiveness.** `architecture.md` §12.14 item 17
+  rejected exactly this shape — *"precision aiming cannot be the core combat decision on top of a
+  tie-break the player cannot see or predict."* The shadow requirement above is not optional.
+- **It is the only feature that adds a positional dimension**, and every spatial system afterward
+  inherits it — `DockingSystem`'s proximity, `PartySystem`'s formations, `SpawnSystem`'s placement,
+  §4.3's squad orders. Each must respect bands or ignore them, and any that ignores them
+  inconsistently is a defect nobody notices for months.
+- **It solves a problem nobody has observed.** Nothing here has been flown; `architecture.md` §10 notes
+  the vertical slice's behavioural claims are unit-tested and *"not yet confirmed in an actual play
+  session."* Collision pinball in a furball is plausible, not measured.
+
+**Revisit trigger:** when escort-fighter behaviour, docking interactions, and formation-keeping are
+specified in detail — those are the systems that would have to know about bands, so that is the
+conversation where the cost is actually visible. If built, the shadow cue and NPC band usage belong in
+the **same** issue: a mechanic the AI cannot use violates §6.3, and one the player cannot see violates
+§12.14 item 17.
+
 
 ---
 
 ## 4. The Bridge & Fleet Command 📋
 
-A dual-layer control scheme, transitioning from top-down shooter to RTS interface.
+A control scheme that layers an RTS command surface **on top of** flight, rather than switching
+between the two.
 
-**Physical docking** — transition to command by flying a fighter to a Capital Ship or Station and
-pressing interact. The transition is diegetic; there is no menu-only path to fleet command.
+**Command is equipment, not a place** *(revised 2026-08-09 — see §4.0)*. Commanding requires a
+`Crew` module that rolled into `command` for authority, and a `Comms` module for reach, both on the
+rig you are commanding from. Fly a fighter carrying them and you command from the cockpit; fly one
+without and you cannot command at all, wherever you are standing.
+
+**Physical docking still matters, for a different reason.** Boarding a capital or station and taking
+its bridge is how you come to operate *that hull* — and a capital carries better crew and comms than
+a fighter can, so reach and authority scale with the vessel you are aboard. The transition remains
+diegetic; what it no longer is, is the only path to giving an order.
 
 **Component-driven menus** — the Bridge UI generates from physical modules. A Manufacturing
 hardpoint enables ship construction; absence of a Repair hardpoint disables healing for docked
-craft. Destroying a hardpoint removes its tab mid-session.
+vessels. Destroying a hardpoint removes its tab mid-session.
 
-**RTS directives & AI autonomy** — in Bridge mode the player issues macro-commands (Move, Attack,
-Defend, Build). Uncommanded AI defaults to self-preservation, patrols, and role-based tasks.
+**RTS directives & AI autonomy** — the player issues Move, Attack, Defend, and Build against
+selected units. Uncommanded AI defaults to self-preservation, patrols, and role-based tasks.
 
 **Command inherits the death rule** — §3.3 applies to the vessel being commanded from. Taking the
 Bridge of a capital does not make the player safe; it makes them a larger target.
 
-❓ *Open: whether the player's fighter persists as a separate entity while its pilot is on the
-Bridge, and whether it can be destroyed independently.*
+### 4.0 Operating and commanding are simultaneous 📋
 
-### 4.1 AI Sub-Commanders 📋
+> ⚠️ **Reversed 2026-08-09. This section previously specified Operator and Commander as two
+> exclusive player modes, settled 2026-08-08.** That is withdrawn in full. The player now flies,
+> shoots, and commands at the same time, with no mode switch anywhere. The superseded model and why
+> it was abandoned are recorded at the end of this subsection, because the reasoning it was built on
+> is still worth knowing.
+
+> **The player is always operating the hull they occupy. Commanding is an overlay on top of that,
+> never an alternative to it.**
+
+This holds identically at both scales, which is the point:
+
+| Where the player is | They operate | They command |
+|---|---|---|
+| **Their own fighter** | Fly and aim it manually (§3.2) | Any unit in range, if the fighter carries `Comms` + a commanding `Crew` module |
+| **A boarded capital's bridge** | Fly and aim *the capital* | Any unit in range, at the capital's better reach and authority |
+
+Boarding does not change the *kind* of thing the player is doing — §3.4 already settled that the
+player is always associated with exactly one shell, and taking a bridge simply makes that shell a
+capital's bridge instead of a fighter's cockpit. Their fighter waits in the docking bay (§4.1),
+cannot be shot, and dies with the host.
+
+**"Assume command" is not a new mechanism.** §3.4 specifies that docking places the player in the
+bay, from which they move to a facility — *"engineering, manufacturing, research, the bridge"* — by
+selecting it, and that while they are there they **are** in that hardpoint. Taking the bridge is that
+selection, through the same docked-facility router every other station service uses
+(`architecture.md` §12.24). The death rule comes along for free: blow up the bridge and the player
+dies, even if the capital survives.
+
+#### What gates commanding now 📋
+
+*Settled 2026-08-09.* Two modules, on **the rig the player is commanding from** — not on the player,
+and not on the units being commanded:
+
+| Module | Supplies | Without it |
+|---|---|---|
+| **A `Crew` module with a non-zero `command` roll** | **Authority** — the ability to issue orders at all, how many units may be held selected, and how deep an order queue may go | No commanding, at any range |
+| **`Comms`** | **Reach** — the radius within which units are selectable and commandable | Commanding is limited to nothing useful |
+
+**Both are required.** A rig with comms but no commanding crew cannot command; one with a commanding
+crew and no comms has authority it cannot project. That makes the pairing a real fit cost rather than
+a checkbox, and it is symmetric for NPCs (§6.3) — which is what makes an enemy commander's comms
+module a worthwhile thing to shoot.
+
+**A single `Crew` module covers flying *and* commanding** (§2.7, consolidated the same day), so a
+fighter's one cockpit slot is enough for both. What it cannot do is be good at both: the roll's budget
+is shared, so a fighter-commander that rolled heavily into `command` flies at close to baseline. That
+is the trade, and it is why an NPC fighter-commander is a real but costly thing to field — it is also
+one lucky cockpit shot from decapitation, since crew and shell die together (§2.7).
+
+#### What the `operation` rating is for, restated 📋
+
+Losing the two-mode model removes the justification §4.0 previously gave for a piloting rating, so it
+needs restating rather than quietly inheriting the old one.
+
+**A crew module's `operation` rating does nothing in a hull the player is personally operating.**
+§2.7 already said this directly — *"the pilot rating does nothing on a ship the player is personally
+flying"* — because §3.2 makes the player's aim manual, so their marksmanship *is* their piloting
+skill. Under the old model the rating earned its slot by flying the hull during a mode switch; with
+no mode switch, that job is gone.
+
+What remains is larger, not smaller: **`operation` matters on every hull the player owns but is not
+sitting in**, which §2.7 already calls "most of a developed fleet." And it is what makes the roll a
+real decision for the player's own cockpit: they want a crew module that spent its budget on
+`command`, because the `operation` half would be dead weight in a hull they are flying themselves.
+
+**The two-berth bridge survives**, for a better reason than §4.0 previously gave. One crew module is
+enough to fly a capital *and* command from it, so the second berth is never mandatory — but two
+specialists beat one generalist, since each function takes the best rating available for it (§2.7).
+And the moment the player leaves that capital, both jobs fall to the crew aboard, which is when a
+well-staffed bridge pays for itself.
+
+#### The superseded two-mode model, and why it went 📋
+
+*Recorded rather than deleted, because it was a good design and the reason it lost is instructive.*
+
+The model held that a player aboard a bridge was in exactly one of Operator or Commander at a time.
+Because there is no pause (§3.4), whichever job you were not doing was not being done — so a
+fully-staffed bridge bought *freedom to switch*, an empty one meant every switch abandoned a post,
+and crew modules became the core fit decision of a player-commanded capital. It was the clearest
+answer the design had to what crew modules are *for*.
+
+**It was abandoned because the mode switch itself was the least interesting part of it.** Once
+commanding is reduced to selecting a unit and pressing an order key (§4.3), it costs a fraction of a
+second and no cursor time — so a mode built to make that cost *legible* was charging the player for
+something that is no longer expensive. Keeping it would have meant preserving an artificial cost to
+justify a fit decision, when §2.7's own account of `Operator` (above) justifies the same fit decision
+without it.
+
+**What was genuinely lost:** commanding no longer competes with flying for the player's attention, so
+a player with the right two modules is strictly more capable than one without, rather than facing a
+moment-to-moment tradeoff. The compensating cost is the fit cost — two modules, two slots, mass, and
+a cockpit berth that could have held an `Operator` on any hull the player is not flying.
+
+### 4.1 Boarding, the bay, and the ship you arrived in 📋
+
+*Settled 2026-08-08 — this resolves the open question of whether the player's fighter persists.*
+
+**It persists, in the bay.** The player flies to a capital or station, docks in its docking bay, and
+walks to the bridge. The fighter sits in that bay for the whole visit: it cannot be shot (§3.4), and
+it dies only if the host does.
+
+**The bay is the player's garage.** On leaving the bridge, the player may re-board the vessel they
+arrived in *or* take any other vessel they own that is sitting in that bay — including one bought or
+manufactured during the visit.
+
+This makes §3.3's "stashed backup ship" concrete rather than aspirational: the stash is a real place,
+with a real location, that an enemy can destroy. It also gives capitals and stations a logistical
+purpose beyond their guns.
+
+**Bay capacity is a real limit**, and a natural tier-scaled property of the docking-bay shell (§2.2):
+a Common bay berths one or two vessels, a Mythic one a squadron. Vessels cannot be summoned from
+elsewhere — swapping is limited to what is physically parked here, which keeps fleet logistics a
+thing the player must actually solve.
+
+### 4.2 Two scales of command, one interface 📋
+
+*Raised 2026-08-08. The design has been carrying two different command vocabularies without noticing:
+`features.md` §4 says Move / Attack / Defend / Build, while `CommanderOrders` in code says Dispatch /
+Retreat / Defend.*
+
+**They are not a contradiction. They are the same command surface at two simulation tiers (§1.1):**
+
+| | **Tactical** | **Strategic** |
+|---|---|---|
+| Scope | The resident system | Everywhere else |
+| Tier | 1 | 2–3 |
+| Orders | **Move · Attack · Defend · Build** | **Dispatch · Retreat · Defend** |
+| Targets | Entities you can point at | `core/galaxy/` records |
+| Unit of command | A **party** (§4.3) | A fleet as an abstract record |
+| Backing | Real positions, real steering | Origin, destination, ETA |
+
+Tactical orders can name a position and a target because both exist. Strategic orders cannot — Tier 3
+has no registry, no steering, and no projectiles — so they resolve as scheduled arrivals and outcome
+rolls. `CommanderOrders`' existing three are the **strategic** set, which is correct for a
+sub-commander running a fleet in a system the player is not in. The tactical four need a separate,
+per-party home.
+
+> ⚠️ **Two amendments, 2026-08-09.** First, **tactical command no longer requires a bridge** — it is
+> gated on carrying `Commander` + `Comms` modules (§4.0), so a fighter so equipped commands in its
+> resident system. Second, `CommanderOrders`' three values are better read as **stances plus an AI
+> override** than as strategic orders (§4.3); the strategic *order* set — dispatch a fleet, set a
+> system's build queue — is still unspecified and still waits on galactic coordinates
+> (`architecture.md` §12.17), since "move that fleet there" has no *there* until systems have
+> positions.
+>
+> ❓ **Whether the strategic layer stays bridge-gated is deliberately still open.** Tactical command
+> travelling with the player does not settle it, and it is the one gating question left in §4.
+
+> **The Navigation Map (§8) is this interface — they are one feature, not two.** §8.1 already says
+> Zoom Level 3 shows "planets, belts, stations, and **real-time fleet assets** — the RTS command
+> surface (§4)." Zoom Levels 1–2 are where strategic orders are issued. Building the Bridge's
+> command layer *is* building the navigation map, and the two sections should be specified and
+> implemented together rather than as separate features that later have to be reconciled.
+
+### 4.3 The unit of command is a party 📋
+
+*Settled 2026-08-08.* Tactical orders address a **party** — `PartySystem` already provides
+formation-keeping and shared retaliation, so a fleet is a party with a leader rather than a second
+grouping concept invented alongside it.
+
+⚠️ **Parties are registry-local**, by their own definition. That is correct for tactical command and
+insufficient for strategic: a fleet in another system has no registry to be a party in. **Strategic
+fleets therefore need a `core/galaxy/` record**, and the promotion/demotion path between the two is
+the same one §1.1 already specifies for everything else crossing a tier boundary.
+
+#### Commanding from a fighter: full selection, and the input scheme that allows it 📋
+
+> ⚠️ **Reversed 2026-08-09.** This subsection previously granted a pilot only three *cursor-free*
+> verbs (Attack my target · Form on me · Retreat) on the grounds that the cursor cannot mean two
+> things at once, and reserved full RTS command for a bridge. **Full selection now works from a
+> fighter.** The old objection was correct about the cursor and wrong about the conclusion: the fix
+> is not to remove selection, it is to stop routing the *middle* of the interaction through the
+> cursor at all.
+
+**The constraint is real and unchanged.** §3.2 makes the cursor a *continuous* aim point — turrets
+slew toward it every frame — so any interaction that parks the cursor on a menu stops the player
+aiming. §3.4 forbids pausing, and §4.4 requires order verbs reachable "in roughly one action each."
+
+**The resolution: select and issue with the free mouse button, choose the verb on the keyboard.**
+
+| Step | Input | Cursor cost |
+|---|---|---|
+| Select a unit | **right-click** it | one instant |
+| Box-select | **right-click-drag** | one drag |
+| Add to the selection | **`Shift`** + either of the above | none — a modifier |
+| Select all of a kind on screen | **double-right-click** a unit — matches by `BlueprintId` | one instant |
+| Read the available orders | HUD panel, *displayed not navigated* | **none** |
+| Arm an order | **`Z`/`X`/`C`/`V`/`N`** (§3.6) | **none** |
+| Issue it | **right-click** in the viewport or on the tactical map | one instant |
+| **Append** rather than replace the queue | **`Shift`** + right-click | none — the same modifier |
+| Clear selection | **`Esc`** | none |
+
+**Left click keeps firing throughout, and the aim point is never surrendered** — only interrupted for
+the instants of two right-clicks. That is what makes commanding-while-dogfighting real rather than
+nominal, and it satisfies §4.4's one-action rule better than a popup menu would.
+
+> **`Shift` means *add*, in both senses.** Add a unit to the selection, add an order to the queue —
+> one modifier, one mental model, and the convention every RTS player already has. *This replaced a
+> click-replaces / drag-adds gesture split that existed only because `Shift` was the afterburner; the
+> afterburner moved to `Ctrl` on 2026-08-09 (§3.6) and the workaround was deleted.*
+
+**Weapons are never disabled *by commanding*.** An earlier proposal to free the cursor by switching
+weapons off was rejected for the same reason §4.3 originally gave: §3.4 says there are no safe zones.
+Giving an order never takes the guns away. *(Per-group weapon toggles on `1`–`0` are a separate,
+deliberate combat control — §3.6.)*
+
+> **`BlueprintId` is what "same type" means.** Law 4 removed vessel classes deliberately — a fighter,
+> a capital, and a station are all rigs — so blueprint identity is the only honest definition of
+> "select all of these." Consequence, accepted deliberately: two ships from the same Template match,
+> and a custom variant does not, however similar it looks. That is *"select all my Vanguards,"* which
+> is the useful reading.
+
+##### Orders, stance, and the queue 📋
+
+*Settled 2026-08-09.* Three separate things, and conflating any two of them causes trouble:
+
+| | What it is | Set by |
+|---|---|---|
+| **The order queue** | An ordered list of tasks a unit works through, front to back | Player, right-click |
+| **Stance** | How the unit behaves toward hostiles *while* doing whatever it is doing | Player toggle |
+| **AI default** | What it does with an empty queue | Nothing — it is the fallback |
+
+**Orders queue rather than replace.** A constructor told to move, then build, then defend the player
+does all three in that order. A build is **one entry** in that queue and occupies the unit for its
+duration — the constructor travels, builds, and only then moves on. That is what makes a shipyard a
+committed asset rather than a button, and what gives escorting one to the frontier any weight.
+
+**Stance is orthogonal to the queue**, and it is the third axis the design was missing:
+
+| Stance | Behaviour |
+|---|---|
+| **Hostile** *(default)* | Engages any hostile it gets the opportunity to engage, while carrying out its orders |
+| **Defensive** | Engages only after being fired upon |
+| **Peaceful** | Never returns fire. Takes damage and keeps going — which is what makes running a blockade a real option |
+
+> ⚠️ **This reveals that `CommanderOrders { Dispatch, Retreat, Defend }` was never an order list.**
+> `Defend` is a posture, `Retreat` is a posture, and `Dispatch` means literally "engaged, no
+> override." It is a *stance* enum that was named for orders. §4.2's strategic/tactical split
+> (below) still holds, but the strategic set should be re-read as stances plus an AI override, not
+> as peers of Move/Attack/Defend/Build.
+
+**`Retreat` becomes the one AI behaviour allowed to interrupt a player order.** `CommanderSystem`
+already escalates a badly damaged commander to Retreat unprompted. Player orders otherwise take
+absolute precedence, and a unit with an empty queue falls back to default AI — so the arbitration
+rule is: *player order wins; Retreat interrupts; empty queue means AI.*
+
+**An impossible order is dropped and the queue advances.** Attack target destroyed, build site
+occupied — the unit does not halt and wait. **Local orders die when a unit leaves the system**, which
+falls out of Law 2 for free: the order lives on a registry-local component, and warping out destroys
+the entity that held it. Strategic orders live in `core/galaxy/` records instead, which is exactly
+why the two tiers need separate homes (§4.2).
+
+##### What orders a unit can accept is emergent 📋
+
+*Settled 2026-08-09, and it is Law 4 applied to the command surface.*
+
+> **A unit's available orders are a function of its living hardpoints, never of its type.**
+
+| Order | Requires |
+|---|---|
+| **Move** | Non-zero `Propulsion` — i.e. at least one living engine hardpoint |
+| **Attack** | At least one living weapon hardpoint |
+| **Build** | A living `FacilityKind::Construction` hardpoint |
+| **Defend** | Propulsion to escort an entity; nothing to hold a position |
+
+**A station with engines can move**, which is the point — there is no static/mobile vessel class, only
+rigs with or without propulsion. *This requires deleting the `mobile` flag's role in movement; see
+`architecture.md` §12.25, where the code currently prevents it outright.*
+
+**And destroying a unit's engines removes Move from its order list mid-session** — the same principle
+§4 already applies to bridge tabs, arriving a second time without being implemented twice.
+
+**A mixed selection offers the intersection.** Select a freighter, a fighter, and a station together
+and you may issue only what all three can perform. That falls out of the rule above rather than
+needing a compatibility table.
+
+##### The player's own rig is not commandable 📋
+
+The player cannot order the hull they are operating — they are already flying it. But **other units
+can be ordered to defend it**, which is how "form up on me" works: a Defend order pointed at the
+player's rig makes the ordering unit a party member escorting them.
+
+> **This is what `PartySystem` has always been missing.** It provides formation-keeping and shared
+> retaliation against `PartyLeader`/`PartyMember`, and **nothing anywhere creates either component.**
+> A Defend order aimed at a friendly entity *is* a party membership with a formation offset, so a
+> built and permanently inert system switches on through an order type the design wanted regardless.
+> The order's executor distributes offsets among the units defending the same target.
+
+#### Strategic resolution: values and rolls, not simulated battles 📋
+
+*Settled 2026-08-08.* Outside the resident system, outcomes are decided by comparing **aggregate
+fleet values** and rolling against them — never by running conditions and behaviours of the kind
+Tier 1 supports.
+
+**This is what the design already committed to**, and it is worth pointing at rather than
+re-deciding: §1.1's LOD table gives Tier 2 "fleet-strength attrition rolls" and Tier 3 "outcome
+resolved as a single event," and §6.4 already states two probability thresholds in exactly this shape
+("Material Security below 30% → +45% chance to launch a resource-raiding fleet"; "border skirmish
+rolled every macro tick, moderated by relative fleet strength").
+
+**The machinery for it is also already built and unused.** `core/ai/FactionDecisionEngine` is a pure
+evaluator whose `EvaluateRaidDispatch` takes the roll *as a parameter supplied by the caller* — the
+exact shape this model wants. It has no caller. The strategic layer is less "design a simulation"
+than "wire up the one that exists."
+
+⚠️ **The rolls must be deterministic** — derived from a hash of `(entity or record id, tick)`, the
+idiom `MiningSystem` and `CommsSystem` already use, never RNG state. Law 2's fast-forward requires a
+skipped macro tick to resolve identically whether it was played through or banked, and a stateful
+generator breaks that silently.
+
+#### Military Weight 📋
+
+*Settled 2026-08-08.* The aggregate a fleet is compared on. §1.1 and §8.1 both name it; neither
+defined it.
+
+**Two factors, multiplied — not one flat weighted sum:**
+
+> **Military Weight = f( offence , survivability )**
+>
+> *offence* — damage output, range, penetration
+> *survivability* — hull, shields, **and mobility**
+
+*This revises an earlier draft that made mobility a small fraction of a single sum.* Mobility is not
+a minor contributor to combat power — a manoeuvrable vessel is genuinely hard to kill, and at Tier 1
+that is exactly how fights resolve. **If mobility wins fights when the player is watching, it must
+win them when the player is not**, or the same fleet performs differently depending on where the
+player happens to be standing — which breaks the whole promise of the LOD model.
+
+**The multiplication is what keeps it honest.** A fast unarmed scout has real survivability and
+near-zero offence, so its weight is near zero however nimble it is. A heavy gunship with no engines
+is the mirror case. A fleet must be able to *both* hurt something and survive doing it, which is the
+actual dynamic a flat sum cannot express.
+
+Accumulate into a **`double`**.
+
+**Tier needs no special case.** A Mythic-fitted ship has better underlying stats, so summing stats
+captures its quality automatically — there is no separate tier multiplier to author or keep in sync.
+
+**On precision and overflow, with the actual numbers.** Both concerns are real at different scales:
+
+| Galaxy size | Rough total | `int32` (max 2.1 e9) | `double` |
+|---|---|:---:|:---:|
+| 500 systems × 50 ships × 5,000 | 1.25 e8 | ✅ fine | ✅ |
+| 100,000 systems | 2.5 e10 | ❌ **overflows** | ✅ |
+| 1,000,000 systems | 2.5 e11 | ❌ **overflows** | ✅ |
+
+So at the galaxy sizes this design contemplates, **`int32` genuinely does overflow** and `double` is
+the correct accumulator. Precision is not stressed: a 2.5 e11 total built from 5 e3 addends spans
+about eight orders of magnitude, well inside `double`'s fifteen-to-sixteen significant digits.
+
+**But do not pre-scale each ship down to a small fraction before summing.** That is the instinctive
+fix for overflow and it introduces the opposite failure — small addends vanishing into a large
+running total. Keep per-ship contributions at natural magnitude, accumulate in `double`, scale only
+for display.
+
+⚠️ **At a million systems the arithmetic is not the problem — the iteration is.** Any operation that
+touches every system on a macro tick is the real scaling wall, and it is exactly what `features.md`
+§9's missing performance budget exists to bound. Faction-wide totals should be maintained
+incrementally at the per-system level rather than re-summed from a million records each tick.
+
+#### Military Weight is a demotion artifact, not a cache 📋
+
+Caching it with invalidation on "new ship, new facility, new resource" is the obvious design and
+the wrong one: every write site that forgets to invalidate produces a stale number that the strategic
+simulation then makes decisions from — a bug that is nearly invisible, because the galaxy simply
+behaves slightly wrongly forever.
+
+**The tier model already provides the answer.** At Tier 3 there are no entities to sum; a fleet *is*
+a `core/galaxy/` record. So Military Weight is **computed once at demotion and stored in the record**,
+which is exactly when the data is in hand and exactly when it must stop depending on entities. At
+Tier 1 it is derived live from the resident registry, where it is cheap and always correct.
+
+That is not a cache with invalidation rules — it is the same promotion/demotion path §1.1 already
+specifies for everything else crossing a tier boundary, applied to one more value. *If* live Tier 1
+derivation ever measures as too slow, the codebase's own rule applies: a cache lives as a component
+on a singleton entity, never as a private field.
+
+### 4.4 No pause, and it constrains the UI 📋
+
+*Reaffirmed 2026-08-08.* §3.4 applies to the Bridge in full: the galaxy runs while orders are issued,
+and the hull the player is commanding from is a live, targetable object the entire time. Realtime is
+also what keeps multiplayer tractable — a pausing RTS layer in a shared session is not a feature that
+can be added later.
+
+**The design consequence is that orders must be fast to issue.** Every second spent in the command
+surface is a second not spent flying, and on an understaffed bridge it is a second nobody is flying
+at all. This rules out deep menu trees, multi-step targeting flows, and anything requiring precision
+clicking under fire. Whatever §8's Level 3 ends up looking like, its order verbs need to be reachable
+in roughly one action each.
+
+### 4.5 AI Sub-Commanders 📋
+
+*Renumbered 2026-08-08 — this section and §4.1 (Boarding) were both numbered §4.1, so every
+cross-reference to "§4.1" resolved ambiguously, including four in `architecture.md`. Boarding keeps
+§4.1 because it holds that position; this section becomes §4.5 and §4 now reads 4.0 → 4.5 in order.*
 
 The player does not personally pilot everything they own. **Sub-commanders are AI officers appointed
 to command a capital ship or station on the player's behalf**, running its fleet under standing
@@ -435,6 +3830,103 @@ The galaxy runs independently through the Tier 2/3 background simulation (§1.1)
 everywhere and can only spend the ore they physically hold, which is what makes blockades a
 strategy rather than an inconvenience.
 
+### 5.0 What a faction actually owns 📋
+
+*Settled 2026-08-08. `core/economy/FactionEconomy` today holds an abstract stock figure —
+`Deposit`, `Spend`, `TotalProduction` — with no notion of **what** is being stocked. That was
+survivable while nothing could be manufactured. Once §2.10 gives materials and crafts real identity,
+and §6.3 requires AI factions to use the same recipes the player does, a faction that manufactures a
+design has to hold the actual inputs.*
+
+> **Everything purchasable or tradable is modelled: materials, crafts, modules, shells, chassis, and
+> whole vessels. Stock is held per *station*, not per faction and not per system.**
+
+That is what makes §5's opening promise real rather than a slogan — *"global market awareness but
+localized physical inventories"* — and it is what gives blockades teeth: a faction knows the price of
+iridium everywhere and can only spend the iridium it physically holds, in the system it holds it in.
+
+#### Making it efficient 📋
+
+Three rules, and the first is the one that decides whether this scales:
+
+**1. The station is the container, and the built code already assumes it.**
+`StationServicesSystem` trades against *"the station's own stock"* today (`architecture.md` §12.10),
+so per-station is what Tier 1 already does. A system-level model would give us two granularities for
+one concept — the same drift `FacilityStats::level` and the rarity ladder just produced.
+
+**It also buys a consequence a system-level model silently loses: destroy a station and its
+stockpile goes with it.** Under a per-system ledger, blowing up a faction's forward depot costs them
+nothing, which is absurd, and it would quietly undercut §6.1's Material Security facet and the entire
+case for blockades.
+
+**Per-system totals are a derived sum, computed on query and never stored** — the same discipline
+this section applies to price, and §3.5 applies to system radius.
+
+**2. Sparse, never dense.** Stock is keyed on *(faction, station)* → a small sorted vector of
+`(ItemId, quantity)`. Ten factions × ~200 systems held × 1–5 stations × 10–30 live item types is
+roughly 150k–300k entries worst case — a few megabytes. A dense table would be ten factions × every
+station × several hundred ids and almost entirely zeros. **A small sorted vector beats a hash map
+below ~32 entries**, which is where nearly every ledger will sit.
+
+**Stock is dual-form**, the same shape as wrecks (§3.3) and research jobs (§2.4): a component on the
+station rig while its system is resident, a `core/galaxy/` record when the system demotes. **The
+record holds per-station ledgers, not a system sum** — storing the sum and redistributing on
+promotion is lossy in a way players notice immediately, when 500 iridium left at a forward base comes
+back smeared across three stations.
+
+**3. One write path, and faction-wide totals are maintained inside it.** §6.1's four facets, Military
+Weight (§4.3), and §5.1's Three Pillars all want faction-wide aggregates, and re-summing them on the
+macro tick is exactly the iteration wall §9.1 warns about. But a cache with invalidation rules is
+worse — every write site that forgets to invalidate produces a number the strategic simulation then
+makes decisions from. **The resolution is the same one §4.3 uses for Military Weight:** there is a
+single `Deposit`/`Withdraw` API, it maintains the totals as it writes, and there is no second path to
+forget. You cannot write stock without updating the total, because the write *is* the update.
+
+**4. Price is a function, never state.** Base price derives from the recipe (§2.10) and is computed
+once at content load; the local supply-and-demand modifier is computed on query from that one ledger.
+**Nothing about price is stored or ticked**, so a galaxy of any size costs nothing to price. This is
+§3.5's rule for system radius applied again — a derived value that gets cached is a derived value
+that will drift.
+
+#### Internal logistics — shipping before raiding 📋
+
+*Settled 2026-08-08.* A faction must be able to move goods between its own stations to meet a local
+shortfall. The naive implementation scans every ledger for imbalances on the macro tick, which is
+exactly the iteration wall §9.1 warns about. The cheap implementation is **event-driven off
+shortfalls**:
+
+1. Each macro tick, a faction inspects only its **jobs blocked on missing inputs**. That list is
+   short by construction — most jobs are not blocked.
+2. For each shortfall, find the nearest own station holding a surplus of what is missing.
+3. Dispatch a transfer as an **in-transit fleet record** — origin, destination, ETA, manifest. Law 2
+   in `architecture.md` already models in-transit fleets exactly this way, so this introduces no new
+   type.
+4. Cap concurrent transfers per faction.
+
+Cost scales with **blocked jobs**, never with holdings.
+
+> **This is also a refinement §6.1 needs.** Low Material Security currently jumps straight to
+> "aggressive expansion or desperate raids," which skips the obvious step and makes factions read as
+> unreasonable. **A faction should try shipping before it tries raiding** — and raid only when it has
+> nothing of its own to ship.
+
+And it makes interdiction concrete: a logistics convoy is a thing that can actually be intercepted,
+which is what §5's opening promise about blockades has been describing all along.
+
+#### What this makes possible 📋
+
+- **Trade becomes physical.** Moving goods between systems is a fleet with a manifest, which Law 2
+  already models as a galaxy-level record with an origin, destination, and ETA. Blockading is
+  intercepting those records, not adjusting a number.
+- **Manufacturing can fail for want of inputs.** A faction that holds the design (§2.5) but not the
+  iridium must trade for it or take a system that has some — which is §6.1's Material Security facet
+  acquiring an actual cause rather than a percentage.
+- **§6.1's Market Dominance facet gets something real to read**, since prices now exist per system
+  and derive from holdings.
+
+⚠️ **This is a change to a built system**, so `SaveFile` gains an item-aware stock section with a
+matching `SaveMigrator` step, and `FactionEconomy`'s existing three-function API widens.
+
 ### 5.1 Faction Survival & Elimination — The Three Pillars 📋
 
 Factions are stationary empire-builders or nomadic survivors — The Forgotten scavengers, the
@@ -445,7 +3937,7 @@ Voidwalkers migrating away from conflict. Both kinds live or die by the same tes
 | Pillar | Held while the faction has… |
 |---|---|
 | **Command Structure** | At least one station or capital carrying a command module |
-| **Recognized Leadership Entity** | At least one surviving leader — a faction head, or an AI sub-commander (§4.1) |
+| **Recognized Leadership Entity** | At least one surviving leader — a faction head, or an AI sub-commander (§4.5) |
 | **Economic Footprint** | Any active production, holdings, or claimed territory |
 
 *Earlier drafts tested only "its final vessel and command module," which was both narrower and
@@ -697,8 +4189,33 @@ been operating under a faction's flag inherits that faction's outgoing relations
 row, then drifts independently. A player with no alignment enters the matrix at Neutral across the
 board.
 
-❓ *Open: whether a rogue operator can be formally invited to* join *an existing faction as a member
-rather than founding their own, and what that does to asset ownership.*
+#### The other branch: climbing a faction instead of founding one 📋 ❓
+
+*Scoped 2026-08-08. Not built, not fully specified — recorded so it is not invented ad hoc later.*
+
+Founding a faction is one of two paths, and the other is to **join an existing one and rise through
+its ranks.** This is attractive because it gives §5.3's reputation a *destination*: today reputation
+ends at band effects — docking, prices, contracts — and rank would make it a progression track with
+something at the top.
+
+**Rank grants are faction-flavoured and deterministic, never random.** A Pyre rank grants what a
+Meridian rank does not, per §6.2's archetypes, so *which* faction you climb is a real decision rather
+than a reskin. Random grants would also be the only random progression in a design where everything
+else is earned or built. The grants themselves are existing machinery: access to the faction's
+knowledge network (§2.5), command of its fleets, territory, and standing.
+
+**Rank is not commander grade** (§6.5). Grade is the module you carry; rank is standing within a
+faction. Headship requires both.
+
+**Defection is where it gets interesting, and it needs no new mechanism.** Leaving a faction copies
+what you learned into your new network, **frozen at the moment you leave** — which is precisely the
+operation §8.3 already specifies for fog inheritance, and which `KnowledgeStore::Copy` already
+implements. Walking out of Zenith with their blueprints is a complete betrayal mechanic built from
+one existing call.
+
+❓ **Still open:** what joining does to assets the player already owns, whether membership and
+founding are mutually exclusive (they probably are), and the reputation cost of defecting. This wants
+its own pass — it touches §2.5, §5.3, §6.5, and asset ownership at once.
 
 ---
 
@@ -731,7 +4248,7 @@ Each macro tick, a faction evaluates its systems across four axes:
 
 ### 6.3 Uniform Mechanical Rules 📋
 
-**AI craft are bound by exactly the same mechanics as the player.** This is a hard design rule, not
+**AI vessels are bound by exactly the same mechanics as the player.** This is a hard design rule, not
 an aspiration, and it applies at every level from a lone NPC fighter to a faction's flagship:
 
 - **Power priority lists.** An AI ship runs the same `PowerSystem` budget the player does. It sheds
@@ -763,6 +4280,69 @@ decisions** — never through mechanical exemption.
 ❓ *These two are the only tuned numbers in the design. The remaining weights, drift rates, and
 thresholds need a balancing pass — which is what the headless `tools/economy_sim` exists for
 (`architecture.md` §3). Building that tool early is cheap, because `sr_core` links no renderer.*
+
+### 6.5 Boss encounters are commanded fleets 📋
+
+*Settled 2026-08-08. "Bosses" appeared nowhere in either document, and the obvious implementation —
+unique named NPCs with hand-authored drop tables — would have been a whole content pipeline with its
+own spawn rules, uniqueness semantics, and respawn policy.*
+
+> **A boss encounter is any enemy fleet whose leader carries a `Crew` module with a non-zero
+> `command` roll. There is no boss type, no boss flag, and no unique-NPC system.**
+
+*Restated 2026-08-09 for the crew consolidation (§2.7): what used to be "a `Commander` module" is now
+"a crew module that rolled into `command`." Nothing else in this subsection changes — if anything it
+gets better, because how *much* of a boss something is now varies continuously with the roll rather
+than being binary on a module kind.*
+
+Everything a boss fight needs already exists and falls out of decisions made elsewhere:
+
+| Property | Comes from |
+|---|---|
+| **It fights differently** | A `command` rating runs standing orders and fleet dispatch (§4.5), so a commanded fleet manoeuvres as a group where an uncommanded one does not |
+| **It is worth something** | The crew module is **matter** (§2.5) and mounts in a crew shell — kill the bridge or cockpit and it drops like any other module (§2.7) |
+| **The reward scales** | The crew module's own grade, on the same seven-tier ladder as everything else — **and its roll**, so a captured admiral may be a specialist worth more than its tier suggests |
+| **It matters strategically** | §5.1's Recognized Leadership Entity pillar. Killing a faction's commanders is direct progress toward collapse, not just loot |
+| **It is findable** | Commanders are placed by the faction simulation, not by an encounter table — so where the bosses are is a consequence of who is expanding |
+
+> **A fighter can now be a boss** (§4.0), since a cockpit may hold a commanding crew module. That is a
+> *good* addition rather than a dilution: a fleet led from a fighter manoeuvres as a group like any
+> other, and it is far more fragile — one cockpit hit decapitates it. A faction fielding
+> fighter-commanders is one taking a real risk, which is exactly the sort of thing §6.2's archetypes
+> should express.
+
+**This is also the achievement half of §2.10's gate.** High-grade *finished items* come from rare
+locations, quests, and boss kills — and "boss kill" now has a concrete meaning: strip a commanded
+capital's bridge and take what was mounted in it, including, if you are lucky, an officer better than
+anything you could manufacture.
+
+**And it sharpens decapitation** (`architecture.md` §12.16 item 22). The crew module sits on the crew
+hardpoint, so **destroy the bridge or cockpit, lose the commander, keep the ship** — which means the
+boss's reward and the boss's defeat are the *same shot*, and taking the hull intact afterwards
+(§3.2's uncrewed hull) is a second, larger prize.
+
+#### The faction head is the highest `command` rating 📋
+
+*Settled 2026-08-08; restated 2026-08-09 for the crew consolidation.* A faction's head is whichever
+of its commanders carries the highest **effective `command` rating** — grade *and* roll together,
+since a Rare that spent everything on command may out-command an Epic that split its budget. Ties
+break arbitrarily, and when a head dies the next-highest succeeds automatically.
+
+Two properties follow, and both are wanted:
+
+- **The head is derived, never stored.** It is a query over the faction's commander roster, so there
+  is no "head" field to go stale when one dies — the same discipline this design applies to price
+  (§5.0), system radius (§3.5), and Military Weight (§4.3).
+- **Killing the head is a setback, not a kill.** Succession is automatic, so §5.1's Leadership pillar
+  fails only when *every* commander is gone — which is what §5.1 already says. The boss fight stays
+  repeatable and consequential without being a win button.
+
+**And it makes rank and grade two different things**, which §5.10 depends on: command rating is
+mechanical (the module you are carrying and what it rolled), rank is social (standing within a
+faction). Headship needs both — membership *and* the top rating among that faction's own commanders —
+or a player could loot a Mythic crew module from a boss and become head of a faction they have never
+met.
+
 
 ---
 
@@ -850,6 +4430,47 @@ screens.
 which is what makes this one interface rather than four. There is no modal transition and — per §3.4
 — no pause at any level.
 
+#### The zoom levels split where the data model splits 📋
+
+*Settled 2026-08-08. This resolves a worry that procedurally-sized systems would, on zoom-in, sprawl
+across the space a neighbouring system occupied at galaxy scale.*
+
+**They cannot, because above a system there is no space to sprawl into.**
+
+| Levels | Backed by | Coordinates | Rendering |
+|---|---|---|---|
+| **1–2** Galaxy, neighbourhood | `core/galaxy/` records | **Integer grid indices** | **Schematic** — systems are points on a lattice |
+| **3–4** Orbital, active sector | The resident `entt::registry` | **`float` world units, local to the system origin** | **True scale** — continuous zoom to cockpit |
+
+The boundary between Level 2 and Level 3 is **exactly Law 2's registry boundary**. Above it, systems
+have grid positions and no extent; below it, one system owns a real coordinate space measured from
+its own origin. A system's physical size therefore has no relationship to its spacing on the galaxy
+lattice, and cannot overlap a neighbour however large it is.
+
+**So the 2 → 3 transition is a change of representation, not a continuous zoom through one space.**
+Discrete levels with an animated transition (agreed above) is not merely the simpler implementation —
+it is the one that matches the data.
+
+**Within Levels 3–4, scale is fixed and true.** A given number of world units always occupies the
+same number of pixels at a given zoom, so a gas giant reads as a gas giant and a moon as a moon. The
+alternative — scaling each system to fit the viewport — would destroy all comparative size
+information, which is the one thing §3.5 spent its effort making meaningful. A large system is
+panned and zoomed within Level 3, never shrunk to fit.
+
+#### Procedural systems need a stated size envelope 📋
+
+Star class already varies a system's extent, and that is desirable — a supergiant's system *should*
+be larger. But generation must be bounded at both ends:
+
+- **Floor:** large enough to space planets and belts at readable distances.
+- **Ceiling:** **2,000,000 world units of usable radius**, scaling with star radius (§3.5). Beyond
+  that, `float` precision degrades until slow-moving objects freeze — see §3.5 for the arithmetic.
+  *An earlier draft of this bullet said ~1e6; §3.5's exact binade analysis settles it at 2e6 and that
+  number is canonical wherever the two disagree.*
+
+The seed cascade must produce radii inside that envelope for **every** star class it can generate, or
+a rare supergiant becomes an unplayable system that only appears for some players.
+
 ### 8.2 Icon Rendering & Culling
 
 **Icons are generated programmatically, not authored.** Map markers are vector shapes or runtime
@@ -863,11 +4484,51 @@ boundary culls them entirely.
 This is both a performance rule and a legibility rule, and the legibility half matters more. A galaxy
 view speckled with thousands of individual ship markers communicates nothing. At Levels 1–2 the
 player should see **territory, pressure, and movement of weight** — not units. Fleets aggregate into
-military-weight indicators; individual craft simply do not exist at that scale.
+military-weight indicators; individual vessels simply do not exist at that scale.
 
-❓ *Open: whether Level 3 shows only assets the player has sensor coverage of, or everything in the
-system. Fog-of-war here would give `DiscoverySystem` and sensor intel real teeth, at the cost of
-making the RTS surface partially blind.*
+### 8.3 Fog of War 📋
+
+*Settled 2026-08-08.* Level 3 shows **only what the viewer has sensor coverage of**. Fog is real, and
+the RTS command surface is deliberately partially blind.
+
+**Fog is per faction.** A faction's members share what any one of them has found — which is already
+exactly how `core/galaxy/Discovery.h` models it.
+
+**Founding a faction inherits the fog of the faction you left, frozen at the moment you leave.** A
+copy, not a link: from that instant the two diverge, and your former parent learns nothing more from
+you nor you from them. This is the same operation §2.5 already provides for copying knowledge between
+networks, applied to sensor intel.
+
+**A rogue operator (§5.10) is not a faction** and carries their own personal fog until they found one
+(§5.10's command-module trigger), at which point their personal picture seeds the new faction's.
+
+**What this commits the design to, and it should be entered deliberately:**
+
+- **Sensor coverage becomes strategic infrastructure.** Sensor modules, picket ships, and stations
+  are radar you build, position, and defend. Losing a picket blinds a border.
+- **You command against a picture that may be wrong.** An enemy fleet can enter a system unobserved
+  and your orders will be issued against stale truth. That is excellent tension and an unusual
+  property for an RTS surface — which means the UI's hardest job is rendering *"you do not know"*
+  distinctly from *"there is nothing there."* Absence must never look like emptiness.
+- **Sub-commanders can know things the player does not.** Each holds its own network (§2.5), so the
+  map shows what **the viewing entity** knows, not a global truth. A commander three systems away
+  may be looking at a threat the player cannot see.
+
+✅ **Two homes existed for this fact. Knowledge networks win** (settled 2026-08-08).
+`core/galaxy/DiscoveryState` stores discovery per faction, while `KnowledgeNetwork` has a
+`DiscoveredSystem` entry kind and §2.5's table lists "discovered systems and sensor intel" as
+network-stored. `DiscoverySystem` writes the former; the design specifies the latter.
+
+**This is not a preference — `DiscoveryState` cannot implement this section at all.** It is keyed by
+faction, and the last bullet above requires *"the map shows what **the viewing entity** knows"*: a
+sub-commander three systems away looking at a threat the player cannot see. A faction-keyed store has
+no way to express two members of one faction knowing different things. Networks are per-owner
+(`Player`, `Commander`, `Faction`), so per-sub-commander divergence, a rogue operator's personal fog,
+and inheritance-as-frozen-copy (`KnowledgeStore::Copy`, already built) all fall out of one mechanism.
+
+**What it costs:** `DiscoverySystem` (built and tested) rewrites to write networks and its tests
+change; `SaveFile` drops its `DiscoveryState` section with a matching `SaveMigrator` step. One
+convenient side effect — `SystemContext::discovery` disappears entirely, since `knowledge` covers it.
 
 ---
 
@@ -875,20 +4536,16 @@ making the RTS surface partially blind.*
 
 Genuinely undecided items, listed so they are not mistaken for oversights.
 
-**Performance budget — needed soonest.** `architecture.md` prescribes LOD tiers, spatial grids, and
-pooling with no stated target. Without numbers we cannot tell which optimizations are essential and
-which are premature. Needed: systems per galaxy, craft per active system, peak entity count, target
-frame rate, and reference hardware.
+**Performance budget — ✅ settled 2026-08-08.** It was the longest-standing "needed soonest" item;
+see §9.1 below. The remaining pacing questions in this section are economic, not technical.
 
 **Economy and progression pacing.** No currency scale, no tier definitions, no time-to-milestone
 targets. "Infinite progression" needs at least a rough curve — how long to a first custom Template,
 to a first capital, to a first owned system.
 
-**The save model — now blocking a design decision, not just an implementation one.** §3.3 Tier 3
-depends on it. If saves are freely loadable at any time, Hard Game Over is a death screen with extra
-steps and the entire three-tier failure structure is theatre. Decide: free/manual saves, checkpoint
-saves, or a single persistent slot. This is the highest-leverage open question in the document
-because several others resolve automatically once it is settled.
+**The save model — ✅ settled 2026-08-08.** Free/manual saves plus a coarse periodic autosave that
+**never fires on death**. See §3.3. The threatened mechanic turned out to be Tier 2's recovery run,
+not Tier 3.
 
 **UI/UX specification — the largest missing document.** The Bridge, component-driven menus, HUD
 theme, Engineering view, and station services are referenced throughout both documents and specified
@@ -899,18 +4556,36 @@ Template creation, station services, cargo/hardpoint equip, and construction/ref
 treatment — the remaining unspecified pieces are the HUD theme's full screen inventory and whichever
 of §12.12's `EngineerMenu` question resolves to a genuinely new mechanic.*
 
-**Damage type roster.** Kinetic and Energy are the baseline. Does the roster expand? Each added type
-multiplies the shield-matching matrix and the loadout puzzle — and also the content burden.
+> ⚠️ **The menus exist and none of them handles input** (verified 2026-08-08). All nine are a pure
+> `Build*Request()` plus a stateless `Draw()`, with no selection state, no open/closed state, and
+> no producer placing the request they build. What is missing is not primarily *specification* —
+> it is the input and routing layer underneath, which `architecture.md` §12.24 now sequences. A
+> screens-and-flows document written before that lands would specify interactions nothing can
+> perform.
 
-**Fighter persistence in Bridge mode.** §4 — does the fighter remain a destroyable entity while its
-pilot commands from the Bridge?
+**Damage type roster — ✅ settled 2026-08-08.** Two shield types (Kinetic, Energy) and three weapon
+types (Kinetic, Energy, Ion), with weapon *behaviour* on a separate unbounded axis. See §3.1.
 
-**Reverse-engineering costs.** Time, material, and facility-tier requirements per item grade.
+**Altitude bands — 🧊 deferred, fully designed.** Vessel-vessel collision and draw order only,
+with occupancy scaling by hull size and a mandatory shadow cue. See §3.7. **Revisit trigger:** the
+escort-fighter, docking, and formation-keeping pass, since those are the systems that would inherit it.
+
+**Physical (hull-blocking) shields — 🧊 deferred.** §3.1 keeps shields projectile-only so that
+ramming bypasses them. A physical model is a real future feature with an anti-ram identity, but it
+would neuter ramming and entangle collision, docking, and friend/foe rules.
+
+**Fighter persistence in Bridge mode — ✅ settled 2026-08-08.** It persists in the bay, cannot be
+shot, and dies only with its host. See §4.1.
+
+**Materials, crafts, and the recipe base — ✅ settled 2026-08-08.** Fourteen materials on real
+elements and real densities, seven craft families, grade setting variety and rarity rather than
+identity, and both mass and base price deriving from the recipe. See §2.10. **What remains is
+authoring**, not design: `materials.json` and `crafts.json` do not exist yet.
 
 **Recovery-run parameters.** §3.3 Tier 2 — the window's duration, wall-clock vs. in-game time, and
 whether the death wreck is marked on the navigation map.
 
-**Sub-commander recruitment and loyalty.** §4.1 — how they are acquired, whether they have
+**Sub-commander recruitment and loyalty.** §4.5 — how they are acquired, whether they have
 individual competence or personality, and whether a rival can turn one.
 
 **Network raiding.** §2.5 — whether a knowledge network has a capturable physical host, letting a
@@ -919,12 +4594,177 @@ faction steal designs rather than merely destroy the holder.
 **Royalty scale and posthumous payment.** §2.6 — the per-unit rate, and whether a royalty stream
 survives the seller's death.
 
-**Level 3 fog of war.** §8.2 — does the orbital view show everything in the system, or only what the
-player has sensor coverage of?
+**Level 3 fog of war — ✅ settled 2026-08-08.** Sensor coverage only, per viewing entity, stored in
+knowledge networks. See §8.3.
+
+**The word "craft" — ✅ settled 2026-08-08, opposite to the earlier proposal.** A *craft* is a
+crafted intermediate item; a vessel is a *vessel*. See §2. This adds `materials.json`, `crafts.json`,
+and an `ItemId` to a content set that has none of them.
+
+**The rarity ladder — ✅ settled 2026-08-07/08.** Seven tiers, one ladder for shells and modules,
+with a quality band supplying every capability stat and a distributed budget deciding how a roll is
+spent. See §2.7. Still absent from the codebase; it is construction work, not a design question.
+
+**Capture.** §3.2 — the uncrewed hull is now a real state, and nothing says how a hull changes
+owner. Fly-to-and-hold, a boarding action, a module installed on the capturing vessel? And can an AI
+faction capture the player's uncrewed hull on the same terms (§6.3 says it must)? *Disabling is
+worth shipping before this is answered — a hull that goes dead and adrift is already a complete
+mechanic without an ownership transfer behind it.* **Ion (§3.1) is now the intended route in:** strip
+shields, suppress power, kill the crew shell, take the hull.
+
+**Does the player die with their crew shell? — ✅ settled 2026-08-08.** Yes, and it is not a special
+case: the player is always associated with exactly one shell, whether flying or aboard a station, and
+dies with it. See §3.4.
+
+**Object scale numbers — ✅ settled 2026-08-08.** Validation rules 10, 11, and 12 (separation,
+attachment, hull envelope), with hardpoint count emergent from `hullRadius`, chassis radius, and
+peripheral size. See §2.3 and §3.5.
+
+**Manufacturing and progression pacing.** §2.8/§2.10 — the shape, the gate, and the variety curve
+are settled; the **time** curve is not. How long should a Common module take against a Mythic one,
+and how does that interact with §9's still-open time-to-milestone targets? This is now a tuning
+question with a complete structure underneath it rather than a design hole, and it is what the
+headless `tools/economy_sim` exists to answer.
+
+**Deconstruction yield.** §2.4 — flat recipe-driven conversion, or facility-level-scaled like
+merging?
+
+### 9.1 The Performance Budget 📋
+
+*Settled 2026-08-08. This was the longest-standing "needed soonest" item — `architecture.md`
+prescribed LOD tiers, spatial grids, and pooling against no stated target, so nothing could be called
+essential or premature.*
+
+**Reference hardware:** a mid-range desktop — 4-core CPU, GTX 1060-class GPU, 16 GB. **Target:** 60 FPS.
+
+| Quantity | Target | Basis |
+|---|---:|---|
+| Vessels per active system (Tier 1) | **100** | A large fleet engagement at §3.5's 800–1,000 fighter range |
+| Hardpoints per vessel | up to **50** | §3.5's scale table; emergent from `hullRadius` (§3.5) |
+| Hardpoint entities, Tier 1 | **~5,000** | Law 4 already blesses this range explicitly |
+| Total entities, Tier 1 | **~11,000** | Rigs + hardpoints + projectiles + asteroids/loot. **Hardpoints *are* entities** — a separate low "object" cap is a category error |
+| Projectiles in flight | **~5,000 peak** | ~40% of hardpoints are weapons, ~1 shot/s, ~2 s lifetime |
+| Neighbour systems at Tier 2 | **8, hard cap** | see below |
+| Galaxy extent | **unbounded** | see below |
+| `core/galaxy/` records in a playthrough | **~2,000** | The number that actually matters |
+
+**Tier 2 needs a hard cap, not "within 2 warp jumps."** §1.1 defines Tier 2 by jump distance, which
+makes its cost depend on topology degree: at an average degree of 4, two jumps is 1 + 4 + 12 = **17
+systems** at 5 Hz, or `17 × 5/60 ≈ 1.4×` the entire Tier 1 budget — Tier 2 would silently more than
+double the simulation cost, and be unbounded in a dense cluster. **Capping at the 8 nearest** makes
+it ~0.7× and topology-independent.
+
+**Galaxy size is not bounded by performance, and this is better news than it looks.** Seed-derived
+systems cost nothing to *exist* (§7.1), and `core/galaxy/` records exist only for systems something
+has actually touched. So extent is bounded only by the coordinate type — an `int32` grid is
+±2.1 × 10⁹ per axis. §4.3's "million-system iteration wall" is not a size problem at all; it is a
+problem with scanning coordinates instead of records.
+
+> **The macro tick iterates existing `core/galaxy/` records, never the coordinate space.**
+
+With that held, a billion-system galaxy costs exactly what a two-thousand-system one costs, because a
+playthrough only ever touches a couple of thousand. **The preferred target is realism — millions to
+billions of systems — and it is reachable from day one** provided nobody writes a scan. The ~2,000
+figure above is a working-set estimate, not a cap.
+
+The one thing that must stay genuinely local at that scale is **faction territory and expansion**: a
+faction evaluating adjacency across a billion systems needs bounded borders, which §5.1's pillars and
+§6's facets imply but never state.
+
+#### What the budget decides 📋
+
+| Finding | Consequence |
+|---|---|
+| Naive `FindHit` is 5,000 × 5,000 = **25 M segment tests per tick** (1.5 **billion**/s) | Infeasible. `architecture.md` §12.16's rig-level rejection and batched inner loop move from optional cleanup to **required**, scheduled with the nearest-hit tie-break fix — three changes, one file, one issue |
+| With rig-level rejection: ~33 M tests/s, and the 100 rig bounds sit in L1 | Comfortable. **The spatial grid stays out of scope**, along with uniform-radius as an optimisation |
+| ~10,000 sprites/frame, one texture per shell type | **The texture atlas un-defers** (§3.5). Quads are free; thousands of texture binds are not |
+| ~5,000 projectile create/destroys per second | The one place `architecture.md` §5's 🧊 memory pooling might genuinely trigger. **Watch, do not build** — §5 says profile first, and this is the reason to profile |
+| Objects outside the camera are simulated but not drawn | **Cull by camera AABB before drawing, and substitute a runtime-generated icon** (§8.2's `IconRenderer`) below a few pixels. A rendering rule, not an optimisation — it is also what makes §8.1's zoom-out into the navigation map a continuous degradation rather than a mode switch |
 
 *Resolved since earlier drafts:* **Template economics** (§2.6 — player chooses lump sum or
 royalties, negotiated against faction disposition) and **research permanence** (§2.5 — knowledge
 lives in networks, which die with their hosts).
+
+*Resolved 2026-08-07:* **Aiming model** (§3.2 — player aims manually via cursor, no target lock;
+NPCs roll a random hardpoint), **targeting priority's driver** (§3.2 — pilot/commander skill, never
+faction role), **fighter localized damage** (§3.2 — uniform with capitals, no exemption),
+**research vs. engineering vs. deconstruction** (§2.4 — three distinct mechanics sharing only a
+facility gate), **engineering merge scaling** (§2.4 — facility level, not engineer skill; ratifies
+what is already built), **where skill lives** (§2.7 — a crew module that mounts into a shell, not a
+hidden stat or a separate entity type), **the mass/power model** (§2.2 — shells add mass, modules add
+mass and draw power, both recomputed on every change; a shell cannot be removed while occupied),
+**docking vulnerability** (§3.4 — a docked vessel cannot be shot but dies with its host),
+**manufacturing's home** (§2.8 — `ConstructionSystem` keeps vessels; modules go to a new system,
+because they produce inventory rather than entities), **the tier count** (§2 — shell and component
+are one thing; there are two tiers, not three, and no `ComponentDef` is needed), **crew power draw**
+(§2.7 — zero, as a value rather than a `PowerSystem` exception; life support **cut** entirely, so
+crew and shell always die together), **cockpit placement** (§3.2 — a discrete crew shell at *every*
+scale, which is what forced fighters to grow), and **the uncrewed hull** (§3.2 — crew death disables
+rather than destroys).
+
+*Resolved 2026-08-08:* **the full scale system** (§3.5 — per-shell hardpoint sizes with collision
+matching art, chassis at 50% of hull radius, 50-unit fighters, a 2,500-unit cap on fightable hulls,
+system radius scaling with star class to a 2,000,000 ceiling), **hardpoint placement** (§3.5 — free
+placement bounded below by `r(A)+r(B)` and above by visual attachment), **rendering layers** (§3.5 —
+five z-layers, needing a new `ShellDef` field), **art direction** (§3.5 — stylised high resolution,
+not pixel art), **texture resolution per class** (§3.5 — capital chassis above ~600 units segmented
+from a shared library), **Military Weight** (§4.3 — offence × survivability,
+accumulated in a `double`, computed at demotion rather than cached), **upkeep** (§2.7 — 🧊 deferred;
+repair, refuel and assembly already provide the sink), and **fog of war** (§8.3 — per faction,
+inherited as a frozen copy when founding a new one).
+
+*Resolved 2026-08-08, second pass:* **the word "craft"** (§2 — a crafted intermediate item; a vessel
+is a *vessel*), **the quality band** (§2.7 — a grade is a multiplier band, every instance rolls a
+point in it, adjacent bands overlap), **budget distribution** (§2.7 — a grade also caps how many
+stats the roll may spread across; more stats, less potent each), **merge bounds** (§2.4 — clamped to
+the band, refused at the ceiling, gain measured against headroom), **hardpoint count** (§3.5 —
+emergent from `hullRadius`, chassis radius and peripheral size; validation rules 10–12; no
+`maxMounts`), **shell mass** (§2.2 — proposed as derived from radius, which is what makes the hull
+envelope self-correcting), **the save model** (§3.3 — free saves plus a coarse autosave that never
+fires on death, because Tier 2's recovery run is what a death-triggered autosave would kill), **the
+player's location** (§3.4 — always exactly one shell, flying or aboard; dies with it), **crew roles**
+(§2.7 — sensors and repair have live consumers today, damage control and navigation do not), **the
+damage roster** (§3.1 — two shield types, three weapon types, Ion suppressing power rather than
+dealing hull damage), **manufacturing's shape** (§2.8 — a queued job with re-rolled quality, gated by
+a grade-*N*−1 input chain), and **the performance budget** (§9.1 — including that galaxy extent is
+unbounded provided the macro tick iterates records rather than coordinates).
+
+*Downgraded 2026-08-07:* **whether the player may reload instead of accepting Hard Game Over**
+(§3.3) — leaning yes, offered explicitly on the Hard Game Over screen alongside continuing in the
+same galaxy. The save model underneath it is still open.
+
+**Economy content scale — the one number nobody has estimated.** §5.0 settles *how* per-system,
+per-item faction stock is stored and kept efficient. What is unestimated is how many distinct item
+ids the content set will actually reach once modules, shells, and vessels are authored across seven
+grades — which is the input to whether the sparse ledger stays comfortably small or wants a second
+look. Cheap to measure once `materials.json` and `crafts.json` exist; do not guess it now.
+
+**Faction heads.** §6.5 settles that a boss encounter is any commanded fleet, which needs no new
+system. Whether a *faction head* — §5.1's other Leadership pillar holder — is simply a commander of
+unusually high grade, or something with its own rules, is undecided. The former needs nothing; the
+latter is a feature.
+
+*Resolved 2026-08-09 — the command pass:* **operating and commanding are simultaneous** (§4.0 —
+the two-mode model settled 2026-08-08 is **reversed**; the player flies, shoots, and commands with
+no mode switch), **command is equipment** (§4.0 — a `Comms` module for reach and a commanding `Crew`
+module for authority, both on the rig you occupy; a fighter so fitted commands from its cockpit),
+**crew consolidate to one kind** (§2.7 — `ModuleKind::Crew` replaces `Operator`/`Commander`, with
+`operation` and `command` as rollable stats, so the ace pilot and the fleet admiral are two rolls of
+one module and neither is strictly better), **full selection from a fighter** (§4.3 — §4.3's
+"cursor-free verbs only," settled 2026-08-08, is **reversed**: right-click selects and issues,
+keys arm the verb, and left-click never stops firing), **order queues and stance are separate axes**
+(§4.3 — queues hold tasks, stance holds Hostile/Defensive/Peaceful, and `CommanderOrders` turns out
+to have been a stance enum all along), **order availability is emergent** (§4.3 — derived from
+living hardpoints, which is why a station with engines can move and why the `mobile` flag's movement
+gate is deleted), **live refit is unrestricted** (§2.7 — legal any time, priced by §3.4's no-pause
+rather than by a station gate), and **construction is gated on `FacilityKind::Construction`**
+(§2.11 — carrying `buildRange`, measured from the builder).
+
+**Strategic command's gating — the one question this pass left open.** Tactical command now travels
+with the player. Whether the *strategic* layer — cross-system dispatch, fleet movement, per-system
+build queues — stays reachable only from a bridge is undecided, and it blocks nothing: strategic
+command additionally waits on galactic coordinates (`architecture.md` §12.17) before "send that fleet
+there" has a *there*. See §4.2.
 
 **Mod load order.** `data/mods/` exists in the directory plan. Override vs. merge semantics, load
 order, and what is moddable at all are unspecified (🧊 deferred, but worth deciding before the
