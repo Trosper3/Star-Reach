@@ -5589,8 +5589,56 @@ Five things already in this document need it, which is why it is a commitment ra
 | **§2.10's Optical and Semiconductive attributes** | Their depth comes from sensor strength |
 
 **A free consequence worth having:** a heavy, power-hungry hull is genuinely easier to see than a
-light composite one running dark, so **material choice becomes a stealth decision** and not only a
+light composite one running dark, so **element choice becomes a stealth decision** and not only a
 combat-stat one.
+
+#### Sensor sharing is a comms link, not telepathy 📋
+
+*Settled 2026-08-09. This section already treats coverage as shared infrastructure at the strategic
+scale — "sensor modules, picket ships, and stations are radar you build, position, and defend;
+**losing a picket blinds a border**." This is the same idea at the **tactical** scale, and it needs
+the same mechanism rather than a new one.*
+
+> **You see what your comms-linked allies see.**
+
+**The `Comms` module is the gate.** §12.27 already moves `CommsSystem`'s hail check onto a dedicated
+`commsRange` and justifies the module on two consumers — hailing and command reach. **Sensor datalink
+is the third, on the identical check.** No new component, no new range stat, no new system.
+
+Three consequences, none of which costs new machinery:
+
+- **Destroying comms is a far bigger prize.** §12.27 already has it degrade fleet coordination; it now
+  also **collapses the shared sensor picture**. Same hardpoint, same check, **both sides** (§6.3).
+- **A scout becomes a real fleet role.** One hull with strong Optical and Semiconductive elements
+  (§2.10) feeds an entire formation — and losing it is a sudden, legible loss rather than one ship
+  fewer.
+- **It is multiplayer-safe with no special case.** Linked players share; unlinked players do not. Law
+  9's authority model never has to know the difference.
+
+##### It sharpens this section's tension rather than dissolving it
+
+The obvious worry is that sharing makes the player never blind, against §8.3's stated goal that *"you
+command against a picture that may be wrong."* It does not: **you see only where you have assets.**
+Datalink gives you your fleet's coverage, never omniscience — and it makes the failure mode dramatic.
+Kill the picket, or merely its comms hardpoint, and the enemy's picture goes dark **mid-engagement**.
+That is a better version of this section's tension than never having had the coverage at all.
+
+##### Relayed contacts must not look like direct ones
+
+When a linked ally dies, everything it was feeding goes stale in the same instant — and the player
+must already have known which contacts those were. This is *"absence must never look like emptiness"*
+in a second form.
+
+⚠️ **Dash density is already spent on shield charge** (§3.9), so second-hand contacts need a different
+channel — hollow versus filled, or a small link glyph. Decide it when the contact iconography is
+drawn (§3.10).
+
+##### ❓ Open: links outside a fleet
+
+Fleet members link automatically. Whether **hailing a friendly or neutral can establish a temporary
+link** — sharing sensors as a favour, a trade good, or a treaty term — is undecided and appealing. It
+needs a relation model, and `SystemContext::diplomacy` is `nullptr` until `architecture.md` §12.24
+step 6. **Deferred with a clear trigger rather than left as an oversight.**
 
 ---
 

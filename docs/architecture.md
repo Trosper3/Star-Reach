@@ -3306,9 +3306,19 @@ hailing on sensor range today only because that was the one range stat that exis
 and comms talk. That gives the new module two consumers rather than one, which is its §2.4
 justification.
 
+> ➕ **A third consumer, added 2026-08-09: the sensor datalink.** `features.md` §8.3 settles that
+> **linked allies share sensor coverage**, gated on this same `commsRange` check — no new component,
+> no new range stat, no new system. Three consumers on one module is a comfortable §2.4 margin, and it
+> is the reason `Comms` is worth authoring at all rather than folding into the sensor module.
+
 **Symmetric for NPCs (§6.3).** An enemy commander runs the same gate, so **destroying a hostile's
 comms hardpoint degrades their fleet coordination** — a tactical objective that costs nothing extra
 to build because it is the same check running for both sides.
+
+**And it now costs them their shared sensor picture too.** With the datalink on the same gate, one
+comms hardpoint carries both fleet coordination *and* the fleet's combined coverage — so killing it
+blinds a formation mid-engagement rather than merely desynchronising it. **The same shot, a much
+larger consequence, and no additional code**, since both effects read the one check.
 
 #### Selection and input
 
