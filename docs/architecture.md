@@ -105,6 +105,17 @@ batch.
 > §12.13 gestured at this as a component-producer problem and §11.9 called it a UI-wiring problem.
 > It is neither: it is the game loop. **§12.24 sequences it, and nothing else in §12 should start
 > first.** Until it lands, every new system ships into the same void.
+>
+> 🔍 **§13 audits all thirty systems against this, one row each, and the picture is worse in four
+> specific ways.** Populating the world is not enough to make it *visible*: `WorldGen`'s sun,
+> planets and asteroids satisfy neither of `WorldRenderer`'s views, and asteroids carry a drift
+> velocity `PhysicsSystem` never integrates. **Nothing in the codebase can damage an asteroid**, so
+> mining, the tutorial's asteroid step and all material loot are unreachable behind one view
+> predicate. `HierarchySystem` runs *before* `PhysicsSystem`, so every hit test in the game resolves
+> against hardpoint positions one tick stale. And a docked NPC already thrusts and fires — the exact
+> failure §12.24 step 2 predicts for the player, live today. **Eight of thirty systems are wired end
+> to end;** §13.5 is the task list, and §13.4 tracks the decisions it raised. **The first of those
+> is resolved — §12.28.**
 
 **Start here if you are picking up a design feature.** `features.md` gained a set of 📋 design
 sections (knowledge networks, sub-commanders, faction survival by Three Pillars, seeding, the
@@ -189,6 +200,18 @@ ever read. Almost none of it is new design.
 | **§12.25** | Deleting the `mobile` movement gate, so capability is emergent from living hardpoints |
 | **§12.26** | `FacilityKind::Construction` and build mode — the gate `ConstructionSystem` never had |
 | **§12.27** | The local command system — selection, order queues, stance. Switches on two inert systems |
+| **§12.28** | World bodies, hittability and the star hazard — **§13's first resolved cluster, and part of §12.24 step 1.** Makes `WorldGen`'s output visible and shootable |
+| **§12.29** | The system menu and returning to the main menu. `main.cpp`'s mode transition is one-way today. **Imposes a re-entrancy requirement on §12.24 step 1** |
+
+**§13 is the system-by-system wiring audit** — five columns per system (producer, consumer, UI,
+content, matches-docs), covering all thirty scheduled systems plus the factories, the renderers,
+and `FactionDecisionEngine`. It found that **eight of thirty systems are wired end to end**, and it
+adds twenty-two verified defects §0's list did not contain. Four of them change §12.24's own
+sequence: `WorldGen`'s entire output is undrawable, so step 1 needs a world-body component set to
+be judgeable at all; nothing in the codebase can damage an asteroid; `HierarchySystem` runs a tick
+ahead of the transforms it depends on; and a docked NPC already flies away under thrust, which is
+the exact failure step 2's ordering table predicts for the player. **Read §13.5 before picking up
+any §12 issue** — it is the task list, grouped by what unblocks what.
 
 ---
 
@@ -704,6 +727,7 @@ does, not from guesswork.
 | `EngineerSystem` | Merge two owned same-kind modules into one, level-scaled loss (§12.12) | 1 | ✅ |
 | `RefactorSystem` | Delete a live hardpoint, returning its modules to storage (§12.12) | 1 | ✅ |
 | `ManufacturingSystem` | Queued module/shell/craft production; the consumer research has lacked (§12.18) | 1–2 | 📋 |
+| `HazardSystem` | Environmental `PendingDamage` from hazard volumes — a star's corona today; nebulae, radiation belts and minefields on the same shape (§12.28) | 1 | 📋 |
 
 All twenty-two ✅ rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
 cross-issue dependencies among them).
@@ -1087,21 +1111,38 @@ store that does not exist means inventing a throwaway one:
 | §12.25 — the `mobile` movement gate | §12.23's `RecomputeRigTotals` | Always emplacing `Propulsion` only helps if something recomputes it when engines are mounted or die |
 | §12.27 — local command | §12.24 steps 1–4 · §12.25 · §12.26 | Needs a player who can fly; **Move** availability reads `Propulsion` (§12.25) and **Build** reads a Construction facility (§12.26) |
 | **Strategic command** (`features.md` §4.2) | §12.17 Galaxy Topology · §12.27 | "Dispatch that fleet there" has no *there* until systems carry galactic coordinates |
-| `ManufacturingSystem` (§12.18) | §12.19 Item Model **and** the materials/crafts content set | Needs `ItemId`/`ItemKind`, and needs something to consume. `data/base_game/` has no `materials.json` or `crafts.json` |
+| `ManufacturingSystem` (§12.18) | §12.19 Item Model **and** the Element/Material content set | Needs `ItemId`/`ItemKind`, and needs something to consume. `data/base_game/` has no `elements.json` or `materials.json`. **It is also where `features.md` §2.10's attribute propagation is computed**, so the whole material-attribute model is invisible in play until it exists |
 | Per-item faction stock (§12.20) | §12.19 Item Model | The ledger is keyed on `ItemId`, which does not exist |
 | Stat pools (§12.21) | §12.19 Item Model | A `Quality` roll is stored per instance alongside the item's identity; both land together |
-| §12.19 Item Model | **Materials and crafts content** *(authoring, not an issue)* | Mass and price derive from recipes. With no material set there is nothing to derive from |
+| §12.19 Item Model | **Element and Material content** *(authoring, not an issue)* | Mass and price derive from recipes. With no element set there is nothing to derive from. `features.md` §2.10 now specifies the roster, the eight attributes, and `tools/element_check` as its gate |
 | Navigation map levels 1–2 (§12.6) | §12.17 Galaxy Topology | Systems carry no galactic coordinate, so there is nothing to lay out |
 | The `std::hash` warp fix (§12.15 🐛) | §12.17 Galaxy Topology | The placeholder exists *because* systems have no coordinate to seed from |
 | ECM module (§2.11) | Fog of war migration (`features.md` §8.3) | Suppressing sensor coverage means nothing until coverage is per-viewer |
-| Cloak / stealth (§2.11) | **A signature/detection model** *(does not exist)* | Sensors carry only a range; there is nothing to detect *against*. This is a system, not a module |
+| Cloak / stealth (§2.11) · ECM · §8.3's per-viewer fog · §2.10's Optical and Semiconductive attributes | **A signature/detection model** — *agreed in principle 2026-08-09 (`features.md` §8.3), not yet specified* | Sensors carry only a range, hardcoded to 2000; there is nothing to detect *against*. This is a system, not a module. Four separate features now wait on it, including §2.9's "run silent," which promises a mechanic that does not exist |
+| **Material attributes reaching the game at all** (`features.md` §2.10) | **`ManufacturingSystem` (§12.18)** | Material → craft → module attribute propagation has to be *computed* somewhere, and §12.18 is that somewhere. It does not exist, and is itself blocked on the item model and the materials content set. **Not circular** — content lands first — but the materials work is invisible in play until §12.18 is built |
+
+**Added 2026-08-09 by §13's wiring audit** — these are dependencies the audit found, not new design:
+
+| Task | Depends on | Why |
+|---|---|---|
+| §12.24 step 1 — world and player | **§12.28** — world bodies, hittability and the star hazard (§13.3 A, B) | `WorldGen`'s sun, planets and asteroids satisfy neither `WorldRenderer` view, and nothing can shoot an asteroid. Calling `PopulateSystem` from `OnEnter` produces a world the player can neither see nor interact with, so step 2's motion cannot be judged against anything. **§12.28 has no dependency of its own and can land first** |
+| §12.24 step 1 — the player rig | `RigFactory` emplacing `CargoHold`/`Wallet` (§13.3 P) | Four systems bail on a null `CargoHold`; only `WarpToSystem` emplaces one today |
+| **§12.29 — quit to main menu** | §12.24 step 1 being written **re-entrant** | Returning to the menu and starting a second game calls `OnEnter` twice in one process. Without a `world_` reset it populates on top of the first world — two suns, two players. *The dependency runs backwards: §12.29 imposes a requirement on step 1, so write step 1 with the reset even if §12.29 lands later* |
+| §12.24 step 4 — a station to dock at | **§12.25's `LinearDamping` fix** (§13.3 J) | A station carries `BodyMass`+`Velocity` and no damping, so gravity accelerates it without bound — not merely "drags" it |
+| §12.24 step 5 — `StationServicesMenu` | `StationFactory` emplacing `CargoHold` (§13.3 O) | Buy and sell both `try_get<CargoHold>(station)`; no station has one, so a routed menu still trades nothing |
+| Mining · tutorial · material loot | **§12.28's narrowed `FindHit` view** (§13.3 B) | Nothing in the codebase can damage an asteroid, so all three are unreachable behind one view predicate |
+| `EngineerSystem`'s merge scaling | `FacilityStats::level` being parsed and forwarded (§13.3 K) | Neither half of the path exists, so the merge is permanently level 1 |
+| Live refit (`features.md` §2.7) | **`MountTraverse`** (§13.3 D) · §12.23's `RecomputeRigTotals` | A runtime-mounted weapon gets a zero-width firing arc and never fires |
+| `FactionDecisionEngine` having any caller | **§1.1's coarse tick** (§13.3 L, M) | It is a tested library with no invocation path, and three `TickCoarse` functions have no driver |
 
 **Startable today, nothing blocking:** **§12.24 steps 1–4, the micro loop — the one to take first**
 · §12.24 step 6's five `SystemContext` pointers · the `BridgeView::kAllKinds` fix · §12.17 Galaxy
 Topology (and it unblocks the most) · §12.22's shield coverage fix · §12.22's collision type B and
 structural cascade · §12.23's aggregation rule and `RecomputeRigTotals` · the
 `Sensor`/`CargoBay`/`FireControl` kinds · the fog-of-war migration (`DiscoveryState` →
-`KnowledgeNetwork`) · the one-line duplicate `DrawWorld` call in `SpaceFlight::Draw`.
+`KnowledgeNetwork`) · the one-line duplicate `DrawWorld` call in `SpaceFlight::Draw` · **all of
+§13.5's group 2** (the `HierarchySystem` reorder, the `Docked` exclusions, `PowerShed`'s missing
+reader, `FiringArc::currentOffset`, the facility-level parse, and the two content fixes).
 
 **Deleted 2026-08-08:** the eight rows this table previously held. `core/knowledge/KnowledgeNetwork`,
 `ResearchSystem`, `CommanderSystem`, and `TemplateMarketSystem` have all merged, so every dependency
@@ -1976,7 +2017,7 @@ impossible to express, since a rig can only ever be throttled.
   the same issue — the player's producer comes first, and the AI one is a second consumer of a
   mechanism that already works.
 
-#### 19 — Shell sizing, placement bounds, z-layers, and penetration (`features.md` §3.5)
+#### 19 — Shell sizing, placement bounds, draw layers, and penetration (`features.md` §3.5)
 
 **Shell radius stays per-type and authored** — `ShellDef.radius` already works this way and needs no
 change. A uniform-radius model was specified on 2026-08-07 and withdrawn on 2026-08-08; ignore any
@@ -1990,7 +2031,7 @@ surviving reference to it. What `shells.json` *does* need is re-authoring agains
 - **Rule 11 — attachment:** every mount within `A extent + B extent` of what it attaches to, so a
   mount cannot satisfy graph connectivity (rule 7) while floating visually detached.
 
-**`ShellDef` needs a z-layer field.** `spriteLayer` is a *string asset key* — which image, not what
+**`ShellDef` needs a draw-layer field.** `spriteLayer` is a *string asset key* — which image, not what
 draw order. §3.5's five-layer stack needs a separate integer (1–5), defaulted per shell type with an
 optional per-mount override in the blueprint. One string carrying both concepts is how they drift.
 
@@ -2529,13 +2570,29 @@ Today a rig dies only when `HasLivingHardpoint` is false — every hardpoint mus
 **Destroying a shell destroys everything attached to it.** `StructuralAttachment` already exists in
 `shared/components/Rig.h` and `RefactorSystem` already reasons about orphaning, so the graph is there.
 Everything hangs off the chassis, so chassis death is rig death **with no special case** — not the
-protected core §3.2 rejects, since the chassis is the most exposed part of a hull (50% of hull radius,
-dead centre).
+protected core §3.2 rejects, since the player is never *required* to kill it: `features.md` §3.2's
+structural-integrity threshold destroys the rig regardless. Killing the spine is a **fast path you
+earn**, not a mandatory weak point.
 
 Orphaned children are destroyed and drop salvage through `LootSystem`'s existing death-wreck path.
 
-⚠️ **Content precondition:** chassis hull must dominate peripheral hull, or "shoot the middle" is the
-fastest kill and localized damage becomes decorative.
+> 🔄 **Two claims in this subsection were revised 2026-08-09** by `features.md` §3.2's damage pass.
+>
+> **Superseded:** *"the chassis is the most exposed part of a hull (50% of hull radius, dead centre)."*
+> Under §3.2's structural-coverage rule, armour segments tile the hull envelope and functional mounts
+> attach to **them**, so the chassis becomes the **least** exposed part — you strip plating to reach
+> the spine. That is better, and it is still not a protected core, for the reason above.
+>
+> **Superseded:** the content precondition *"chassis hull must dominate peripheral hull, or 'shoot the
+> middle' is the fastest kill and localized damage becomes decorative."* **The constraint eats
+> itself** — chassis-focus is slower only if the chassis exceeds ~70% of total hull, at which point
+> peripherals genuinely are rounding errors. Measured on `aegis_vanguard`: 120 damage to kill via the
+> chassis against 227.5 by attrition, a 1.9× advantage that no authoring can remove.
+>
+> **The framing was wrong, not the numbers.** Localized damage is not a way to kill *faster*; it is
+> how you achieve what killing does not — stranding, disarming, disabling, and above all **capture,
+> which must deliberately avoid the chassis because killing it destroys the prize.** A fighter dying
+> to a burst through the middle is the honest outcome when killing was the goal.
 
 #### `ApplyRamDamage` should scale with absolute mass
 
@@ -2755,7 +2812,9 @@ struct ActorRef {
 - **Ignores an unresolvable `ActorId`** rather than asserting — `IntentQueue.h`'s own contract is
   that "an intent from a remote machine can name something that died locally two ticks ago."
 - **It must not poll raylib.** A system takes a bare `SystemContext` with no window, and
-  `features.md` §9.1's headless combat harness depends on that staying true.
+  `features.md` §2.7's proposed headless combat harness depends on that staying true. *(Cited as
+  §9.1 until 2026-08-09; §9.1 is the performance budget and never mentions a harness. Neither the
+  harness nor `tools/economy_sim` exists — `tools/` holds only `ci/`.)*
 
 **Schedule position** — in `TickSchedule()`, immediately after `HierarchySystem` and **before
 `PowerSystem`**:
@@ -3309,3 +3368,1028 @@ instead, which is exactly why the two tiers need separate homes.
 - Commanding is refused with no `Comms` hardpoint, and refused with a crew module whose `command`
   roll is zero.
 - The player's own rig never appears in the commandable set.
+
+### 12.28 World Bodies, Hittability And The Star Hazard — §13.3's group 1 blocker
+
+*Settled 2026-08-09, resolving §13.4 decision 4. This is the first cluster of the §13 wiring audit
+to be worked through to a specification. It exists because §12.24 step 1 — calling `PopulateSystem`
+from `OnEnter` — produces a world **nothing can see and nothing can shoot**, so steps 2 and 3
+cannot be judged against anything.*
+
+Three problems, one issue, because the fixes share a component:
+
+| §13 finding | Symptom |
+|---|---|
+| **A** | The sun, every planet, every asteroid and every loot drop satisfy neither `WorldRenderer` view. Nothing draws them |
+| **B** | Nothing in the codebase can damage an asteroid, so mining, the tutorial's asteroid step and all material loot are unreachable |
+| — | The sun out-accelerates a fighter 10:1 and there is no consequence at the bottom of the fall |
+
+#### Hittability needs no new component — it needs one narrowed view
+
+`ProjectileSystem::FindHit` views `HitRadius, WorldTransform, ParentRig`. **`ParentRig` is in that
+view only so the loop can skip the shooter's own rig** — an implementation detail leaked into a
+view predicate. Move it into the body:
+
+```cpp
+for (auto [hardpoint, hitRadius, hpXf] : registry.view<HitRadius, WorldTransform>().each()) {
+    const auto* parent = registry.try_get<ParentRig>(hardpoint);
+    if ((parent != nullptr && parent->root == projectile.shooter) ||
+        registry.all_of<Destroyed>(hardpoint)) {
+        continue;
+    }
+    ...
+}
+```
+
+The view becomes exactly *"things a shot can hit."* Rig roots carry `CollisionRadius`, not
+`HitRadius`, so nothing is caught that was not caught before. **Give an asteroid `HitRadius` and
+it is shootable through the path that already exists** — `DamageSystem` already drains its
+`PendingDamage` against the `Health` `WorldGen` already gives it, already tags it `Destroyed`, and
+`MiningSystem` already reacts. Four dead subsystems come back on one `emplace` and one narrowed
+view, with no new concepts.
+
+> This is the general lesson of the §13 audit stated once: **a view predicate is a contract about
+> what a system acts on.** Adding a component to it for a reason that is really about the loop body
+> narrows that contract silently, and the narrowing is invisible at the call site.
+
+#### Types
+
+Only *drawing* needs something new.
+
+```cpp
+// shared/components/Physics.h, beside CollisionRadius.
+
+// Declaration order is draw order AMONG WORLD BODIES, back to front. It is NOT the world's
+// full draw order -- rigs and projectiles are drawn by their own passes and always sit in
+// front of every one of these. WorldRenderer::DrawWorld states the full order in one place;
+// see it before adding an enumerator. Same convention as BridgeView::kAllKinds, and the same
+// hazard, so the renderer's switch must be exhaustive with no default.
+enum class BodyKind : std::uint8_t { Star, Planet, Wreck, Drop, Asteroid };
+
+// A world object that is NOT a rig -- a star, a planet, an asteroid, a dropped item, a wreck:
+// one entity, one shape, no hardpoints, no hierarchy. Vessels and stations are deliberately
+// absent, and not because they are a missing enumerator: a rig is not one drawable (a root
+// plus N hardpoint entities), and giving a root a `radius` here would put it alongside
+// CollisionRadius as a second record of the same fact.
+//
+// Deliberately NOT features.md 3.5's scale system -- there is no hullRadius here, no art, no
+// atlas, no per-shell sizing. Those need textures that do not exist (architecture.md 6).
+struct WorldBody {
+    float radius = 1.0f;
+    BodyKind kind = BodyKind::Asteroid;
+};
+
+// The lethal volume around a star. Mirrors GravityWell field for field and uses the SAME
+// falloff, deliberately: one shape, two effects, both centred on the same entity.
+struct Corona {
+    float range = 0.0f;            // Outer edge, world units from centre. Damage is zero here.
+    float damagePerSecond = 0.0f;  // At the centre, scaled by (1 - d/range)^2 outward.
+};
+```
+
+⚠️ **`BodyKind` is a new type**, and it is the third of three separate ordering concepts. Keeping
+them apart is `features.md` §3.7's explicit ruling, recorded there because the earlier
+"Z-layer / Z-level" naming differed by three characters and was confused:
+
+| Concept | Scope | Governs | Status |
+|---|---|---|---|
+| **Draw layer** (`features.md` §3.5) | *Within* one rig — ventral, hull, detail, dorsal, overlay | Rendering only: which part of a hull draws over another part of **the same hull**, tie-broken by **local** y | 📋 needs a new `ShellDef` field |
+| **Altitude band** (`features.md` §3.7) | World-space height, **vessel vs. vessel** | Collision **and** which hull draws on top. Occupancy scales with hull size; projectiles, shields, weapons and sensors ignore it | 🧊 deferred, fully designed |
+| **`BodyKind`** (here) | Non-rig bodies vs. rigs | Rendering only | 📋 new |
+
+`BodyKind` cannot be folded into either. §3.5's layers order *parts of one rig* and that section
+explicitly declines the world-level question in its own words — *"Sorting between separate rigs can
+stay arbitrary — two ships overlapping at the same altitude have no correct answer anyway."* A
+planet drawing behind every ship in the system is precisely that declined question.
+
+> ⚠️ **World bodies are outside the altitude-band system entirely, and stay outside it if §3.7
+> un-defers.** *"Planets are background, everything flies over them"* reads like an altitude claim
+> and is not one: a planet occupies **no band**, is never "below" anything, and simply never
+> collides while always drawing behind. §3.7 scopes bands to **vessel-vessel** collision, so a
+> future implementer must not give a star, planet, asteroid, drop or wreck a band — and
+> `HazardSystem`'s corona ignores altitude for the same reason projectiles and sensors do.
+
+**Why a kind and not a layer number.** The field does three jobs a `std::uint8_t` cannot: world
+draw order, placeholder colour (there is no art), and — the load-bearing one — **which icon §8.2's
+`IconRenderer` substitutes when the body shrinks below a few pixels on zoom-out** (§9.1 makes that
+substitution a requirement, not an optimisation; §8.2 settles that icons are generated
+programmatically as vector shapes per kind). An integer cannot answer the third.
+
+> **The justification does not depend on planets staying background.** If §3.7's collision work
+> ever makes celestial bodies solid, draw order evaporates *for planets specifically* — you cannot
+> overlap what you collide with — but it survives for the other four kinds, which overlap ships by
+> definition: you fly over a drop to collect it, over a wreck, over an asteroid, and **into** a
+> star's corona. And the icon job is collision-independent entirely: a solid planet needs a planet
+> marker at §8.1's zoom levels exactly as much as a background one does. **What would change is the
+> ordering of the reasons, not the existence of the type.**
+
+**Why an enum and not a tag component per kind.** Tags (`Star{}`, `Planet{}`, …) alongside a bare
+`WorldBody { float radius; }` would be more EnTT-idiomatic, and `Asteroid` already exists as one.
+Rejected: adding a sixth body type would then mean remembering a new render pass *and* a new
+`IconRenderer` branch, with **no compiler help** — which is precisely how `BridgeView::kAllKinds`
+shipped missing an enumerator (§13.5). An enum with an exhaustive `switch` and no `default` names
+every site you missed at compile time. Mechanism over discipline (§0).
+
+#### Systems and factories
+
+**`WorldGen::SpawnSun`** — add `WorldBody{kSunRadius, BodyKind::Star}` and
+`Corona{kCoronaRange, kCoronaDamagePerSecond}`. The existing `GravityWell` and `LightSource` are
+unchanged.
+
+**`WorldGen::SpawnPlanets`** — add `WorldBody{radius, BodyKind::Planet}`. Planets remain
+**non-colliding background**: everything flies over them. That is a decision, not an omission
+(below).
+
+**`WorldGen::SpawnAsteroids`** — this is the one that changes shape.
+
+> 🔄 **This revises a recommendation made earlier in this same session.** An earlier proposal gave
+> asteroids `BodyMass` so `PhysicsSystem` would integrate the drift velocity `WorldGen` already
+> rolls for them. **That was wrong.** `BodyMass` puts them in the physics view, `OrbitSystem`'s
+> gravity loop already pushes anything with `Velocity` that is not an `OrbitBody`, and an asteroid
+> has neither `LinearDamping` nor a `maxSpeed` clamp. Every asteroid inside the well would
+> accelerate without bound into the star and **the belt would drain within a minute of the fix
+> landing.**
+>
+> **Asteroids carry `OrbitBody`, like planets.** `OrbitSystem` excludes orbiting bodies from
+> gravity, so they circle the star indefinitely and deterministically, the drift-velocity hack
+> disappears entirely, and no asteroid needs `BodyMass`, `Velocity` or damping. It is also simply
+> true: a belt orbits.
+
+So an asteroid becomes: `Asteroid`, `AsteroidComposition`, `Health`, `WorldTransform`, `OrbitBody`,
+**`HitRadius`**, **`WorldBody{radius, BodyKind::Asteroid}`** — and loses `Velocity`.
+
+**`OrbitSystem`** — writes `PreviousTransform` before overwriting `position`, guarded by `try_get`.
+Two lines. Without it an orbiting body renders un-interpolated and judders against everything else
+on screen, which is the same defect `PhysicsSystem` already avoids for rigs.
+
+**`WorldRenderer`** — a new `DrawWorldBodies` pass, first, before `DrawShips`. Iterates
+`WorldBody, WorldTransform`, sorted by `kind`, and **interpolates only when `PreviousTransform` is
+present** — a drop that never moves should not carry a component purely to satisfy a view.
+
+> ⚠️ **`DrawWorld`'s body is the single statement of the world's draw order**, and it must be
+> readable as one back-to-front list. `BodyKind` orders only the first line of it:
+>
+> ```
+> DrawWorldBodies    // Star -> Planet -> Wreck -> Drop -> Asteroid   (BodyKind order)
+> DrawShips          // rig roots
+> DrawHardpoints     // rig children -- features.md 3.5's five intra-rig layers land here
+> DrawProjectiles
+> ```
+>
+> Nothing today wants a world body *in front* of a rig. If something ever does — a nebula the
+> player flies into, a corona bloom — **it is a new pass, not a reordered enumerator**, because
+> the thing that changed is where it sits relative to rigs, which `BodyKind` does not express.
+
+🐛 **A station currently renders as a nose-forward arrowhead.** `DrawShips` draws *anything* with
+`CollisionRadius` as a triangle, and `RigFactory` puts `CollisionRadius` on every rig root — Law 4
+means a station and a fighter reach that view identically, which is correct, and the shape is then
+wrong for one of them. There is no vessel-type flag to branch on, and §12.25 is deleting the one
+flag that came closest.
+
+**Make the silhouette emergent instead**, from the same living-hardpoint capability §12.25 makes
+`Propulsion` express: **a rig root draws as a nose-forward triangle when its `Propulsion` is
+non-zero, and as a disc when it is not.** Three lines, no new data, correct both before and after
+§12.25 (a station has no `Propulsion` component at all today, and a zeroed one after). It also
+means **shooting a ship's engines out visibly turns it into a hulk** — §3.2's stated consequence,
+rendered, for free.
+
+*This is a placeholder shape either way — `WorldRenderer`'s own header notes every shape here dies
+when the asset pipeline lands (§6) and §3.5 settles what replaces it. It is worth the three lines
+now because the micro loop (§12.24 steps 1–3) has to be judged by eye, and a system full of
+identical arrowheads is not judgeable.*
+
+**`MiningSystem` / `LootSystem`** — every drop and wreck they create gains
+`WorldBody{radius, BodyKind::Drop | Wreck}`. They are currently spawned with a bare
+`WorldTransform` and are invisible.
+
+**`HazardSystem`** — a new file, `modes/space/systems/HazardSystem.{h,cpp}`.
+
+```cpp
+// Queues environmental PendingDamage from hazard volumes. Today that is exactly one hazard --
+// a star's Corona -- and the system exists as its own file rather than folded into OrbitSystem
+// because OrbitSystem owns orbits and gravity, not damage, and because nebulae, radiation belts
+// and minefields are all the same shape.
+void Tick(const SystemContext& ctx);
+```
+
+Its whole body is one nested loop, and **it needs no branch for what it is damaging**:
+
+> **View: `Health, WorldTransform`, `exclude<Destroyed>`.** That is hardpoints *and* asteroids,
+> uniformly. Rig roots carry no `Health` and are excluded naturally; drops and wrecks carry none
+> either.
+
+This is §3.2's localized damage model applied honestly rather than exempted. A hazard is a
+*volume*; hardpoints are entities with positions; so **each hardpoint burns according to its own
+distance from the star**, and a capital hull half inside the corona burns only on the side that is
+in. No whole-rig special case, no exception to §3.2, no branch on vessel type — Law 4 and §3.2
+produce the behaviour between them.
+
+> 🐛 **Hazard damage must set `PendingDamage::source = entt::null`.** `PartySystem::FindAttacker`
+> scans its members' hardpoints for a non-null `source` and calls `AlertParty` with it. A star with
+> a real `source` would be **set as the party's combat target**, and every escort would turn and
+> attack the sun. `FindAttacker` already skips a null source, so the null is the whole fix — but it
+> is not optional, and it is exactly the kind of cross-system consequence a new `PendingDamage`
+> producer has to check for.
+
+**Schedule position — two constraints, no fixed index:**
+
+| Must run | Relative to | Why |
+|---|---|---|
+| **After** | `HierarchySystem` | It reads settled hardpoint `WorldTransform`s. *If §13.5 group 2's reorder lands first, that is after `PhysicsSystem` too* |
+| **Before** | `CollisionSystem` / `ProjectileSystem` | Both `QueueDamage` helpers overwrite `PendingDamage::source` when accumulating. Running the hazard first means **a real attacker's `source` always wins the tick**, so retaliation is never lost to a coincidental burn |
+
+Add both to `SystemSchedule.cpp`'s comment block in the same commit (§2.4).
+
+#### Tuning — four radii, each with a job
+
+Every number below is a placeholder in the same category as `kSunGravityStrength`, not authored
+content (Law 10 governs ship/module/shell definitions, not procedural-generation constants).
+
+| Radius | Value | What happens there |
+|---|---:|---|
+| `kSunLightRange` | 6,000 | Lighting reaches this far *(unchanged)* |
+| `kMinOrbitRadius` | 3,200 | Innermost planet *(unchanged)* |
+| **asteroid band** | **1,800 – 2,800** | **Moved out** from 1,200–2,200 *(below)* |
+| `kSunGravityRange` | 2,200 | Gravity begins *(unchanged)* |
+| *point of no return* | **≈1,500** | Emergent, not authored: gravity out-accelerates a fighter's engines |
+| `kCoronaRange` | **1,200** | Burning begins — inside the point of no return by design |
+| `kSunRadius` | **350** | The visible disc |
+| `kCoronaDamagePerSecond` | **60** | At the centre. Fighter hardpoints hold 35–120 hull, so the surface kills in seconds |
+
+**The asteroid belt moves, and this is a real bug being fixed.** It is authored at 1,200–2,200
+today, and the point of no return is ≈1,500 — so **the inner half of the belt sits inside the zone
+a fighter cannot climb out of under thrust.** That is harmless only while mining is unreachable; it
+becomes a one-way trip the moment finding B is fixed. Moving the band to 1,800–2,800 puts the whole
+belt outside both the burn and the point of no return, leaves a clean gap before the innermost
+planet at 3,200, and keeps the inner edge close enough that mining there still means fighting the
+star's pull. *Retuning the well instead was considered and rejected: its 10:1 authority over a
+fighter is the drama, and weakening it to accommodate a misplaced belt trades the good number for
+the arbitrary one.*
+
+**The escalating sequence is the point.** 2,200 you feel it · 1,500 you are committed · 1,200 you
+are burning · 350 you are dead. Each boundary is legible from the one before it, which is what
+makes the fall a decision rather than a trap.
+
+#### The two behaviours this deliberately does not build
+
+**Planets and stars have no collision.** Everything flies over a planet; the star kills by burning,
+not by contact. Ramming a celestial body is a real feature and §3.7 has the vocabulary for it, but
+it needs a damage model of its own, and hanging that on the issue that merely makes the world
+visible is how the micro loop stops being shippable. **Revisit trigger:** the first time a body
+is expected to block line of sight or shelter a ship — that is when contact starts meaning
+something.
+
+> **State the honest version of this deferral, because it is partly scope control.** There is a
+> real design argument *for* solid bodies: a system with none has no terrain, so nothing blocks a
+> shot, nothing shelters a ship, and position matters only as distance-to-star — which §12.26's
+> "escort a constructor to the frontier" and `features.md` §4.3's tactical positioning both quietly
+> want. It is deferred because it is a **feature, not a wiring fix**, and the cost is concrete:
+>
+> - `CollisionSystem`'s broad phase documents its own precondition — *"`kCellSize` must be >= the
+>   largest `CollisionRadius` any rig can have; `Query()` only visits the query point's own cell and
+>   its 8 neighbors."* `kCellSize` is **300**. A planet of any believable size breaks that
+>   invariant, so solid bodies need a separate static-body path or a rebuilt broad phase.
+> - The narrow phase is hull-vs-hull SAT over sampled hardpoints. A body is a circle, so it needs a
+>   circle-vs-hull path that does not exist.
+> - Solid planets pull **solid asteroids** with them for consistency, which is its own mechanic
+>   (dodging rocks in a belt) rather than a free consequence.
+
+**Death by star is not a new death path.** The corona queues `PendingDamage`; `DamageSystem`
+destroys the rig when its last hardpoint dies, exactly as it does for gunfire. *An earlier framing
+in this session's discussion described a lethal radius. It was revised to a burn band for four
+reasons: it needs no destruction rule of its own; `DamageType::Energy` makes an Energy-absorbing
+shield let you dive deeper, an interaction that falls out of §3.1's existing roster without being
+designed; it makes the star terrain rather than a wall, so grazing it to shake a pursuer is real
+play; and §2.4's own standard for this class of thing is "a gamble the player took, not a gotcha
+the game sprang" — a hull bar visibly falling is a warning, an invisible line is not.*
+
+#### Tests
+
+Headless; `HazardSystem` takes a bare `SystemContext` with no window.
+
+- A projectile fired at an asteroid queues `PendingDamage`; `DamageSystem` tags it `Destroyed`;
+  `MiningSystem` spawns a `MaterialDrop` the same tick. **The regression test for finding B**, and
+  the first test in the codebase where mining happens at all.
+- A projectile still never hits a hardpoint on its own shooter's rig — the regression test for the
+  narrowed `FindHit` view.
+- A rig inside `kCoronaRange` accumulates `PendingDamage` on every hardpoint, scaled by depth; one
+  outside accumulates none.
+- **Hazard `PendingDamage` carries a null `source`, and a party under corona damage does not
+  acquire a target.** The regression test for the `AlertParty` hazard.
+- An asteroid at the belt's inner edge is still at the belt's inner edge after 10,000 ticks — the
+  regression test for the `OrbitBody`-not-`BodyMass` decision, and for the belt never draining.
+- `PopulateSystem` emits at least one `WorldBody` of each of `Star`, `Planet` and `Asteroid`, and
+  every entity it creates carrying `WorldTransform` also carries `WorldBody`. **This is the
+  assertion that would have caught finding A**, and it is worth writing as a blanket invariant
+  rather than three specific checks.
+- A rig with non-zero `Propulsion` reports a different root silhouette than one with zero, and a
+  rig whose last engine hardpoint is destroyed changes from the first to the second — the
+  regression test for the emergent silhouette, and it needs no window if the shape choice is
+  factored into a small pure predicate the test can call.
+### 12.29 The System Menu And Returning To The Main Menu — §13.3 Y
+
+*Settled 2026-08-09. Almost none of this is new design: `features.md` §3.6 **already** binds this
+menu, already makes `Esc` contextual, and already restricts it to singleplayer. What it never had
+is a home, a spec, a mode transition, or a resolution of the contradiction it walked into.*
+
+**The defect it closes.** `main.cpp`'s mode loop is **one-way**: `QuitRequested()` is only checked
+while `activeMode == &menu`, and there is no path from `SpaceFlight` back. Once the game starts, the
+only exit is closing the window.
+
+#### It pauses — and §3.4 has to be amended to say so
+
+`features.md` §3.4 states *"The simulation never stops while the player is alive,"* and §3.6's
+binding table cites §3.4 as its own justification while calling this **"the pause menu"** and
+marking it **"Singleplayer only."** Those cannot both be read literally, and the "singleplayer only"
+qualifier is the tell — a menu that did not stop time would have no reason to be restricted.
+
+> **§3.4 forbids pausing on any surface that carries information or decisions. The system menu
+> carries neither, by construction, and that is what makes it legal.**
+
+The distinction is not a loophole; it is the same one §3.4's own list draws. The navigation map, the
+Engineering view, station services and the Bridge all hand the player *tactical value* — routes, the
+threat picture, repairs, orders — so freezing time while reading them is a free advantage and §3.4
+rightly forbids it. The system menu offers Resume and Quit. You cannot repair from it, retarget from
+it, reallocate power from it, or issue an order from it.
+
+> ⚠️ **This is a live constraint on what the menu may ever contain, not a one-time ruling.** If
+> Settings later gains anything with in-fight value — a power-priority editor (§2.9), a weapon-group
+> editor (§3.6), a keybinding surface consulted mid-fight — **that surface stops being legal here
+> and moves to a non-pausing home.** Add nothing to this menu without re-reading this paragraph.
+
+Multiplayer is unaffected: §3.6 already scopes the pause to singleplayer, and Law 9's authority
+model has no way to honour a client-side freeze. In a future session the menu opens and the
+simulation keeps running — which is legal precisely because the menu confers nothing.
+
+#### `Esc` is a ladder, and §3.6 specifies only its middle
+
+§3.6 gives *"Clear selection; if nothing is selected, the pause menu."* Two more consumers land
+before it, so the full precedence is **innermost first**:
+
+| Order | If… | `Esc` does |
+|:---:|---|---|
+| 1 | Build placement is active (§12.26) | Cancel placement |
+| 2 | A unit selection is non-empty (§12.27) | Clear the selection |
+| 3 | The system menu is closed | Open it |
+| 4 | The system menu is open | Close it |
+
+Steps 1 and 4 are additions to §3.6's table and belong in it. **A menu that cannot be closed by the
+key that opened it is the kind of gap that only shows up in play.**
+
+#### Home and state
+
+**`modes/space/ui/SystemMenu.{h,cpp}`.** Not `shared/ui/` — that is the theme layer (`sr_shared_ui`)
+and knows nothing of modes. Law 11's tie-breaker keeps it in the mode until a second consumer
+appears, which is the same call `NavigationMap` already got (§3's directory blueprint).
+
+**Open/closed state goes on the singleton entity**, per §12.24's "Where UI state lives" — the
+`CommsLog` precedent, not a `SpaceFlight` member.
+
+**One new `SpaceFlight` member, and it is mode state rather than UI state:**
+
+```cpp
+bool ShouldReturnToMenu() const;   // Polled by main.cpp, exactly like MainMenu::ShouldStartGame()
+```
+
+`main.cpp` gains the mirror of the transition it already has:
+
+```cpp
+if (activeMode == &game && game.ShouldReturnToMenu()) {
+    activeMode->OnExit();
+    activeMode = &menu;
+    activeMode->OnEnter();
+}
+```
+
+> 🐛 **"The world ceases to exist on quit" is the intent, and nothing in the code makes it true.**
+> `SpaceFlight` is constructed once in `main.cpp` and lives for the whole process; `world_` is a
+> member of it; **`OnExit()` is empty.** Returning to the menu therefore leaves the entire previous
+> world sitting in memory, and the moment §12.24 step 1 populates a world in `OnEnter`, starting a
+> second game populates *on top of the first* — two suns, two players, two of everything.
+>
+> The teardown has to be written, in both halves, and the split matters:
+>
+> - **`OnExit()` releases the world** — `world_ = SystemWorld{}`, plus `intents_.Clear()`. This is
+>   where it belongs semantically: quitting is what destroys the session, and it also stops a dead
+>   world's registry occupying memory for as long as the player sits in the menu.
+> - **`OnEnter()` does not assume it was called** — it resets `world_` and `clock_` before
+>   populating, so a clean start does not depend on a prior exit having run.
+>
+> `WarpToSystem` already demonstrates the pattern (`world_ = SystemWorld(id)` destroys everything
+> before replacing it — Law 2's clean handoff). **This is a few lines in step 1 and an invisible bug
+> if step 1 lands without it**, because with `OnExit` empty the duplication is silent: the second
+> world looks correct and the first one is still being ticked underneath it.
+
+#### What the menu contains — and what it deliberately does not
+
+*Confirmed 2026-08-09: this is the **only** pause in the game. Every other menu — docking, station
+services, Engineering, the navigation map, the Bridge — runs with the simulation live, per §3.4.*
+
+| Entry | Intended | Ships first |
+|---|:---:|:---:|
+| **Resume** | ✅ | ✅ |
+| **Save** · **Load** | ✅ | ❌ — see below |
+| **Settings** — audio, graphics | ✅ | ❌ — nothing configurable exists yet |
+| **Quit to Main Menu** | ✅ | ✅ — with a confirmation, since **all progress is lost** (below) |
+
+**Confirmed excluded: the power-priority list (§2.9) and the weapon-group editor (§3.6).** Both
+carry in-fight value, so both would void the §3.4 exception this menu depends on. §2.9 already names
+their home — *"the avionics surface, alongside the other ship-configuration readouts"* — which does
+not pause, and where configuring under fire is the intended cost.
+
+**Save and Load are absent rather than disabled.** §2.4 forbids dead abstractions, and a button that
+cannot work is the UI form of one. They are absent for a reason bigger than wiring: per §13.3 Y,
+**`SaveFile` could not save a game if it were called.** Its entire API is
+`SaveShipBlueprint`/`LoadShipBlueprint`/`SaveKnowledgeStore`/`LoadKnowledgeStore` — no world seed, no
+registry, no player rig, no `Wallet`/`CargoHold`, no `FactionEconomy`, no `DiplomacyMatrix`, no
+`DiscoveryState`, no `WreckLedger`. `features.md` §3.3 settled the *save model* without anything
+underneath it.
+
+**That separation is the point of this section.** Quit-to-menu needs a two-way mode transition and
+nothing else, so it ships now. Defining what a world save contains is a larger piece of work that
+must not hold it up.
+
+⚠️ **Until Save exists, quitting to the menu discards everything.** The confirmation prompt must say
+so plainly rather than asking "Are you sure?" — the player has no way to avoid the loss, and a vague
+prompt implies they do.
+
+#### Tests
+
+- `ShouldReturnToMenu()` is false on entry, true after the quit entry is confirmed, and false again
+  after `OnEnter` runs — a latch that does not re-fire.
+- **`OnEnter` twice in a row leaves exactly one sun, one player and one station** — the regression
+  test for the re-entrancy bug above, and the one that would otherwise be found by playing.
+- The `Esc` ladder resolves innermost-first: with placement active it cancels placement and does not
+  open the menu; with a selection it clears the selection and does not open the menu; with neither it
+  opens; opened, it closes.
+- Opening the menu freezes tick advancement and closing it resumes, with no tick catch-up burst —
+  `FixedTimestep`'s accumulator must not bank real time while paused, or unpausing fast-forwards the
+  world through however long the player sat in the menu.
+---
+
+## 13. System Wiring Audit
+
+*Compiled 2026-08-09, by grepping for readers and callers rather than by reading schemas. Every
+row below was verified against `src/`; nothing here is inferred from a header comment, and where a
+header comment and the code disagree, the disagreement is recorded as a finding.*
+
+**Why this section exists.** §0's 🚨 block establishes that there is no game loop. This section
+answers the next question: *of the thirty scheduled systems ticking over that empty world, which
+ones would actually do anything once it is populated?* The answer is **eight of thirty**, and the
+remaining twenty-two fail for reasons that fall into four repeating shapes. The audit is durable
+here rather than in a chat log because a row with a gap in any column **is a task**, and §13.5
+collects them.
+
+### 13.0 How to read a row
+
+| Column | Question it answers |
+|---|---|
+| **Producer?** | Does anything in `src/` create the input this system consumes? *(tests do not count — a test-only producer is the defect)* |
+| **Consumer?** | Does anything read what this system writes? |
+| **UI surface?** | Can a player see or trigger it? |
+| **Content?** | Does `data/base_game/` author what it needs? |
+| **Matches docs?** | Does the behaviour match `features.md`/this document? |
+
+✅ wired · ⚠️ partial · ❌ missing · — not applicable
+
+> **The dominant defect is not absence of code.** Twenty-two systems are complete, tested, and
+> scheduled. They fail on one missing `emplace`, one hardcoded literal, or one component the
+> factory never attaches. Almost every row below is a small fix in a system that already works.
+
+### 13.1 The thirty scheduled systems
+
+Listed in `TickSchedule()` order, so the ordering findings in §13.3 read against the same sequence.
+
+| System | Producer? | Consumer? | UI surface? | Content? | Matches docs? |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **WarpSystem** | ❌ `WarpRequest` test-only; `SystemWarpRequest` has no producer either | ✅ `SpaceFlight::Update` drains `SystemWarpRequest` | ❌ | — | ⚠️ no fuel, no module, no charge time (§2.11) |
+| **HierarchySystem** | ✅ `RigFactory` | ✅ everything reads `WorldTransform` | — | ✅ | ❌ **runs before `PhysicsSystem`** — every hardpoint is one tick stale (§13.3 G) |
+| **ConstructionSystem** | ❌ `BuildStationRequest`/`PlaceShipRequest` test-only | ✅ spawns rigs | ⚠️ `BuildMenu` builds the request; nothing places it | ✅ | ❌ no facility gate, no range gate (§12.26) |
+| **ModuleEquipSystem** | ❌ `MountModuleRequest`/`UnmountModuleRequest` test-only | ✅ writes `EquippedModule` | ⚠️ `ModulesMenu`, unrouted | ✅ | ❌ **traverse hardcoded `0.0f`**; no `BodyMass`/`Propulsion` recompute; `EquippedModule` ≠ `MountedModules` (§13.3 C, D) |
+| **PowerSystem** | ✅ `RigFactory` → `PowerSource`/`PowerLoad` | ⚠️ `satisfaction` read by Physics/Weapon; **`PowerShed` read by nobody** | ❌ no category switches, no priority menu | ❌ no level multipliers authored | ❌ **implements roughly a third of §2.9 and none of the commanded half** (§13.3 X) |
+| **SpawnSystem** | ❌ **`SpawnAnchor` and `RespawnPending` both have zero producers** | ✅ | ❌ | ❌ nothing authors an anchor | ⚠️ fully inert: no respawn, and the 20 000-unit cull never runs |
+| **OrbitSystem** | ✅ `WorldGen` → `OrbitBody`/`GravityWell` | ✅ writes `WorldTransform`/`Velocity` | ❌ planets are never drawn | ⚠️ every planet mechanically identical | ⚠️ gravity also pulls projectiles; stations have no damping (§13.3 J) |
+| **PhysicsSystem** | ✅ | ✅ | ⚠️ | ✅ | ⚠️ `ThrustInput` has no player producer (§0 ③) |
+| **DockingSystem** | ✅ `AvionicsMenu` — **the only gameplay input in `src/`** | ✅ | ✅ prompt + key | ✅ `docking_bay_i` | ❌ **free unlimited repair**, undercutting `StationServicesSystem` (§13.3 I); faction-equality gate (§5.3) |
+| **EngineerSystem** | ❌ `MergeModulesRequest` test-only | ✅ | ⚠️ `EngineerMenu`, unrouted | ❌ no Engineering facility authored | ❌ `ctx.craftedModules` is `nullptr`; **merge level always 1** (§13.3 K) |
+| **RefactorSystem** | ❌ `DeleteHardpointRequest` test-only | ✅ | ⚠️ `RefactorMenu`, unrouted | ❌ no Engineering facility | ⚠️ no aggregate recompute; can delete the last hardpoint and kill the rig |
+| **StationServicesSystem** | ❌ all three requests test-only | ✅ | ⚠️ `StationServicesMenu`, unrouted | ❌ no Repair/Storage facility | ❌ **no station carries `CargoHold`** — buy/sell can never succeed (§13.3 P); repair gated on `Docked` alone |
+| **TargetingSystem** | ✅ `RigFactory` | ✅ `WeaponSystem`, `NpcAiSystem`, `IconRenderer` | ✅ reticle | ✅ | ❌ auto-locks for the player (§3.2 forbids); `IsHostile` = faction inequality, `DiplomacyMatrix` never consulted (§13.3 O) |
+| **NpcAiSystem** | ✅ | ✅ | ✅ | ✅ | ❌ **ignores `Docked`** — a docked NPC thrusts and fires (§13.3 H) |
+| **WeaponSystem** | ⚠️ `FireIntent` from `NpcAiSystem` only | ✅ spawns projectiles | ✅ | ⚠️ one NPC ship's gun has a zero-width arc (§13.3 W) | ❌ `FiringArc::currentOffset` never steers the shot; `turnRatePerSecond` hardcoded `kPi`; `PowerShed` unchecked; fires while docked |
+| **CollisionSystem** | ✅ `RigFactory` | ✅ `PendingDamage` | ⚠️ no visual feedback | ✅ | ⚠️ rig-vs-rig only: **asteroids, planets and the sun have no collision at all** |
+| **ProjectileSystem** | ✅ `WeaponSystem` | ✅ `PendingDamage` | ✅ tracers | ✅ | ⚠️ `FindHit` requires `ParentRig` — projectiles pass through asteroids (§13.3 B); iteration-order hit, not nearest (§9.1 flags this as required) |
+| **PartySystem** | ❌ **`PartyLeader`/`PartyMember` have zero producers** | ✅ | ❌ | — | ✅ correct once §12.27 supplies membership |
+| **DamageSystem** | ✅ | ✅ | ⚠️ hull bar only | ✅ | ⚠️ zeroes `Propulsion` destructively — repairing an engine never restores thrust |
+| **TutorialSystem** | ❌ **`Tutorial` has zero producers** | ✅ | ❌ nothing draws a step | — | ⚠️ `DestroyAsteroid` unreachable regardless (§13.3 B) |
+| **MiningSystem** | ❌ **nothing can damage an asteroid** (§13.3 B) | ✅ `MaterialDrop` | ❌ drops are invisible | ❌ untyped string ids against no registry — and `"silica"` **is not an element** (silicon is; silica is SiO₂) | ❌ no gathering module, no range stat; needs the `Element` rename (§13.5 group 2b) |
+| **ContractSystem** | ❌ `AcceptContractRequest` test-only | ✅ `Wallet` | ❌ no contract board | ❌ | ⚠️ Courier/reputation deferred by its own header |
+| **DistressSystem** | ❌ both requests test-only | ✅ `Wallet` | ❌ | — | ✅ |
+| **LootSystem** | ⚠️ `MaterialDrop` (unreachable), `DeathWreck` (warp only); **`LootDrop` and `DerelictWreck` have zero producers** | ✅ `CargoHold`/`Wallet` | ❌ **every drop type is invisible** (§13.3 A) | — | ⚠️ `extraRadius` only ever `0.0f`; NPCs cannot loot |
+| **CommsSystem** | ❌ `HailRequest` test-only | ❌ **`CommsLog` is write-only — nothing draws it** | ❌ | ✅ | ⚠️ gated on `SensorRange`; §12.27 moves it to `commsRange` |
+| **FactionEconomySystem** | ❌ `DepositRequest`/`SpendRequest` test-only | ✅ `SpendResult` — also read by nobody | ❌ | — | ✅ |
+| **DiscoverySystem** | ✅ `PlayerControlled` | ✅ `DiscoveryState` | ❌ `NavigationMap` is uncalled | — | ❌ `ctx.discovery` is `nullptr` |
+| **CommanderSystem** | ❌ **`Commander` has zero producers** | ❌ **nothing reads `Commander::orders`** | ❌ | — | ⚠️ dead in both directions until §12.27 |
+| **ResearchSystem** | ❌ **`StationFacility` has zero producers** — no station carries one | ✅ `KnowledgeStore` | ❌ no menu at all | ❌ no Research facility | ❌ `ctx.knowledge` is `nullptr`; `researchTier` never authored |
+| **TemplateMarketSystem** | ❌ `PitchTemplateIntent` has zero producers | ✅ | ⚠️ `CustomizeMenu`, unrouted | — | ❌ `ctx.diplomacy` is `nullptr`, so `PassesGate` returns `false` unconditionally — **a no-op even if an intent arrived** |
+
+**Eight systems are wired end to end today:** `HierarchySystem`, `PowerSystem`, `OrbitSystem`,
+`PhysicsSystem`, `TargetingSystem`, `NpcAiSystem`, `CollisionSystem`, `ProjectileSystem` — plus
+`DamageSystem` and `WeaponSystem` on the NPC path only. Every one of them is in the combat/motion
+core, which is exactly the set §10's vertical slice exercised. **Nothing outside that slice has a
+producer.**
+
+### 13.2 Everything else that ticks, draws, or was expected to
+
+| Unit | Producer? | Consumer? | UI surface? | Content? | Matches docs? |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **`WorldGen`** | ❌ **called only from `WarpToSystem`**, never `OnEnter` | ✅ | ❌ **none of its output is drawable** (§13.3 A) | ⚠️ 3 ships, 7 modules, 7 shells, 1 facility | ❌ spawns no station (§12.24 step 4) |
+| **`RigFactory`** | ✅ | ✅ | — | ✅ | ⚠️ emplaces no `CargoHold`, no `Wallet`, no `ActorRef`; `SensorRange` hardcoded `2000.0f`; `mobile` gates `Propulsion` (§12.25) |
+| **`StationFactory`** | ❌ reachable only from `ConstructionSystem` | ✅ | — | ✅ `aegis_outpost` | ❌ six-line pass-through: adds **no** station-specific component — no `StationFacility`, no `CargoHold`, no `SpawnAnchor` |
+| **`NpcFactory`** | ✅ `WorldGen` | ✅ | — | ✅ | ✅ |
+| **`WorldRenderer`** | ✅ | — | ✅ | ⚠️ placeholder shapes, no art | ❌ **draws only rig roots, hardpoints and projectiles** — no sun, planets, asteroids, drops or wrecks |
+| **`LightingPass`** | ✅ `WorldGen`'s `LightSource` | ✅ `WorldRenderer` | ✅ | ✅ | ✅ |
+| **`IconRenderer`** | ✅ | ⚠️ `DrawMapMarker` called only by the uncalled `NavigationMap` | ✅ reticle | — | ❌ **renders the auto-lock §3.2 forbids** (§13.3 Q); no camera-AABB cull or icon substitution (§9.1 requires both) |
+| **`FactionDecisionEngine`** | — | ❌ **zero callers in `src/`** — not scheduled, not called from any mode | ❌ | — | ❌ §0 lists it as built beside the 22 systems; §4 names it `FactionDecisionSystem`. It is a tested library with no invocation path |
+| **`core/serialization/`** | — | ❌ **zero callers outside its own directory and tests** — `SaveFile`, `SaveMigrator`, `BlueprintSerialization`, `KnowledgeSerialization` | ❌ no save, no load, no menu entry | — | ❌ **and it could not save a game if called** (§13.3 Y) |
+| **`main.cpp`'s mode loop** | — | ✅ | ❌ **the transition to `SpaceFlight` is one-way** — `QuitRequested()` is only checked while the menu is active, so the only exit is closing the window | — | ❌ `features.md` §3.6 already specifies a pause menu on `Esc` (§12.29) |
+| **`core::diplomacy::Territory`** | — | ❌ zero users outside `core/` | ❌ | — | ❌ |
+| **`core::diplomacy::DiplomacyMatrix`** | ❌ zero writers | ⚠️ read only by the unreachable `TemplateMarketSystem` | ❌ | — | ❌ the exact failure §5.3 was written to prevent |
+| **`TickCoarse`** | — | ❌ **three definitions, zero callers** — `RunTick` calls only `tick` | — | — | ❌ §1.1's LOD tiers have an interface and no driver |
+| **The nine menus** | ❌ none places the request it builds | — | ❌ **none is referenced outside its own TU and tests**; none handles input | ⚠️ | ❌ §12.24 step 5 |
+| **`CockpitHud` · `AvionicsMenu` · `BridgeView`** | ✅ called from `SpaceFlight::Draw` | ✅ | ✅ | ✅ | ⚠️ `BridgeView::kAllKinds` omits `Engineering`; no tab selection |
+
+### 13.3 What this audit found that §0's list did not
+
+Twenty-two new findings, verified. They are ordered by how much they collapse when fixed — the
+first four each unblock several systems at once.
+
+#### A · `WorldGen`'s entire output is invisible, and half of it is inert
+
+`WorldRenderer::DrawShips` views `WorldTransform + PreviousTransform + CollisionRadius`;
+`DrawHardpoints` views `ShellRole + HitRadius`. `WorldGen` gives its sun `WorldTransform`,
+`GravityWell`, `LightSource`; its planets `OrbitBody + WorldTransform`; its asteroids
+`Asteroid, Health, WorldTransform, Velocity, AsteroidComposition`. **Not one of them satisfies
+either view.** The sun, every planet, and every asteroid are drawn by nothing. So are
+`MaterialDrop`, `DeathWreck` and every other loot entity, all of which are created with a bare
+`WorldTransform`.
+
+Worse for asteroids: `PhysicsSystem` views `WorldTransform + Velocity + BodyMass`, and an asteroid
+has no `BodyMass`. **The drift velocity `WorldGen` rolls for each one is never integrated** — and
+neither is the gravity `OrbitSystem` adds to it every tick. Asteroids are stationary, invisible,
+and accumulating velocity nobody reads.
+
+> This is why §12.24 step 1 is not sufficient on its own. Calling `PopulateSystem` from `OnEnter`
+> produces a world the player cannot see. **A renderable/collidable component set for
+> non-rig world bodies is a prerequisite for step 1 being judgeable**, not a follow-up — and it is
+> the cheapest possible version of §3.5's scale work, which needs a `hullRadius` concept that does
+> not exist anywhere in the codebase yet.
+
+#### B · Mining is unreachable — not "unstatted", unreachable
+
+`MiningSystem` acts on `Asteroid + AsteroidComposition + WorldTransform + Destroyed`. The only two
+producers of `PendingDamage` — the only path to `Destroyed` — are:
+
+- `ProjectileSystem::FindHit`, whose view requires **`HitRadius, WorldTransform, ParentRig`**
+- `CollisionSystem`, whose view requires **`Rig, CollisionRadius, BodyMass, Velocity, RamCooldown`**
+
+An asteroid carries none of those. **Nothing in this codebase can damage an asteroid.** Four
+things die behind that one gap: `MiningSystem` entirely, `TutorialSystem`'s `DestroyAsteroid` step,
+every `MaterialDrop`, and `LootSystem`'s material path. Giving asteroids `HitRadius` (and a
+`ParentRig` self-reference, or relaxing `FindHit`'s view) fixes all four at once. §0's note that
+*"MiningSystem reads no module stat"* is true and understates it by an order of magnitude.
+
+#### C · `MountedModules` and `EquippedModule` are two unreconciled answers to one question
+
+`RigFactory` writes **`MountedModules { ids }`** on every hardpoint at spawn. `ModuleEquipSystem`
+writes and reads **`EquippedModule { id }`**, and treats *absence* of it as "this mount is empty."
+`ModulesMenu::EquippableMounts` uses the same predicate. Consequences, all live:
+
+- **Every factory-authored hardpoint reads as an empty mount** in `ModulesMenu`.
+- A `MountModuleRequest` aimed at an occupied hardpoint **passes the occupancy check**, then
+  `AttachModuleComponents` `emplace_or_replace`s over the authored module's `Weapon`/`Shield`/
+  `PowerLoad` — silently destroying it without returning it to cargo.
+- `RefactorSystem` returns `MountedModules::ids` to cargo on delete and never looks at
+  `EquippedModule`, so a runtime-mounted module is destroyed with the hardpoint.
+
+One of the two must go. `MountedModules` is the more general shape (a mount may hold several) and
+already has the `RefactorSystem` consumer; `EquippedModule` is the one with the equip/unequip
+lifecycle. **Recommendation: keep `MountedModules` as the single record and delete
+`EquippedModule`**, since a hardpoint's contents is a list either way and the factory path is the
+one that must never diverge from what `RefactorSystem` refunds.
+
+#### D · Every runtime-mounted weapon gets a zero-width firing arc
+
+`ModuleEquipSystem.cpp:50` calls `AttachModuleComponents(registry, mount, *module, 0.0f)` — the
+fourth argument is `mountTraverseRadians`, hardcoded. `RigFactory` passes the authored
+`mount.traverseRadians` there. So a weapon mounted at runtime gets `FiringArc{halfWidth = 0}`, and
+`AimAt`'s `withinArc` test (`|rawOffset| <= 0.0f`) is a float equality that will essentially never
+hold. **A live-refitted weapon never fires.**
+
+This cannot be fixed inside `ModuleEquipSystem` as written: the mount's authored traverse lives on
+`MountBlueprint`, which is not stored on the hardpoint entity. It needs either a
+`MountTraverse { float radians; }` component written by `RigFactory`, or a blueprint lookup through
+`BlueprintRef` + `MountRef`. **The component is the right answer** — `RigFactory` already has the
+value in hand, and it makes the hardpoint self-describing the way every other rig attribute is.
+
+> This is load-bearing for `features.md` §2.7's live refit, which is now sanctioned combat play.
+> It joins §12.23's `RecomputeRigTotals` and §12.25's `Propulsion` fix in the same issue.
+
+#### E · `FiringArc::currentOffset` is a dead output
+
+`AimAt` integrates `currentOffset` toward the target every tick and uses it to decide whether the
+mount *may* fire. `SpawnProjectiles` then computes the shot direction as
+`ToAngle(aimPoint - mountXf.position)` — the exact bearing to the target, ignoring `currentOffset`
+entirely. Nothing renders it either. **Turret traverse gates whether a mount fires but never where
+the shot goes**, so a turret that is 179° off aim and one perfectly on aim produce identical
+projectiles the moment the gate opens. Same class as `PowerShed` below: simulated, then discarded.
+
+#### F · `PowerShed` has zero readers
+
+`PowerSystem`'s severe-overdraw branch sorts loads by shedding priority and emplaces `PowerShed` on
+the losers. **Nothing anywhere reads that component.** `WeaponSystem` reads
+`PowerBudget.satisfaction` (to slow cooldowns) and never checks whether the hardpoint was shed;
+`DamageSystem`'s shield regen checks neither. So the entire load-shedding half of `features.md`
+§2.9 is computed and thrown away, and a browning-out rig loses fire *rate* but never loses
+*hardpoints* — which is the mechanic §2.9 is actually describing.
+
+#### G · `HierarchySystem` runs before `PhysicsSystem`, so every hardpoint is one tick stale
+
+The schedule places `HierarchySystem` second, justified as *"must be first of the rest; everything
+below reads `WorldTransform`."* **Availability is not freshness.** `PhysicsSystem` moves the rig
+root at position 8; hardpoint world transforms were computed at position 2 from the *previous*
+tick's root pose. Everything downstream therefore reads stale hardpoint positions:
+
+| Reader | What it gets wrong |
+|---|---|
+| `CollisionSystem::BuildWorldHull` | The convex hull trails the `CollisionRadius` broad-phase circle it was rejected against |
+| `ProjectileSystem::FindHit` | Hit tests resolve against last tick's hardpoint positions |
+| `WeaponSystem` | Muzzle position, range check and aim bearing all use the stale pose |
+| `WorldRenderer` | Hardpoints render one tick behind the hull triangle they sit on |
+
+At 60 Hz and a few hundred units/second this is single-digit units — invisible in a screenshot,
+and systematically wrong in every hit test. **The fix is to move `HierarchySystem` after
+`PhysicsSystem` and before `DockingSystem`**, which satisfies every constraint the current comment
+block states. Nothing between positions 3 and 8 reads a hardpoint `WorldTransform`; the only
+caveat is `WarpSystem`'s stated reason for running first, which is preserved.
+
+#### H · `NpcAiSystem` ignores `Docked`
+
+Its view is `Target + WorldTransform + ThrustInput`, `exclude<PlayerControlled>` — no `Docked`
+exclusion. It runs at position 14; `DockingSystem` zeroes a docked rig's `ThrustInput` at position
+9. **So a docked NPC has its throttle rewritten and `FireIntent` re-emplaced every tick**, and
+flies out of the bay under thrust. `DockingSystem` removes `Targetable` from the docked rig, which
+stops others targeting *it*, but leaves its own `Target` intact.
+
+This is the same failure §12.24 step 2's ordering table predicts for the player — *"running input
+after `DockingSystem` would let a docked player fly away… this is the constraint that would
+silently break."* **It is already broken, for NPCs, today.** Excluding `Docked` in `NpcAiSystem`
+and `WeaponSystem` is more robust than relying on order, and it is what makes §3.4's "a docked
+vessel cannot be shot" symmetrical — right now a docked vessel cannot be shot *at* but can still
+shoot.
+
+#### I · Docking already grants free, unlimited, unconditional repair
+
+`DockingSystem::HealAndImmobilize` restores **15% of max hull per second to every hardpoint of
+every docked rig** — no facility check, no cost, no cap, ~6.7 seconds to full. `StationServices
+System::ProcessRepairRequests` charges credits, scaled by a requested fraction, for the same
+outcome.
+
+§12.24 step 5a proposes gating the paid path on `FacilityKind::Repair`. **That leaves the free path
+running**, which makes the gate meaningless and the paid service unsellable. This is a design
+decision, not a mechanical fix: either docking-heals is the intended baseline and
+`StationServicesSystem`'s repair is redundant, or repair is a facility service and
+`DockingSystem`'s heal must be deleted. **Recommendation: delete the automatic heal.** It is a
+verbatim port of legacy `DockRepair.h`'s `kDockHealPerSecond`, it predates the facility model
+entirely, and free full repair at any bay removes the entire economic pressure §2.7 cites as the
+credit sink that justifies deferring upkeep.
+
+#### J · Stations sit in the physics view with no damping
+
+`RigFactory` emplaces `BodyMass` and `Velocity` on **every** root, and `LinearDamping` only when
+`mobile`. `OrbitSystem`'s gravity loop excludes `OrbitBody`, not `Propulsion`. So a station inside
+`kSunGravityRange` accumulates velocity every tick with nothing to bleed it off, and
+`PhysicsSystem` integrates it. §12.24 step 4 describes this as gravity that *"drags a station that
+has no engines"*; it is unbounded acceleration, not drag.
+
+§12.25's fix — always emplace `Propulsion` **and `LinearDamping`** — resolves it as a side effect.
+Worth recording because it moves §12.25 from "conceptual tidiness" to "prerequisite for step 4
+placing a station anywhere near the star."
+
+#### K · `FacilityStats::level` is never parsed and never copied
+
+Two independent halves of one path are missing:
+
+1. `BlueprintJson::ParseFacilityStats` reads `kind`, `ratePerSecond`, `capacity` — **not `level`.**
+2. `AttachModuleComponents` constructs `FacilityRef` with **one** argument (`module.facility.kind`),
+   so `level` takes its in-struct default of `1`.
+
+`Facility.h` states *"Copied from `ModuleDef::facility.level` at attach time."* It is not, on either
+side. `EngineerSystem`'s merge formula is therefore permanently `primary + secondary * 0.1` — a
+flat 10% carryover regardless of authoring. §12.12 and `features.md` §2.4 both settle that merge
+scales with **facility level, not engineer skill**; that decision is unimplemented while appearing
+implemented, which is the most expensive kind of gap in this repository.
+
+`FacilityStats::capacity` is parsed and read by nobody — docking bays have unlimited capacity.
+
+#### L · `FactionDecisionEngine` has no invocation path at all
+
+Not in `TickSchedule()` (it takes no `SystemContext`, by design), not called from `main.cpp`, not
+called from `SpaceFlight`, not called from any system. Its six free functions are exercised only by
+`FactionDecisionEngineTests.cpp`. §0 lists it among the built inventory and §4 names it
+`FactionDecisionSystem`; **there is no macro tick for it to live in.** `core::diplomacy::Territory`
+is in the same position — zero users outside `core/`.
+
+This is the one finding that needs a *new* thing rather than a wiring fix: §1.1's Tier 2/3 coarse
+loop. Which is the same hole as:
+
+#### M · `TickCoarse` has three definitions and no caller
+
+`CommanderSystem`, `DiscoverySystem` and `FactionEconomySystem` each expose the second entry point
+`System.h` prescribes for LOD-spanning systems. **`RunTick` calls only `system.tick`**, and no
+coarse schedule exists. §1.1's time-sliced LOD model has an interface, a convention, three
+implementations — and no driver. Per §2.4 this is three dead abstractions, and the honest options
+are to build the coarse loop or to delete the three functions until §1.1 is real.
+
+#### N · `TargetingSystem` has no concept of neutrality
+
+`IsHostile` is `!(seeker.id == other.id)` — **faction inequality**. Every rig not of your own
+faction is a valid auto-acquired target, and `DiplomacyMatrix` is never consulted. `features.md`
+§5.3–§5.6 specify a three-state relation model with fifteen named rivalries and five alliances;
+none of it reaches combat. `DockingSystem` makes the same simplification and *documents* it as
+predating `core/diplomacy/`; `TargetingSystem` does not.
+
+Fixing this is blocked on §12.24 step 6 (`ctx.diplomacy` is `nullptr`), so it belongs in the same
+issue as the step-6 pointer work rather than with the targeting changes.
+
+#### O · A station cannot trade, because nothing gives a station a `CargoHold`
+
+`StationServicesSystem`'s buy and sell paths both `try_get<CargoHold>(station)` and bail on
+`nullptr`. `RigFactory` emplaces no `CargoHold` on any rig; `StationFactory` adds nothing at all.
+So two of the three station services are gated behind a **missing component**, not merely a missing
+request producer — wiring `StationServicesMenu` into the router would still trade nothing.
+
+`StationFactory::Spawn` is a six-line pass-through to `rig_factory::Spawn` that only rejects
+`mobile: true` blueprints. Every station-specific component the codebase expects — `StationFacility`
+(`ResearchSystem`), `CargoHold` (`StationServicesSystem`), `SpawnAnchor` (`SpawnSystem`) — has
+**zero producers anywhere**, and this factory is where all three belong.
+
+#### P · `RigFactory` gives the player neither `CargoHold` nor `Wallet`
+
+Only `WarpToSystem` emplaces them, on the rig it just spawned. A player created by §12.24 step 1's
+`OnEnter` will have neither, and `ModuleEquipSystem`, `StationServicesSystem`, `EngineerSystem` and
+`RefactorSystem` all bail on a null `CargoHold`. **Step 1 must emplace both**, or every
+cargo-touching system silently no-ops for a fresh player and the failure looks like a UI bug.
+
+#### Q · The forbidden target lock already has a rendered UI
+
+`IconRenderer::DrawTargetReticle` reads the player's `Target` and draws a bracket on it, called
+every frame from `SpaceFlight::Draw`. §12.24's fix (excluding `PlayerControlled` from
+`TargetingSystem`) makes this draw nothing — which is correct, but the function should be
+deliberately repurposed to the cursor aim point or deleted, not left to silently no-op.
+
+#### R · `SpawnSystem` is wholly inert, in both halves
+
+`SpawnAnchor` and `RespawnPending` both have zero producers. No respawn ever resolves, and
+`CullFarRigs` never culls anything, because `FindNearestAnchor` returns `false` when no anchor
+exists and the cull is skipped entirely. The 20 000-unit registry bound §1.1 relies on does not
+exist at runtime.
+
+#### S · `CommsLog` is write-only
+
+`CommsSystem` maintains an 8-entry log on a singleton entity — the pattern §12.24 correctly cites
+as precedent for UI state. **Nothing draws it.** The hail feature is complete from request to
+formatted response string, and the response is unreadable.
+
+#### T · `LootDrop` and `DerelictWreck` have zero producers
+
+No module ever drops from anything. `LootSystem`'s module-pickup path and credit-reward path both
+exist with no source. Only `MaterialDrop` (via the unreachable `MiningSystem`) and `DeathWreck`
+(via `WarpToSystem`'s wreck-promotion) can appear at all — and both are invisible per finding A.
+
+#### U · `SpendResult` and `KillCredited` join the write-only set
+
+`FactionEconomySystem` emplaces `SpendResult` and nothing reads it. `KillCredited` is correctly
+consumed by its own producer. Listed for completeness — `SpendResult` is a genuine dead output; a
+faction spend that fails is indistinguishable from one that succeeded.
+
+#### V · `RefactorSystem` can delete a rig out of existence
+
+`ProcessDeleteRequests` refuses a hardpoint with a dependent child, but nothing prevents deleting
+the *last* hardpoint. `DamageSystem`'s `HasLivingHardpoint` check then tags the root `Destroyed` on
+the same tick. The legacy project's "minimum one hardpoint must remain" rule is not ported. It also
+recomputes no rig aggregate — `BodyMass` and `CollisionRadius` keep the deleted hardpoint's
+contribution forever, same gap as §12.23 records for `ModuleEquipSystem`.
+
+#### W · One of the two authored NPC ships cannot shoot
+
+`MountBlueprint::traverseRadians` defaults to `0.0f`. `forgotten_scrapper`'s only weapon mount
+(`gun_nose`) omits the field, so it gets a zero-width firing arc and — by the same float-equality
+path as finding D — essentially never fires. `aegis_vanguard`'s two wing mounts author `0.35`.
+
+`aegis_outpost` authors **no weapon mount at all**, so the only station in the content set cannot
+defend itself. Both are content fixes, but the zero-default is the underlying hazard: an omitted
+`traverseRadians` should be a `Validation` error on a weapon-capable shell, not a silently
+unusable gun.
+
+#### X · `PowerSystem` implements a third of §2.9, and none of the half the player touches
+
+*Recorded 2026-08-09, correcting this audit's own first pass, which scored this as the single
+missing `PowerShed` reader in finding F. That understated it.*
+
+| `features.md` §2.9 specifies | State |
+|---|---|
+| Four levels per **category** — Offline / Reduced / Normal / Boosted | ❌ nothing |
+| **Draw and effect multipliers authored per module** (Law 10) | ❌ `modules.json` authors none; `ModuleDef` has no field |
+| Player-configurable **power priority list** | ⚠️ `PowerLoad::priority` exists and is authored, but nothing reorders it |
+| **Boost refuses without headroom** rather than browning out the ship | ❌ nothing |
+| The afterburner as `Ctrl`-held engine boost | ❌ nothing |
+| Four category keys `F`/`G`/`H`/`J` (§3.6) | ❌ nothing — one gameplay key exists in `src/` |
+| Damage-driven throttle and shed | ✅ built — **and its shed output is read by nobody** |
+
+So the built third is the part that reacts to *damage*, and the missing two-thirds is the part the
+player *commands* — which is the entire point of the section, since §2.9 exists as the
+**counterplay to hardpoint fragility**. Finding F's missing reader is real and still worth fixing on
+its own, but repairing it does not deliver §2.9; it makes the fallback behave.
+
+#### Z · The crew shell is designed in four sections and exists in none of the code
+
+`ModuleKind` is `{Weapon, ShieldGenerator, PowerCell, Engine, Armor, Facility}`. `ShellKind` has no
+crew value. **There are zero occurrences of "crew" anywhere in `src/`.**
+
+Four settled designs depend on it, and all four are therefore unimplemented:
+
+| Section | Depends on |
+|---|---|
+| `features.md` §2.7 | `ModuleKind::Crew` with rollable `operation` and `command` stats |
+| `features.md` §3.2 | Destroying the crew shell disables a hull rather than destroying it |
+| `features.md` §3.4 | *"The player is always associated with exactly one shell… if that shell dies, the player dies"* |
+| §12.27 | Command requires *"a living `Crew` module with a non-zero `command` roll"* |
+
+`NpcAiSystem` also has no crew check, so an "uncrewed" hull would keep flying and firing. **The
+uncrewed hull is the capture path's precondition**, so §3.2's capture state cannot be reached at all
+until this lands.
+
+#### AA · Two of three damage types render identically
+
+`WorldRenderer::ColorForProjectile` is `type == DamageType::Energy ? SKYBLUE : YELLOW`. §3.1 settled
+**three** weapon types — Kinetic, Energy, Ion — so **Ion and Kinetic are visually the same shot.**
+
+That is the worst pair to conflate: Ion is absorbed by neither shield type (`DamageSystem` absorbs
+only on exact type match), so mistaking it for Energy means misreading whether your shields are doing
+anything at all. `features.md` §3.9 sets the palette — Energy blue, Kinetic purple, Ion electric
+white-blue — and requires it to be identical across projectiles, in-world shield shimmer, and the
+status display.
+
+#### AB · The drawn silhouette is larger than the hittable shape
+
+`DrawShips` sizes its triangle from `CollisionRadius` — the rig's **maximum reach**, 27 on
+`aegis_vanguard` — while `ProjectileSystem` tests hardpoint circles reaching 22 except behind. **Shots
+pass through the drawn nose and flanks.** It reads as a hit-detection bug and is a placeholder-art
+defect; `features.md` §3.5 now requires drawing the tested shape until real art exists.
+
+Related and *not* a defect, but undocumented until now: `ProjectileSystem` tests hardpoint circles
+individually while `CollisionSystem` convex-hulls them, so **a projectile can pass through a gap a
+hull cannot**. That is physically correct — a shot is smaller than a ship — and is now recorded as
+deliberate so it stops looking like an inconsistency.
+
+#### Y · The save system has no caller — and could not save a game if it had one
+
+`SaveFile`, `SaveMigrator`, `BlueprintSerialization` and `KnowledgeSerialization` are built, tested
+and **invoked from nowhere.** §0 lists both "unified serialization" and "save schema migration"
+among the ✅ inventory. The second half is worse than the first:
+
+> **`SaveFile`'s entire API is `SaveShipBlueprint` / `LoadShipBlueprint` / `SaveKnowledgeStore` /
+> `LoadKnowledgeStore`.** There is no world save. No registry serialization, no player rig state,
+> no `Wallet`/`CargoHold`, no `FactionEconomy`, no `DiplomacyMatrix`, no `DiscoveryState`, no
+> `WreckLedger`, no world seed.
+
+`features.md` §3.3 **settled** the save model — free/manual saves plus a coarse autosave that never
+fires on death, chosen specifically so Tier 2's recovery run survives. That decision has neither a
+caller nor the capability underneath it.
+
+**The practical consequence is a scoping one, and it is good news:** returning to the main menu is
+*not* blocked on any of this (§12.29). Quit-to-menu needs a two-way mode transition and nothing
+else. Save/Load is a separate, larger piece of work that has to define what a world save even
+contains — and it should not be allowed to hold up the pause menu.
+
+### 13.4 Five decisions this raises that are yours, not mechanical
+
+Everything above except these has a correct answer that falls out of the existing design.
+
+| # | Question | Recommendation |
+|:---:|---|---|
+| **1** | **Does docking heal for free?** (finding I) A facility-gated repair service and an unconditional 15%/s heal cannot both exist | **Delete the automatic heal.** It predates the facility model and removes the credit sink §2.7 relies on |
+| **2** | **`MountedModules` or `EquippedModule`?** (finding C) Two representations, three inconsistent readers | **Keep `MountedModules`, delete `EquippedModule`.** A mount holds a list either way, and the factory path must never diverge from what `RefactorSystem` refunds |
+| **3** | **Build the coarse loop, or delete `TickCoarse`?** (findings L, M) §1.1's LOD tiers have three implementations and no driver, and `FactionDecisionEngine` has no home without one | **Delete the three `TickCoarse` functions now**, per §2.4, and reinstate them with the loop. `FactionDecisionEngine` is pure and loses nothing by waiting. Keeping them is the same "scaffolded, never adopted" pattern §0 opens with |
+| **4** | ✅ **RESOLVED 2026-08-09 — see §12.28.** How do non-rig world bodies render and collide? (finding A) | `WorldBody { radius; BodyKind }` for drawing; **hittability needed no new component at all** — narrowing `FindHit`'s view is the whole fix. Asteroids orbit rather than fall, the belt moves to 1,800–2,800, and a star's `Corona` burns rather than killing at a line. Planets and stars stay non-colliding, deliberately |
+| **5** | **Is `traverseRadians = 0` legal?** (finding W) It currently means "welded forward and unable to fire" | Make it a `Validation` error on a weapon-capable shell. A fixed-forward gun is a real design, but it should be authored as such, not reached by omission |
+
+### 13.5 The task list
+
+Grouped by what unblocks what. **Everything in group 1 is a prerequisite for judging anything
+else**, which is §11.9's existing verdict re-derived from the wiring rather than from §0.
+
+**Group 1 — the micro loop (§12.24 steps 1–4), amended by this audit.** One issue.
+- `OnEnter`: `PopulateSystem` + `rig_factory::Spawn` + `PlayerControlled` + **`CargoHold` + `Wallet`** (P)
+- `PlayerInputSystem` + `FlightControls` + `ActorRef` + the `ActorId` relocation (§12.24 step 2)
+- `TargetingSystem` excludes `PlayerControlled`; `AimPoint`; **repurpose or delete `DrawTargetReticle`** (Q)
+- Camera assignment; delete the duplicate `DrawWorld` at `SpaceFlight.cpp:145`
+- `WorldGen` spawns a station; `StationFactory` gains `StationFacility` + `CargoHold` + `SpawnAnchor` (O, R)
+- **§12.28 in full** — `WorldBody`/`BodyKind`, the narrowed `FindHit` view, asteroids on `OrbitBody`, the belt move, `HazardSystem` + `Corona`, `OrbitSystem`'s `PreviousTransform` write. Without it step 1 produces a world nothing can see and nothing can shoot (A, B)
+- `kDockKey` moves off `E`
+
+*§12.28 is large enough to split off as its own issue if group 1 gets unwieldy — it has no
+dependency on the player existing, so it can land first and be verified by tests alone.*
+
+**Group 2 — one-line and one-view corrections, independently startable today.**
+- Move `HierarchySystem` after `PhysicsSystem` (G)
+- `NpcAiSystem` and `WeaponSystem` exclude `Docked` (H)
+- `BridgeView::kAllKinds` gains `Engineering` + a `static_assert` on the enumerator count
+- `ModuleEquipSystem` passes a real traverse via a new `MountTraverse` component (D)
+- `WeaponSystem` reads `PowerShed`; `SpawnProjectiles` uses `currentOffset` (E, F)
+- `ParseFacilityStats` reads `level`; `AttachModuleComponents` forwards it (K)
+- `RefactorSystem` refuses the last hardpoint (V)
+- Content: `traverseRadians` on `gun_nose`; weapon mounts on `aegis_outpost` (W)
+
+*(Finding B's asteroid fix moved into group 1 as part of §12.28 — it shares the `WorldBody` work.)*
+
+> 🐛 **`Validation`'s message says "a mobile craft needs an engine."** `features.md` §2 retired *craft*
+> and rules that **a vessel is a vessel, never a craft**. The docs were swept 2026-08-09; this string
+> in `shared/blueprints/Validation.cpp` was not, because it is code. Fix it with group 2b.
+
+**Group 2b — the `Element`/`Material` rename, and it must land in one pass.**
+`features.md` §2 renamed the supply tiers on 2026-08-09: **`Element` is now the raw tier and
+`Material` is the manufactured one**, which *flips the meaning* of names already in the code.
+`CargoHold::materials`, `MaterialStack`, `MaterialDrop`, `MaterialChance`,
+`AsteroidComposition::materials` and `MiningSystem`'s spawn path all hold what are now **Elements**.
+A half-migrated tree where one word means both things is worse than either name alone, so this is one
+commit or none. **Cheapest it will ever be** — no `materials.json` exists yet, so there is no content
+to migrate. Fold in §13's finding that these are untyped `std::string` ids (`"iron"`, and a `"silica"`
+that is not even an element) against no registry.
+
+**Group 2c — new content-facing work the materials pass created.** None blocks the loop.
+- **`tools/element_check`** — the roster validator (`features.md` §2.10): pairwise dominance, Pareto
+  validity, role coverage, density spread. Runs beside the four existing structural checks, and is
+  the first time §2.2–2.4's enforcement principle reaches **content** rather than code
+- **A gathering module kind** — §13 records that `MiningSystem` reads no module stat; skimming and
+  harvesting need the same one, so all three activities land together
+- **A planet `type` flag** — `WorldGen.cpp` concedes *"every planet is mechanically identical aside
+  from its orbit."* Gas giants must be distinguishable before skimming can target one
+- **Nebulae** — a **system-level** hazard property (`features.md` §3.8), not a gathering site. Three
+  parts, all cheap: a `Corona`-shaped volume `HazardSystem` already handles; an **`Inert` threshold**
+  on the rig deciding zero-damage vs. burning; and a **semi-transparent haze render pass** placed
+  *after* `DrawProjectiles` — **the case §12.28 predicted by name** when it ruled that a body wanting
+  to draw in front of rigs is a new pass rather than a `BodyKind` value. Ordinary asteroids and gas
+  giants sit inside; what is scarce is the ability to be there. **Content for built systems**
+- **`core/economy/Pricing.h`** — a free function beside `FactionEconomy`, computing base value from a
+  recipe and modulating it by local stock (`features.md` §2.10). **There is no pricing logic anywhere
+  today**: `StationServicesMenu::BuildBuyRequest(module, cost)` takes cost as a *parameter*, so
+  `BuyItemRequest::cost` is invented by whoever calls it — the same producer gap as the request itself
+- **`tools/economy_sim`** — 🧊 in §3's blueprint since the start, and now with a concrete job: run the
+  price derivation across the authored content set and print the curve. `features.md` §9 names it as
+  what settles pacing, and pacing cannot be closed by argument because **prices are derived outputs**
+
+**Group 2d — the damage-model pass (`features.md` §3.2, §3.5, §3.9). One issue; it changes built code.**
+- **Structural integrity** — derived aggregate, structural failure at ~30%, normalised display so the
+  bar reaches a true zero. `CockpitHud::AggregateHullFraction` gains a second reader
+- **Most-specific-wins hit resolution** in `ProjectileSystem::FindHit`, replacing first-in-iteration
+  order — which §9.1 and §12.16 already list as requiring a nearest-hit fix
+- **Structural coverage validation** — chassis plus armour must cover the hull envelope (§3.5 rule 12)
+- **§12.22's cascade**, already designed and startable, lands with this rather than separately
+- **Draw the tested shape** (§13.3 AB), and `ShellDef`'s optional baked collision polygon
+- **The §3.9 palette**, fixing Ion and Kinetic rendering identically (§13.3 AA)
+
+**Group 2e — the status display and flight HUD (`features.md` §3.9, §3.10).** Colour-is-condition /
+glyph-is-identity, outline-encloses-coverage with dash-density charge, and fit-based LOD driven by
+`StructuralAttachment`. Needs §3.1's shield coverage modes (startable today per §11.9) to have anything
+but Personal to draw.
+
+The flight HUD (§3.10) adds a rule worth naming here because it is `BridgeView`'s pattern one layer
+out: **a HUD surface exists exactly when a living module provides it** — sensor, comms, crew-with-
+command, construction, hyperdrive — with **fixed slots that disable rather than disappear**, since a
+control vanishing mid-fight is §8.3's *"absence must never look like emptiness"* in miniature. It also
+settles that there is **no radar**: sensor contacts are one data source rendered as screen-edge
+indicators in combat and as the navigation map out of it. **No `RadarSystem`.**
+
+**Blocked, and worth knowing why:** **§3.2's capture state** cannot be reached until the crew shell
+exists (§13.3 Z), and ownership transfer is still an open design question. Disabling is complete
+without it.
+
+**Group 3 — the five null pointers (§12.24 step 6), independently startable today.**
+Unblocks `DiscoverySystem`, `EngineerSystem`, `ResearchSystem`, `TemplateMarketSystem`, and
+`TargetingSystem`'s relation check (N). `TemplateMarketSystem` is a guaranteed no-op until
+`ctx.diplomacy` is non-null, regardless of any producer work.
+
+**Group 4 — the docked-menu router (§12.24 step 5), after group 1.**
+Nine menus, nine request producers, `PlayerLocation`, the facility content set.
+
+**Group 5 — decisions from §13.4, then their code.**
+Docking heal (1) · module-record unification (2) · `TickCoarse` (3) · world-body model (4, folded
+into group 1) · traverse validation (5).
+
+**Deferred by this audit, deliberately:** `PartySystem`, `CommanderSystem`, `ContractSystem`,
+`DistressSystem`, `CommsSystem`, `TutorialSystem` and `SpawnSystem` all wait on producers that
+§12.26/§12.27 or a contract-board feature will supply. They are correctly built and correctly
+inert; **do not "fix" them by inventing a producer in the system itself**, which is how
+`CustomizeMenu::ConsumeSaveTemplateRequests` became a Law 9 violation.

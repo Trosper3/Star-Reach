@@ -86,7 +86,7 @@ hardpoint, that feature is misplaced.
 
 Engineering is the heart of progression. Objects are modular, built from a hierarchy of **Shells**
 (the physical housings that hold modules — also called **components**), **Modules** (functional
-stats), and **Raw Materials**.
+stats), and **Elements**.
 
 **There are two tiers, not three** (settled 2026-08-07). *Shell* and *component* are the same thing
 under two names: the housing a module mounts into, which is also the unit of localized damage
@@ -99,26 +99,42 @@ being written.
 *"Component" remains fine to say in conversation and in UI copy. It must not become a separate
 authored type.*
 
-> ✅ **Vocabulary settled 2026-08-08, and it went the opposite way to the previous proposal.**
-> Earlier drafts listed "**Crafts** (intermediary components)" as a tier while the rest of this
-> document used *craft* to mean **a vessel**. The word meant two things in one document.
+> ✅ **The supply vocabulary, settled 2026-08-09. This supersedes the 2026-08-08 "craft" ruling
+> below, which is retained because its *reasoning* still holds and only its nouns changed.**
 >
-> **Settled: a *craft* is a crafted item** — an intermediate produced from raw materials and
-> consumed to make modules, shells, and vessels. It is also a **cost input**, not only a
-> manufacturing input: §2.4 prices engineering and research in "materials/crafts" and that reading
-> is now correct as written.
+> | Tier | Name | What it is | Source |
+> |:---:|---|---|---|
+> | **1** | **Element** | A periodic-table element. Iron, silicon, hydrogen | Mined, skimmed, traded |
+> | **2** | **Material** | A manufactured intermediate — alloy plate, coil, wafer, fuel | Made from Elements |
+> | **3** | **Module** / **Shell** | What bolts onto a rig | Made from Materials |
 >
-> **A vessel is a *vessel*, never a "craft."** Every remaining use of *craft* meaning a ship in this
-> document is a defect to be corrected.
+> **The word *craft* is retired entirely.** It was settled on 2026-08-08 to mean "a manufactured
+> intermediate," specifically to stop it also meaning *vessel* — but needing to litigate a word is
+> usually the word's fault, and *"an alloy plate is a material"* is plain English where *"an alloy
+> plate is a craft"* is jargon. **A vessel is a *vessel*; an intermediate is a *material*.**
+>
+> ⚠️ **This flips the meaning of "material."** It used to mean the raw tier and now means the
+> **manufactured** tier. Existing code carries the old sense — `CargoHold::materials`,
+> `MaterialStack`, `MaterialDrop`, `MaterialChance`, `AsteroidComposition::materials`, and
+> `MiningSystem`'s spawn path all hold what are now **Elements**. That rename is tracked in
+> `architecture.md` §13.5 and must land in one pass; a half-migrated codebase where the same word
+> means both things is worse than either name alone.
+>
+> ✅ **Three tiers, and the fourth was rejected.** A proposed
+> `Element → Compound → Material → Module` chain was considered on 2026-08-09 and cut: a Compound
+> tier asks the same question the Material tier already asks (steel is Fe+C, stainless is Fe+Cr+Ni —
+> that choice *is* an alloy-plate recipe), and every extra hop averages attribute contributions
+> further toward the mean, which is the mechanism §2.10's attribute system depends on. A tier that
+> adds no decision and costs signal is friction.
 >
 > **This adds authored content that does not exist yet.** `data/base_game/` holds `modules.json`,
-> `shells.json`, and `ships.json` — there is no `materials.json`, no `crafts.json`, and no
-> `MaterialId`/`ItemId` in `shared/blueprints/Ids.h`. `architecture.md` §12.15 item 21 already
+> `shells.json`, and `ships.json` — there is no `elements.json`, no `elements.json`, and no
+> `ElementId`/`ItemId` in `shared/blueprints/Ids.h`. `architecture.md` §12.15 item 21 already
 > tripped over the edge of this, typing `ResearchJob::item` as `ModuleId` because no item type
 > exists. Manufacturing (§2.8) needs all of it.
 >
-> ⚠️ **This is not a third rig tier.** Rig composition remains **Shell → Module**, two tiers. The
-> material → craft → module chain is a *manufacturing input* axis and is orthogonal to it. Do not
+> ⚠️ **This is not a third *rig* tier.** Rig composition remains **Shell → Module**, two tiers. The
+> Element → Material → Module chain is a *manufacturing input* axis and is orthogonal to it. Do not
 > reopen the tier question on the strength of this paragraph.
 
 ### 2.1 The Two Forms of a Ship
@@ -164,7 +180,7 @@ puzzle a live decision at the workbench rather than a number printed on a bluepr
 *Settled 2026-08-08. A derived model — `mass = k · density · radius²` for shells — was proposed and
 withdrawn the same day.*
 
-**Every authored item carries a `mass` field: shells, modules, crafts, and raw materials.** Simple
+**Every authored item carries a `mass` field: shells, modules, Materials, and Elements.** Simple
 addition, one field, no formula, and the same rule everywhere.
 
 *Why the derived model was withdrawn.* It existed to make §3.5's hull envelope rule (rule 12)
@@ -186,7 +202,7 @@ armour plate and a light hangar frame both pass; narrow enough that a 250× typo
 
 ##### Cargo has mass, and it is part of the vessel 📋
 
-*Settled 2026-08-08, and it is why materials and crafts need a mass field at all.*
+*Settled 2026-08-08, and it is why Elements and Materials need a mass field at all.*
 
 > **A vessel's mass is its structure plus everything in its hold.**
 > Loading cargo degrades turn rate, acceleration, and top speed exactly as bolting on a module does.
@@ -250,8 +266,8 @@ gameplay it buys is a second number saying almost what the first one says. One p
 "fill up and crawl home" getting a hard stop rather than a soft one.
 
 
-✅ **Mass is conserved through the crafting chain, with a loss at each step** (settled 2026-08-08).
-Materials in ≈ craft out, crafts in ≈ module out. Only raw materials carry an authored mass;
+✅ **Mass is conserved through the manufacturing chain, with a loss at each step** (settled 2026-08-08).
+Elements in ≈ Material out, Materials in ≈ module out. Only Elements carry an authored mass;
 everything above derives from its recipe. That gives recipe authoring a physical sanity check,
 makes deconstruction-as-inverse fall out for free, and means "why does this cost that much" has an
 answer an author can reason about rather than a number someone picked. **Base price derives the same
@@ -375,8 +391,8 @@ its own inputs, costs, and output.*
 
 | Mechanic | Input | Cost | Output | Home |
 |---|---|---|---|---|
-| **Research** | An *undiscovered* module | Time **+** materials/crafts **and/or** credits | The module becomes **craftable** by the researching player or faction | `ResearchSystem` |
-| **Engineering** | Two *alike* modules the actor already owns | Credits **and/or** materials/crafts | **One** module combining both their attributes, at a loss | `EngineerSystem` |
+| **Research** | An *undiscovered* module | Time **+** Elements/Materials **and/or** credits | The module becomes **manufacturable** by the researching player or faction | `ResearchSystem` |
+| **Engineering** | Two *alike* modules the actor already owns | Credits **and/or** Elements/Materials | **One** module combining both their attributes, at a loss | `EngineerSystem` |
 | **Deconstruction** | Any one module | — | Raw **materials** | `EngineerSystem` (§12.12) |
 
 **Research produces knowledge; engineering and deconstruction produce matter.** That split is the
@@ -432,8 +448,8 @@ Bands overlap in the same shape as §2.7's quality bands, so a lucky Legendary d
 unlucky Mythic one. Mythic tops out at exactly 100% — a *chance* at full conservation, never a
 guarantee and never above it (§2.10's conservation-safe rule).
 
-**Randomness belongs here and not in crafting.** A deconstructed item is already gone, so a variable
-yield leaves nothing unpredictable in the player's hands — where a randomised *crafted* mass would
+**Randomness belongs here and not in manufacturing.** A deconstructed item is already gone, so a variable
+yield leaves nothing unpredictable in the player's hands — where a randomised *manufactured* mass would
 mean equipping a module and watching your turn rate change by an amount you could not have read
 beforehand. Quality (§2.7) is the per-instance variance; mass stays deterministic.
 
@@ -455,7 +471,7 @@ and how long the job takes:
 > rather than 100% so late-game research keeps a little tension; a surviving sample is not reusable
 > *for research* — the unlock is permanent after one success — so it is loot you keep, not a loop.
 
-**Merging consumes crafts** as well as credits, scaled by the module's grade *and* by how close to
+**Merging consumes Materials** as well as credits, scaled by the module's grade *and* by how close to
 its band ceiling the merge is pushing it. Since the gain uses the diminishing-returns headroom
 formula, cost and curve agree: **the last few percent are expensive in both directions, and maxing an
 item is a project.**
@@ -466,7 +482,7 @@ item is a project.**
 |---|:---:|---|
 | **Modules** | ✅ | They carry a rolled quality, so there is a position within a band to move |
 | **Shells** | ❌ | Position and children — two merged cockpits have no answer to where they sit or what was mounted in them (§2.4 above) |
-| **Crafts** | ❌ | They carry a grade but **no quality roll** (§2.10), so there is nothing to move |
+| **Materials** | ❌ | They carry a grade but **no quality roll** (§2.10), so there is nothing to move |
 | **Materials** | ❌ | Fungible. There is no instance to improve |
 
 ⚠️ **Every roll above is deterministic from `(item id, tick)`** — the FNV-1a idiom `MiningSystem` and
@@ -525,7 +541,7 @@ analogue of merging and it is appealing, but it is a new mechanic in `RefactorSy
 rather than a reuse of an existing one. Deferred; research and deconstruction cover the need first.
 
 ❓ *Open, and it is load-bearing:* **nothing manufactures a module.** Research's stated payoff is
-that an item becomes "craftable," and there is no crafting mechanic, system, or menu anywhere in
+that an item becomes "manufacturable," and there is no manufacturing mechanic, system, or menu anywhere in
 the design or the codebase — `ConstructionSystem` builds ships and stations from blueprints, not
 modules. Until this is specified, research has no consumer and its reward is unreachable.
 
@@ -552,7 +568,7 @@ A **knowledge network** is the persistent store for everything that is *data* ra
 
 | Stored in a network | Not stored in a network |
 |---|---|
-| Reverse-engineering unlocks — what you know how to manufacture | Physical modules, weapons, raw materials |
+| Reverse-engineering unlocks — what you know how to manufacture | Physical modules, weapons, Elements |
 | Saved Templates (§2.2) | Ships, stations, fleet assets |
 | Discovered systems and sensor intel | Credits and stockpiled goods |
 | Contract and diplomatic standing history | Anything in a cargo hold |
@@ -1535,8 +1551,8 @@ pilots flying vessels the player owns but is not sitting in.
 
 ### 2.8 Manufacturing 📋
 
-*Raised 2026-08-07. §2.4 states that research makes an item "craftable," and until now nothing in
-this document or the codebase could craft anything except a whole vessel. Research's payoff was
+*Raised 2026-08-07. §2.4 states that research makes an item "manufacturable," and until now nothing in
+this document or the codebase could Material anything except a whole vessel. Research's payoff was
 unreachable.*
 
 **Manufacturing turns knowledge plus materials plus time into matter.** It is the consumer that
@@ -1548,7 +1564,7 @@ becomes a physical object.
 | **Vessel** (ship, station) | Yes — a composite rig is spawned | `ConstructionSystem` ✅ already built |
 | **Shell** | No — an item lands in a cargo hold | Manufacturing (new) |
 | **Module** | No — an item lands in a cargo hold | Manufacturing (new) |
-| **Craft** (intermediate, §2) | No — an item lands in a cargo hold | Manufacturing (new) |
+| **Material** (intermediate, §2) | No — an item lands in a cargo hold | Manufacturing (new) |
 
 **`ConstructionSystem` is the right home for vessels and the wrong home for the other three.** Building
 a vessel *is* assembly — it spawns a composite entity through a factory, which is why that system
@@ -1594,10 +1610,10 @@ Mythics becomes correct the moment it is possible. Two levers together, and the 
 | Lever | Shape |
 |---|---|
 | **Quantity** | Material cost scales steeply with grade — roughly against the inverse of the drop-rate curve (§2.7), which is ~3× per tier |
-| **Input grade** | A grade-*N* module requires **crafts of grade ≥ N−1**, which must themselves be manufactured |
+| **Input grade** | A grade-*N* module requires **Materials of grade ≥ N−1**, which must themselves be manufactured |
 
 **The input chain is the interesting half.** It means you cannot build a Mythic weapon until you can
-mass-produce Legendary crafts, which needs Epic crafts beneath them. Mythic production becomes a
+mass-produce Legendary Materials, which needs Epic Materials beneath them. Mythic production becomes a
 *pipeline* problem rather than a large number — which is exactly the industry §1's Macro loop is
 about building, and a far better reason to hold territory than a cost multiplier is.
 
@@ -1605,12 +1621,12 @@ It also does not reintroduce the facility-tier cap §2.4 rejected. Nothing says 
 *here is the industry you will need*. That distinction is the whole point of §2.4's economic gate.
 
 **And it is what stops quality re-rolling from becoming a slot machine.** An unconstrained player
-would spam Mythic production fishing for a 5.0 roll; each attempt costing a full Legendary-craft
+would spam Mythic production fishing for a 5.0 roll; each attempt costing a full Legendary-Material
 pipeline run is the brake.
 
-❓ *Open, and deliberately deferred: the actual numbers.* Material quantities, craft recipes, and the
-time curve per grade all depend on the materials and crafts content pass that has not happened yet —
-`data/base_game/` has no `materials.json` or `crafts.json` at all (§2). Specify the recipe base
+❓ *Open, and deliberately deferred: the actual numbers.* Material quantities, Material recipes, and the
+time curve per grade all depend on the Elements and Materials content pass that has not happened yet —
+`data/base_game/` has no `elements.json` or `materials.json` at all (§2). Specify the recipe base
 first, then the scaling; doing it the other way round produces numbers with nothing to multiply.
 
 
@@ -1630,7 +1646,7 @@ waiting game, and §1's Macro loop wants the former.
 
 > **Base build time doubles per grade. Facility grade divides it by up to ~3.3× (§2.4).**
 
-| Grade | Craft *(base 5s)* | Module / Shell *(base 10s)* |
+| Grade | Material *(base 5s)* | Module / Shell *(base 10s)* |
 |---|---:|---:|
 | Common | 5s | 10s |
 | Uncommon | 10s | 20s |
@@ -1733,6 +1749,13 @@ There is deliberately **no heat, wear, or overdrive resource.** The cost of boos
 budget must still balance: *power spent boosting shields is power not available to weapons or
 engines*. Reduce something, or you cannot boost anything.
 
+> 🔁 **Re-tested 2026-08-09 and upheld.** §2.10's materials pass introduced a **Thermal** attribute,
+> and a heat-buildup system was the obvious way to give it depth. Rejected on this paragraph's own
+> reasoning — *"adding a second one would only obscure it"* — and because an attribute being thin is
+> not grounds to reverse a settled decision. **Thermal drives `Weapon::fireIntervalSeconds`
+> instead**: a tungsten-barrelled autocannon sustains a higher rate of fire, which is legible
+> without a gauge and needs no new system.
+
 That constraint is sufficient on its own, and adding a second one would only obscure it. It also
 makes the decision continuous and legible — every boost is visibly a trade against the other four
 switches, which is exactly the §2.2 constraints puzzle carried from the workbench into live combat.
@@ -1760,19 +1783,24 @@ mid-fight is a legitimate desperate move; cutting them dead by mis-click while b
 The likely answer is that Offline is available everywhere but requires a deliberate input rather than
 a single tap on a four-position cycle.
 
-### 2.10 Materials, Crafts & Recipes 📋
+### 2.10 Elements, Materials & Recipes 📋
 
-*Settled 2026-08-08. `data/base_game/` holds `modules.json`, `shells.json`, and `ships.json` and
-nothing else — there is no material or craft content anywhere, which is why research's payoff has
-been unreachable and why every cost curve in §2.4 and §2.8 has had nothing to be denominated in.*
+*Settled 2026-08-08; **substantially rewritten 2026-08-09** — the supply tiers were renamed (§2), the
+element rarity bands were deleted, elements gained an eight-attribute vector, and recipes now demand
+attribute roles rather than named elements.*
+
+*`data/base_game/` holds `modules.json`, `shells.json`, and `ships.json` and nothing else — there is
+no Element or Material content anywhere, which is why research's payoff has been unreachable and why
+every cost curve in §2.4 and §2.8 has had nothing to be denominated in.*
 
 **The chain is two hops, and no more:**
 
-> **Materials → Crafts → Modules / Shells / Vessels**
+> **Elements → Materials → Modules / Shells / Vessels**
 
 Depth comes from **grade**, not from stacking intermediate layers: a Legendary module wants Epic
-crafts, which want Rare crafts, and so on (§2.8's input-grade chain). One intermediate type gives
-arbitrarily deep pipelines; a second would multiply content for the same effect.
+materials, which want Rare materials, and so on (§2.8's input-grade chain). One intermediate type
+gives arbitrarily deep pipelines; a second would multiply content for the same effect — which is the
+reasoning that also rejected a `Compound` tier on 2026-08-09 (§2).
 
 #### The governing principle 📋
 
@@ -1783,107 +1811,365 @@ content set, and it keeps the two gates from ever overlapping:
 
 | Gated by | What it gates |
 |---|---|
-| **Reach** — where you can get to and hold | **Materials.** All of them are minable somewhere |
-| **Achievement** — what you can find, beat, or complete | **High-grade finished items** — crafts, modules, shells, chassis, whole vessels |
+| **Reach** — where you can get to and hold | **Elements.** All of them are gatherable somewhere |
+| **Achievement** — what you can find, beat, or complete | **High-grade finished items** — materials, modules, shells, chassis, whole vessels |
 
 **Research is the bridge between them.** It converts a thing you *found* into a thing you can
 *make*, which is what stops the achievement gate from becoming a grind and the reach gate from
 becoming the only progression.
 
-#### Materials — fourteen, real elements, real densities 📋
+#### Elements — the periodic-table floor, and genuinely no tiers 📋
 
-**Materials are never tiered.** Scarcity is a property of *where they are*, not of a ladder. Real
-elements are used deliberately: they supply free intuition (iron is structural, copper conducts),
-free icons (the periodic abbreviation), and — the useful part — **free mass numbers**, since relative
-density settles what would otherwise be an argument.
+*Rewritten 2026-08-09. **This section previously contradicted itself in consecutive paragraphs:** it
+opened with "elements are never tiered" and then tiered all fourteen into Common / Uncommon / Rare /
+Anomalous, with the grade table gating recipes on "rarest permitted." The principle was right and the
+implementation was its opposite. The bands are deleted; the principle stands.*
 
-| Availability | Material | Rel. mass | Character |
-|---|---|---:|---|
-| **Common** | **Fe** Iron | 7.9 | Bulk structure |
-| | **C** Carbon | 2.2 | Light composites |
-| | **Si** Silicon | 2.3 | Semiconductors |
-| | **Al** Aluminium | 2.7 | Light structure |
-| | **Cu** Copper | 8.9 | Conductors |
-| **Uncommon** | **Ti** Titanium | 4.5 | Strong light structure |
-| | **Ni** Nickel | 8.9 | Alloys, corrosion resistance |
-| | **Ge** Germanium | 5.3 | Optics, sensors |
-| | **Nd** Neodymium | 7.0 | Magnets, emitters |
-| **Rare** | **Ag** Silver | 10.5 | High-grade conductors |
-| | **W** Tungsten | 19.3 | Heat, kinetic mass |
-| | **Ir** Iridium | 22.5 | Armour, extreme heat |
-| | **U** Uranium | 19.0 | Power cores |
-| **Anomalous** | **Xe** *(working name)* | — | Exotic fields. Deposits roll only in anomalous systems |
+> **No element is rarer than another. Scarcity is entirely a property of where you are and what you
+> hold — and it is therefore *perceived*, differing between two factions looking at the same galaxy.**
 
-An iridium-heavy Mythic armour plate is genuinely ten times a carbon composite, and nobody had to
-decide that.
+Real elements are used deliberately: they supply free intuition (iron is structural, copper
+conducts), free icons (the periodic abbreviation), and — the useful part — **free mass numbers**,
+since relative density settles what would otherwise be an argument.
 
-**Distribution is seed-derived, in two rolls per system** (§7.1, pure functions of the coordinate):
+##### Eight attributes, and every one has a consumer
 
-1. **Presence** — does this system have a deposit of this material at all? Probability follows the
-   availability band above.
+A element is a **vector of contributions**, never a quality score. That distinction is load-bearing:
+a single "how good is it" number reintroduces the rarity ladder through the back door, because the
+best element per role would strictly dominate every other.
+
+| Attribute | Real basis | What reads it |
+|---|---|---|
+| **Structure** | Tensile strength | `Health.max` on the hardpoint |
+| **Conductive** | Electrical conductivity | `PowerSource`/`PowerLoad` efficiency, engine output |
+| **Semiconductive** | Band gap | `Weapon::spreadRadians` (accuracy), sensor strength |
+| **Energetic** | Energy density, fissile yield | `PowerSource::generation`, hyperdrive `fuelPerJump` (§2.11) |
+| **Magnetic** | Permeability | `Shield::capacity` / `rechargePerSecond` |
+| **Optical** | Reflectivity, transmission | Energy-weapon damage, sensor strength |
+| **Thermal** | Melting point | `Weapon::fireIntervalSeconds` — sustained rate of fire |
+| **Inert** | Corrosion resistance | Corona/hazard resistance (`architecture.md` §12.28), repair cost |
+| *(**Density**)* | g/cm³, real | Mass — the universal cost paid against all eight |
+
+⚠️ **An attribute with no reader is the same defect as a system with no producer** — the failure
+class `architecture.md` §13 catalogues a dozen times. The right-hand column is a requirement, not a
+convenience: **do not add a ninth attribute without naming what consumes it.** Two were nearly added
+and rejected on exactly this test — a heat/wear model (§2.9 cut it deliberately) and a durability
+bar (§2.7 cut upkeep deliberately).
+
+##### The roster
+
+**Real elements only.** The target is **~50**, and the list below is a drafted starting set of 30 —
+not a final answer. Ratings 0–3; **ρ** is real g/cm³.
+
+| | Element | ρ | Str | Cnd | Sem | Eng | Mag | Opt | Thm | Inr | Character |
+|---|---|---:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| **Li** | Lithium | 0.53 | 0 | 1 | 0 | 3 | 0 | 0 | 0 | 0 | Featherweight power — corrodes on sight |
+| **Mg** | Magnesium | 1.74 | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 0 | The cheapest mass saving there is |
+| **Be** | Beryllium | 1.85 | 1 | 1 | 0 | 0 | 0 | 3 | 2 | 2 | Optics that weigh nothing. Brittle |
+| **C** | Carbon | 2.27 | 2 | 1 | 1 | 0 | 0 | 0 | 3 | 3 | Light, inert, near-unmeltable. No specialism |
+| **Si** | Silicon | 2.33 | 0 | 0 | 3 | 0 | 0 | 1 | 1 | 2 | The logic substrate, and it is light |
+| **B** | Boron | 2.34 | 2 | 0 | 2 | 1 | 0 | 0 | 3 | 2 | Stiff fibre, neutron sponge |
+| **Al** | Aluminium | 2.70 | 2 | 2 | 0 | 0 | 0 | 2 | 0 | 2 | Good at four things, best at none |
+| **Y** | Yttrium | 4.47 | 1 | 0 | 1 | 0 | 1 | 3 | 2 | 1 | Laser and sensor glass |
+| **Ti** | Titanium | 4.51 | 3 | 0 | 0 | 0 | 0 | 0 | 2 | 3 | Strength per kilo that never corrodes |
+| **Ge** | Germanium | 5.32 | 0 | 0 | 3 | 0 | 0 | 3 | 1 | 2 | Sensors and energy optics both |
+| **Zr** | Zirconium | 6.52 | 2 | 0 | 0 | 1 | 0 | 0 | 3 | 3 | Reactor cladding |
+| **Nd** | Neodymium | 7.01 | 0 | 0 | 0 | 0 | 3 | 1 | 1 | 0 | The magnet. Oxidises fast |
+| **Cr** | Chromium | 7.19 | 3 | 1 | 0 | 0 | 0 | 2 | 2 | 3 | Hard, bright, corrosion-proof |
+| **Sn** | Tin | 7.31 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | Joins things cheaply |
+| **Sm** | Samarium | 7.52 | 0 | 0 | 0 | 1 | 3 | 0 | 2 | 1 | Magnets that survive heat |
+| **Fe** | Iron | 7.87 | 3 | 1 | 0 | 0 | 3 | 0 | 2 | 0 | Strong and magnetic — and it rusts |
+| **Nb** | Niobium | 8.57 | 2 | 1 | 0 | 0 | 1 | 0 | 3 | 3 | Refractory and inert |
+| **Co** | Cobalt | 8.90 | 2 | 1 | 0 | 0 | 3 | 0 | 3 | 2 | Magnetism that holds under heat |
+| **Ni** | Nickel | 8.91 | 2 | 1 | 0 | 0 | 2 | 0 | 2 | 3 | The dependable alloy |
+| **Cu** | Copper | 8.96 | 1 | 3 | 0 | 0 | 0 | 1 | 1 | 1 | The default conductor |
+| **Mo** | Molybdenum | 10.28 | 3 | 2 | 0 | 0 | 0 | 0 | 3 | 2 | Structure that shrugs off heat |
+| **Ag** | Silver | 10.49 | 0 | 3 | 0 | 0 | 0 | 3 | 1 | 1 | Best conductor and best mirror — tarnishes |
+| **Th** | Thorium | 11.72 | 1 | 0 | 0 | 2 | 0 | 0 | 3 | 1 | Fuel that tolerates heat |
+| **Hf** | Hafnium | 13.31 | 2 | 0 | 0 | 2 | 0 | 0 | 3 | 3 | Reactor control |
+| **Ta** | Tantalum | 16.65 | 2 | 2 | 0 | 0 | 0 | 0 | 3 | 3 | Capacitors, extreme service. Soft |
+| **U** | Uranium | 19.05 | 2 | 0 | 0 | 3 | 0 | 0 | 2 | 0 | Raw fission. Dangerous to store |
+| **W** | Tungsten | 19.25 | 3 | 1 | 0 | 0 | 0 | 0 | 3 | 2 | Nothing melts it |
+| **Au** | Gold | 19.30 | 0 | 3 | 0 | 0 | 0 | 2 | 1 | 3 | Heavy, but still working in a century |
+| **Pt** | Platinum | 21.45 | 1 | 2 | 0 | 2 | 0 | 1 | 2 | 3 | Catalyst and noble all-rounder |
+| **Ir** | Iridium | 22.56 | 3 | 1 | 0 | 0 | 0 | 1 | 3 | 3 | The premium hull element |
+
+##### Volatiles are Elements too 📋
+
+*Settled 2026-08-09. An earlier proposal in this session made gases and liquids a **separate resource
+class** with their own model. **Withdrawn** — the three-tier rename dissolved the problem: hydrogen is
+an Element exactly as iron is, and `Propellant` is a Material exactly as Alloy Plate is. One model,
+not two.*
+
+| | Element | ρ *(stored)* | Str | Cnd | Sem | Eng | Mag | Opt | Thm | Inr | Character |
+|---|---|---:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| **H** | Hydrogen | 0.071 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 0 | The best fuel by mass, and nothing else |
+| **He** | Helium | 0.125 | 0 | 0 | 0 | 2 | 0 | 0 | 3 | 3 | Cryogenic coolant, utterly inert |
+| **N** | Nitrogen | 0.807 | 0 | 0 | 0 | 1 | 0 | 0 | 1 | 3 | Inert working fluid |
+| **O** | Oxygen | 1.14 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | Oxidiser. Corrodes everything |
+| **Ar** | Argon | 1.40 | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 3 | Shielding gas, arc media |
+| **Xe** | Xenon | 3.06 | 0 | 0 | 0 | 1 | 0 | 3 | 0 | 3 | Ion-drive propellant, arc optics |
+
+⚠️ **Densities are for the *stored* liquid, not the gas** — and that is what keeps them honest.
+Gas-phase hydrogen is 0.00009 g/cm³, which against density-as-universal-cost would let it dominate
+lithium **and** uranium at Energetic 3. Liquid hydrogen at 0.071 sits in the same range as lithium's
+0.53. You store volatiles liquefied because that is what you would actually do, and the mass you
+carry is the mass that counts.
+
+Hydrogen still comes out the best fuel by mass, which is simply **true** — and it is paid for by
+being Energetic 3 and **zero at all seven other attributes**, where lithium at least conducts.
+
+> 🔭 **Xenon is not the "anomalous" material any more.** The deleted availability table had `Xe` as a
+> working-name exotic gated to anomalous systems. It is now just xenon: a real noble gas, the real
+> ion-thruster propellant, and a natural fit beside Ion being one of §3.1's three damage types.
+
+##### Where Elements come from — three gathering activities 📋
+
+*New 2026-08-09. Volatiles being Elements means they need a source, and the sources give two things
+that currently have no purpose a reason to exist.*
+
+| Activity | Source | Yield per visit | Distance | Gives purpose to |
+|---|---|---|---|---|
+| **Mining** | Asteroids — many, small | Low | **Close** — the belt | Already built (`MiningSystem`) |
+| **Skimming** 📋 | Gas giants — few, huge | **High** | Far — outer orbits | **Planets**, currently pure non-colliding scenery (`architecture.md` §12.28) |
+
+**Yield per visit scales with the size of the body**, which is what balances fuel against its own burn
+rate: propellant is cheap per unit but expensive in **logistics**. You consume it constantly and refill
+it in bulk, and the refill is a trip to the outer system. That makes fuel a **supply-line** problem
+rather than a scarcity one — the more interesting version, and it feeds the territory economy directly
+rather than just taxing the player.
+
+> ⚠️ **There is deliberately no third "harvesting" verb.** An earlier draft made nebulae a *gathering
+> site* — a dangerous resource node yielding richer volatiles. **Withdrawn 2026-08-09**, because
+> "dangerous resource" is a trade most players simply decline: if the reward for flying into damage is
+> more of a volatile you can get safely elsewhere, the rational answer is no, and the content is dead
+> on arrival. **A nebula is now a *place*, not a node** — see §3.8. Mining and skimming work normally
+> inside one; the nebula is a modifier on *where* they happen, not a third way of doing them.
+
+**This is the payoff for §12.28's "planets are background" decision.** That section gave planets no
+collision and no role beyond landmarks, and flagged the deferral honestly as partly scope control.
+Gas giants as the volatile supply give them an economic reason to exist **without** needing collision,
+occlusion or sheltering — you fly to one and skim it, exactly as you fly to an asteroid and mine it.
+
+**A nebula is a hazard and a resource in the same volume**, which is the tension worth having: the
+richest volatile fields sit inside something that is damaging you while you harvest. `HazardSystem`
+(§12.28) already exists to carry the damage half, so a nebula is **content for a built system** rather
+than a new one.
+
+⚠️ **This needs one new module kind and one authored planet property, and neither exists.** A
+**gathering module** — §2.11's roster has no extraction module at all, and `architecture.md` §13
+already records that *"`MiningSystem` reads no module stat"* — and a planet **type** flag, since
+`WorldGen.cpp`'s own comment concedes *"every planet below is mechanically identical aside from its
+orbit."*
+
+**Candidates to test toward ~50**, chosen because each plausibly holds a niche none of the thirty-six
+above covers: **Pb** (radiation shielding — a genuinely missing role), **V**, **Se**
+(photoconductive), **In** (transparent conductor), **Te** (thermoelectric), **Re**, **Os**, **Pd**,
+**Rh**, **Sc**, **Bi**, **Cd**, **Gd**, **Eu**, **Er**, **Zn**, **Mn**, **Sb**, **La**, **Ce**.
+**Keep whatever survives `element_check`; cut the rest without argument, even if the roster lands
+under 50.**
+
+##### Why not the whole periodic table
+
+*Asked and answered 2026-08-09.* Because **the table's organising principle is similarity within a
+group**, so 118 elements do not contain 118 profiles:
+
+- **~47 are not bulk elements at all** — ~28 synthetic or never-stable (everything past uranium;
+  elements 104+ have existed as a handful of atoms), 11 gases at STP, 2 liquids, 6 radioactive traces.
+- **The lanthanides collapse.** Fifteen elements, densities 5.24–9.84, chemically near-identical —
+  which is exactly why separating them is hard in reality. Against these eight attributes they yield
+  roughly three profiles, so **twelve fail Pareto by construction** and cannot be fixed without
+  inventing differences, which forfeits the free-intuition argument entirely.
+- **Same collapse, smaller:** Na/K/Rb/Cs are lithium but heavier with no compensating gain — *dominated
+  by definition*. The platinum group is six noble dense catalysts yielding perhaps three profiles.
+
+That leaves **~45–50 genuinely distinct profiles**, which is where the target comes from.
+
+> **Elements are the periodic-table floor. Materials are where variety lives.** Reaching for more
+> elements to get richness is solving a Material-layer problem at the Element layer — and the Element
+> layer is the one place the cost is paid in hand-authored numbers. Steel, carbon fibre and tungsten
+> carbide are not elements; they are **Materials**, and the Material layer generates them
+> combinatorially rather than by hand.
+
+##### Uneven attribute coverage is the design working, not a gap to fill
+
+Counting the drafted thirty by how many elements rate **3** in each attribute: Inert 10 · Thermal 9 ·
+Structure 6 · Magnetic 4 · Optical 4 · Conductive 3 · **Energetic 2** · **Semiconductive 2**.
+
+Refractory and corrosion-proof elements are everywhere; top-grade reactor fuel and top-grade logic
+substrate are two elements each out of thirty. **That is the pressure point, and it arrived without a
+rarity tier being invented.** Systems holding germanium or uranium are worth fighting over because of
+what grows there, not because a table said "rare." Do not even this out.
+
+#### Attributes propagate. Quality is rolled once. 📋
+
+*These are two different mechanisms and they must not be confused — this section already forbade the
+confusion for grades and now states it generally.*
+
+| | Behaviour | Where |
+|---|---|---|
+| **Attributes** | Propagate deterministically — sums and weighted averages | Every link: Element → Material → Module |
+| **Quality** (§2.7's band roll) | Rolled **once** | The finished module or shell only |
+
+A Conductive Coil made of silver genuinely *is* a better coil than one made of aluminium —
+predictably, inspectably, before any dice are involved. The finished module then rolls its quality on
+top. **Two knobs the player reasons about separately: what you made it from is a choice; how well it
+came out is a roll.** If both compounded across the chain, the output distribution would be
+impossible to balance or to explain.
+
+> ⚠️ **This chain has no home in code.** Element → Material → Module attribute propagation must be
+> *computed* somewhere, and that somewhere is **`ManufacturingSystem`** (`architecture.md` §12.18),
+> which does not exist. Not circular — the content lands first — but none of this is visible in play
+> until §12.18 is built. Recorded in §11.9.
+
+#### Recipes demand roles, never named elements 📋
+
+*Settled 2026-08-09, and it is what makes the whole model safe.*
+
+> **A Field Emitter recipe does not ask for "5 × Neodymium." It asks for five units of a
+> **magnetic** element — and Nd, Sm, Co and Fe all qualify, with different results.**
+
+Three consequences, all wanted:
+
+- **A player can never be hard-stuck.** Any element of the right role builds *something*. Being
+  short of good ones costs quality, not access — which lands precisely on §2.7's band.
+- **Trade is about *better*, not *possible*.** A gate makes a missing element a wall; substitution
+  makes it a price.
+- **It answers the softlock directly.** You need elements to build a hyperdrive and a hyperdrive to
+  reach new elements. With named-element recipes that is a real dead end; with roles it cannot occur.
+
+##### The seeding invariant
+
+> **Every system rolls at least one element in every role.**
+
+That is what makes "cannot be hard-stuck" an *enforced property* rather than a hope — it is checkable
+in a test. Systems stay distinctive because *which* element fills each role varies, and abundance
+varies on top.
+
+**The player therefore does not start with a hyperdrive** (settled 2026-08-09) — they build one, from
+whatever their starting system happens to hold, at whatever quality that implies. Drives are also
+lootable and buyable, so credits are always a second path.
+
+#### Distribution — two rolls, and abundance carries the variety 📋
+
+Seed-derived, pure functions of the coordinate (§7.1):
+
+1. **Presence** — does this system hold this element at all? **The probability is the same for every
+   element**, subject to the seeding invariant above. There is no availability band.
 2. **Abundance** — how rich is it, if present?
 
-**Presence must be able to come out zero**, and that is the whole point. If every system carried a
-trace of everything, §2.8's variety requirement would collapse into a throughput requirement and the
-reason to expand would go with it. A Mythic craft needing eight distinct materials means finding
-eight deposits, which realistically means holding or trading across several systems.
+**Abundance is what the deleted bands used to do.** A system is not "a tungsten system"; it is a
+**rich** system or a **poor** one, crossed with which elements it happens to hold. Rich systems
+become worth fighting over for a legible economic reason, which is what §5.1's Three Pillars and §6's
+expansion facets want and currently lack.
 
-**One mining tool, and the asteroid decides the yield.** Material-specific extraction gear would be a
+**One mining tool, and the asteroid decides the yield.** Element-specific extraction gear would be a
 second progression axis on a system that already has several, and it would not earn its place.
 
-#### Crafts — seven functional families 📋
+#### `tools/element_check` — the roster's gate 📋
 
-Crafts are manufactured intermediates. They **carry a grade** (§2.8's input chain requires it) but
+Thirty rows × eight attributes is exactly the size where a human misses one and a ten-line script
+never does. **Four dominance failures were caught by hand while drafting the thirty above** — Nb over
+Cu (niobium only superconducts below 9 K; its room-temperature conductivity is poor), Ta over W
+(tantalum is soft, tungsten is the strongest metal there is), Th over U (thorium is fertile, uranium
+is fissile), and Ga, cut outright because germanium beat it on every axis while being lighter. **There
+is no reason to believe that was all of them.**
+
+| Check | Fails when |
+|---|---|
+| **No pairwise dominance** | A element is ≤ another on all eight attributes while being ≥ its density |
+| **Pareto validity** | A element is optimal under *no* weighting of the eight against density — the subtler death, losing to no single rival but to every combination |
+| **Role coverage** | Some attribute has too few elements at some level for the seeding invariant to be satisfiable |
+| **Density spread** | An attribute is available only at one end of the mass range |
+
+It runs in CI beside the four existing structural checks (`architecture.md` §2.2–2.4), and it is the
+first time that section's *"boundaries enforced by a format, a parser, or a linker survive"* principle
+reaches **content** rather than code. The same shape validates the module roster later.
+
+#### Materials — eight manufactured families 📋
+
+*Renamed from "Crafts" 2026-08-09 (§2's vocabulary block). Weightings are now expressed as
+**attribute roles** rather than named elements, which is what makes substitution work.*
+
+Materials are manufactured intermediates. They **carry a grade** (§2.8's input chain requires it) but
 **do not roll quality** — quality is rolled once, at the finished module or shell. If every link
 rolled, the output distribution would compound across the chain and become impossible to balance or
 to explain.
 
-| Craft | Weighted toward | Feeds |
+| Material | Wants | Feeds |
 |---|---|---|
-| **Alloy Plate** | Fe · Ti · Ni | Structure, chassis, armour shells |
-| **Conductive Coil** | Cu · Ag | Power routing, engines |
-| **Circuit Wafer** | Si · Ge | Targeting, avionics, crew modules |
-| **Optical Array** | Ge · Si · Ag | Sensors, energy weapons |
-| **Power Core** | U · Cu · Ni | Power cells, reactors |
-| **Composite Housing** | C · Al · Ti · Ir | Shells generally |
-| **Field Emitter** | Nd · Ir · Ag · Xe | Shields, Ion weapons |
+| **Alloy Plate** | Structure | Chassis, armour shells |
+| **Composite Housing** | Structure, low density | Shells generally |
+| **Conductive Coil** | Conductive | Power routing, engines |
+| **Circuit Wafer** | Semiconductive | Targeting, avionics, crew modules |
+| **Optical Array** | Optical, Semiconductive | Sensors, energy weapons |
+| **Power Core** | Energetic, Thermal | Power cells, reactors |
+| **Field Emitter** | Magnetic, Conductive | Shields, Ion weapons |
+| **Propellant** 📋 | Energetic, low density | Hyperdrive fuel (§2.11), thrusters |
 
-⚠️ **A craft's weighting is not a gate.** Every craft exists at every grade, and a Common Field
-Emitter is a crude coil of iron and copper — *not* something requiring iridium. An earlier draft of
-this table listed fixed materials per craft, which would have gated a Common shield behind anomalous
-material and broken the ladder at its base. **The weighting decides what a craft leans on where those
-materials are permitted; the grade decides which are permitted at all.**
+⚠️ **A material's "wants" is a weighting, never a gate.** Every material exists at every grade, and a
+Common Field Emitter built from iron is a crude thing that works. **Nothing is locked behind a
+particular element** — the weighting decides what the recipe *reaches for*, and what you actually
+hold decides what it *gets*. This is §2.10's role-substitution rule seen from the recipe side.
+
+**`Propellant` is new**, and it closes a real gap: §2.11 settled that hyperdrives consume fuel and
+**nothing anywhere said what fuel is made of**. It is a manufactured material like any other, drawn
+from Energetic elements — which is what lets hydrogen, helium and the other volatiles be ordinary
+Elements rather than a parallel resource class.
 
 #### What a grade actually costs 📋
 
-> **Grade sets how many *distinct* materials a recipe demands, how rare the rarest may be, and how
-> much of each.**
+> **Grade sets how many *distinct* materials a recipe demands, and how much of each. It does not
+> restrict *which*.**
 
-| Grade | Distinct materials | Rarest permitted |
-|---|:---:|---|
-| Common | 2 | common only |
-| Uncommon | 3 | common only |
-| Unique | 4 | ≤ uncommon |
-| Rare | 5 | ≤ uncommon |
-| Epic | 6 | ≤ rare |
-| Legendary | 7 | ≤ rare |
-| **Mythic** | **8** | **includes the anomalous material** |
+| Grade | Distinct materials |
+|---|:---:|
+| Common | 2 |
+| Uncommon | 3 |
+| Unique | 4 |
+| Rare | 5 |
+| Epic | 6 |
+| Legendary | 7 |
+| **Mythic** | **8** |
 
-Eight distinct materials out of fourteen is what makes Mythic production a *territory* problem rather
-than a *time* problem, and it is why the material list is fourteen rather than ten — at ten, a Mythic
-recipe would consume most of the set and every craft would converge on the same parts list.
+*The **"rarest permitted"** column was deleted 2026-08-09 along with the availability bands. It could
+not survive them: with no material rarer than another there is nothing for it to restrict. Grade now
+controls **breadth and quantity only**, which is enough — 8 distinct materials is a territory problem
+however common each one is individually.*
+
+**Two ladders used to share three words**, which would have collided the moment either became a JSON
+enum: material availability was Common/Uncommon/Rare/Anomalous while item grade is
+Common/Uncommon/Unique/Rare/Epic/Legendary/Mythic. This table previously had a row labelled **Rare**
+(a grade) whose cell read **"≤ uncommon"** (a band). **Deleting the bands removes the collision
+entirely** — `Grade` is now the only ladder in the content model.
+
+Against a ~50-material roster (up from fourteen), two Mythic recipes drawing 8 distinct materials each
+share roughly **1.3 of them rather than 4.6** — so recipes read as genuinely different parts lists
+rather than as the same one reshuffled. That, not scarcity, is what the roster size buys.
 
 **Quantity scales on top of variety**, steeply — roughly against the inverse of §2.7's drop-rate
 curve (~3× per grade). §2.4 requires cost to climb faster than the stat benefit does, or
 mass-producing Mythics becomes correct the moment it is possible.
 
-#### Recipes are authored on the def, and craft recipes are generated 📋
+#### Recipes are authored on the def, and Material recipes are generated 📋
 
 - **A module's or shell's recipe is a field on its own def** (`ModuleDef.recipe`, `ShellDef.recipe`),
   so one item is one entry and there is no second file to keep in sync.
-- **Craft recipes are generated** from the grade table above plus the per-craft weighting — never
-  authored as forty-nine rows. Hand-authoring them guarantees that someone edits one grade and not
-  its neighbours, and the curve develops a kink nobody notices.
+- **Material recipes are generated** from the grade table above plus the per-material attribute
+  weighting — never authored as fifty-six rows. Hand-authoring them guarantees that someone edits one
+  grade and not its neighbours, and the curve develops a kink nobody notices.
+
+**The generation rule, stated** *(2026-08-09 — this was an unspecified gap; the section said recipes
+were generated without saying how)*:
+
+> A Material's recipe is **`n` slots**, where `n` is the grade's distinct count (2→8). Slots are
+> filled by **attribute role**, drawn in order of the material's weighting — its signature roles
+> first, then breadth. **No slot ever names an element**; it names a role, and whatever the builder
+> holds that scores highest in that role fills it.
+
+A Common Alloy Plate is 2 slots, both Structure — iron if that is what you have, iridium if you are
+rich. A Mythic one is 8, reaching well past Structure into Thermal and Inert. **Grade decides
+breadth; your holdings decide quality; nothing decides availability.**
 
 #### Mass and price both derive from the recipe 📋
 
@@ -1891,17 +2177,112 @@ mass-producing Mythics becomes correct the moment it is possible.
 
 | | Authored | Derived |
 |---|---|---|
-| **Mass** | Per **material** only | Craft = inputs − loss · Module/shell = inputs − loss · Vessel = its parts |
-| **Base price** | Per **material** only | Craft = inputs + margin · Module = its crafts + margin · Vessel = its parts |
+| **Mass** | Per **Element** only | Material = inputs − loss · Module/shell = inputs − loss · Vessel = its parts |
+| **Base price** | Per **Element** only | Material = inputs + margin · Module = its Materials + margin · Vessel = its parts |
 
-**Fourteen authored masses and fourteen authored prices, and everything else follows.** A module is
-expensive *because* its recipe is brutal, not because someone typed a large number — and adding a new
-module never requires guessing either figure. §3.5's "manufacturing cost scales with total mass"
-stops being a separate rule and becomes the same rule seen from the other end.
+**One authored mass per element, one authored price *for all of them*, and everything else follows.**
+A module is expensive *because* its recipe is brutal, not because someone typed a large number — and
+adding a new module never requires guessing either figure. §3.5's "manufacturing cost scales with
+total mass" stops being a separate rule and becomes the same rule seen from the other end.
 
-**Price is a function, never stored.** Base price is computed once at content load; local supply and
+**Price is a function, never stored.** Base value is computed once at content load; local supply and
 demand modulate it on query. This is the same discipline §3.5 applies to system radius — *"seed-derived
 and must never be stored, because caching it invites the two to drift."*
+
+#### Pricing — one authored number, three separate layers 📋
+
+*Settled 2026-08-09. These three are conflated constantly, and keeping them apart is what stops the
+economy from contradicting the material model.*
+
+| Layer | What it is | Driven by |
+|---|---|---|
+| **Base value** | What a thing is inherently worth | Its recipe, recursively down to elements |
+| **Cost to build** | What you actually consume making it | Recipe **×** facility grade (the efficiency axes below) |
+| **Local price** | What it trades for **here** | Base value **×** local scarcity |
+
+A Mythic facility building an item consumes less than a Common one, but **the item's base value is
+identical** — value is a property of the design, not of where it was built. Same discipline this
+section already applies to mass.
+
+##### Every element has the same base value
+
+> **One unit of any element is 1 credit. All price differentiation is local.**
+
+⚠️ **This revises a proposal made earlier the same day** that base price should be anchored on
+**density**. It was wrong, and the reason matters: **density is already the universal cost** in
+§2.10's attribute model — what you pay for high attributes. Pricing on it too charges twice, and it
+would have let titanium (ρ 4.51, Str 3 / Thm 2 / Inr 3) **economically dominate** iridium (ρ 22.56,
+Str 3 / Thm 3 / Inr 3): one extra Thermal point for five times the mass *and* five times the money.
+`element_check`'s Pareto test would not have caught it, because that test reads attributes and
+density, not price. **The dead-weight problem would have come back through the economy.**
+
+Uniform base value sounds flat until you look at what moves local stock:
+
+- **Abundance rolls** — a system rich in germanium and poor in uranium prices them differently on day
+  one, with no authored rarity anywhere.
+- **Consumption** — and this is what carries it. **Elements are consumed at wildly different rates.**
+  Propellant burns every jump; iridium sits in a hull for years. High-consumption elements deplete
+  local stock continuously, so they run scarce and price high **everywhere** — without a number.
+
+> **Fuel is expensive because it is *burned*, not because it is rare.** That is the whole
+> volatile-pricing answer, and it needs no special case. A busy trade hub burns more than a backwater
+> and prices accordingly.
+
+##### The three knobs, because derivation with no lever cannot be corrected
+
+| Knob | Lives in | Effect |
+|---|---|---|
+| **Quantity per grade** (**~2×**, revised 2026-08-09) | The grade table above | Dominant — compounds six times across the ladder |
+| **Refinement loss** | §2.7's mass ladder, 100% → 70% | You consume more than you get |
+| **Margin per manufacturing step** | Applied twice: Element→Material, Material→Module | Modest, roughly linear |
+
+##### ⚠️ The quantity curve was ~3× and is revised down to ~2×
+
+*This section previously set quantity at ~3×/grade, chosen to mirror §2.7's drop-rate curve so that
+manufacturing cost matched what finding was worth. **Two problems, and the second is decisive.***
+
+**It made swarms strictly correct.** 3× compounds to **3⁶ = 729×** across the full ladder, against a
+Mythic's actual delivery of roughly **×6** combat value per hull (§2.7's quality bands reach ×2.00–3.50
+by Legendary, plus `moduleSlots` stepping +1 at Unique, Epic and Mythic). A player choosing between one
+Mythic fighter and a thousand Common ones for the same credits is not making an interesting decision —
+and nothing else caps fleet size, since §2.7 cut upkeep and §9.1's 100-vessel figure is a performance
+budget rather than a game rule.
+
+**It contradicted this section's own governing principle**, three subsections above:
+
+> *"Exploration and combat give you the **first** of a thing. Industry gives you **more** of it."*
+
+If manufacturing a Mythic costs exactly what its rarity implies, **industry does not give you more of it** —
+it gives you precisely as few, at a different kind of expense. Mirroring the drop curve reproduces the
+scarcity that drops already impose, and §2.4's *"a drop rate gates first acquisition, not ongoing
+supply"* is the rule it breaks.
+
+**~2×/grade → 64× across the ladder** keeps §2.4's cost-outpaces-benefit constraint satisfied (64×
+cost against ~6× value) while leaving industry the genuine advantage over scavenging that the
+principle promises. **It is a working value pending measurement, not a settled one** — this is exactly
+the question `tools/economy_sim` exists to answer, and it should be read off the curve rather than
+argued.
+
+**One check that still passes, and one that was retired:**
+
+- ✅ **§2.4's hardest constraint holds.** *"Cost must climb faster than the stat benefit does, or
+  mass-producing Mythics becomes correct."* At 2×/grade: cost ×64, combat value ~×6.
+- ❌ **"The curve matches the drop rate" is no longer a goal.** It was the reasoning behind 3×, and it
+  is the thing that broke. Matching drop rates was never the requirement — *outpacing stat benefit*
+  is, and that is a much weaker constraint with far more room in it.
+
+##### Nobody decides what a ship costs
+
+*The obvious next question — "so what does a starter fighter cost?" — is the wrong question, and
+answering it by fiat would invert this whole section.* Prices are **outputs**. You author the content,
+run the derivation, and read the curve.
+
+**That is `tools/economy_sim`'s job** (🧊 `architecture.md` §3, and §9 already names it as what would
+settle manufacturing pacing). It now has a concrete definition: run the derivation across the authored
+content set and print the resulting curve, so a bad shape is *observed* rather than argued about.
+
+⚠️ **It does not exist** — `tools/` holds only `ci/`. Until it does, every pacing figure in this
+document is an estimate, and should be written as one.
 
 #### The three efficiency axes, and why they must not be confused 📋
 
@@ -1926,7 +2307,7 @@ to produce that same 70-mass item where a Mythic burns 100; the difference is wa
 never in the item.
 
 **Deconstruction is conservation-safe:** it returns up to **the item's own mass**, never the mass
-originally consumed. Refinement loss is permanent, craft → deconstruct → craft always loses, and
+originally consumed. Refinement loss is permanent, build → deconstruct → build always loses, and
 there is no loop.
 
 
@@ -2485,6 +2866,148 @@ player dies with the vessel they pilot — but an uncrewed hull is by definition
 consistent reading is that the player **is** the crew of the ship they are flying, so losing that
 shell is a Tier 1 death and the hull is left for someone else to take. That wants confirming.
 
+#### Structural integrity — a ship dies before its last hardpoint does 📋
+
+*Settled 2026-08-09. **This revises the destruction rule in built code.** `DamageSystem` currently
+destroys a rig only when `HasLivingHardpoint` is false — every hardpoint must reach zero.*
+
+**Why that fails.** Killing `aegis_vanguard` means zeroing **six separate pools** (325 hull), and the
+last is typically a **35-hull wing** you must hunt down on a ship that is visibly wreckage. A capital
+under §3.5 carries up to **fifty** hardpoints; requiring all fifty is not a mechanic, it is a chore.
+And it is simply not how ships die.
+
+> **Structural integrity is the sum of living hardpoint health over total hardpoint health. Below a
+> threshold the hull gives way: every surviving hardpoint is destroyed and the rig with them.**
+
+**Derived, never stored.** Nothing debits an integrity pool; it is recomputed from what the
+hardpoints hold. `CockpitHud::AggregateHullFraction` already computes exactly this for the hull bar,
+so this gives an existing function a second reader rather than adding a system. A *stored* pool would
+become a second competing truth and hardpoints would drift toward decoration — which is the
+single-health-bar model this section opens by rejecting.
+
+**This is not the protected core §3.2 rejects.** That rejection was of an *artificial weak point you
+must kill*. A threshold is the opposite: no single point, and no disassembly either.
+
+##### One hit lands on one hardpoint
+
+> **A projectile resolves to the *most specific* hardpoint whose shape it crosses. Damage is never
+> shared, split, or double-counted.**
+
+Hitting a wing does not touch the chassis. Hitting the chassis does not touch anything else. Only the
+**aggregate** moves, because it is a sum rather than a pool.
+
+**The chassis is the structural backstop.** `ShellKind::Chassis` is already *"the rig's root"* and
+already the largest hull value on every authored ship. Most-specific-wins means a shot at a turret
+hits the turret, and a shot at bare plating hits the structure actually beneath it — at the place it
+was aimed, with no fallback to a "nearest hardpoint" that might be hundreds of units away on a
+capital.
+
+⚠️ This also replaces `ProjectileSystem::FindHit`'s current **first-in-iteration-order** hit
+selection, which `architecture.md` §9.1 and §12.16 both already list as requiring a nearest-hit
+tie-break. Most-specific-wins is a better rule than nearest and closes the same defect.
+
+##### Structural coverage must be complete
+
+> **The union of structural hardpoints — chassis plus armour — must cover the hull envelope. No bare
+> sections, enforced by `Validation` rather than patched at runtime.**
+
+`ShellKind::Armor` is already defined as *"pure hull, no function"* — that is a **hull segment**. It
+tiles the envelope, and functional mounts attach to segments rather than all hanging off the chassis:
+
+```
+chassis  (spine — kill it and everything goes)
+├── armour: port flank ── turret, engine
+├── armour: starboard flank ── turret
+└── armour: dorsal ── sensor array
+```
+
+Blow open the port flank and the port turret and engine go with it **while the starboard side keeps
+fighting** — §12.22's structural cascade doing real work. The model scales without a per-class rule:
+on a fighter the chassis *is* most of the hull (today's `shell_fighter_chassis` is r22 under a r27
+envelope); on a capital the chassis is the spine and armour carries the surface.
+
+##### The threshold, and how it reads
+
+**~30% integrity remaining**, tunable in the 25–35% band and — like the quantity curve (§2.10) — a
+value awaiting `tools/economy_sim` rather than a settled one.
+
+Two death paths, and **both end at a genuine raw zero**:
+
+| Path | Damage on `aegis_vanguard` | What happens |
+|---|---:|---|
+| **Attrition** | 227.5 spread | Integrity hits 30% → **structural failure** destroys every survivor → raw 0 |
+| **Structural kill** | 120 into the chassis | Chassis dies → cascade destroys its children → raw 0 |
+
+**The displayed bar is normalised so it reaches zero at death**: `shown = (raw − threshold) / (1 −
+threshold)`. Raw 100% shows 100%; raw 30% shows 0%. No ship ever explodes at "30% health", and no
+corpse is left holding live hardpoints.
+
+##### Shooting the middle is the fastest kill, and that is correct
+
+Chassis-focus kills `aegis_vanguard` in **120 damage** against **227.5** for attrition — 1.9× faster.
+`architecture.md` §12.22 treats this as a hazard to be tuned away, requiring *"chassis hull must
+dominate peripheral hull, or localized damage becomes decorative."* **That constraint eats itself** —
+chassis-focus is slower only if the chassis exceeds ~70% of total hull, at which point peripherals
+genuinely are rounding errors.
+
+**The framing is what was wrong. Localized damage is not a way to kill faster; it is a way to achieve
+things killing does not:**
+
+| Target | Buys |
+|---|---|
+| **Chassis** | The fastest kill, and nothing else |
+| Engines | It cannot flee — a capture precondition |
+| Weapons | It cannot hurt you |
+| Crew shell | Disabled and boardable — the prize intact |
+| Shield generator | Everything else lands |
+
+**Capture play must deliberately avoid the chassis**, since killing it destroys what you came for. So
+the choice is never "fast kill versus slow kill" — it is *"kill it, or do something to it."* A fighter
+dying to a burst through the middle is the honest outcome when killing is all you wanted.
+
+#### Capture — a state reached several ways 📋
+
+*Settled 2026-08-09, replacing §9's "Ion is the intended route in." **Ion is one tool, not the key.***
+
+> **A hull is capturable when its shields are down, it cannot flee, and it cannot resist — and its
+> integrity is still above the structural threshold.**
+
+| Condition | Satisfied by |
+|---|---|
+| **Shields down** | Any damage type |
+| **Cannot flee** | Engines destroyed · hyperdrive destroyed · **held by a tractor** |
+| **Cannot resist** | Crew shell destroyed · power suppressed (Ion) |
+
+The threshold does the balancing: **every condition must be met without dropping integrity below the
+kill line.** Restraint is the price of a prize, and there are now several ways to pay it rather than
+one mandatory weapon.
+
+**Two new modules carry this**, and both are hardpoints — so both can be shot off:
+
+- **Troop bay** — a `capacity` stat; boarding strength is capacity × its §2.7 quality roll. Carrying
+  marines costs cargo or guns, and an enemy can destroy your bay to stop you boarding. *A bare
+  "passenger count" on the hull was considered and rejected: it would be a second crew system with
+  none of the grade, quality, mounting or localized-damage machinery a module gets for free.*
+- **Tractor beam** — pull force contested against the target's `BodyMass` × `Propulsion::thrustNewtons`.
+  **All three already exist**, so the contest resolves in the physics integrator that is already
+  running. It is the **non-destructive** route to "cannot flee": every other path means shooting the
+  engines off, which damages the prize.
+
+**Boarding requires no docking bay — you breach anywhere.** Requiring a bay would make fighters
+uncapturable, and it muddles §4.1's clean idea of the bay as *your garage*. The real cost is surviving
+long enough to get adjacent to something still shooting.
+
+❓ **Ownership transfer is still open.** Everything above brings a hull to *capturable*; what actually
+changes its `FactionRef`, and on what terms an AI faction may do the same to the player (§6.3 requires
+symmetry), is unspecified. **Disabling is a complete mechanic without it** — a dead-and-drifting hull
+is already a result.
+
+⚠️ **The crew shell does not exist in code.** `ModuleKind` is
+`{Weapon, ShieldGenerator, PowerCell, Engine, Armor, Facility}`, `ShellKind` has no crew value, and
+there are **zero occurrences of "crew" anywhere in `src/`**. So §2.7's crew modules, this section's
+disable-by-crew-kill, §3.4's "the player dies with their shell," and §12.27's command gating are all
+unimplemented. Recorded in `architecture.md` §13.
+
 ### 3.3 The Cost of Failure
 
 If the ship the player is piloting — or commanding from the Bridge — is destroyed, **the player
@@ -2626,6 +3149,32 @@ issue that builds saving rather than being left to whoever picks it up.
 Engineering view, station services, or the Bridge interface does **not** pause the game. Ships keep
 flying, weapons keep firing, and the player's vessel remains a physical, targetable object the entire
 time.
+
+#### The one exception, and the rule that makes it one 📋
+
+*Settled 2026-08-09. §3.6 has always bound a **"pause menu. Singleplayer only"** to `Esc` while
+citing this section — which reads as a contradiction until the actual rule is stated. Architecture
+home: `architecture.md` §12.29.*
+
+> **This section forbids pausing on any surface that carries information or decisions.
+> The system menu — Resume, Save, Load, Settings, Quit — carries neither, and that is what makes it
+> legal. It is the game's *only* pause.**
+
+The distinction is the same one the list above already draws. The navigation map, Engineering,
+station services and the Bridge all hand the player **tactical value**: routes, the threat picture,
+repairs, orders. Freezing time while reading them is a free advantage, which is exactly what this
+section exists to deny. The system menu offers no such thing — you cannot repair, retarget,
+reallocate power, or issue an order from it.
+
+⚠️ **This constrains what that menu may ever contain.** Settings means audio, graphics, and controls
+— presentation, not ship configuration. **The power-priority list (§2.9) and the weapon-group editor
+(§3.6) are explicitly excluded** (confirmed 2026-08-09): both carry in-fight value, and §2.9 already
+names their home as the avionics surface, which does not pause. The exception is granted to a menu
+that is deliberately barren, and it lasts only as long as the menu stays that way.
+
+**Multiplayer is unaffected**, and not by special-casing: a client-side freeze has no meaning under
+Law 9's authority model, so in a session the menu opens and the simulation keeps running. It stays
+playable precisely because the menu confers nothing.
 
 There are no safe zones. Docking at a friendly station is protection by *circumstance* — the
 station's guns and its owner's disposition — never by rule. A station that is losing a fight is not
@@ -2935,7 +3484,13 @@ Projectile speed ~1,200 – 1,800 units/sec, giving a per-tick step of 20 – 30
 diameter of every small hardpoint in the game**, so the swept-segment collision test
 (`architecture.md` §12.16) is mandatory; a point test would tunnel straight through.
 
-#### Rendering: five z-layers 📋
+#### Rendering: the five draw layers 📋
+
+> **Vocabulary.** These are **draw layers** — render order *within* one rig. They are not
+> §3.7's **altitude bands**, which are world-space height affecting collision *between* vessels,
+> and not `architecture.md` §12.28's **world draw order**, which places non-rig bodies behind
+> rigs. §3.7 records why the earlier "Z-layer / Z-level" naming was abandoned: the two names
+> differed by three characters and were confused. Three concepts, three names, no overlap.
 
 Shells declare a draw order so top-down hulls read with depth:
 
@@ -2947,8 +3502,35 @@ Shells declare a draw order so top-down hulls read with depth:
 | 4 | **Dorsal** — turrets, canopy, sensor domes |
 | 5 | **Overlay** — thruster glow, shield shimmer, damage decals |
 
+#### Collision shape, and drawing what you test 📋
+
+*Settled 2026-08-09, while working through §3.2's structural integrity model.*
+
+> **`ShellDef` gains an optional baked collision polygon, defaulting to a circle of `radius`.**
+
+**Deriving the shape from the art is a load-time bake, not a frame cost** — trace the sprite's alpha
+perimeter once, reduce to a convex polygon, store it. Runtime then tests segment-vs-polygon at roughly
+4× a circle test at 8–16 edges, against a budget that already requires §9.1's rig-level rejection to be
+feasible at all. Once a projectile only tests the few hardpoints on one rig, polygons are affordable.
+**`../StarReach2` already proved this**, deriving pixel-perimeter convex hulls for fighters and
+capitals with a broad/narrow phase split. Convexity loses concavities, which is near-free per
+*hardpoint* — individual mounts are small and mostly convex.
+
+Defining the field now means **no data-model churn when art lands**: circles today, polygons later.
+
+⚠️ **Until then, draw exactly what you test.** `WorldRenderer` currently draws a rig root as a triangle
+sized by `CollisionRadius` while `ProjectileSystem` tests circles — so the triangle's flanks cut inside
+the tested shape and shots pass through drawn hull. **Render the hit shape itself**, and show heading
+with a nose marker rather than by shaping the hull.
+
+*This withdraws a proposal made earlier the same day* that a rig root draw as a nose-forward triangle
+when `Propulsion` is non-zero and a disc when it is not. The intent was good — *shoot the engines out
+and it visibly becomes a hulk* — but it achieved it by making the drawn shape disagree with the tested
+one, which is the defect being fixed. **A heading marker that disappears at zero propulsion says the
+same thing without lying about the hitbox.**
+
 ⚠️ **`ShellDef` needs a second field for this.** `spriteLayer` today is a *string asset key* — it says
-which image, not what order. A z-layer value (1–5) is a separate concept and currently does not exist
+which image, not what order. A draw-layer value (1–5) is a separate concept and currently does not exist
 anywhere in code or docs. One string doing two jobs is how the two drift apart. Default the layer per
 shell type, with an optional per-mount override in the blueprint for hulls that want an engine
 mounted ventrally rather than dorsally.
@@ -3153,7 +3735,7 @@ for the player (`architecture.md` §12.24).
 | **R** | Dock / undock | built (`AvionicsMenu`) — **moved off `E`, see below** |
 | **Tab** | *Reserved* — tactical map overlay, where off-screen units are selected (§4.3) | §8.1 |
 | **Scroll** | Zoom — and zooming out far enough *is* the navigation map | §8 |
-| **Esc** | Clear selection; **if nothing is selected**, the pause menu. Singleplayer only | §3.4, §4.3 |
+| **Esc** | **A ladder, innermost first:** cancel build placement → clear selection → open the system menu → close it. Pauses in singleplayer only, and only for that menu (§3.4, `architecture.md` §12.29) | §3.4, §4.3 |
 
 > ⚠️ **`R` for dock is a change to shipped code.** `AvionicsMenu.cpp` declares
 > `constexpr int kDockKey = KEY_E` — the **only** gameplay input that exists in the repository today.
@@ -3325,9 +3907,9 @@ peripheral radii — content dials, not mechanics.
 **A `shipType` enum to decide what may overfly what. ❌ Prohibited.**
 
 Law 4's uniformity is the most protected decision in the architecture: §3.2 states there is "no
-per-craft-type special case," `architecture.md` §12.14 removed the last one, and §3.5's scale system
+per-vessel-type special case," `architecture.md` §12.14 removed the last one, and §3.5's scale system
 exists precisely so that "fighter" and "capital" are **emergent from `hullRadius` rather than tagged.**
-A `shipType` would be the first thing in the codebase to reintroduce craft classes, and everything
+A `shipType` would be the first thing in the codebase to reintroduce vessel classes, and everything
 downstream would begin branching on it. **If a size distinction is ever needed, derive it from a radius
 or mass ratio — a comparison, never a tag.**
 
@@ -3372,6 +3954,454 @@ specified in detail — those are the systems that would have to know about band
 conversation where the cost is actually visible. If built, the shadow cue and NPC band usage belong in
 the **same** issue: a mechanic the AI cannot use violates §6.3, and one the player cannot see violates
 §12.14 item 17.
+
+
+---
+
+### 3.8 Environmental Hazards 📋
+
+*Settled 2026-08-09. Prompted by `architecture.md` §13's wiring audit, which found that the sun
+already out-accelerates a fighter ten to one and that nothing happens at the bottom of the fall.
+The mechanic below was largely already built; only the consequence was missing. Architecture home:
+`architecture.md` §12.28.*
+
+**A star is terrain, not a wall.** It has four boundaries, and each one is legible from the one
+before it:
+
+| Distance | What it means |
+|---:|---|
+| **2,200** | **Gravity begins.** You feel the pull and start correcting for it |
+| **≈1,500** | **The point of no return.** Gravity out-accelerates a fighter's engines. Emergent from the numbers, not authored |
+| **1,200** | **The corona.** Hull begins to burn, scaling with depth |
+| **350** | **The surface.** Seconds to live |
+
+**The point of no return is not a line the game draws.** It is the distance at which the star's
+pull exceeds a hull's thrust, so it differs per ship: a heavy freighter is committed sooner than an
+interceptor, and stripping a hull's engines (§3.2) moves it outward. Nothing displays it. The
+warning is the ship handling worse and worse as you descend, which is the same information without
+a number.
+
+#### Burning, not a kill line
+
+A star damages by **accruing hull damage that scales with depth**, not by killing at a radius.
+Four things follow, and the last two are the reason:
+
+- **Death needs no special rule.** A hull whose hardpoints all burn away is destroyed the same way
+  a hull shot apart is (§3.2). There is no "killed by star" state.
+- **Damage is localized like everything else.** The corona is a volume and hardpoints are
+  physically placed (§3.5), so **a capital half inside it burns only on the side that is in.** A
+  large hull can dip a wing where a fighter would be swallowed.
+- **Shields matter, and the interaction was not designed.** Corona damage is Energy (§3.1), so an
+  Energy-absorbing shield lets you dive deeper and hold longer. That falls out of the existing
+  damage roster rather than being a rule about stars.
+- **Grazing the star is real play.** Diving to shake a pursuer, or forcing a heavier hull to break
+  off a chase it cannot follow you into, are both live tactics — and they are only tactics because
+  the star hurts continuously rather than killing instantly.
+
+*A lethal radius was considered and rejected.* It needs a destruction rule of its own, it makes the
+star a wall rather than a place, and crossing an invisible line is the "gotcha the game sprang"
+that §2.4 explicitly rules out elsewhere. A hull bar visibly falling is a warning; a threshold is
+not.
+
+**Symmetric for NPCs and for the world** (§6.3). Nothing about this checks who owns the hull, so an
+AI ship chased into a corona burns on the same terms — and a hostile that follows you in is making
+the same mistake you would be.
+
+#### Planets are background
+
+**Everything flies over a planet.** They orbit, they are drawn behind every ship in the system, and
+they have no collision, no gravity of their own, and no hazard. A planet is scenery and a
+navigational landmark, not an obstacle.
+
+*This is a decision, not an omission.* Contact with a celestial body is a real future feature —
+§3.7 already has the vocabulary for the damage side of it — but it needs line-of-sight, sheltering,
+and an occlusion model to mean anything. **Revisit trigger:** the first time a body is expected to
+block a shot or hide a ship. Until then, "you can hide behind a planet" is not a promise the game
+makes.
+
+#### The asteroid belt orbits, and it sits outside the danger
+
+Asteroids **orbit the star** rather than drifting freely. They never fall in, never drain toward the
+centre, and their positions are a deterministic function of elapsed time — the same treatment
+planets get (§7.1).
+
+The belt is placed **entirely outside both the corona and the point of no return**, close enough
+that mining its inner edge still means fighting the star's pull but never so close that a laden
+miner cannot climb back out. *An earlier band placed half the belt inside the point of no return,
+which would have made the inner belt a one-way trip the moment mining became reachable.*
+
+#### Nebulae — hazardous territory, not a hazardous errand 📋
+
+*Settled 2026-08-09. The second hazard, and it arrives as **content for `HazardSystem`** rather than
+as a system of its own — which is the thing the corona was built general for.*
+
+> **A nebula is a property of a whole system, not a region within one.** Some systems are nebular.
+> Everything in them — asteroids, gas giants, planets, stations, fleets — sits inside the hazard.
+
+**Resources inside are ordinary.** Nebular systems hold the same asteroids and gas giants as anywhere
+else, gathered the same two ways (§2.10). What is scarce is not the material; it is **the ability to
+be there at all.**
+
+##### Hazard armour is a threshold, and it is a territory gate
+
+> **If a hull's aggregate `Inert` (§2.10) meets the nebula's severity, it takes zero damage. Below
+> that, it burns.**
+
+**Binary, not scaled**, and deliberately so. A threshold makes hazard armour a capability you either
+have or lack — a clean strategic fact — where a sliding scale would turn every station inside a nebula
+into permanent chip-damage bookkeeping, converting a strategic advantage into a maintenance chore.
+
+This is what makes `Inert` a **strategic** attribute rather than only a tactical one, and it is the
+sharpest asymmetry in the game's territorial layer:
+
+- **A faction with good hazard armour can hold systems nobody else can enter.** Not "holds them more
+  easily" — *can enter at all.* That is a genuine reason to invest in a material axis, and §5.1's
+  Three Pillars and §6's expansion facets both want an asymmetry of exactly this kind.
+- **A nebula is a sanctuary.** Basing a fleet or a station inside one is safe from anyone who cannot
+  follow you in, which makes it worth taking and worth defending.
+- **It is asymmetric warfare in both directions** — a weaker faction with the right hulls can hold
+  ground against a stronger one that lacks them.
+
+##### Sensors are degraded, never denied
+
+A nebula **reduces** sensor strength rather than blocking detection outright. Classic terrain, and it
+lands directly on the signature/detection model agreed in §8.3: a fleet inside a nebula is harder to
+see, not invisible, so scouting it is expensive rather than impossible.
+
+##### It is semi-transparent, and that is a rendering commitment
+
+**You can see into a nebula.** It renders as a hazy, semi-transparent field — things inside are
+visible but obscured, which matches the sensor rule rather than fighting it: *degraded, not denied*,
+consistently in both the fiction and the UI.
+
+> 🎯 **This is the case `architecture.md` §12.28 predicted by name.** That section fixed the world
+> draw order and stated: *"Nothing today wants a world body in front of a rig. If something ever does
+> — **a nebula the player flies into**, a corona bloom — it is a new pass, not a reordered
+> enumerator."* A nebula haze draws **over** everything inside it, so it is a `DrawWorld` pass after
+> `DrawProjectiles`, **not** a `BodyKind` value. The rule was written before the case arrived; follow
+> it.
+
+#### One shape, more hazards later
+
+Radiation belts and minefields are the same mechanic again — *"a volume that damages what is inside
+it"* — with different numbers and a different damage type. Neither is specified here and neither is
+promised. **The star was built as an instance of a general thing rather than as a special case, and
+the nebula above is the proof that it worked**: an entire strategic layer arrived as content for a
+built system.
+
+
+---
+
+### 3.9 The Status Display 📋
+
+*Settled 2026-08-09. This is the display **two settled sections have been asking for and neither
+specified**: §3.5's "the current target showing live hardpoint status is how a player reads what they
+have already stripped," and §3.1's "coverage gaps become visible — you can see which part of an enemy
+capital is unshielded and aim there." One object serves both.*
+
+> **A schematic of a rig: the hull outline, a circle per hardpoint, and a loop per shield. Colour
+> carries condition, shape carries identity, and the loop's shape carries coverage.**
+
+It is the same object for the player's own ship, for the current target, and — degraded — for a map
+marker. Not three designs.
+
+#### Colour is condition. Shape is identity. Everywhere.
+
+*This is a change to built code.* `WorldRenderer` currently tints hardpoints by `ShellKind` — engine
+orange, weapon red, shield sky, facility violet — which spends colour on *what a thing is*. Integrity
+needs that channel more.
+
+| Encoded by | Carries |
+|---|---|
+| **Colour** | Integrity — a continuous green → yellow → orange → red gradient |
+| **Glyph** | Hardpoint kind, drawn inside the circle |
+| **Outline shape** | Shield coverage |
+| **Dash density** | Shield charge |
+
+Glyphs start as **monogram placeholders**, the same stand-in the build and buy menus already use
+because no per-item art exists. Real iconography replaces them when the asset pipeline un-defers (§6).
+
+#### The palette, and why kinetic is purple
+
+**Integrity owns green through red**, so every other meaning must stay clear of that range or become
+ambiguous with a damaged hull.
+
+| | Colour |
+|---|---|
+| Integrity | green → yellow → orange → red |
+| **Energy** shield and projectile | **Blue** |
+| **Kinetic** shield and projectile | **Purple** |
+| **Ion** projectile *(no shield absorbs it)* | **Electric white-blue** |
+
+*Purple was chosen over the intuitive yellow specifically because yellow sits inside the integrity
+gradient.* A yellow kinetic shield beside an amber damaged hull is unreadable, and that failure is
+worse than any gain from a conventional colour.
+
+**One colour per damage type, used in all three places** — projectile tracer, in-world shield shimmer
+(§3.1's draw layer 5), and this display. The whole pitch of §3.1 is *"read the enemy and bring the
+mismatched weapon"*, and that requires the shot and the shield it bounces off to be visibly the same
+family.
+
+🐛 **Ion and Kinetic are currently identical.** `WorldRenderer::ColorForProjectile` is
+`Energy ? SKYBLUE : YELLOW`, so two of §3.1's three weapon types render the same. Ion must be the
+*most* distinguishable, since it is absorbed by neither shield — mistaking it for energy means
+misreading whether your shields are doing anything. Separating it by **luminance** rather than hue is
+what keeps it legible against the blue field it is punching through.
+
+#### Shields: an outline encloses what it covers
+
+**A shield is a line, not a fill.** That single choice removes the occlusion problem entirely — an
+outline hides nothing beneath it, so transparency stops having to carry any meaning.
+
+§3.1's three coverage modes become three loop shapes with no special-casing:
+
+| Mode | Loop |
+|---|---|
+| **Personal** | Around its own hardpoint's circle |
+| **Bubble** | Around the group of hardpoints it reaches |
+| **Conformal** | Around the hull outline |
+
+An enemy capital therefore shows one loop around its bow batteries and **nothing** around its stern,
+and the bare circles are where you shoot. That is §3.1's headline mechanic becoming readable for the
+first time.
+
+##### Charge is dash density, never arc length
+
+⚠️ **A depleting arc was proposed and rejected.** Where the loop's shape carries coverage — Bubble and
+Conformal, two of the three modes — a gap in the arc reads as *"this section is unshielded"* rather
+than *"the shield is at 70%."* Coverage and charge would be competing for the same geometry.
+
+> **The loop is always complete. Charge is how *solid* it is:** solid → dashed with widening gaps →
+> sparse dots → absent.
+
+The full circumference is present at every level, so a bubble at 10% visibly wraps the same hardpoints
+it wrapped at 100%. The metaphor is right — a failing field breaks up rather than retracting — and it
+fixes the readability floor that also ruled out **alpha**: a sparse dotted line is unmistakably a
+line, where 5% alpha is indistinguishable from nothing at exactly the moment it matters most.
+
+**One encoding for all three modes**, no branch on which one it is. Two shields covering the same set
+are two nested loops dashing independently, and neither can be misread as a coverage gap.
+
+*Exact numbers live in the readout, not the loop. The loop answers "is it holding?" at a glance.*
+
+#### Detail level is chosen by fit, not by context
+
+A 2,500-unit capital's 20-unit turret is 0.8% of its hull radius — in a 240px panel, a 2px dot. So the
+display cannot simply scale a ship to fit.
+
+> **Element size is fixed at whatever is legible. Detail adapts.** When hardpoints drawn at minimum
+> legible size would **overlap**, the display collapses to the next level of the structural tree.
+
+**`StructuralAttachment` is already that tree** — chassis → armour segments → functional mounts —
+built for the damage model above, and it doubles as the LOD hierarchy for free:
+
+| Fit | Draws | Each coloured by |
+|---|---|---|
+| Roomy — a fighter's six mounts | Every hardpoint | Its own integrity |
+| Tight — a capital's fifty | **Chassis + armour segments** | Aggregate of that segment's children |
+| Marker | Hull outline only | Whole-rig integrity |
+
+A damaged capital reads as *"the port flank is red"* rather than as fifty dots — and at a glance that
+is **more** useful than the detail, because it is the decision-relevant fact. Every level stays
+spatially truthful, so *"shoot the port flank"* survives the collapse. **An abstract grid layout would
+have destroyed exactly the property §3.1 wanted the display for.**
+
+**The game chooses the level; the player does not.** The detailed view is not a docked-only or
+paused-only mode — it appears in the main game view whenever there is room for it.
+
+*Manual zoom and pan were proposed and superseded by fit-based selection.* §4.4's *"no pause, and it
+constrains the UI"* rules out sustained manipulation during combat, and automatic selection removes
+the need for it. **A single click to expand a section stays legal** — §4.4 constrains sustained
+attention, not all input.
+
+#### Why this keeps earning its place
+
+The structural tree now answers four unrelated questions — cascade destruction, damage locality, hull
+coverage validation, and display LOD. **When one piece of data keeps answering questions it was not
+designed for, it is usually the right piece of data.**
+
+
+---
+
+### 3.10 The Flight HUD 📋
+
+*Settled 2026-08-09. §9 called UI/UX "the largest missing document"; this is the first screen of it.
+Everything here is read **while being shot at** — §4.4's "no pause, and it constrains the UI" is the
+governing rule, and anything demanding sustained attention is disqualified.*
+
+**What exists today: one hull bar.** `CockpitHud::Draw` renders a single aggregate rectangle. Ten of
+the eleven surfaces below have no representation at all.
+
+#### Layout
+
+Screen is 1600×900. **The middle stays flyable** — §3.5 requires a dreadnought pilot to zoom out to
+see their own hull, so the viewport is contested by the world itself.
+
+| Region | Carries |
+|---|---|
+| **Bottom band, ~200px** | Three clusters with world visible between them — **not** a solid strip |
+| ├ *left* | Speed · fuel · power categories (`F`/`G`/`H`/`J` with boost state) · weapon groups |
+| ├ *centre* | **Your status projection** (§3.9). Its diameter sets the band height |
+| └ *right* | The module-gated button bar · comms ticker |
+| **Top centre** | **Target status projection** (§3.9), sensor-gated |
+| **Screen edges** | Hazard tint · sensor contacts · directional damage indicators. **Zero layout cost** |
+| **Overlays, on demand** | Orders · build queue · inventory · loadout · navigation map |
+
+*The band height follows the status projection rather than a chosen fraction. A solid full-width
+strip was considered and rejected — 1600×200 of continuous chrome, where three clusters give the same
+information and let the world through.*
+
+#### The HUD is emergent from your loadout
+
+> **A HUD surface is available exactly when a living module provides it** — the same rule §12.24 step
+> 5a applies to docked menus, and the same rule `Facility.h` already states for Bridge tabs.
+
+| Surface | Requires |
+|---|---|
+| Target detail · contacts | **Sensor** module |
+| Comms log · hailing | **Comms** module (§12.27) |
+| Orders · selection | **Crew** module with a non-zero `command` roll (§12.27) |
+| Build placement | **Construction** facility (§12.26) |
+| Fuel · jump readiness | **Hyperdrive** (§2.11) |
+
+**This makes the HUD a fitting decision** — you choose what you can *see* by what you bolt on, which
+is §2.2's constraints puzzle extended to information. A stripped interceptor flies nearly blind; a
+command ship sees everything; **no rule anywhere mentions a vessel class** (Law 4).
+
+It also makes §12.27's symmetry visible. That section already has destroying a hostile's comms degrade
+their coordination — now the same happens to you, **and you watch it happen.**
+
+##### Degrade, never remove
+
+⚠️ **A control that vanishes mid-fight creates "was that there a second ago?"** — and §8.3's rule
+applies directly: *absence must never look like emptiness.*
+
+- **Button slots are fixed.** A dead module disables its slot and states why (`SENSORS OFFLINE`); the
+  bar never resizes as hardpoints die.
+- **An open overlay closes with a notification**, never silently.
+
+##### Capability comes from the rolled stat, not a level field
+
+§2.7 already rolls every capability stat from a quality band, so sensor *strength* is continuous and
+free. **Do not add a level integer.** `FacilityRef::level` exists but is scoped to Engineering merge
+scaling — and `architecture.md` §13.3 K found it is **never parsed from JSON and never copied at
+attach time**, so it is broken as well as wrong for this.
+
+#### The target projection
+
+**Populated by hovering the cursor over an object, and sticky until replaced** — it changes only when
+you hover something else or the current subject dies.
+
+> ⚠️ **This is not the target lock §3.2 rejects.** It selects *information*, not aim: shots still
+> follow the cursor (§12.24's `AimPoint`). §3.2's objection to subtarget cycling was that it *"would
+> return the same information at no risk"* — hover-selection costs exactly what shooting costs, and is
+> **strictly more expensive than cycling**, since you can inspect only one hull at a time and only by
+> aiming at it.
+
+**What it shows is sensor-gated**, which merges cleanly with §3.9's fit-based LOD into one rule:
+
+> **Detail shown = the lesser of what fits and what you can sense.**
+
+A distant hull with poor sensors is an outline and an integrity colour; close with good sensors, every
+hardpoint and shield loop. **Sensor quality comes from Optical and Semiconductive elements (§2.10)**,
+so the elements a hull is built from decide how much its pilot can learn about an enemy.
+
+#### Sensor contacts — edge indicators, and there is no "radar"
+
+*A circular radar panel was considered and rejected.* In a top-down view a mini-map is a **scaled copy
+of the viewport**, so its only unique value is off-screen contacts — which edge indicators give
+directly, without the cognitive step of mapping a blip onto the world that §4.4 forbids in combat.
+§8.1's zoom continuum already answers *"show me the wider picture."*
+
+> **Sensor contacts are one data source with two presentations** — edge indicators when you cannot
+> look away, the navigation map when you can. No `RadarSystem`, no second detection model.
+
+The split is real, not redundant: `SensorRange` reaches 2000 units while the viewport reaches roughly
+800 to each side, so **the 800–2000 band is detected-but-off-screen** — a large ring that is precisely
+what edge indicators exist for.
+
+##### Edge indicators are a sensor-module capability
+
+> **You can always see out of the window. Seeing past it is equipment.**
+
+On-screen contacts need no module — they are simply visible. **Off-screen awareness is the sensor
+module's entire product**, so a hull without one has *no edge indicators at all* and knows only what is
+in frame.
+
+That makes **shooting out an enemy's sensor a real tactic**: it does not blind them, it blinds them to
+everything they are not already looking at — and §12.27's symmetry means the same is done to you.
+
+**The rolled stat (§2.7) scales two things**, not one:
+
+| Sensor quality raises | Effect |
+|---|---|
+| **Range** | How far the contact ring reaches — replacing `RigFactory`'s hardcoded `SensorRange` of 2000 (`architecture.md` §13) |
+| **Resolution** | How far up the ladder a contact resolves: bare marker → class → faction → relation |
+
+So a cheap sensor gives unresolved markers at short range and a good one gives classified contacts at
+long range, from the same elements (Optical, Semiconductive) that decide how much the target
+projection can tell you. **One stat, consistent everywhere it appears.**
+
+| Channel | Carries |
+|---|---|
+| **Shape** | Class — light triangle, heavier chevron, square station |
+| **Glyph** | Faction insignia; monogram placeholder until art exists (§8.2) |
+| **Colour** | **Relation only** — hostile / neutral / friendly |
+| **Numeral** | Range, **only on contacts above a threat threshold** |
+
+**Colour is not faction.** §3.9 spends colour on condition and damage type; faction would be a third
+meaning with no hue space left, and §5.2's registry holds far more factions than distinguishable
+colours anyway. Red on a contact and red on a hull both mean *bad for you*, so the semantic stays
+consistent instead of collided.
+
+**Range is a numeral, not arrow size** — size already carries class — and it is shown sparingly. A
+screen edge ringed with numbers reads worse than one showing three.
+
+##### The unresolved contact is the important one
+
+Sensor gating means many contacts resolve as *something is there* with no class, faction or relation.
+§8.3 names this the hardest job in the UI, so it needs a deliberate form: **a bare marker, no glyph, no
+relation colour, visibly incomplete rather than merely plain.** That shape is what tells the player to
+go and look.
+
+⚠️ Three-state relation is not computable today — §13 found `TargetingSystem` treats *any* different
+faction as hostile and never consults `DiplomacyMatrix`. Contacts ship as hostile/unknown until
+§12.24 step 6 supplies `ctx.diplomacy`.
+
+#### Hazards use the screen edge, not a panel
+
+Corona and nebula proximity (§3.8) must be unmissable **without looking down at the band** — which is
+the one thing a bottom-strip element cannot do.
+
+**Tint the screen edge**: amber vignette in a corona, purple-grey haze in a nebula. Costs no layout,
+cannot be missed, and in the nebula case the warning *is* the effect — §3.8 already renders nebulae as
+semi-transparent haze.
+
+**Pairing: tint alerts, indicator explains.** The edge says *something is happening*; a small readout
+in the band says what and how much. Degraded sensors get the same treatment, and must, or a target
+showing three hardpoints is ambiguous between *it has three* and *I can only see three*.
+
+#### Overlays, and why opening one has to cost something
+
+Orders, build queue, inventory, loadout and the navigation map open over the viewport, from the button
+bar or their §3.6 key.
+
+- **Semi-transparent and offset from centre** — you can still fly.
+- **They do not pause** (§3.4). The system menu remains the only pause (§12.29).
+- **Opening one is a real tactical cost**, and that is deliberate. If reading were free, §3.2's "no
+  risk" objection returns through a different door. This is the same bargain docking already makes.
+
+#### Every surface has a home
+
+| Surface | Where |
+|---|---|
+| Integrity · shields | Centre projection |
+| Power categories · weapon groups · fuel · speed | Left cluster |
+| Target status | Top centre |
+| Sensor contacts | Screen edge |
+| Hazard warning | Screen edge tint |
+| Comms log | Right cluster ticker |
+| Selection · order queue | Overlay |
 
 
 ---
@@ -3834,11 +4864,11 @@ strategy rather than an inconvenience.
 
 *Settled 2026-08-08. `core/economy/FactionEconomy` today holds an abstract stock figure —
 `Deposit`, `Spend`, `TotalProduction` — with no notion of **what** is being stocked. That was
-survivable while nothing could be manufactured. Once §2.10 gives materials and crafts real identity,
+survivable while nothing could be manufactured. Once §2.10 gives Elements and Materials real identity,
 and §6.3 requires AI factions to use the same recipes the player does, a faction that manufactures a
 design has to hold the actual inputs.*
 
-> **Everything purchasable or tradable is modelled: materials, crafts, modules, shells, chassis, and
+> **Everything purchasable or tradable is modelled: materials, Materials, modules, shells, chassis, and
 > whole vessels. Stock is held per *station*, not per faction and not per system.**
 
 That is what makes §5's opening promise real rather than a slogan — *"global market awareness but
@@ -4278,7 +5308,8 @@ decisions** — never through mechanical exemption.
   tick, moderated by relative fleet strength.
 
 ❓ *These two are the only tuned numbers in the design. The remaining weights, drift rates, and
-thresholds need a balancing pass — which is what the headless `tools/economy_sim` exists for
+thresholds need a balancing pass — which is what the headless `tools/economy_sim` is **planned** for
+(🧊 `architecture.md` §3; `tools/` holds only `ci/` today, so this answer is not yet obtainable)
 (`architecture.md` §3). Building that tool early is cheap, because `sr_core` links no renderer.*
 
 ### 6.5 Boss encounters are commanded fleets 📋
@@ -4530,6 +5561,37 @@ and inheritance-as-frozen-copy (`KnowledgeStore::Copy`, already built) all fall 
 change; `SaveFile` drops its `DiscoveryState` section with a matching `SaveMigrator` step. One
 convenient side effect — `SystemContext::discovery` disappears entirely, since `knowledge` covers it.
 
+#### The signature / detection model — agreed in principle 📋
+
+*Agreed 2026-08-09 during the materials pass, **not yet specified.** Recorded here so it is a known
+commitment rather than a gap rediscovered later; the full treatment is a §12 entry nobody has
+written.*
+
+`architecture.md` §11.9 has long carried this as a blocking prerequisite in its own words:
+*"Sensors carry only a range; there is nothing to detect against. **This is a system, not a
+module.**"* Today `SensorRange` is a single float, **hardcoded to 2000** in `RigFactory`, and
+everything inside it is seen equally.
+
+> **Replace "how far I can see" with "how far I can see *you*."** A rig carries a **sensor
+> strength**; every rig carries a **signature**. Detection compares the two across distance.
+
+**Signature is derived, never authored** — from hull mass, current power draw, and the materials the
+hull is built from (§2.10). It is not a stat someone types.
+
+Five things already in this document need it, which is why it is a commitment rather than an idea:
+
+| Wants it | Currently |
+|---|---|
+| **This section's per-viewer fog** | Needs coverage that varies by *who is looking* |
+| **§2.9's "run silent"** | Its Offline level literally promises this — **there is nothing to be silent from** |
+| **§2.11's ECM and cloak** | Homeless modules, blocked on exactly this |
+| **`TargetingSystem`** | Already reads `SensorRange` — a degenerate one-float version of it |
+| **§2.10's Optical and Semiconductive attributes** | Their depth comes from sensor strength |
+
+**A free consequence worth having:** a heavy, power-hungry hull is genuinely easier to see than a
+light composite one running dark, so **material choice becomes a stealth decision** and not only a
+combat-stat one.
+
 ---
 
 ## 9. Open Design Questions ❓
@@ -4539,15 +5601,27 @@ Genuinely undecided items, listed so they are not mistaken for oversights.
 **Performance budget — ✅ settled 2026-08-08.** It was the longest-standing "needed soonest" item;
 see §9.1 below. The remaining pacing questions in this section are economic, not technical.
 
-**Economy and progression pacing.** No currency scale, no tier definitions, no time-to-milestone
-targets. "Infinite progression" needs at least a rough curve — how long to a first custom Template,
-to a first capital, to a first owned system.
+**Economy and progression pacing — ⚠️ partly settled 2026-08-09, and the rest is now measurable
+rather than undecided.** The **currency scale is set**: one unit of any element is 1 credit, and every
+other price in the game derives from that single number (§2.10). **Prices are outputs, not targets** —
+nobody decides what a fighter costs; the recipe does. What remains is not a design hole but an
+unbuilt measurement: `tools/economy_sim` runs the derivation and prints the curve, and it does not
+exist. Time-to-milestone targets — first custom Template, first capital, first owned system — stay
+open, and should be *read off* the derived curve rather than declared in advance.
 
 **The save model — ✅ settled 2026-08-08.** Free/manual saves plus a coarse periodic autosave that
 **never fires on death**. See §3.3. The threatened mechanic turned out to be Tier 2's recovery run,
 not Tier 3.
 
-**UI/UX specification — the largest missing document.** The Bridge, component-driven menus, HUD
+**UI/UX specification — ⚠️ the flight screen is now specified; the docked screens are not.**
+§3.9 (status display) and §3.10 (flight HUD) landed 2026-08-09 and cover the surface the player spends
+almost all their time looking at, including the rule that **HUD features are gated on living modules**
+— `BridgeView`'s component-driven pattern extended to flight. What remains unspecified is the **docked
+menu set**: six exist as unreachable code, two (Research, Manufacturing) have no menu at all, and none
+of the nine handles input. That work still waits on `architecture.md` §12.24 step 5's router, per the
+note below.
+
+**UI/UX specification — the original entry, retained for its reasoning.** The Bridge, component-driven menus, HUD
 theme, Engineering view, and station services are referenced throughout both documents and specified
 nowhere as screens or flows. Much of this game is menus. StarReach2 accumulated roughly 5,000 lines
 across a dozen menu files with no unifying spec, which is why they are the messiest port target in
@@ -4577,10 +5651,13 @@ would neuter ramming and entangle collision, docking, and friend/foe rules.
 **Fighter persistence in Bridge mode — ✅ settled 2026-08-08.** It persists in the bay, cannot be
 shot, and dies only with its host. See §4.1.
 
-**Materials, crafts, and the recipe base — ✅ settled 2026-08-08.** Fourteen materials on real
-elements and real densities, seven craft families, grade setting variety and rarity rather than
-identity, and both mass and base price deriving from the recipe. See §2.10. **What remains is
-authoring**, not design: `materials.json` and `crafts.json` do not exist yet.
+**Elements, Materials, and the recipe base — ✅ settled 2026-08-08, substantially revised 2026-08-09.**
+The 2026-08-08 version had fourteen tiered materials and seven manufactured families. **Now:** a
+**~50-element** roster on real densities with **no rarity tiers at all**, eight attributes per element,
+eight Material families weighted by attribute *role* rather than by named element, and both mass and
+base price deriving from the recipe. See §2.10. **What remains is authoring plus one tool** —
+`elements.json` and `materials.json` do not exist, and `tools/element_check` is what decides the final
+roster.
 
 **Recovery-run parameters.** §3.3 Tier 2 — the window's duration, wall-clock vs. in-game time, and
 whether the death wreck is marked on the navigation map.
@@ -4597,9 +5674,12 @@ survives the seller's death.
 **Level 3 fog of war — ✅ settled 2026-08-08.** Sensor coverage only, per viewing entity, stored in
 knowledge networks. See §8.3.
 
-**The word "craft" — ✅ settled 2026-08-08, opposite to the earlier proposal.** A *craft* is a
-crafted intermediate item; a vessel is a *vessel*. See §2. This adds `materials.json`, `crafts.json`,
-and an `ItemId` to a content set that has none of them.
+**The word "craft" — ✅ settled 2026-08-08, then ❌ retired entirely 2026-08-09.** The 2026-08-08
+ruling made a *craft* a crafted intermediate and a vessel a *vessel*, which fixed the collision but
+left a jargon noun. **The supply chain is now `Element → Material → Module`** (§2): the periodic table
+at the bottom, manufactured intermediates in the middle, and *craft* used for nothing. A proposed
+fourth `Compound` tier was rejected in the same pass. This adds `elements.json`, `elements.json`, and
+an `ItemId` to a content set that has none of them.
 
 **The rarity ladder — ✅ settled 2026-08-07/08.** Seven tiers, one ladder for shells and modules,
 with a quality band supplying every capability stat and a distributed budget deciding how a roll is
@@ -4620,11 +5700,21 @@ dies with it. See §3.4.
 attachment, hull envelope), with hardpoint count emergent from `hullRadius`, chassis radius, and
 peripheral size. See §2.3 and §3.5.
 
+**The quantity-per-grade multiplier — ⚠️ working value, awaiting measurement.** Revised from ~3× to
+**~2×** on 2026-08-09 (§2.10): 3× compounded to 729× across the ladder against a Mythic's ~6× combat
+value, making swarms strictly correct, and it contradicted §2.10's own *"industry gives you more of
+it"* principle by reproducing the scarcity drops already impose. 2× is defensible arithmetic, **not a
+measured result** — `tools/economy_sim` is what closes it.
+
 **Manufacturing and progression pacing.** §2.8/§2.10 — the shape, the gate, and the variety curve
 are settled; the **time** curve is not. How long should a Common module take against a Mythic one,
 and how does that interact with §9's still-open time-to-milestone targets? This is now a tuning
 question with a complete structure underneath it rather than a design hole, and it is what the
-headless `tools/economy_sim` exists to answer.
+headless `tools/economy_sim` is **intended** to answer. ⚠️ **That tool does not exist** — `tools/`
+holds only `ci/`, and `architecture.md` §3 marks `economy_sim` 🧊. Until it is built, this question
+cannot be closed by measurement, only by guess. *(Legacy `../StarReach2/tools/simulation/
+ItemGenerationSimulator.cpp` is the nearest prior art: it generated N items per grade and verified a
+90% cap target across all seven grades, which is §2.7's quality-band question rather than this one.)*
 
 **Deconstruction yield.** §2.4 — flat recipe-driven conversion, or facility-level-scaled like
 merging?
@@ -4706,7 +5796,7 @@ rather than destroys).
 matching art, chassis at 50% of hull radius, 50-unit fighters, a 2,500-unit cap on fightable hulls,
 system radius scaling with star class to a 2,000,000 ceiling), **hardpoint placement** (§3.5 — free
 placement bounded below by `r(A)+r(B)` and above by visual attachment), **rendering layers** (§3.5 —
-five z-layers, needing a new `ShellDef` field), **art direction** (§3.5 — stylised high resolution,
+five draw layers, needing a new `ShellDef` field), **art direction** (§3.5 — stylised high resolution,
 not pixel art), **texture resolution per class** (§3.5 — capital chassis above ~600 units segmented
 from a shared library), **Military Weight** (§4.3 — offence × survivability,
 accumulated in a `double`, computed at demotion rather than cached), **upkeep** (§2.7 — 🧊 deferred;
@@ -4737,7 +5827,7 @@ same galaxy. The save model underneath it is still open.
 per-item faction stock is stored and kept efficient. What is unestimated is how many distinct item
 ids the content set will actually reach once modules, shells, and vessels are authored across seven
 grades — which is the input to whether the sparse ledger stays comfortably small or wants a second
-look. Cheap to measure once `materials.json` and `crafts.json` exist; do not guess it now.
+look. Cheap to measure once `elements.json` and `materials.json` exist; do not guess it now.
 
 **Faction heads.** §6.5 settles that a boss encounter is any commanded fleet, which needs no new
 system. Whether a *faction head* — §5.1's other Leadership pillar holder — is simply a commander of
@@ -4759,6 +5849,35 @@ living hardpoints, which is why a station with engines can move and why the `mob
 gate is deleted), **live refit is unrestricted** (§2.7 — legal any time, priced by §3.4's no-pause
 rather than by a station gate), and **construction is gated on `FacilityKind::Construction`**
 (§2.11 — carrying `buildRange`, measured from the builder).
+
+*Resolved 2026-08-09 — the wiring-audit pass (`architecture.md` §13):* **stars are hazards, not
+walls** (§3.8 — a corona that burns with depth rather than a lethal radius, so death needs no new
+rule, Energy shields let you dive deeper, and grazing a star to shake a pursuer is real play),
+**the point of no return is emergent** (§3.8 — gravity already out-accelerates a fighter ten to one
+at ≈1,500 units; nothing draws the line and it differs per hull, so shooting out an engine moves
+it), **planets are non-colliding background** (§3.8 — scenery and landmarks; occlusion and
+sheltering are a deliberate later feature with a stated revisit trigger), and **the asteroid belt
+orbits and moves outward** (§3.8 — asteroids on the same deterministic orbit treatment planets get,
+banded entirely outside the corona and the point of no return, correcting a placement that would
+have made the inner belt a one-way trip once mining became reachable).
+
+*Resolved 2026-08-09 — the materials pass:* **the supply chain is `Element → Material → Module`**
+(§2 — three tiers; a fourth `Compound` tier rejected because it re-asks the Material tier's own
+question and each extra hop averages attribute contributions toward the mean), **no element is rarer
+than another** (§2.10 — the Common/Uncommon/Rare/Anomalous bands are deleted, resolving a
+contradiction the section had with its own opening sentence; scarcity is now purely a property of
+territory and is therefore *perceived*, differing between two factions looking at one galaxy),
+**elements carry an eight-attribute vector rather than a quality score** (§2.10 — a single "how good"
+number would restore the rarity ladder through the back door; every attribute has a named consumer,
+and two proposed additions were rejected for lacking one), **attributes propagate deterministically
+while quality rolls once** (§2.10 — what you built it from is a choice, how well it came out is a
+roll), **recipes demand roles, never named elements** (§2.10 — substitution means a missing element
+costs quality rather than access, which is what makes a hyperdrive softlock impossible), **every
+system carries at least one element per role** (§2.10 — the seeding invariant that makes "cannot be
+hard-stuck" testable rather than hoped-for), **volatiles are ordinary Elements at stored-liquid
+density** (§2.10 — withdrawing a separate resource class proposed earlier the same day), and
+**gas giants and nebulae become gathering sites** (§2.10 — which is what finally gives planets an
+economic reason to exist after `architecture.md` §12.28 left them as scenery).
 
 **Strategic command's gating — the one question this pass left open.** Tactical command now travels
 with the player. Whether the *strategic* layer — cross-system dispatch, fleet movement, per-system
