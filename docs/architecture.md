@@ -1135,6 +1135,72 @@ store that does not exist means inventing a throwaway one:
 | Live refit (`features.md` §2.7) | **`MountTraverse`** (§13.3 D) · §12.23's `RecomputeRigTotals` | A runtime-mounted weapon gets a zero-width firing arc and never fires |
 | `FactionDecisionEngine` having any caller | **§1.1's coarse tick** (§13.3 L, M) | It is a tested library with no invocation path, and three `TickCoarse` functions have no driver |
 
+**Added 2026-08-10 by §12.30, the docked-screen pass:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **The seven docked screens** (§12.30) | **§13.5 group 4a — the widget layer** | There is no list, scroll, focus or hit test in `shared/ui/`, and the one shared row widget already has two verbatim clones. Screens written before the widget layer is the mechanism that produced them |
+| The **Market** and **Storage** screens | `StationFactory` emplacing `CargoHold` (§13.3 O) | Unchanged from step 5's row above, and now stronger: under §12.30 the station's `CargoHold` **is** the storage capability, so the component is the feature rather than a precondition for it |
+| Meaningful prices on **Market** | `core/economy/Pricing.h` (§13.5 group 2c) | `BuildBuyRequest(module, cost)` takes cost as a *parameter*; nothing anywhere derives one. A finite station `CargoHold` is what finally makes `features.md` §2.10's local scarcity computable |
+
+**Added 2026-08-10 by §12.30.3, the Market/Storage pass:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **The Market screen being reachable at all** | **§12.24 step 6 — `ctx.diplomacy`** | `DockingSystem::FindEligibleBay` filters on `FactionRef` **equality** (`DockingSystem.cpp:38`), so you can dock only at your own faction's stations. §12.10's *"docking anywhere, including a station they do not own"* and `features.md` §5.3's six-row docking band table are both unimplementable against an equality test. **Land it with `TargetingSystem`'s relation check (§13.3 N)** — same predicate, opposite direction |
+| **Prices the system can be trusted with** | `core/economy/Pricing.h` **and** deleting `cost`/`value` from the requests | Filling the fields in is not the fix. Under Law 9 the request states *what and how many*; the system decides what it costs, calling the same pure function the screen calls to display it |
+| **Trading anything that is not a module** | §12.19 `ItemId` · §13.5 group 2b | `BuyItemRequest` carries a `ModuleId` and `ProcessSellRequests` searches only `CargoHold::modules`. **The half `MiningSystem` fills is the half the Market cannot touch.** The two lists also stack inconsistently — `LootSystem` merges a `MaterialStack`, buying pushes a duplicate `ModuleId` per unit — so they become one `std::vector<ItemStack>` in the same pass |
+| **The ownership test every screen needs** (*"is this station mine?"*) | The player's `FactionId` moving onto the **player record** (§12.30.3, amending §12.30.1) | Identity is read off the controlled rig root today, and §12.30.1 makes that root the **station** while docked. `DiscoverySystem.cpp:13` and `ConstructionSystem.cpp:15` are the two live readers that would invert. Not reachable until the docking gate widens; lands with it |
+| A finite station hold at all | `StationFactory` emplacing `CargoHold` **with a non-zero `capacity`** · `CargoHoldHasRoomFor` gaining its other four callers | An unbounded hold makes `LocalPrice` meaningless — scarcity is only computable against a real local quantity |
+
+**Added 2026-08-10 by §12.30.4, the Repair pass:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **NPCs repairing at all** | §12.24 step 6 — **`ctx.economy`** | `HealAndImmobilize` views `<Docked, Rig>` with no player filter, so the free heal *is* the whole "NPCs retreat to a friendly bay" behaviour. Deleting it (§13.4 decision 1) removes NPC repair, and NPCs carry no `Wallet`. The order re-homes onto faction stock, giving `FactionEconomy::Spend` its first Tier 1 consumer |
+| **Repair rate meaning anything** | `FacilityStats::ratePerSecond` gaining a reader | Parsed at `BlueprintJson.cpp:38`, merged at `EngineerSystem.cpp:90`, **read by no behaviour anywhere.** Repair is its first reader; `features.md` §2.7's Repair crew role has been listed as ✅ *"Buildable now"* against a consumer that would be deleted |
+| **Repairing a station — any station** | This screen's subject selector | The **only two** sites that raise a `Health.current` in `src/` both require `Docked` on the healed rig, and a station is never `Docked`. Every fixed asset in the galaxy decays monotonically with no counterpart |
+| The Repair screen's **destroyed rows** pointing anywhere real | **§12.30.5 — rebuild** | `RefactorSystem` deletes a leaf hardpoint; **nothing anywhere adds one back**, in code or design. The blueprint still holds the `MountBlueprint` (§12.31's own observation), so rebuild is the delete inverted — but it does not exist yet |
+
+**Added 2026-08-10 by §12.30.5, the Engineering pass:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **Merging being bounded at all** | **§12.21's `Quality`** | `features.md` §2.4 says the band clamp *"requires no code change — it ratifies what is built."* **It is not built.** `MergeField` is `p + s × (level × 0.1)` — additive on raw stats with no ceiling — while §2.4's formula moves a normalised quality against `bandMax`. The two share one factor and nothing else. **Merge is reachable-and-wrong the moment a gate passes**, unlike every other inert-but-correct surface in this batch |
+| **The facility level mattering to a merge** | §13.3 K — `ParseFacilityStats` reading `level` **and** `ModuleAttachment.cpp:65` forwarding it | `emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind)` passes the kind alone. **Every merge in the game has preserved exactly 10% of the secondary**, and the facility-level axis §2.4 calls settled has never held a value other than its default |
+| Choosing **which** bench, bay or lab you use | `PlayerLocation` naming the hardpoint (§12.30's tab fix) | `DockedEngineeringLevel` returns the **first** living Engineering facility in `Rig::children` order. The tab-entity change was justified solely by §3.4's death predicate; it turns out to be what makes every graded facility addressable |
+| **Rebuild** | *nothing for the mechanism* — §12.19 only for the cost | The blueprint still holds the `MountBlueprint`, so rebuild needs no snapshot, no tombstone and no placement validation. Ships with 4b |
+| A crafted module surviving a save at all | A **short generated id** (§12.30.5) · the crafted-module save section (§12.31 🐛) | `merged.id` is `primary + "+" + secondary + "@L" + level`, so ids **double in length per merge generation** — and that string is the key `craftedModules_` is stored under |
+
+**Added 2026-08-10 by §12.30.6, the Research pass:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **Research being startable at all** | This screen · `StationFacility`'s and `NetworkOwner`'s producers | **Five links, each built and tested, forming a mechanism with no entry point.** `ResearchJob`, `StationFacility` and `NetworkOwner` have **zero producers**; `researchTier` is written only by two lines in `ResearchSystemTests.cpp`; `ctx.knowledge` is `nullptr`. There is no `StartResearchRequest` anywhere. Every `ResearchSystem` test passes because each one builds the job by hand |
+| A meaningful **Research** screen | **§12.24 step 6 — `ctx.knowledge`** | The one screen where step 6 is a prerequisite rather than a degradation: no network to grant into, and none to check `ALREADY KNOWN` against |
+| `NetworkOwner` · `StationFacility` producers | The same factory pass as §13.3 O and P | `CargoHold`, `Wallet`, `StationFacility`, `SpawnAnchor` and `NetworkOwner` are five components with zero producers in **two** factories. One commit |
+| **Research surviving a warp** | **§12.31** | `CollapseResearchJobs`/`PromoteResearchJobs` are built, correct, and **have no callers.** `WarpToSystem` carries `CargoHold`, `Wallet` and `wreckLedger_` and nothing else, so a job in the departing system is destroyed with the world. A fourth thing §12.31's work must actually invoke |
+| The `Row::fill` field | *nothing* | Group 4a. Two consumers — the Research and Manufacturing queues |
+
+**Added 2026-08-10 by §12.30.7, the two flight overlays:**
+
+| Task | Depends on | Why |
+|---|---|---|
+| **Wiring the loadout button at all** | **§13.4 decision 2** | `EquippableMounts` offers every blueprint-mounted hardpoint on a fresh ship as an empty slot, because `EquippedModule` tags only runtime mounts. The first player to refit destroys a module or duplicates one, and it reads as a UI bug. **Reachable-and-wrong, like Engineering's merge — do not route it before decision 2** |
+| The loadout overlay meaning anything | §12.23's `RecomputeRigTotals` · §13.3 D's `MountTraverse` | §11.9's existing row, unchanged and now with a screen behind it: a swap that does not change how the hull flies is the mechanic broken, and a runtime-mounted weapon gets a zero-width arc and never fires |
+| **A full `CargoHold` having any exit** | **Jettison** (§12.30.7) | Once `CargoHoldHasRoomFor` gains its other four callers (§12.30.3), a full hold refuses loot, refunds and buys — and unmount, scrap and deconstruct all *fill* it. Selling at a `Trade` station is the only drain in the game. Jettison also gives **`LootDrop`/`MaterialDrop` their first producer** (§13.3 T) |
+| §3.9's status projection knowing it has a consumer | *nothing* — it is an addition, not a prerequisite | The loadout overlay is §3.9's **fourth** use and its most spatial one. When group 2e lands, the projection becomes a second selector over the *same* selection state and the same pure hit-test — so nobody should build a second hardpoint-selection model for it |
+| The **Bay** screen's *"ask to purchase"* row | §12.19 Item Model | `BuyItemRequest` carries a `ModuleId`; buying a **vessel** needs `ItemId`/`ItemKind` |
+| The **Bay** screen's *"ask to escort"* row | §12.27 local command | It is a legitimate UI producer for `PartySystem`, whose `PartyLeader`/`PartyMember` have zero producers — the `AvionicsMenu` → `DockRequest` shape, not the invented-producer §13.5 warns against |
+| The `Storage` → `Trade` enum swap | *nothing* — but it touches six sites, two of them silent defaults (§12.30) | Cheapest now: `data/base_game/` authors no `storage` facility, so there is no content to migrate |
+| **Parked hulls** (§12.30.2) · warp damage persistence · cross-system refit · §13.3 Y's world save | **`RigState`** — §12.31 (finding §13.3 AC) | `WarpToSystem` re-spawns the player from `BlueprintRef` and destroys everything else in the departing world. **Four features wait on one missing capability** |
+| **§12.31 `RigState`** | §13.4 decision 2 (`MountedModules` unification) · §12.21's `Quality` type | `MountState::modules` is **one** list, and the codebase has two unreconciled answers to what is in a mount (§13.3 C). A snapshot cannot be written against both — this is the argument that makes decision 2 load-bearing rather than tidy |
+| **§13.3 Y's world save** | **§12.31** | `RigState` is the player-rig half of a save that today has *"no registry serialization, no player rig state."* It has four callers instead of one, so it lands first and alone |
+| Merged modules surviving a save **or a warp** | A crafted-module save section (§12.31 🐛) | `ContentLibrary::craftedModules_` is an in-memory map written by `EngineerSystem` and **serialized by nothing**. A restored hull would reference a `ModuleId` that no longer resolves |
+| The Bay screen's *"crew it"* option (§12.30.2) | **`ModuleKind::Crew`** (§13.3 Z) | Zero occurrences of "crew" anywhere in `src/`. *Board* ships without it; delegating a parked hull to an NPC pilot does not |
+| The Bay screen's escort roll (§12.30.2) | §12.24 step 6 **and** §12.27 | The roll weights on `ctx.diplomacy` and `ctx.reputation`, both `nullptr`. A refusal model consulting `nullptr` refuses everything unconditionally — `TemplateMarketSystem`'s exact current failure |
+| **§12.24 step 1 — the player** | **§12.30.1** — `PlayerLocation` as sole source of truth | *The dependency runs backwards, like §12.29's.* Step 1 plans `emplace<PlayerControlled>`; it must emplace `PlayerLocation` instead and let the tag derive. **One write site exists today** (`SpaceFlight.cpp:120`) against twenty-nine readers — write step 1 this way even though §12.30 lands later |
+
 **Startable today, nothing blocking:** **§12.24 steps 1–4, the micro loop — the one to take first**
 · §12.24 step 6's five `SystemContext` pointers · the `BridgeView::kAllKinds` fix · §12.17 Galaxy
 Topology (and it unblocks the most) · §12.22's shield coverage fix · §12.22's collision type B and
@@ -1735,8 +1801,13 @@ the cap, *that* is the signal to split — mechanically, not speculatively.
 
 - **Types:** `DeconstructModuleRequest { ModuleId module; }` in `shared/components/Engineer.h`, the
   same POD-intent shape as `MergeModulesRequest`.
-- **Content:** the module → materials yield is authored data (Law 10) — a `deconstructsTo` field on
-  `ModuleDef` in `modules.json`. Never a C++ table.
+- **Content:** ~~the module → materials yield is authored data (Law 10) — a `deconstructsTo` field on
+  `ModuleDef` in `modules.json`. Never a C++ table.~~ ⚠️ **Superseded 2026-08-10 by §12.30.5.**
+  §12.19 gives every item a `Recipe`, and `features.md` §2.4 states recovery as a **percentage** —
+  which is a percentage *of the inputs*. **Deconstruction yields the item's own `Recipe` inputs at the
+  facility grade's recovery band**; a second authored answer to *"what is this made of"* would drift
+  the moment either was edited. Cheapest possible correction — `modules.json` has no `deconstructsTo`
+  today, so there is nothing to migrate. Folds into §12.19's content pass.
 - **Refused when:** not `Docked`; no living Engineering facility; the module is not in the requester's
   `CargoHold`; or the yield would not fit (`CargoHoldHasRoomFor`, the same whole-or-nothing rule
   `RefactorSystem` already applies).
@@ -2255,8 +2326,15 @@ knowledge-network check (`ctx.knowledge`) that no existing system performs.
 **Types:** `ManufacturingJob { ItemId item; ItemKind kind; float progress; ... }` on the station's
 facility component — the same shape as `ResearchJob`, on a **separate queue**. Needs the
 `ItemId`/`ItemKind` pair `features.md` §2 introduces, since output may be a module, a shell, or a
-craft. `ResearchJob::item`'s `ModuleId` typing has the same problem and should widen in the same pass
-(§12.16 item 21).
+~~craft~~ **Material**. `ResearchJob::item`'s `ModuleId` typing has the same problem and should widen
+in the same pass (§12.16 item 21).
+
+> ⚠️ **Superseded in shape by §12.30.8**, which is this system's screen. The job gains a
+> **`MountId facility`** — the queue lives on a per-*station* component, and every grade-dependent
+> rule (duration, slots, the destroyed-bench gate) needs to know which bench it is on; the id/kind
+> pair becomes §12.19's **`ItemRef`**, since grade is not optional and an unlock is keyed on
+> `(ItemId, Grade)`; and it gains **`remaining`** and **`pendingOutput`** for the per-unit
+> consumption rule. §12.30.8 amends `ResearchJob` with the same `MountId` for the same reason.
 
 **Systems:** `ManufacturingSystem::Tick` advances jobs against `dt` and `FacilityStats::ratePerSecond`;
 concurrent slots are `FacilityStats::capacity`. **This retroactively gives `ResearchSystem` a slot
@@ -2288,7 +2366,7 @@ build never costs anything" rule `ConstructionSystem` documents); a demote→pro
 caught-up progress; concurrent jobs capped at `capacity`; two units of one item roll independent
 qualities.
 
-**Depends on:** `core/knowledge/KnowledgeNetwork` (#78) for the gate, and on a materials/crafts content
+**Depends on:** `core/knowledge/KnowledgeNetwork` (#78) for the gate, and on an Element/Material content
 set that does not exist — `data/base_game/` holds only `modules.json`, `shells.json`, and `ships.json`.
 **That content pass is the real blocker**, and `features.md` §9 now names it as such.
 
@@ -2297,60 +2375,529 @@ nothing consumes it.
 
 ### 12.19 The Item Model — `features.md` §2.10
 
-**The content set has three files and needs six.** `data/base_game/` holds `modules.json`,
-`shells.json`, and `ships.json`. There is no `materials.json`, no `crafts.json`, no `MaterialId`, and
-no `ItemId` — `ResearchJob::item` is typed `ModuleId` with a comment admitting the gap (§12.16 item
-21). Everything §2.4 prices in "materials/crafts" has, until now, had nothing to be priced in.
+*Rewritten 2026-08-10, scoped against what the six specified docked surfaces (§12.30.2–.7) actually
+ask of it rather than against `features.md` §2.10 alone. Every claim below was verified against
+`src/` by grepping for readers and callers. **This section was written before §2.10's 2026-08-09
+rewrite and is five statements behind it**, all superseded in place below. It also revises one
+signature in §12.30.4, one key in §12.30.3, one request type in §12.30.6, and one scheduled
+line-fix in §13.5 group 2.*
+
+**The content set has three files and needs six.** `data/base_game/` holds `modules.json` (7
+entries), `shells.json` (7), and `ships.json`. There is no `elements.json`, no `materials.json`, no
+`ItemId`, **no `Grade` and no `Quality` anywhere in `src/`** — a grep for either returns nothing but
+comments. `ResearchJob::item` is typed `ModuleId` with a comment admitting the gap (§12.16 item 21).
+Everything §2.4 prices in materials has, until now, had nothing to be priced in.
 
 **Home:** `shared/blueprints/` for the types, `core/registries/` for the parsers, `data/base_game/`
 for the content.
 
-**Types:**
+#### The thesis, because three axes keep being collapsed into one
 
-| Type | Notes |
+> **Grade buys breadth. Composition buys depth. Quality buys magnitude. No two of them touch the
+> same number.**
+
+That sentence is the whole model, and every correction below is a consequence of it. `features.md`
+§2.10 already forbids confusing the second and third — *"attributes propagate; quality is rolled
+once"* — and §2.7 already forbids applying a tier twice to one property. What neither says is that
+there are **three** axes, that only one of them is a roll, and that the first two are absent from
+this section entirely as it stood.
+
+#### What the six specified surfaces demand — checked one at a time
+
+*This is the requirements list, taken from §12.30.2–.7 rather than from §2.10, and every row was
+tested for whether it was satisfiable against this section as written.*
+
+| # | Demand | Named in | Satisfiable? | Answered in |
+|:--:|---|---|---|---|
+| 1 | `BaseValue(ItemId, content)` | §12.30.3 | ❌ An `ItemId` carries no grade, and the recipe's size *is* a function of grade | *Grade is a property of the instance* |
+| 2 | `LocalPrice(ItemId, quantity, stock, content)` walking the drawdown | §12.30.3 | ⚠️ Needs the grade, and needs a **stated scarcity key** — the stack key cannot be it | *Two granularities* |
+| 3 | `RepairCostPerHp(const ShellDef&, Grade, content)` reading §2.10's **Inert** | §12.30.4 | ❌ **Wrong twice.** `ShellDef` has no attributes — Inert is an *element* property that propagates to an instance — and **a hardpoint does not record which shell it is** | *The corrected signatures* |
+| 4 | `ItemId`/`ItemKind` widening `BuyItemRequest`, `SellItemRequest`, `TransferItemRequest`, `DeconstructModuleRequest`, `ResearchJob::item` | §12.30.3, .5, .6 | ✅ Stands — with one addition: a request must name an **instance**, not a def | *The types* |
+| 5 | `CargoHold` becomes one `std::vector<ItemStack>` | §12.30.3 | ⚠️ Stands as a shape; **the key is not `ItemId`** | *Stacking is by indistinguishability* |
+| 6 | Grade as the single ladder — `FacilityStats::level` folds in, and so does `StationFacility::researchTier` | §12.19, §12.30.6 | ✅ Stands, and it **revises §13.5 group 2's `level` fix** | *Grade is a property of the instance* |
+| 7 | `Quality` per instance — merge's band clamp and `RigState` both block on it | §12.21, §12.30.5, §12.31 | ✅ Stands; this section settles **where it lives** | *Three facts per instance* |
+| 8 | `baseDuration(item.grade)` for research | §12.30.6 | ✅ **Confirmed — and it is a quote, not a fill** | *Duration* |
+| 9 | `Recipe` as the single answer to *"what is this made of"* — deconstruction reads it backwards | §12.30.5 | 🐛 **No.** A recipe names **roles**, so it cannot say what any particular item is made of | *A recipe is a demand* |
+
+**Rows 3 and 9 are the two that change the model.** The rest are corrections to a signature or a key.
+
+#### This section is five statements behind `features.md` §2.10
+
+*§2.10 was substantially rewritten on 2026-08-09 — the supply tiers were renamed, the rarity bands
+were deleted, elements gained an eight-attribute vector, and recipes stopped naming elements. This
+section predates all four, and §13.5 group 2b already records that the rename **flips the meaning**
+of words used here.*
+
+| Was | Is |
 |---|---|
-| `ItemKind` | `Material · Craft · Module · Shell · Vessel`. The tag that lets a cargo hold, a research job, a recipe, and a faction ledger all refer to "a thing" |
-| `ItemId` | Stable string id, kind-tagged. Replaces `ModuleId` wherever a mechanic is kind-agnostic |
-| `MaterialDef` | id, display name, abbreviation, availability band, **authored mass**, **authored base price**. The only two authored numbers in the whole value chain |
-| `CraftDef` | id, display name, per-material weighting. **Recipes are generated** from `features.md` §2.10's grade table, never authored per grade |
-| `Recipe` | A field on `ModuleDef`/`ShellDef`/`ShipBlueprint` — one item, one entry, no second file to keep in sync |
-| `Grade` | The seven-tier ladder (`features.md` §2.7), shared by shells, modules, crafts, and facilities |
+| ~~`MaterialDef` — the raw tier~~ | **`ElementDef`.** `Element` is the raw tier and `Material` the manufactured one (§13.5 group 2b) — the two names in this section's own type table are **inverted** |
+| ~~`CraftDef` — id, display name, per-material weighting~~ | **`MaterialDef`** — id, display name, abbreviation, per-**role** weighting |
+| ~~`ItemKind` = `Material · Craft · Module · Shell · Vessel`~~ | **`Element · Material · Module · Shell · Vessel`.** *Craft* is retired vocabulary — `features.md` §2 rules that a vessel is a vessel, never a craft, and §13.5 already carries a 🐛 for the one surviving string in `Validation.cpp` |
+| ~~`MaterialDef` carries an **availability band**~~ | **Deleted 2026-08-09** with the rarity bands. *"No element is rarer than another"* — there is nothing for a band to express |
+| ~~**Authored mass and authored base price** per raw item — *"the only two authored numbers"*~~ | **One authored mass per element, and exactly one authored price for all of them.** §2.10: *"One unit of any element is 1 credit."* Price is not authored per element at all |
+| ~~*"Fourteen authored masses and fourteen authored prices"*~~ | **~50 authored masses and one authored price.** Fourteen was the roster before 2026-08-09; it is now 36 drafted toward ~50, and the price column collapsed to a single constant |
 
-**Systems:** none new beyond `ManufacturingSystem` (§12.18). This is content plus derivation.
+*Nothing above is a design change. It is this section catching up to a rewrite that happened a day
+after it was written, and it matters because §12.30.3's `Pricing.h` and §12.30.5's deconstruction
+were both scoped against the stale wording.*
 
-**Derivation happens once, at content load, and is then immutable:**
+#### 🐛 A recipe is a demand, not a bill of materials
+
+*This is the finding that reshapes the section, and it invalidates a sentence in §12.30.5 unless
+one clause is added to it.*
+
+`features.md` §2.10 settles, and calls it *"what makes the whole model safe"*:
+
+> *"A Field Emitter recipe does not ask for 5 × Neodymium. It asks for five units of a **magnetic**
+> element — and Nd, Sm, Co and Fe all qualify, **with different results**."*
+
+**So the recipe cannot say what any particular item is made of.** Two Common Alloy Plates built from
+the same recipe at the same bench are iron in a poor system and iridium in a rich one, and §2.10
+requires them to differ — *"a Conductive Coil made of silver genuinely is a better coil than one made
+of aluminium."* Three settled mechanics read *what actually went in*, and none of them can get it
+from a def:
+
+| Reader | Needs | Named in |
+|---|---|---|
+| Attribute propagation | The elements consumed | §2.10, and §11.9 records it is computed in `ManufacturingSystem` and nowhere else |
+| An item's **mass** | The same — density is §2.10's universal cost, so a silver coil weighs more than an aluminium one **by design** | §2.10's attribute table |
+| `RepairCostPerHp`'s **Inert** term | The same, one hop further up | §12.30.4 |
+
+> **The recipe is the demand. The composition is what the demand got. Only the second is a fact
+> about the object, and it is not derivable from the first.**
+
+⚠️ **This does not make §12.30.5's deconstruction rule wrong — it needs one clause.** That section
+deletes `deconstructsTo` and rules that *"deconstruction yields the item's own `Recipe` inputs at the
+facility grade's recovery band."* **The rule stands and the deletion stands**; what "the recipe's
+inputs" resolves to is settled two subsections below, and it is deliberately **not** the item's own
+composition.
+
+#### Three facts per instance, and only one of them is a roll
+
+| Fact | Set by | Rolled? | Stored? |
+|---|---|:--:|---|
+| **Grade** | The builder — the recipe you chose to run; or §2.7's drop table for loot | No | Yes |
+| **Composition** | The builder's stock, resolved slot by slot at manufacture | No | **No — see below** |
+| **Quality** (§12.21) | §2.7's band, once, at creation | **Yes** | Yes |
+
+**Composition is not stored, and that is the one non-obvious call in this section.** What the
+consumers above actually read is not *which* elements went in but *what that produced* — an
+attribute vector and a mass. Storing the resolved bill as well would be a second answer to the same
+question, which is the §13.3 C shape this document has now found five times.
+
+> **An instance stores what the composition *produced*, never the composition itself: eight
+> attributes and one mass.**
+
+⚠️ **These are derived values that must nonetheless be stored, and the exception needs its reason
+stated or someone will "fix" it.** §12.19's own discipline — and §12.21's, and §12.15's — is that a
+derived value is never stored, because a stored derivation drifts against a content edit. **The
+inputs here are consumed.** A module's attribute vector was derived from materials that no longer
+exist, so the derivation is not repeatable and there is nothing for it to drift against. That is the
+opposite of `mass = f(def)`, which *is* re-derivable and therefore must not be stored.
 
 ```
-mass(item)  = sum(mass(inputs))  * gradeMassMultiplier   // features.md 2.7's 100% -> 70% ladder
-price(item) = sum(price(inputs)) * (1 + manufacturingMargin)
+shared/blueprints/Item.h
+
+struct Attributes {                       // features.md 2.10's eight, in its order
+    float structure = 0.0f;  float conductive = 0.0f;  float semiconductive = 0.0f;
+    float energetic = 0.0f;  float magnetic  = 0.0f;   float optical       = 0.0f;
+    float thermal   = 0.0f;  float inert     = 0.0f;
+};
+
+struct ItemRef      { ItemId id; Grade grade = Grade::Common; };            // blueprint form
+struct ItemInstance { ItemRef item; Attributes attributes; float mass = 0.0f; Quality quality; };
+struct ItemStack    { ItemInstance instance; int quantity = 0; };
 ```
 
-**Fourteen authored masses and fourteen authored prices; everything else follows.** This is the same
-discipline §12.15 applies to system radius and §12.4 to seeds — a derived value that gets cached is a
-derived value that will drift. Neither figure is ever stored per instance.
+**`ItemRef` and `ItemInstance` are Law 3 in miniature** — the blueprint form names a design and a
+grade, the live form adds what one particular unit turned out to be. A Template can say *Mythic
+chassis*; it cannot say *made of iridium*, because that depends on the yard that builds it.
 
-⚠️ **`Validation.h` gains rule 13** — a shell's recipe-derived mass must land within a wide band of
-`k · density · radius²`. Not a formula for mass (that comes from the recipe) but a **check on the
-recipe**, catching a wing-mount-sized shell whose parts list produces a station-core mass. The kind of
-thing that is obvious in a table and invisible in play.
+##### How attributes propagate — the rule §2.10 states and does not specify
 
-⚠️ **`FacilityStats::level` (1–5) folds into `Grade`.** A facility is a `ModuleKind::Facility` module
-and carries a grade like everything else. `EngineerSystem`'s merge scaling, `ResearchSystem`'s
-duration and sample-survival roll, and deconstruction recovery all re-derive against seven steps
-instead of five. Two tier systems for one concept would drift the moment either was tuned.
+§2.10 says attributes propagate by *"sums and weighted averages"* and never says which is which. The
+split is forced by what the numbers mean:
 
-⚠️ **Every roll in this batch is deterministic from `(item id, tick)`** — deconstruction recovery,
-research sample survival, and quality. The FNV-1a idiom `MiningSystem` and `CommsSystem` already
-share, which §12.13 already flags for promotion to `shared/math/` on its third consumer. **This batch
-is that third consumer.** Promote it rather than pasting it again.
+> **Attributes average; mass sums.**
 
-**Persistence:** `CargoHold` entries become `(ItemId, quantity)` rather than `(ModuleId, quantity)`;
-rolled instances additionally carry their quality scalar. `SaveFile` and `SaveMigrator` both bump.
+An attribute is a property of the *substance* — a coil made of four units of silver is not four times
+as conductive as one made of one unit. Mass is a property of the *quantity*. So:
 
-**Tests:** derived mass and price are identical for the same recipe on every platform; a generated
-craft recipe honours the grade table's variety and rarity caps at every tier; rule 13 rejects a
-planted mass/radius mismatch; deconstruction recovery stays within its facility's band and never
-exceeds the item's own mass; `ItemId` round-trips through a save for all five kinds.
+```
+attributes(item) = Σ(inputᵢ.attributes × unitsᵢ) / Σ(unitsᵢ)      // quantity-weighted mean
+mass(item)       = Σ(inputᵢ.mass × unitsᵢ) × gradeMassMultiplier   // features.md 2.7's 100% -> 70%
+```
+
+**Two hops, and no more** (§2.10's chain): Element → Material → Module/Shell. An Element's attributes
+come straight from `ElementDef`; its mass is its authored density × one unit.
+
+*This is what makes density-as-universal-cost actually cost something.* Reaching for iridium raises
+the Structure average **and** the summed mass, so §2.2's constraints puzzle is played at the recipe
+as well as at the fit. Under a summing rule it would not be — more units would mean more of
+everything, and the choice would collapse.
+
+##### How an attribute vector reaches a stat, and why it is not a new mechanism
+
+§2.10's table already names a consumer per attribute (Structure → `Health.max`, Thermal →
+`Weapon::fireIntervalSeconds`, Semiconductive → `Weapon::spreadRadians`, …) and rules that *"an
+attribute with no reader is the same defect as a system with no producer."* Two of those eight —
+`spreadRadians` and `fireIntervalSeconds` — **improve by decreasing**, which is the exact hazard
+§12.21 built `Direction` for.
+
+> **The attribute→stat map is a `StatPool` in `StatPool`'s own shape** — `{ StatRef stat; float
+> weight; Direction dir; }` per attribute per `ModuleKind`, authored in JSON, validated by the same
+> CI rule that rejects a pool entry naming an enum or an integer field.
+
+One mechanism, two producers (a quality roll and a composition), and no second table to keep in sync.
+**Order of application is fixed and must be:** `stat = def.stat × attributeFactor × qualityMultiplier`.
+
+⚠️ **`attributeFactor` is bounded at roughly ×0.8–1.2 and that bound is a working value, not a
+settled one.** Quality reaches ×5.0; composition must stay the *smaller* axis or the grade ladder
+stops reading. Like §2.10's quantity curve this is a number for `tools/economy_sim` to produce, not
+for this document to argue.
+
+#### Grade is a property of the instance, never of the def
+
+*Neither this section nor `features.md` §2.7 ever says which, and every consumer below needs the
+answer.*
+
+`features.md` §2.7 settles it implicitly and decisively: *"a shell's authored `moduleSlots` is its
+Common value and the tier adds to it."* **A def is the Common baseline.** So:
+
+- **`modules.json` and `shells.json` gain no `grade` field.** An authored def is grade-neutral, and
+  §2.10's *"every material exists at every grade"* is the same statement for the generated tier.
+- **`MountBlueprint::shell` and `::modules` widen from `ShellId`/`ModuleId` to `ItemRef`.** Without
+  it every authored ship and every player Template is all-Common, and a Template that cannot name a
+  Mythic chassis makes §2.7's whole ladder unreachable from §2.2's design surface.
+- **A live hardpoint gains `ShellInstance { ItemInstance shell; }`** and `MountedModules::ids`
+  (`std::vector<ModuleId>`) becomes `MountedModules::items` (`std::vector<ItemInstance>`).
+
+🐛 **A hardpoint does not record which shell it is, and §12.30.4 needs it to.** Verified
+2026-08-10: `RigFactory::CreateHardpoint` emplaces `MountRef`, `ParentRig`, `ShellRole` (the *kind*,
+not the id), `HitRadius`, `LocalTransform`, `WorldTransform`, `PreviousTransform`, `MountedModules`
+and `Health` — **and no `ShellId`.** Today the only route from a hardpoint to its `ShellDef` is a
+three-hop join: root → `BlueprintRef` → `ContentLibrary::FindShip` → `RigBlueprint::Find(MountRef)`
+→ `shell`. `ShellInstance` closes it and carries the grade, the attributes and the mass that join
+could never have produced.
+
+##### `FacilityStats::level` folds in — and that revises a group-2 line-fix
+
+⚠️ **`FacilityStats::level` (1–5) folds into `Grade` (7 tiers)**, and so does
+`StationFacility::researchTier` (§12.30.6 — a *third* ladder, a bare `float`, written only by tests).
+`FacilityRef::level` becomes `FacilityRef::grade`, copied from the facility module **instance** at
+attach time.
+
+**§13.5 group 2 schedules the opposite work.** Its line reads *"`ParseFacilityStats` reads `level`;
+`AttachModuleComponents` forwards it"* (§13.3 K), and §12.30.5's test list asks for *"a merge at
+facility level 5 preserves more than one at level 1."*
+
+> **Neither is parsed today, so fixing it as `level` costs exactly what fixing it as `grade` costs,
+> and one of the two then has to be deleted.** The group-2 fix should land as **grade**:
+> `FacilityRef::grade`, forwarded by `AttachModuleComponents`, and `FacilityStats::level` deleted
+> rather than revived. §12.30.5's test becomes *"a merge at a Mythic bench preserves more than at a
+> Common one."*
+
+*This is the cheaper order and it is only visible because the two sections were read together — on
+their own each is correct.*
+
+#### `ItemInstance` is a value, and that retires `RegisterCraftedModule`
+
+*This reverses `features.md` §2.7's implementation note, and the reason is that §12.21 already
+settled the opposite one section later.*
+
+There are two possible homes for per-instance state, and the codebase currently contains the first:
+
+| | Where instance state lives | Cost |
+|---|---|---|
+| **A — the runtime overlay** | `ContentLibrary::craftedModules_`; every rolled instance registers as a new `ModuleDef` with a generated id, and every holder keeps carrying a bare `ModuleId` | The def table grows one entry **per manufactured unit**, must be saved (§12.31), is never collected, and needs generated ids |
+| **B — the value record** | `ItemInstance` travels inside `CargoHold`, `MountedModules`, requests, loot and saves | Every holder widens once |
+
+**`features.md` §2.7 chose A** — *"a rolled instance registers through the identical path"* —
+pointing at `RegisterCraftedModule`. **§12.21 chose B one section later**, and states it as a
+persistence rule: *"an instance stores its budget point and chosen distribution, not its derived stat
+block — the block recomputes from `def + quality` at load."* §12.31's test list repeats it: *"a
+restored rig re-derives its stat block from `def + quality`."*
+
+> **B is correct and A cannot survive manufacturing.** A merge is a rare event, so an overlay entry
+> per merge went unnoticed; **manufacturing is a loop.** A player who builds ten thousand modules
+> gets ten thousand permanent definitions, saved forever, with no owner and no collector — and every
+> one of them is a *definition* describing a single object, which is a category error before it is a
+> leak.
+
+**What this retires, all verified:**
+
+| | Today | After |
+|---|---|---|
+| `ContentLibrary::RegisterCraftedModule` + `craftedModules_` | One gameplay caller (`EngineerSystem.cpp:146`) and three tests | **Deleted.** A merge writes a new `Quality` onto the primary instance; §2.4's merge moves quality within a band, and a band move is not a new definition |
+| `SystemContext::craftedModules` (`System.h:75`) | A second `ContentLibrary*` beside `ctx.content`, nullable, read by one system | **Deleted with it** |
+| §12.30.5's 🐛 *"the crafted id grows without bound"* | `a+b@L1+a+b@L1@L1`, exponential in merge count, and it is a map key | **Dissolved.** There is no generated id, so there is nothing to concatenate |
+| §12.31's 🐛 *"a crafted module does not survive its own process"* | `craftedModules_` is serialized by nothing | **Dissolved.** The instance is inside the hold and the hold is already in the save |
+
+*Three findings in three sections turn out to be one finding: instance state was living in a
+definition table.* ⚠️ **The overlay itself is not deleted — it is on the wrong type.** See §12.30.8,
+where a drafted Template is the definition that genuinely needs one and does not have one.
+
+#### Stacking is by indistinguishability — this revises §12.30.3's key
+
+§12.30.3 settles that *"`CargoHold` holds one `std::vector<ItemStack>` **keyed on `ItemId`**"* and
+argues that *"uniform stacking is what keeps ~50 Elements and 8 Material families across 7 grades
+from becoming several hundred single-unit rows."* **The shape is right and the key is too narrow** —
+under it, a Mythic-rolled cannon and a Common one stack, and the hold forgets which is which.
+
+> **Two units stack when they are indistinguishable: same `ItemId`, same `Grade`, same attributes,
+> same mass, same `Quality`. A rolled instance is distinguishable by construction.**
+
+One rule, and it produces exactly the behaviour each tier already wants:
+
+| Tier | Quality? | Stacks |
+|---|:--:|---|
+| **Element** | — | Always. Mined iron is mined iron; ~50 rows is the ceiling for the whole tier |
+| **Material** | ❌ §2.10: materials carry a grade and **do not roll quality** | **Per production run.** A hundred coils off one bench from one stock are one row of 100 |
+| **Module · Shell** | ✅ | Effectively never — which is what §12.30.3 already observes happening today, and is correct rather than a defect |
+
+**This resolves §12.30.3's stacking-inconsistency finding without forcing uniformity.** That finding
+— *"buying three of the same module makes three rows; mining three iron makes one"* — is real, and
+its cause is that the two halves had two *rules*. One rule that happens to produce different
+outcomes for rolled and unrolled items is not the same defect; it is the rule explaining itself.
+And the failure §12.30.3 actually cared about, mining producing hundreds of single-unit rows, is
+fixed outright, because an Element has nothing to distinguish it by.
+
+#### Two granularities: the stack key is not the price key
+
+*Found by asking what `LocalPrice`'s scarcity is measured against, which §12.30.3 leaves as "the
+station's hold."*
+
+If scarcity were measured per **stack key**, every rolled instance would be its own market of one:
+infinitely scarce, infinitely expensive, and the drawdown curve would never move.
+
+> **Price is keyed on `(ItemId, Grade)`. A stack is keyed on the whole instance. `LocalPrice` walks
+> the drawdown across every stack sharing the price key.**
+
+⚠️ **And base value must carry a quality term, which revises §2.10's *"base value = its recipe,
+recursively down to elements."*** Without one, the settled no-spread rule becomes an exploit:
+
+- §12.30.3 settles that buying and selling at one station nets **exactly zero**.
+- If price ignores quality, a player buys ten Mythic modules, keeps the 5.0 roll, and **sells nine
+  back for exactly what they paid.**
+- That is a free reroll machine, and it bypasses precisely the brake `features.md` §2.8 built:
+  *"an unconstrained player would spam Mythic production fishing for a 5.0 roll; each attempt costing
+  a full Legendary-Material pipeline run is the brake."* **The market is a cheaper slot machine than
+  the factory.**
+
+> **`BaseValue = recipeValue(ItemId, Grade) × quality.multiplier`.** The recipe measures what went
+> in; quality measures what came out; a market that prices only the first lets a player launder rolls
+> at zero cost.
+
+*This does not disturb §2.10's actual rule, which is that value is a property of **the design, not of
+where it was built**. A facility grade still changes nothing about value — that remains cost-to-build.
+Quality is a property of the object.* Elements and Materials roll no quality, so the term is identity
+for both and the two lower tiers price exactly as §2.10 describes.
+
+#### Derivation, restated with all three axes in it
+
+```
+n(G)          = distinct role slots, 2 at Common .. 8 at Mythic    // features.md 2.10's grade table
+unitsPerSlot(G)                                                     // ~2x per grade, 2.10's knob 1
+massMult(G)   = 1.00 .95 .90 .85 .80 .75 .70                        // features.md 2.7's mass ladder
+band(G)       = x0.90-1.10 .. x3.00-5.00                            // features.md 2.7's quality band
+timeFactor(F) = 1.00 .88 .76 .64 .52 .40 .30                        // features.md 2.4, facility grade
+
+recipe(item, G)   = n(G) role slots, filled per 2.10's weighting, unitsPerSlot(G) each
+attributes(item)  = quantity-weighted mean of the inputs' attributes
+mass(item)        = sum of the inputs' masses * massMult(G)
+recipeValue(item, G) = sum over inputs of recipeValue(input) * (1 + margin)   // element = 1 credit
+BaseValue(item)   = recipeValue(item.id, item.grade) * item.quality.multiplier
+duration(item, F) = baseTime(kind) * 2^(G-1) * timeFactor(F)
+```
+
+**One authored mass per element and one authored price for the whole roster; everything else
+follows.** This is the same discipline §12.15 applies to system radius and §12.4 to seeds.
+
+##### Duration — §12.30.6's fill is confirmed, and it is a quote
+
+§12.30.6 settles `duration(item, facility) = baseDuration(item.grade) × gradeTimeFactor(facility.
+grade)` and flags the left-hand factor as *"a fill rather than a quote: §2.4 settles the right-hand
+factor and is silent on the left."* **§2.4 is silent; `features.md` §2.8 is not**, and it authors
+both halves:
+
+| | `features.md` §2.8 | This formula | |
+|---|---|---|:--:|
+| Research, Common target | 1m | 60s × 2⁰ × 1.00 | ✅ |
+| Research, Mythic target | ~64m | 60s × 2⁶ = 3,840s | ✅ |
+| Research, Mythic target at a Mythic lab | ~19m | 3,840s × 0.30 = 1,152s | ✅ |
+| Manufacturing, Mythic module | *"about three minutes"* at a Mythic bench | 10s × 2⁶ × 0.30 = 192s | ✅ |
+
+**Four values, four agreements, to the digit.** `baseTime(kind)` is §2.8's own column — **5s** for a
+Material, **10s** for a Module or Shell, **60s** for a research job — and a vessel's is
+`Σ(parts) × an assembly factor` rather than a grade. §12.30.6's note should be upgraded from *fill*
+to *quote*; the gap was in §2.4, and §2.8 had already closed it.
+
+##### Deconstruction — what "reads the recipe backwards" resolves to
+
+A recipe names roles, so reading it backwards yields roles, and roles are not matter. **The missing
+definition is the nominal fill**, and it needs no authoring:
+
+> **The nominal fill of a role is the roster's lowest-density element scoring ≥ 1 in that role.**
+> Cheapest available — which is exactly what generic reclaimed stock should be.
+
+**Three consumers, so it is not a §2.4 dead abstraction:**
+
+1. **Deconstruction yield** — the nominal fill of the item's recipe at the facility grade's recovery
+   band (§2.4's 20–45% … 80–100%).
+2. **An authored or looted instance's attributes and mass.** A `pulse_cannon_i` picked up off a wreck
+   was never manufactured and has no composition; it takes the nominal fill's. No content authoring,
+   no dependency on where it dropped.
+3. **`recipeValue`** for anything not manufactured.
+
+⚠️ **Conservation is enforced by mass, not by count.** §2.10's rule is that deconstruction *"returns
+up to the item's own mass, never the mass originally consumed."* A lithium-built module reclaimed at
+a nominal fill heavier than lithium would return **more** mass than it contained. **Scale the
+recovered bill so its total mass never exceeds the instance's `mass`** — one clamp, and §2.10's
+conservation rule becomes mechanical rather than aspirational.
+
+*Losing the premium composition on deconstruct is correct rather than stingy: §2.10 already rules
+that build → deconstruct → build always loses, and losing the good feedstock is one more form of the
+same loss — legible, and it bounds an instance to four fields instead of a nested bill.*
+
+#### ⚠️ The cost curve compounds three knobs, and §2.10 counts one
+
+*Not a proposal — a check that §2.10 invites and that nobody has run.*
+
+§2.10 lists **three knobs** (quantity per grade, refinement loss, margin), revises quantity from ~3×
+to ~2×, and validates the result against §2.4's hardest constraint: *"cost ×64, combat value ~×6."*
+**Two of the largest terms are not in that ×64:**
+
+| Term | Across the ladder | In §2.10's 64×? |
+|---|---:|:--:|
+| Quantity per slot, ~2×/grade | ×64 | ✅ |
+| **Distinct slots, 2 → 8** — §2.10's own grade table | **×4** | ❌ |
+| **The input-grade chain** — §2.8: a grade-*N* item needs grade ≥ *N*−1 Materials, each themselves ×256 | **×10²ish** | ❌ |
+
+Multiplied out, a Mythic module costs on the order of **10⁴** Common modules, not 64. §2.4's
+constraint (*cost must outpace stat benefit*) is satisfied by an enormous margin — **which is its own
+problem**, because §2.10's governing principle is *"industry gives you more of it"* and a 10⁴
+multiplier is the scarcity ladder rebuilt on the cost side, which is the exact failure the 3× → 2×
+revision was made to avoid.
+
+> **The ~2× quantity knob was chosen against a one-knob model. Against three it is probably ~1× —
+> breadth alone already delivers ×4 per rung and the input chain delivers the rest.**
+
+⚠️ **Do not re-tune this by argument.** §2.10 rules that *"prices are outputs"* and names
+`tools/economy_sim` as what settles it. **This finding promotes `economy_sim` from 🧊 to a
+prerequisite for authoring the content set** — the curve cannot be read off three compounding knobs
+by inspection, and the first place a bad shape becomes visible is a Manufacturing screen quoting a
+number.
+
+#### The corrected signatures
+
+```
+core/economy/Pricing.h                         free functions beside FactionEconomy, sr_core, no raylib
+
+int BaseValue (const ItemInstance&, const ContentLibrary&);
+int LocalPrice(const ItemInstance&, int quantity, const CargoHold& stock, const ContentLibrary&);
+int RepairCostPerHp(const ItemInstance& shell, Grade facilityGrade, const ContentLibrary&);
+```
+
+| Was (§12.30.3, §12.30.4) | Why it changes |
+|---|---|
+| `BaseValue(ItemId, const ContentLibrary&)` | An `ItemId` names a design; the recipe's size and the quality term are both properties of the instance |
+| `LocalPrice(ItemId, int, const CargoHold&, …)` | Same, plus: the drawdown is walked over the **price key** `(ItemId, Grade)`, not over the stack key |
+| `RepairCostPerHp(const ShellDef&, Grade, …)` | **A `ShellDef` has no Inert attribute and no grade.** Inert is an element property that propagates to an instance, and §12.30.4 is the only named reader of it |
+
+**Everything else about those three functions is unchanged** — pure, stored nowhere, ticked never,
+called by the screen to display and by the system to charge (Law 9), and `LocalPrice` still prices a
+**quantity** by walking the curve rather than multiplying a spot price.
+
+#### The types
+
+| Type | Home | Notes |
+|---|---|---|
+| `Grade` | `shared/blueprints/Taxonomy.h` | The seven-tier ladder, beside the four enums content and components already share. `ToString`/`FromString` like the rest, and **`FromString` must reject rather than default** — Law 10, and §12.30's `kind`-is-optional 🐛 is the cost of the alternative |
+| `ItemKind` | `Item.h` | `Element · Material · Module · Shell · Vessel` |
+| `ItemId` | `Item.h` | `{ ItemKind kind; std::string id; }`. **Does not replace `ModuleId`/`ShellId`** — those stay strong types for kind-specific lookups; `ItemId` is the kind-agnostic envelope, with conversions each way |
+| `ItemRef`, `ItemInstance`, `ItemStack`, `Attributes` | `Item.h` | Above |
+| `ElementDef` | `ElementDef.h` | id, name, **periodic abbreviation** (§12.30.3's `Row::glyph` spends it), authored density, eight authored attributes 0–3. **No price and no availability band** |
+| `MaterialDef` | `MaterialDef.h` | id, name, abbreviation, per-**role** weighting. **Recipes generated**, never authored per grade |
+| `Recipe` | `Item.h` | `n(G)` **role slots**, generated for a Material and authored-as-roles on `ModuleDef`/`ShellDef`. Never a list of element ids |
+| `Quality` | §12.21 | Unchanged. Identity on Element and Material — §2.10: they carry a grade and roll no quality |
+
+**Widened, not new:** `CargoHold` → one `std::vector<ItemStack>`; `MountedModules::ids` →
+`::items` of `ItemInstance`; `MountBlueprint::shell`/`::modules` → `ItemRef`; `LootDrop`/
+`MaterialDrop`/`DeathWreck` → `ItemStack` (which also ends §13.5 group 2b's `MaterialStack`/
+`MaterialChance`/`AsteroidComposition` string-id problem in the same pass); `FacilityRef::level` →
+`::grade`; **`CargoHold` from a rig-root entry count to a per-bay `{ stacks, slotCount, slotCapacity }`**
+(§12.23 — `CargoHoldEntryCount` and `CargoHoldHasRoomFor` are deleted and re-expressed as
+`shared/rig/CargoView.h` over the `ItemStack` masses this section derives); new `ShellInstance` on
+every hardpoint.
+
+**Deleted:** `ContentLibrary::RegisterCraftedModule`, `craftedModules_`,
+`SystemContext::craftedModules`, `FacilityStats::level`, `StationFacility::researchTier`,
+`CargoHold::modules`/`::materials`, `MaterialStack`.
+
+**Systems:** none new beyond `ManufacturingSystem` (§12.18, screen at §12.30.8). This is content,
+derivation, and one widening.
+
+#### Validation and CI
+
+- ⚠️ **`Validation.h` rule 13** — a shell's recipe-derived mass lands within a wide band of
+  `k · density · radius²`. A check on the recipe, not a formula for mass.
+- **Rule 14 — role coverage.** Every recipe slot names a role that at least one element in the
+  roster scores ≥ 1 in. §2.10's seeding invariant is unsatisfiable otherwise, and *"a player can
+  never be hard-stuck"* stops being an enforced property.
+- **`tools/element_check`** (§13.5 group 2c) is unchanged and becomes blocking rather than advisory:
+  pairwise dominance, Pareto validity, role coverage, density spread.
+- **The attribute→stat map reuses §12.21's CI rule** — reject an entry naming an enum or an integer
+  field. One rule, two producers.
+
+#### Persistence
+
+`ItemStack` is POD and encodes as one — `ItemId`, `Grade`, eight floats, a mass, a `Quality`, a
+count. `SaveFile` and `SaveMigrator` both bump. **`RigState` (§12.31) carries `ShellInstance` and
+`MountedModules::items` per mount**, which §12.31's mount list already has a slot for and its test
+list already half-states — *"a restored rig re-derives its stat block from `def + quality`"* becomes
+*"from `def + attributes + quality`"*, and the crafted-module save section it scoped is deleted
+rather than written.
+
+#### Tests
+
+- Derived mass, attributes and base value are identical for the same inputs on every platform.
+- A generated Material recipe honours §2.10's grade table — `n(G)` distinct roles, no slot naming an
+  element — at every one of the seven tiers.
+- **A silver Conductive Coil and an aluminium one of the same def and grade have different
+  attributes and different masses, and the same `recipeValue`** — the three-axis rule asserted in one
+  test.
+- Attributes average and mass sums: doubling every input quantity doubles the mass and leaves the
+  attribute vector unchanged.
+- A ↓-direction attribute (`spreadRadians`, `fireIntervalSeconds`) **improves** with a higher score —
+  §12.21's `Direction` hazard, asserted on the composition path too.
+- Two units stack iff every field of their `ItemInstance` is equal; a rolled module never stacks with
+  another roll of the same def.
+- `LocalPrice` moves as the `(ItemId, Grade)` pool draws down and is unaffected by how that pool is
+  split across stacks.
+- **Buying ten and selling nine back cannot net a profit at any quality distribution** — the reroll
+  exploit, asserted directly.
+- Deconstruction yields the nominal fill within the facility grade's band, never above 100%, **and
+  never more mass than the instance carried** — the conservation clamp.
+- Rule 13 rejects a planted mass/radius mismatch; rule 14 rejects a recipe naming an uncovered role.
+- `ItemStack` round-trips through a save for all five `ItemKind`s, and a rig carrying a merged module
+  restores it **without any content-library entry existing for it** — the regression test for the
+  overlay's retirement.
+
+#### Scheduling
+
+**Its own issue, and it is large.** It has no dependency on group 1 and can be verified headless, but
+it touches every holder of a `ModuleId` in the tree.
+
+| | Scope | Order |
+|---|---|---|
+| **19a** | `Grade` in `Taxonomy.h` · `FacilityRef::grade` · `FacilityStats::level` and `researchTier` deleted | **Replaces §13.5 group 2's `level` line.** Startable today |
+| **19b** | §13.5 group 2b's Element/Material rename, folded in — one commit or none | Before any content |
+| **19c** | `Item.h` · `ElementDef` · `MaterialDef` · `Recipe` · parsers · `elements.json` · `materials.json` · `element_check` · `economy_sim` | After 19b |
+| **19d** | The widening: `CargoHold`, `MountedModules`, `MountBlueprint`, loot, requests, `RigState`, saves. **`RegisterCraftedModule` deleted here** | After 19c, and it wants §12.21's `Quality` to already exist |
+
+**Depends on:** §12.21 (`Quality` is a field of `ItemInstance`) and the Element/Material content set.
+**Blocks:** §12.18 and its screen (§12.30.8), §12.20's ledger, §12.30.3's Market half, §12.30.5's
+Merge and Deconstruct verbs, §12.30.6's shells-as-samples, and `Pricing.h` entirely.
 
 ### 12.20 Per-Item Faction Stock — `features.md` §5.0
 
@@ -2662,7 +3209,7 @@ which is a hard gate that must stay binding.
 | Kind | Why it exists | Code touched |
 |---|---|---|
 | **`Sensor`** | `SensorRange` exists in `Targeting.h` and `DiscoverySystem` reads it; **nothing produces it.** `features.md` §8.3 names the module explicitly | `ModuleAttachment` case; `Taxonomy` |
-| **`CargoBay`** | §2.2 specifies capacity from mounted bays; the kind was never added. `slotCount` × `slotCapacity`, **total derived and never stored** | `ModuleAttachment`; `CargoHold` aggregation |
+| **`CargoBay`** | §2.2 specifies capacity from mounted bays; the kind was never added. `slotCount` × `slotCapacity`, **total derived and never stored** | `ModuleAttachment`; `CargoHold` **moves onto the bay** — see below |
 | **`FireControl`** | Drives `FiringArc::turnRatePerSecond` — read by `WeaponSystem`, **hardcoded to `kPi`**, authored nowhere | `ModuleAttachment`; `WeaponSystem` |
 | **`Hyperdrive`** | `WarpSystem` has **no module and no fuel reference at all** | `WarpSystem` gate; new fuel component |
 
@@ -2674,6 +3221,131 @@ fire control while a 1-slot one does not.
 
 **`PowerPriorityFor(ModuleKind)` absorbs all four with no fifth category**: FireControl → Weapon
 priority; Sensor, CargoBay, Hyperdrive → Facility priority.
+
+#### The hold lives on the bay — `CargoHold` moves off the rig root
+
+*Settled 2026-08-10 by the project owner, and it resolves a contradiction between two sections of
+`features.md` written the same day. Verified against `src/`.*
+
+§2.2 rules that *"slots are presentation, not a second constraint"* while §2.11's `CargoBay` roster
+entry authors **`slotCount` — how many distinct stacks — and `slotCapacity` — mass per stack**, with
+a worked example showing the two are not interchangeable. **§2.11 wins**: §2.2's line predates the
+bay module existing and was written about a bare entry count with nothing to author two numbers on.
+
+> **`CargoHold` is a component on each cargo-bay hardpoint** — `{ std::vector<ItemStack> stacks; int
+> slotCount; float slotCapacity; }`, the two limits copied from the bay module **instance** at attach
+> exactly as `FacilityRef` copies its kind and grade. **The rig-level hold is a view over the living
+> bays, never a stored aggregate.**
+
+**This is §2.11's own aggregation law**, which that section names `PowerSystem` as the one system
+already following: a rig attribute is the sum of contributions from living hardpoints, and destroying
+one removes its contribution. For cargo the contribution *is* the contents, so *"shoot the bay, lose
+what was in it"* stops needing a spill rule and becomes the default behaviour.
+
+##### Two limits mean two refusals, which is what the row model wanted
+
+| Refusal | When | Row |
+|---|---|---|
+| **`HOLD FULL`** | Every slot that could take this item is at `slotCapacity` and no free slot exists | §12.30.3's disabled row |
+| **`NO FREE SLOT`** | Mass to spare, but every slot holds something else | New, and it is §2.11's variety constraint becoming visible |
+
+*A hold can be out of bulk with variety to spare or the reverse, and §3.10's degrade-never-remove
+asks the row to say which. One number could not.*
+
+##### Placement is automatic, and it must not read `Rig::children` order
+
+The player never chooses a bay. A deposit resolves in three steps:
+
+1. **Top up an indistinguishable stack** that has room — §12.19's stacking rule, so a hundred iron
+   join the iron already there.
+2. Otherwise take a free slot in the **emptiest living bay**, by fraction of `slotCount` used.
+3. **Split across slots and bays as needed**, and **refuse whole** when the rig cannot take the entire
+   quantity — §12.30.3's all-or-nothing contract, evaluated at the rig level so a purchase that fits
+   across two bays is not refused for fitting in neither.
+
+⚠️ **Emptiest-first, tie-broken by `MountId` — never first-found.** `EngineerSystem::Docked
+EngineeringLevel` returning *"the first living Engineering facility found while walking
+`Rig::children`"* is a defect §12.30.5 already names, and a placement rule with the same shape would
+make which cargo you lose depend on entity creation order. Emptiest-first also spreads a mixed
+manifest, so a lost bay costs a fraction of everything rather than all of something — the lower-
+variance loss, for an event the player cannot steer.
+
+**Withdrawal mirrors it**: draw from the *fullest* matching slot first, so bays drift back toward
+even and empty slots reappear for new item types.
+
+##### `shared/rig/CargoView.h` — the one write path
+
+Five systems call `try_get<CargoHold>(root)` today — `StationServicesSystem`, `LootSystem`,
+`EngineerSystem`, `ModuleEquipSystem`, `RefactorSystem` — plus `SpaceFlight` and `TutorialSystem`.
+None of them should learn to walk a rig.
+
+```
+shared/rig/CargoView.h        beside ModuleAttachment and DockedFacility (12.30.5)
+
+float Capacity (const registry&, entt::entity rigRoot);   // sum of slotCount * slotCapacity, living
+float TotalMass(const registry&, entt::entity rigRoot);
+bool  Deposit  (registry&, entt::entity rigRoot, const ItemStack&);        // whole or nothing
+bool  Withdraw (registry&, entt::entity rigRoot, const ItemInstance&, int quantity);
+void  Merged   (const registry&, entt::entity rigRoot, std::vector<ItemStack>& out);  // for display
+```
+
+**That is §12.20's one-write-path rule applied a layer down** — *"there is exactly one
+`Deposit`/`Withdraw` API and it updates the totals as it writes."* Seven consumers on day one, so
+Law 11's tie-breaker is satisfied several times over, and it is the same promotion §12.30.5 makes for
+`DockedFacility`.
+
+##### Three defects this exposes, all in built code
+
+🐛 **`LootSystem.cpp:15` calls `get_or_emplace<CargoHold>(collector)`.** Any entity that picks
+something up silently acquires a hold. Under the bay model that is a capability reached by
+**omission** — §13.3 W's class — because a rig with no `CargoBay` is supposed to be unable to carry
+anything. **`get_or_emplace` becomes a lookup that fails**, and a collector with no bay does not
+collect.
+
+🐛 **Warping deletes all cargo.** `SpaceFlight.cpp:86` copies the root's `CargoHold` out of the
+departing registry and `:123` emplaces it on the newly spawned root. Under the bay model the cargo
+lives on hardpoints that `RigFactory::Spawn` rebuilds from the blueprint **empty**, and the root has
+no hold to copy. **The carry-over belongs in §12.31's `RigState`**, which is already a per-mount delta
+against a `BlueprintId` and already has to carry each mount's `MountedModules` and `ShellInstance`
+(§12.19). One mechanism, one more field, and §13.3 AC's *"warping undoes every refit"* and this are
+then the same fix.
+
+✅ **§12.30.3's *"`StationFactory` also needs a non-zero `capacity`"* dissolves.** A station's hold is
+however many cargo bays it was built with, so there is no number for the factory to invent — and
+`features.md` §5.0's *"destroy a station and its stockpile goes with it"* becomes true at **hardpoint**
+granularity for free, which is a better blockade mechanic than the station-level version it was
+written for.
+
+⚠️ **Content prerequisite, and it blocks group 1.** `modules.json` holds seven modules and no cargo
+bay, so **until the starter chassis authors one the player cannot pick up, buy, or carry anything.**
+Under the old root-level `CargoHold` that was hidden — §13.5 group 1 simply emplaces one. This is the
+honest version, and the fix is one authored module plus one mount, not a mechanism.
+
+##### Systems
+
+`LootSystem` gains the **producer** half it never had: a view over `<CargoHold, Destroyed>` that
+spawns each stack as a `LootDrop` and clears the vector. `DamageSystem` only *tags* `Destroyed`
+(`DamageSystem.cpp:38`) and never destroys the hardpoint entity, so the component is still there to be
+read on the following tick — the ordering works with no new lifetime rule. `ModuleEquipSystem` routes
+an unmounted bay through the same helper, so destruction and removal are one path.
+
+##### Tests
+
+- Rig capacity is the sum over **living** bays; destroying one reduces it and destroying all of them
+  makes it zero.
+- A deposit that fits in no single bay but fits across two **succeeds**; one that fits in neither is
+  refused whole, with nothing partially applied.
+- A deposit of a new item type into a hold with free mass but **no free slot** is refused with
+  `NO FREE SLOT`, and the same deposit of an item already stacked there succeeds.
+- Placement is emptiest-first and **independent of `Rig::children` order** — the same rig built in a
+  different mount order places identically.
+- Destroying a bay drops **exactly that bay's stacks** as recoverable `LootDrop`s, and the other bays
+  are untouched.
+- Unmounting a loaded bay takes the same path as destroying one.
+- A collector with no `CargoBay` collects nothing and gains no `CargoHold` component.
+- A warp preserves per-bay contents (with §12.31), and a rig whose blueprint authors two bays does
+  not arrive with one.
+- A station's stock dies with the bay that held it, not with the station.
 
 #### `WarpSystem` gains a gate, and fuel is a new resource
 
@@ -2978,6 +3650,13 @@ station's `Rig::children`, filters `Destroyed`, and lists the surviving `Facilit
   facility hardpoint they selected while docked. Selecting a tab **is** moving, and `DamageSystem`
   killing that hardpoint kills the player — the predicate §3.4 promises would need no special case.
 
+  ⚠️ **Amended 2026-08-10 — §12.30.1.** `PlayerLocation` is not a component *alongside*
+  `PlayerControlled`; it is the **only** one written, and `PlayerControlled` is derived from it.
+  Two components naming where the player is would let the death predicate and the camera disagree.
+  **This changes step 1**, which plans to `emplace<PlayerControlled>`: it emplaces `PlayerLocation`
+  naming the spawned rig's cockpit hardpoint instead. One write site exists in the whole tree
+  (`SpaceFlight.cpp:120`), so the change is cheap now and touches twenty-nine readers if deferred.
+
   **This is also how the player takes a capital's bridge.** `features.md` §4.0's "assume command" is
   not a separate mechanism: the Bridge is a facility hardpoint like any other, so selecting it in
   this router moves `PlayerLocation` there. The player then operates *that hull* and commands from
@@ -3024,13 +3703,19 @@ The systems have simply not implemented their gates. What each enforces *today* 
 | `EngineerMenu` | `EngineerSystem` | `Docked` + living Engineering ✅ | unchanged |
 | `RefactorMenu` | `RefactorSystem` | `Docked` + living Engineering ✅ | unchanged |
 | `StationServicesMenu` — repair | `StationServicesSystem` | `Docked` only | **+ `FacilityKind::Repair`** |
-| `StationServicesMenu` — buy/sell | `StationServicesSystem` | `Docked` only | **+ a trade/storage facility** |
-| `StorageMenu` | *(read-only)* | none | **`FacilityKind::Storage`** |
-| `CustomizeMenu` | *(see 🐛 below)* | none | **a drafting facility** (new kind) |
+| `StationServicesMenu` — buy/sell | `StationServicesSystem` | `Docked` only | **+ `FacilityKind::Trade`** — resolved 2026-08-10, §12.30 |
+| ~~`StorageMenu`~~ | — | — | ⚠️ **Superseded 2026-08-10 — §12.30.** Not a docked screen: live refit is unrestricted (`features.md` §2.7), and §3.10 makes inventory and loadout flight-HUD overlays |
+| ~~`CustomizeMenu`~~ | — | — | ⚠️ **Superseded 2026-08-10 — §12.30.** No new facility kind: drafting is a section of the Manufacturing screen |
 
 ⚠️ **Splitting `StationServicesSystem`'s three requests across two gates is a behaviour change** —
 a station with a docking bay but no repair bay stops being able to repair. That is the intent: it
 makes station *composition* matter instead of "a station is a station."
+
+> **§12.30 is the completed form of this step.** It settles the full screen inventory (six tabs,
+> seven screens), replaces `FacilityKind::Storage` with `FacilityKind::Trade` — storage becomes the
+> station's `CargoHold`, which §13.3 O already required — specifies the shared widget layer that
+> stops the screens diverging, and records a defect in *this* step: `AvailableTabs` returns kinds and
+> discards the entity `PlayerLocation` needs.
 
 **Two menus are not facility-gated and belong elsewhere.** `BuildMenu` is a *command* surface, opened
 by the `B` key against the player's own Construction facility and issued at a unit (§12.26) — not a
@@ -3837,6 +4522,2838 @@ prompt implies they do.
   world through however long the player sat in the menu.
 ---
 
+### 12.30 The Docked Screens — inventory, gates, and the widget layer
+
+*Settled 2026-08-10. §12.24 step 5 designed the **router**; this section is what the router routes
+to. Every claim below was verified against `src/` on 2026-08-10 by grepping for readers and callers.
+**Two of §12.24 step 5a's rows are superseded here**, and one new content-pipeline defect was found
+in the process.*
+
+**The starting position, verified.** Six menus exist as code and are referenced by nothing but their
+own tests — `StationServicesMenu`, `StorageMenu`, `ModulesMenu`, `EngineerMenu`, `RefactorMenu`,
+`CustomizeMenu`. Two designed surfaces have no menu at all: Research (§12.1) and Manufacturing
+(§12.18). `BridgeView` is the ninth, and the only one drawn — `SpaceFlight.cpp:150` is the sole menu
+call anywhere in `src/`. **None of the nine handles input, and none places the request it builds.**
+
+#### Two rows of §12.24 step 5a are superseded
+
+##### 1 — `StorageMenu` and `ModulesMenu` are not docked screens at all
+
+*This supersedes step 5a's* **`StorageMenu` · *(read-only)* · none · `FacilityKind::Storage`** *row.*
+
+Three later-or-equal-dated decisions rule the gate out:
+
+- `features.md` §2.7 ⚠️ — *"this previously read 'unmounting it **at a station** … at a workbench,'
+  which described a gate that does not exist and should not."*
+- `features.md` §5's resolution log — *"**live refit is unrestricted** (§2.7 — legal any time, priced
+  by §3.4's no-pause rather than by a station gate)."*
+- `features.md` §3.10 lists **inventory** and **loadout** among the flight HUD's on-demand overlays.
+
+Live refit is sanctioned combat play (§11.9). A facility gate on *reading your own manifest* would
+make it unreachable in exactly the fight it was legalised for. Both files move to §3.10's overlay set
+and leave the router's table. (`ModulesMenu` was never in step 5a's table; `StorageMenu` was, and
+that row is the wrong one.)
+
+⚠️ **They do not become trivial by moving.** They need the same widget layer, the same `Row` type,
+and the same input plumbing as the docked six; the only thing they shed is the facility gate and the
+§3.4 health readout. **They ship with this batch**, keyed on a HUD button rather than on a tab.
+
+##### 2 — no new `FacilityKind` for drafting
+
+*This supersedes step 5a's* **`CustomizeMenu` · a drafting facility (new kind)** *row.*
+
+`CustomizeMenu` writes a design into a knowledge network. `ManufacturingSystem` is the only system
+that reads designs *out* of one, and §12.18 already gives it the `ctx.knowledge` gate that check
+needs. A seventh enumerator, authored by no content, gating one screen, is §2.4's dead abstraction
+in its purest form. **Drafting is a section of the Manufacturing screen**, not a facility.
+
+#### `FacilityKind::Storage` is deleted. `FacilityKind::Trade` replaces it
+
+*Decided by the project owner 2026-08-10.* `Storage` was a facility kind naming a **container**, and
+the container already exists as a component.
+
+> **A station can hold goods because it carries a `CargoHold`.
+> A station can *trade* those goods because it carries a living `FacilityKind::Trade` hardpoint.
+> One hold, two questions.**
+
+| Capability | Gated on | Screen section |
+|---|---|---|
+| Deposit / withdraw | The station carrying a **`CargoHold`** — no facility hardpoint | **Storage** |
+| Buy / sell | A living **`FacilityKind::Trade`** hardpoint | **Market** |
+
+**Three reasons this is the better split**, in order of weight:
+
+1. **It makes the fix for §13.3 O *be* the feature.** That finding already assigns `CargoHold` to
+   `StationFactory` because `StationServicesSystem` bails on `try_get<CargoHold>(station) == nullptr`.
+   Making the component the storage capability means one mechanism serves both, instead of a facility
+   kind sitting beside a component that does the same job.
+2. **The station's stock becomes finite and physical.** Buying draws the hold down; selling fills it
+   up; depositing is the same motion without payment. That is the substrate `core/economy/Pricing.h`
+   (§13.5 group 2c) requires — **local scarcity is only computable against a real local quantity**,
+   and `features.md` §2.10 settles prices as derived outputs of exactly that. A shop with infinite
+   stock has no local price.
+3. **The enumerator count is unchanged at six**, so the `kAllKinds` parallel-array defect gets no
+   worse while it is being fixed.
+
+⚠️ **Deleting the enumerator touches six sites, and two of them are silent defaults.**
+
+| Site | Change |
+|---|---|
+| `Taxonomy.h:52` — `enum class FacilityKind` | `Storage` → `Trade` |
+| `Taxonomy.cpp:40` — the `FromString` table | `{"storage", …}` → `{"trade", …}` |
+| `Taxonomy.cpp:96` — the `ToString` case | ditto |
+| `Taxonomy.cpp:99` — `ToString`'s **fallback return** | returns `"storage"` for an unhandled value |
+| `ModuleDef.h:42` — `FacilityStats::kind`'s **default** | `= FacilityKind::Storage` |
+| `BridgeView.cpp:20` — `kAllKinds` | and the missing `Engineering` in the same edit (§12.24 🐛) |
+
+🐛 **New finding, verified 2026-08-10 — a facility's *kind* is optional in JSON.**
+`BlueprintJson.cpp:37` reads `stats.OptionalEnum("kind", out.kind)`. A module authoring
+`"facility": {}` — or misspelling the key, or naming a kind `FromString` rejects — silently takes
+`FacilityStats::kind`'s in-struct default. **That default is `Storage` today, and under this change
+would become `Trade`: an unkinded facility would silently become a shop.**
+
+This is finding §13.3 W's class exactly — a capability reached by *omission* rather than by
+authoring — and it is worse than W, because `kind` is the facility's identity rather than one of its
+stats. **`kind` must become `Require`, not `Optional`:** a facility with no kind is not a facility,
+and Law 10's whole point is that a content error surfaces as a load failure naming the file and key.
+`ToString`'s fallback should return a value no content can be mistaken for, not a real kind.
+
+*This is the third defect of this shape the audit has found (`traverseRadians = 0`,
+`FacilityStats::level` never parsed, and now `kind` optional), all in `ParseFacilityStats`'s
+immediate neighbourhood. **They should be fixed in one pass**, with the parser's optional/required
+split reviewed field by field rather than one field at a time.*
+
+#### The screen inventory
+
+**Every docked screen is exactly one `FacilityKind`. Not every `FacilityKind` is a docked screen** —
+§12.26's `Construction` (not in the enum today) is a command surface opened by `B` and issued at a
+unit, and is never a tab, per step 5a.
+
+| Kind | Screen | Sections | Built from |
+|---|---|---|---|
+| `Docking` | **Bay** (§12.30.2) | Vessels · your own hull's status | new — and not thin; see below |
+| `Trade` | **Market** (§12.30.3) | Buy · Sell | `StationServicesMenu`, split |
+| *(none — `CargoHold`)* | **Storage** (§12.30.3) | Deposit · Withdraw | new verbs on `StationServicesSystem` |
+| `Repair` | **Repair** (§12.30.4) | Repair | `StationServicesMenu`, split |
+| `Engineering` | **Engineering** (§12.30.5) | Merge · Deconstruct · Delete · **Rebuild** | `EngineerMenu` + `RefactorMenu` |
+| `Manufacturing` | **Manufacturing** (§12.30.8) | Queue · Draft | new + `CustomizeMenu`, and the **missing producer** for a second severed chain |
+| `Research` | **Research** (§12.30.6) | Queue | new — and it is the **missing producer** for a five-link chain |
+
+##### Where each screen is specified
+
+*The subsections were written in a different order than the screens are numbered — Research was taken
+before Manufacturing, because Manufacturing is §12.19's primary consumer (§11.9: `features.md` §2.10's
+attribute-propagation chain is computed there and nowhere else) and specifying a UI over an undefined
+recipe model is what this pass exists to avoid. **This table is the index; the screen numbers are
+stable.***
+
+| Screen | Section | State |
+|---|---|---|
+| 1 — Bay | §12.30.2 | ✅ Specified |
+| 2 — Market · Storage | §12.30.3 | ✅ Specified |
+| 3 — Repair | §12.30.4 | ✅ Specified |
+| 4 — Engineering | §12.30.5 | ✅ Specified |
+| 5 — Manufacturing | §12.30.8 | ✅ Specified |
+| 6 — Research | §12.30.6 | ✅ Specified |
+| The two §3.10 overlays | §12.30.7 | ✅ Specified |
+
+> ⚠️ **The *Sections* column for Market and Storage is refined by §12.30.3.** They are not four
+> sections but **four verbs over one layout** — two holds side by side, where the verb is the
+> direction of transfer and the only difference between a trade and a deposit is whether the transfer
+> crosses an ownership boundary. The tab arrangement below is unchanged.
+
+**Six tabs, seven screens** — Storage rides the same tab as Market when the station has both, since
+they are two sections over one hold, and stands alone on a station with a `CargoHold` and no `Trade`
+hardpoint. That asymmetry is the point of splitting them: a warehouse that does not deal, and a
+broker that has run dry, are both expressible.
+
+**This makes §12.24's dispatch table total, which it was not.** As step 5 wrote it, `FacilityKind` →
+menu `Draw()` had no well-formed signature: `Engineering` mapped to *two* menus and
+`StationServicesMenu` spanned *two* kinds. Splitting `StationServicesMenu` (UI only — the system
+keeps all three requests and gains two) and merging Engineering's two files behind their one shared
+gate is what makes the mapping a function.
+
+**Leaving the router**, per the supersessions above:
+
+| Was | Becomes |
+|---|---|
+| `StorageMenu` | The **inventory** overlay (§12.30.7; `features.md` §3.10) — your own `CargoHold`, everywhere |
+| `ModulesMenu` | The **loadout** overlay (§12.30.7) — live refit, unrestricted (§2.7) |
+| `CustomizeMenu` | The Manufacturing screen's **Draft** section |
+| `BuildMenu` | Already excluded by step 5a — `B`, a Construction facility, issued at a unit (§12.26) |
+| `NavigationMap` | Already excluded by step 5a — the far end of the zoom continuum (§8.1) |
+
+#### A defect in step 5 itself: the tab list cannot address a hardpoint
+
+`BridgeView::AvailableTabs` returns `std::vector<FacilityKind>` — it dedupes by kind and **discards
+the entity**. §12.24 step 5's `PlayerLocation { entt::entity shell; }` needs the entity, because
+§3.4's promise is that *selecting a tab is moving into that hardpoint* and that dying with it kills
+the player. **As both are currently specified, the router cannot set `PlayerLocation` from the tab
+list it draws.**
+
+**Fix:** `AvailableTabs` returns ~~`{ FacilityKind kind; entt::entity hardpoint; }`~~
+**`{ ScreenId screen; entt::entity hardpoint; }`**, still deduped — first living hardpoint of each
+kind, in `FacilityKind` declaration order. The tab list stays short on a station with fifty
+hardpoints, and selecting a tab still names one specific entity, which is what §3.4's death predicate
+and the mandatory per-screen health readout both evaluate against.
+
+> ⚠️ **The `kind`-keyed half of that fix is superseded by §12.30.3, later the same day.** Keying on
+> `FacilityKind` cannot express the **Storage** tab, which this section's own inventory says *"stands
+> alone on a station with a `CargoHold` and no `Trade` hardpoint"* — a tab with no kind and no
+> hardpoint entity. The key becomes a `ScreenId`; `hardpoint` may be `entt::null`, and the readout
+> for such a tab measures the **station's** aggregate integrity, because that is what kills the
+> capability. See §12.30.3.
+
+#### The Docking tab is the one whose identity matters
+
+*Decided by the project owner 2026-08-10. The Bay screen itself is specified in §12.30.2; what belongs
+here is the consequence it has for the **tab model** above.*
+
+A docking bay holds many vessels, so the arrival screen is a **roster** — and `Docked` already carries
+what a roster needs: `struct Docked { entt::entity station; entt::entity bay; }`. **The roster is
+bay-scoped**, `view<Docked>` filtered on `docked.bay == thisBay`, with no new component. A vessel in
+another bay of the same station is not listed: §3.4's "movement is instant" governs the *time* cost of
+moving, not whether every hull on a station is reachable from one list, and a station-scoped roster
+would make this tab a station-wide vessel manager, which is the shape the Bridge is for.
+
+â ï¸ **Bay-scoping collides with the tab dedupe, and the collision has to be resolved here.** If
+`AvailableTabs` returns the *first living* hardpoint of each kind, a station with two docking bays
+shows one Docking tab, and the vessels in the second bay are **unreachable**. Two corrections, both
+using information the components already carry:
+
+- **On arrival, the Docking tab resolves to `Docked.bay`, not to the first living bay.** The player is
+  standing in the bay they actually docked at, and `Docked` has recorded which one since it was
+  written. `AvailableTabs`'s first-living rule is the fallback for a player who is aboard without
+  having flown in â not the normal path.
+- **Sibling bays are a selector inside the screen**, drawn with the `TabStrip` the widget set already
+  carries for Market/Storage and Merge/Refactor. One tab, *n* bays behind it.
+
+**`Docking` is therefore the one kind where the deduped tab is not the whole story**, and it is worth
+naming rather than discovering: every other `FacilityKind` is fungible across duplicates â any living
+Repair bay repairs identically â while a docking bay's *identity* is the whole point, because it is
+where a specific hull is parked.
+
+> ⚠️ **The fungibility half is superseded by §12.30.5**, later the same day. **It is already false for
+> three of the six kinds.** A bench's `FacilityRef::level` scales the merge (`features.md` §2.4), a
+> repair bay's grade scales the rate and the price (§12.30.4), and a research or manufacturing
+> facility's grade decides sample survival, duration and recovery (§2.4's tables). **A duplicate is
+> fungible only when the facility has no grade-dependent output** — and once §12.19 folds `level` into
+> `Grade`, none does. **The sibling selector generalises to every tab**; Docking is simply where it was
+> noticed first, because a bay's identity is visible while a bench's is only visible in the result.
+> The tab list is unchanged — one tab per kind, *n* hardpoints behind it.
+
+#### The shared widget layer
+
+**There is no widget layer.** `HudTheme.h` is eight colours and four draw calls — `ChamferedRectPoints`,
+`DrawBracketPanel`, `DrawChamferedRect`, `DrawChamferedButton`. No list, no scroll, no focus, no
+layout, no hit test. `sr_shared_ui` is an `INTERFACE` target holding that one header.
+
+**The drift has already started, before a single menu is reachable.** Verified 2026-08-10:
+
+| File | Row rendering |
+|---|---|
+| `InventoryGrid.cpp` | `kRowHeight = 20.0f`, one `DrawText` — the shared widget §12.10's promotion note called for |
+| `StorageMenu.cpp` · `ModulesMenu.cpp` | call it |
+| `StationServicesMenu.cpp` | **its own verbatim copy** of the same constant and loop |
+| `RefactorMenu.cpp` | **a second verbatim copy** |
+| `EngineerMenu.cpp` | hardcoded `+8` / `+28` / `+48` |
+
+One shared widget, two clones, one ad-hoc — in six files that nothing calls. Nine screens hand-rolling
+row positioning is not a risk to be managed later; it is the state of the tree today.
+
+##### The one decision: immediate-mode, stateless, pure functions
+
+> **A widget takes its state and this frame's input as data, draws, and returns what the player did.
+> No retained tree, no callbacks, no focus manager, no widget-owned state.**
+
+Three existing decisions force it, and none of them is new:
+
+1. **§12.24 already settled where UI state lives** — a lazily-created singleton entity, on the
+   `CommsLog` precedent. A widget that owned its own scroll offset or selected index would be a
+   second, competing home for the same data, and multiplayer is where that bites: one client's
+   selection must not appear in another's view.
+2. **Law 9.** A widget returning *"row 3 was clicked"*, and the screen turning that into a
+   `BuyItemRequest`, is Law 9's exact shape. A callback-based widget invites the callback to mutate —
+   which is the violation `CustomizeMenu::ConsumeSaveTemplateRequests` already committed once.
+3. **`HudTheme.h` already documents the testability seam by name**: `ChamferedRectPoints` is *"pure
+   math… unit-testable without a live GL context,"* while the `Draw*` functions *"have no automated
+   coverage: there is nothing headless CI can safely call."* The widget layer splits on the same
+   seam — **layout and hit-testing are pure and tested; `Draw` is a thin, untested shell over them.**
+
+**Input arrives as data, polled once by the caller:**
+
+```
+shared/ui/UiInput.h    POD: { Vector2 cursor; bool clicked; float scroll; }
+```
+
+No widget calls `IsMouseButtonPressed`. That is what keeps hit-testing headless-testable, what makes
+`features.md` §3.6's *"all bindings are rebindable"* possible at all, and what keeps §2.3's promise
+that adding ENet later is *"a change of intent source rather than a rewrite of every menu."*
+
+##### Home
+
+**`src/shared/ui/`**, beside `HudTheme.h` — cross-mode presentation, already permitted raylib and
+`engine/`, already forbidden `modes/`. Widgets take `Rectangle`, `Row`, and `UiInput`, all POD, so
+the rule holds without an exemption. **`sr_shared_ui` becomes `STATIC`** from `INTERFACE` in the same
+commit, since hit-testing has a `.cpp`.
+
+*This is the second consumer Law 11's tie-breaker asks for, and it arrives with more than two: the
+six docked screens plus the two §3.10 overlays plus `CockpitHud`'s existing bar. `InventoryGrid`'s
+own header already made this argument for two consumers; it was right and it stopped one file short.*
+
+⚠️ §2.2's 600-line file cap applies. If `Widgets.cpp` approaches it, split per widget rather than
+raising the cap — that is the cap doing its job at line 601 instead of line 12,000.
+
+##### The frame — a docked screen is full screen, and the edge channel survives it
+
+*Decided by the project owner 2026-08-10. Nothing anywhere specified this: §12.24 step 5, this
+section, and `features.md` §3.4 are all silent, and the only "over the viewport" ruling in either
+document is §3.10's, which governs **flight** overlays. It applies to all seven screens at once, so it
+is settled here rather than seven times.*
+
+> **A docked screen takes the whole window. The viewport is not visible behind it, and the flight HUD
+> does not persist under it.**
+
+The docked and flight surfaces are not two views of one situation. Flying, the world *is* the
+interface and §3.10 fights for every pixel of it — *"the middle stays flyable."* Docked, there is
+nothing to fly, the player is standing in a facility, and the screen has ~50 Elements across 7 grades
+or a fifty-hardpoint rig to lay out. **Reserving a viewport nobody is steering, to shrink the one list
+the player came here to read, spends the space in the wrong place.**
+
+⚠️ **But full screen collides with a settled rule, and the collision has to be resolved here rather
+than discovered.** §3.4 does not pause while docked, §12.29 makes the system menu the only pause, and
+§3.4's own promise is that **you die with your facility.** A screen that hides everything makes that
+death a gotcha — which is the exact failure the mandatory per-screen `Gauge` was added to prevent, and
+the Gauge shows *one hardpoint*, not an inbound raid.
+
+**§3.10 already built the answer, for a different reason.** Its edge channel — hazard tint, sensor
+contacts, directional damage indicators — was placed at the screen edge precisely because it
+*"costs no layout."* A surface that costs no layout costs none here either:
+
+| Survives a docked screen | Why |
+|---|---|
+| **Directional damage indicators** | The station taking fire is the one fact that changes what the player should do next |
+| **Sensor contacts at the edge** | Module-gated exactly as in flight (§3.10) — a hull with no sensor sees nothing, docked or not |
+| **Hazard tint** | The host is in the same corona you are |
+| **The per-screen `Gauge`** | §3.4's mandatory readout, unchanged |
+| ❌ The viewport · the bottom band · the centre projection | Replaced by the screen |
+
+**So the docked frame is the flight frame with the middle swapped out**, not a different application.
+One consequence worth naming: **the edge channel is drawn by the router, once, around whichever screen
+is open** — never by the screens, which would be seven copies of it. That is the same argument that
+put row rendering in `ListView`.
+
+##### The set, and what is deliberately absent
+
+Each earns its place by consumers that exist in the same batch (§2.4, Law 11):
+
+| Widget | Consumers |
+|---|---|
+| **`PanelFrame`** — draws the bezel, returns the inner content `Rectangle` | All eight. Today every screen calls `DrawBracketPanel` and then invents its own padding |
+| **`ListView`** — scroll + select over `std::span<const Row>`, plus the **empty-state string** below | All eight. **Supersedes `InventoryGrid` and both of its clones** |
+| **`Button`** — the hit-test half `DrawChamferedButton` lacks | All eight — Buy, Sell, Repair, Merge, Delete, Queue, Switch, Undock |
+| **`TabStrip`** | The router itself; Market/Storage; Engineering's Merge/Refactor; Manufacturing's Queue/Draft |
+| **`Gauge`** — a labelled bar | §3.4's mandatory per-screen facility-health readout; job progress on Research and Manufacturing; `CockpitHud`'s existing hull bar |
+
+> ✅ **The set held for four screens and needed one field on the fifth.** §12.30.2–.5 added nothing;
+> §12.30.6's queue needs **per-row** progress, which the header `Gauge` cannot give — a queue of three
+> jobs showing one bar is not a queue. **`Row` gains `float fill = -1.0f`** (negative meaning none) and
+> `ListView` draws a fill behind the row when set. Two consumers exist in this batch — the Research
+> queue and Manufacturing's — so Law 11's tie-breaker is satisfied rather than anticipated. *Recorded
+> because it is evidence the set was scoped right, and because the remaining screens should be checked
+> against it rather than assumed to fit.*
+
+**Deliberately not built: a slider.** `RepairRequest::fraction` is the only continuous input in the
+entire set. One consumer is a dead abstraction (§2.4), so **repair ships as discrete buttons** and a
+slider lands with its second consumer. Recorded here so the omission reads as a decision rather than
+as an oversight.
+
+**`InventoryGrid` is deleted in the same commit**, not left beside `ListView`. Two implementations of
+one widget is the exact condition this section exists to end.
+
+##### `Row` is the type that fixes `StorageMenu`
+
+`storage_menu::Rows(const CargoHold&)` returns `std::vector<std::string>` — presentation baked into a
+pure function. It cannot be sorted, filtered, or grouped, and it will not survive `features.md`
+§2.10's roster: **~50 elements plus 8 Material families across 7 grades.**
+
+```
+shared/ui/Row.h    POD: { std::string label; std::string value; char glyph[3]; RowStyle style;
+                          float fill = -1.0f; }   // negative = no progress bar; §12.30.6
+```
+
+The `glyph` field is where `features.md` §3.9's settled **monogram placeholders** live — *"the same
+stand-in the build and buy menus already use"* — so the docked screens inherit §3.9's
+colour-is-condition / glyph-is-identity language rather than inventing a second one. `RowStyle`
+carries §3.9's integrity gradient and the disabled state §3.10's *degrade-never-remove* rule requires.
+
+**Grouping stays in the screen, not the widget.** A screen emits header rows; `ListView` renders what
+it is given. That keeps the widget dumb enough to serve a job queue, a bay roster, and a fifty-element
+manifest without branching on which it is.
+
+##### Empty is a row, never a blank panel
+
+*Settled 2026-08-10. Every screen in this batch has an empty case — a station hold with nothing in it,
+a rig with no damage, an empty bay, a queue with no jobs — and none of them said what it draws.*
+
+`features.md` §8.3's rule governs it directly: **absence must never look like emptiness.** A bare
+panel is indistinguishable from a panel that failed to load, from a filter that matched nothing, and
+from a screen that is still fetching — and the player cannot tell which without leaving and coming
+back.
+
+> **A `ListView` given no rows renders one row that says why there are none**, in `RowStyle`'s
+> disabled style: `NO ITEMS IN HOLD` · `NO DAMAGE TO REPAIR` · `NO VESSELS IN THIS BAY` ·
+> `NO JOBS QUEUED`.
+
+The string is the screen's, not the widget's — `ListView` takes it alongside the span, the same way
+grouping stays in the screen. **One field on the call, no branch in the widget**, and the empty case
+stops being the one state nobody specified and nobody tested. *It is also the cheapest possible fix
+for the class of bug where a screen looks broken because a component was never emplaced — which is
+§13.3 O and P's failure mode exactly, and both would have been visible in play on day one had this
+rule existed.*
+
+#### Scheduling — §13.5's group 4 splits
+
+§13.5 places the whole of group 4 *"after group 1."* **The widget layer is pure presentation over POD
+and has no dependency on group 1 at all** — no player, no world, no station. Like §12.28, it can land
+first and be verified by tests alone.
+
+| | Scope | When |
+|---|---|---|
+| **4a** | The widget layer · `UiInput` · `Row` · `InventoryGrid`'s deletion · the four hand-rolled row loops folded in | **Startable today** |
+| **4b** | The router · `PlayerLocation` · `AvailableTabs`'s signature · the seven screens · request placement · the facility content set | After group 1 |
+
+Landing 4a first is also what prevents the failure this section documents: seven screens written in
+parallel against no shared widget is how `InventoryGrid` came to have two verbatim copies before any
+of its consumers could be run.
+
+#### Tests — the widget layer and the router
+
+The pure half is testable headless today, with no window and no world:
+
+- `ListView` hit-testing maps a cursor position to a row index, and to none when the cursor is outside
+  the content rect or past the last row.
+- Scroll offset clamps at both ends and does not move when every row fits.
+- `PanelFrame`'s content rect is inset from its bounds and never inverted for a small panel.
+- `AvailableTabs` returns **all six** `FacilityKind`s when all six are present and living — §12.24's
+  existing regression test for the `kAllKinds` defect, now also asserting the **entity** each tab
+  names is the first living hardpoint of that kind.
+- A facility module authoring no `kind` **fails to load**, naming the file and key (Law 10).
+- Per-screen assertions are specified with each screen, but they share one shape, and it is the one
+  §12.24 names as *"the assertion the nine menus have never had"*: **the request a screen builds lands
+  on the docked requester and is consumed by its system on the following tick.**
+
+---
+
+#### 12.30.1 `PlayerLocation` is the source of truth; `PlayerControlled` is derived
+
+*Settled 2026-08-10. This amends §12.24 step 5's `PlayerLocation` bullet and step 1's planned
+`emplace<PlayerControlled>`. It is cheap now and expensive later — see the count below.*
+
+> ⚠️ **Amended by §12.30.3 later the same day, on one point this section did not reach.** Deriving
+> `PlayerControlled` from `PlayerLocation` is right, and everything below stands. But the player's
+> **`FactionId` currently lives on the rig root they control**, so the derivation also moves the
+> player's *identity* into whatever hull they are standing in — and at a foreign station that hull
+> belongs to someone else. `DiscoverySystem.cpp:13` and `ConstructionSystem.cpp:15` both read it that
+> way today. **Identity is not location**, and the fix is that the player's `FactionId` moves onto the
+> player record rather than being read off an occupied hull. It is not reachable until the docking
+> gate widens (§12.30.3), and lands with it.
+
+§12.24 introduces `PlayerLocation { entt::entity shell; }` alongside an existing `PlayerControlled`
+tag on a rig **root**. Two components naming "where the player is" is finding §13.3 C's shape
+(`MountedModules` vs. `EquippedModule`) waiting to happen, and it would break in the worst place:
+§3.4's death predicate evaluates `PlayerLocation`, while the camera, the HUD and every input path
+follow `PlayerControlled`. Let them disagree once and the player dies while the screen shows a
+healthy hull.
+
+> **`PlayerLocation.shell` is the only thing ever written. `PlayerControlled` is the rig root that
+> shell belongs to, derived — never emplaced by gameplay code.**
+
+**The migration is one line.** Verified 2026-08-10: `PlayerControlled` appears at **30 sites across
+20 files, and exactly one of them writes it** — `SpaceFlight.cpp:120`, in `WarpToSystem`. Every other
+site is a `view` or an `exclude`. So the change is: delete that write, add the derivation, and leave
+twenty-nine readers untouched. §12.24 step 1's planned `emplace<PlayerControlled>` becomes an
+`emplace<PlayerLocation>` naming the spawned rig's cockpit hardpoint.
+
+*`Identity.h` already documents the intent this formalises:* `PlayerControlled` is *"exactly one per
+registry, and it **moves** rather than duplicating when the player transitions to a capital's
+Bridge."* It has always been derived data; nothing has ever derived it.
+
+##### Three consequences, all verified against the code
+
+**1 — While docked in a facility, the player controls the *station*.** `Docked` sits on the vessel's
+root; `PlayerLocation` sits on a station hardpoint; the derived `PlayerControlled` is therefore the
+station. This is correct per §3.4 — *"docking places the player in the docking bay, alongside the
+vessel they arrived in"* — and the station is unflyable for the reason §12.25 made emergent: it has
+no `Propulsion`. **No gate is needed; capability is already emergent.**
+
+**2 — `CockpitHud` silently changes what it measures, and must say so.**
+`cockpit_hud::Draw` views `PlayerControlled` and renders `AggregateHullFraction` of that root. Docked,
+that is the **station's** aggregate rather than your vessel's. That is the right number — §3.4 says
+you die with your facility, so the station's integrity is exactly what you need to watch — but an
+unlabelled bar that changes subject is `features.md` §8.3's *"absence must never look like
+emptiness"* in miniature. **The bar carries the name of what it measures**, and the Bay screen shows
+your own vessel's integrity separately.
+
+**3 — `LootSystem` sweeps loot into whatever hull you are standing in, and that sharpens an existing
+defect rather than creating a new one.** `FindCollectorInRange` views
+`PlayerControlled, WorldTransform, CollisionRadius`. Docked, the collector becomes the station — with
+a station's much larger `CollisionRadius` — so drifting loot lands in the station's `CargoHold` and
+credits in a `Wallet` that `get_or_emplace` creates on it. At a station you own that is defensible.
+**At a foreign station you are giving them your salvage.**
+
+The fix is not a special case here. §13.1 already scores `LootSystem` as ⚠️ *"NPCs cannot loot"* —
+`PlayerControlled` is being used as a proxy for *"a collector"*, and it is the wrong predicate.
+Widening the view to any rig carrying a `CargoHold` dissolves this interaction and fixes the recorded
+defect in the same edit: a station collects because it is a collector with a hold, not because the
+player happens to be standing in it.
+
+#### 12.30.2 Screen 1 — the Bay
+
+**Gate:** a living `FacilityKind::Docking` hardpoint. **Tab resolves to** `Docked.bay` on arrival,
+with a sibling-bay selector behind it. **This is the default `PlayerLocation`** — the screen the
+player lands on, and the only one that cannot be absent from a station they can dock at.
+
+##### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Bay name · **occupancy `3 / 4`** · this bay hardpoint's integrity `Gauge` (§3.4's mandatory readout) |
+| **Sibling selector** | `TabStrip`, one entry per living Docking hardpoint on the host. Absent when there is one bay |
+| **Roster** | `ListView` over `view<Docked>` filtered on `docked.bay == thisBay` |
+| **Footer** | The verb buttons for the selected row |
+
+Each roster `Row` carries the vessel's name in `label`, its integrity in `RowStyle` (§3.9's gradient,
+so a damaged hull reads as damaged in the list itself), and its `BlueprintId` monogram in `glyph`.
+**Your own vessel is a row like any other**, marked as yours rather than pulled out into a special
+panel — it is the row you press *Launch* on.
+
+##### The verbs
+
+| Row is | Verb | Mechanism | Blocked on |
+|---|---|---|---|
+| A hull you own | **Board** | `PlayerLocation.shell` ← that hull's cockpit hardpoint. **One write.** The derived `PlayerControlled` follows | — |
+| The hull you occupy | **Launch** | `UndockRequest` on it — `AvionicsMenu`'s existing path, unchanged | — |
+| A hull you do not own | **Ask to purchase** | A buy against a *vessel*: `BuyItemRequest` carries a `ModuleId`, so this needs §12.19's `ItemId`/`ItemKind` | §12.19 |
+| A hull you do not own | **Ask to escort** | A UI-emitted intent consumed by `PartySystem` | §12.27 |
+
+**Boarding and switching ships are the same operation as taking a capital's bridge** (§12.24 step 5).
+Nothing is added for it; the Bay screen is simply the surface where the operation is offered against
+a *hull* rather than against a facility tab.
+
+⚠️ **`R` while docked means "board and launch," and that is two writes behind one key.** §3.6 binds
+dock/undock to `R`. Standing in a facility, the player's derived `PlayerControlled` is the station,
+which is not `Docked` — so a naive `UndockRequest` on it does nothing. The binding resolves as:
+`PlayerLocation` moves to the selected hull's cockpit, *then* `UndockRequest` lands on that hull.
+**`AvionicsMenu` keeps the key and gains the first half**; it does not move into this screen, because
+it is the one gameplay input in the repository that already works end to end and §13.5's deferral
+warning applies to breaking working paths as much as to inventing producers.
+
+##### Capacity is enforced in the search, not at the handoff
+
+*This is the non-obvious half, and it removes a stranding bug before it exists.*
+
+**`FacilityStats::capacity` gets its first reader here.** §13.3 K records it as parsed and read by
+nobody — *"docking bays have unlimited capacity"* — while `docking_bay_i` authors `capacity: 4`.
+**A dead field acquires a consumer without a new type being invented**, which is the outcome §2.4
+exists to produce.
+
+`DockingSystem::UpdatePromptsAndRequests` recomputes `FindEligibleBay` **every tick, for every rig**,
+and `DockPrompt`'s own contract is that it disappears the moment the bay stops qualifying — *"a rig
+that drifts away must stop prompting the same tick it leaves, not linger."*
+
+> **A full bay is not an eligible bay.** `FindEligibleBay` skips any `DockingBay` whose occupancy has
+> reached its `FacilityStats::capacity`, exactly as it already skips one out of range or of the wrong
+> faction.
+
+Refusing at the handoff instead would strand an inbound NPC whose target bay filled while it was
+flying: it holds a `DockRequest` against a bay that will never accept it. Filtering in the search
+means the same NPC simply stops seeing that bay and `FindEligibleBay` returns the next nearest —
+**re-routing rather than refusing, with no retry logic and no special case**, because the search is
+already per-tick. The prompt vanishing *is* the player-facing feedback, and it needs no new UI.
+
+⚠️ **Occupancy must be counted once per tick, not once per candidate.** Counting inside
+`FindEligibleBay` is O(rigs × bays × docked). Build a bay→count map at the top of
+`UpdatePromptsAndRequests` and pass it in. Bays are few and §1.1 caps the registry at 20 000, so this
+is not urgent — it is written down because the cheap version is the one that gets typed at 2am.
+
+**`capacity: 0` keeps meaning unlimited**, matching `CargoHold::capacity`'s existing convention so
+one number does not mean two things in two components. `docking_bay_i` authors `4`.
+
+##### Types
+
+- **`PlayerLocation { entt::entity shell; }`** — §12.24 step 5's component, now the sole source of
+  truth per §12.30.1.
+- **Nothing else.** The roster is `Docked`, the occupancy is `FacilityStats::capacity`, the sibling
+  list is `AvailableTabs`. **No new component for the Bay screen**, which is the test §2.4 sets.
+
+##### Systems
+
+`DockingSystem` gains the capacity filter and nothing else. The purchase and escort verbs emit into
+systems that already exist (`StationServicesSystem` once §12.19 widens the request; `PartySystem`
+once §12.27 supplies membership) — **this screen owns no system of its own.**
+
+##### Tests
+
+- A bay at `capacity` produces no `DockPrompt` for a rig in range; the same rig prompts again the
+  tick a docked vessel launches.
+- `capacity: 0` never blocks.
+- An inbound rig whose nearest bay fills mid-flight prompts for the **next** eligible bay rather than
+  holding a dead `DockRequest`.
+- The roster lists exactly the rigs whose `Docked.bay` is this bay — not the station's other bays.
+- Boarding writes `PlayerLocation` and nothing else; the derived `PlayerControlled` moves with it, and
+  exactly one rig root satisfies it afterwards.
+- Destroying the bay hardpoint the player occupies kills the player while the station survives —
+  §12.24's existing §3.4 assertion, now with a screen that was showing its integrity beforehand.
+- `R` while standing in a facility launches the selected owned hull; `R` with no owned hull in the
+  bay does nothing rather than emitting a dead `UndockRequest`.
+
+##### Escort requests are refusable, and the roll must be sticky
+
+*Settled 2026-08-10.* **Acceptance is a chance, weighted by faction relation.** Not a gate — a hostile
+pilot should be *unlikely* to join rather than mechanically forbidden, which is what makes the ask
+worth making.
+
+| Input | Source |
+|---|---|
+| Faction relation between asker and asked | `core::diplomacy::DiplomacyMatrix` — **zero writers today**, `ctx.diplomacy` is `nullptr` (§12.24 step 6) |
+| The asker's standing | `ctx.reputation` — the same step-6 pointer |
+
+**The roll happens in `PartySystem`, never in the menu** (Law 9). The Bay screen emits the intent;
+the system consults the two pointers, rolls, and either emplaces `PartyMember` or records a refusal.
+
+⚠️ **A refusal must be remembered, or the chance means nothing.** A re-rollable answer is a button
+the player mashes until it succeeds, which is the same objection that ruled out silently accepting
+every request. **The answer is sticky per (asker, asked)** until the input that produced it changes —
+i.e. until the relation moves. This is the half that gets forgotten, so it is written down before the
+verb is built rather than found in play.
+
+**This is what `DiplomacyMatrix` has been missing.** §13.2 records it as having zero writers and one
+reader — *"the exact failure `features.md` §5.3 was written to prevent."* An escort roll is a real
+gameplay consumer of a relation value, which is more than the matrix has today. It does not fix the
+writer half; it does mean step 6 unblocks something a player can see.
+
+⚠️ **The escort verb is a legitimate producer for `PartySystem`, and this needs saying plainly.**
+§13.5 defers `PartySystem` because `PartyLeader`/`PartyMember` have zero producers, and warns:
+*"do not 'fix' them by inventing a producer in the system itself."* A **UI-emitted intent consumed by
+the system** is the shape that warning points *toward*, not away from — the same shape
+`AvionicsMenu` → `DockRequest` → `DockingSystem` already has, and the only shape that satisfies Law 9.
+
+**Depends on:** §12.24 step 6 (both pointers) and §12.27 (`PartySystem` membership). **Ships with
+§12.27, not before** — a refusal model that consults `nullptr` would refuse everything unconditionally,
+which is precisely `TemplateMarketSystem`'s current failure (§13.1).
+
+##### A parked hull stays where you parked it — and something has to remember it exists
+
+*Settled 2026-08-10.* Two ways to fly a hull you left behind, and no third:
+
+1. **Go and get it.** Physically return to that docking bay and Board it.
+2. **Crew it.** Assign a `Crew` module and it becomes an asset an operator or commander flies for you.
+
+**This is not new design — it is the consumer `features.md` §2.7 predicted and never had.** §2.7's
+open block states the player's crew modules matter *"only for work they delegate: commanders running
+fleets elsewhere, and **NPC pilots flying vessels the player owns but is not sitting in**."* That
+sentence had no mechanism behind it. This is the mechanism.
+
+It also keeps the fleet honest: there is **no remote recall, no fleet teleport**, so parking a hull is
+a real decision with a real cost, which is what §3.4's "protection by circumstance, never by rule"
+asks of every other choice in the game.
+
+**Blocked on `ModuleKind::Crew`, which does not exist** — §13.3 Z records **zero occurrences of
+"crew" anywhere in `src/`**, and four settled designs already wait behind it. The *Board* half ships
+without it; the *crew it* half does not.
+
+⚠️ **And parking a hull deletes it today.** Verified 2026-08-10: `SpaceFlight::WarpToSystem` does
+`world_ = SystemWorld(targetSystemId)` — *"nothing survives this line except what was captured
+above"* — then re-generates the destination with `PopulateSystem`. The only things carried across are
+the player's `CargoHold`, `Wallet`, and demoted `DeathWreck`s via `wreckLedger_`. **A hull left in a
+bay is destroyed by the move-assignment and never comes back.**
+
+The fix is a fourth instance of a pattern this codebase already runs three times:
+
+| Record | Demotes | Promotes |
+|---|---|---|
+| `core/galaxy/WreckRecord` + `WreckLedger` | ✅ built — `CollapseDeathWreck` | ✅ `PromoteDeathWreck`, keyed by system id |
+| `core/galaxy/ResearchRecord` | ✅ built (§12.1) | ✅ |
+| `core/galaxy/ManufacturingRecord` | 📋 §12.18 | 📋 |
+| **A parked-hull record** | 📋 **this section** | 📋 |
+
+Same shape, same directory, same reason: **a thing must not silently vanish because the player warped
+away.** `WreckLedger::IdsForSystem` is the exact query a parked-hull ledger needs, so the promotion
+half is a copy of a path that works.
+
+##### The record needs a capability the codebase does not have
+
+ð **A hull left behind is destroyed by the world teardown, and so is the player's own damage.**
+`WarpToSystem` re-spawns the player from their `BlueprintRef`, so every jump is a free full repair and
+a full loadout rollback. Recorded as finding Â§13.3 AC and **specified in Â§12.31** â which also settles
+that the state form must *not* be a `ShipBlueprint`.
+
+**Four features wait on that one capability**, so it is scoped there rather than special-cased here:
+parked hulls, warp damage persistence, cross-system refit (`features.md` Â§2.7), and Â§13.3 Y's world
+save. **None of it blocks this screen** â Board and Launch against hulls in the *current* system need
+none of it.
+
+#### 12.30.3 Screen 2 — Market and Storage
+
+*Settled 2026-08-10. Every claim below was verified against `src/` by grepping for readers and
+callers. **It revises two same-day decisions** — the tab key in §12.30, and one consequence of
+§12.30.1 — and both revisions are marked where they occur. It also settles the deposit/withdraw
+ownership question §12.30 left open.*
+
+**Gate:** **Market** — a living `FacilityKind::Trade` hardpoint. **Storage** — the host carrying a
+`CargoHold`, and no hardpoint at all. One tab, two verb pairs, per §12.30's split: *one hold, two
+questions.*
+
+##### 🐛 The premise of this screen is unreachable: docking is same-faction-only
+
+*Verified 2026-08-10, and it is the finding that governs everything below.*
+
+`DockingSystem::FindEligibleBay` (`DockingSystem.cpp:38`) rejects any bay whose root's `FactionRef`
+does not equal the seeking rig's:
+
+```
+const auto* stationFaction = registry.try_get<FactionRef>(parent.root);
+if (stationFaction == nullptr || !(stationFaction->id == faction)) { continue; }
+```
+
+The function's own comment says so plainly — *"belonging to a different, same-faction rig."* **You
+can dock only at stations of your own faction.** Two settled sections say otherwise:
+
+- §12.10 defines this whole surface as *"docking anywhere, including a station they do not own —
+  ordinary commerce, not fleet command."*
+- `features.md` §5.3 settles docking as a **relation-band** effect: Allied *"shared docking"*,
+  Friendly *"docking permitted"*, **Distrustful *"docking refused"***. A band table with six rows
+  cannot be implemented by an equality test with two outcomes.
+
+And `features.md` §5.10 settles that **the player starts as an independent rogue operator** — *"not
+a faction, not a member of one."* An equality gate against a rogue operator's own id admits exactly
+the stations that operator built.
+
+> **The faction-equality test becomes a relation-band test**, refusing at Distrustful and below.
+> That is a **§12.24 step 6 consumer** — it reads `ctx.diplomacy`, which is `nullptr` today — and it
+> is the same widening `TargetingSystem` needs for finding §13.3 N. **Both should land in one pass**,
+> because they are the same predicate asked in opposite directions: *may I dock* and *may I shoot*.
+
+⚠️ **Until it lands, Market is reachable only at stations you already own**, which is the least
+interesting of the four ownership cases below, and **Storage is reachable everywhere you can dock.**
+That is the reverse of the useful order, and it is why this screen's two halves are scheduled apart.
+
+*This also dates two forward-looking notes elsewhere in this document. §12.30.1's third consequence
+— "at a foreign station you are giving them your salvage" — and the ownership inversion recorded
+below both describe states that **cannot be reached today**. They are correct about what happens once
+the gate widens; neither is a live defect until it does.*
+
+##### The ownership answer: whose hold is it?
+
+*This is the question §12.30 marked and did not answer: depositing into a station's hold, when that
+same hold is what others buy from, is not obviously right.*
+
+`features.md` §5.0 has already settled the half that decides it — **"stock is held per *station*, not
+per faction and not per system"**, and a station's stock dies with the station. So the station's
+`CargoHold` is not a warehouse with tenants. It is **one owner's inventory**, and that owner is the
+`FactionRef` on the station's rig root, which `ConstructionSystem` stamps from the builder
+(`ConstructionSystem.cpp:33`).
+
+> **A transfer within one owner is free, and is called deposit. A transfer across an ownership
+> boundary costs credits, and is called trade. The station's `CargoHold` has exactly one owner; which
+> pair of verbs you are offered is decided by whether that owner is you.**
+
+| Station's `FactionRef` | Living `Trade` hardpoint | Verbs offered |
+|---|---|---|
+| Yours | Yes | **All four.** You stock your own shop, and it sells |
+| Yours | No | **Deposit · Withdraw.** A warehouse that does not deal |
+| Not yours | Yes | **Buy · Sell.** A broker |
+| Not yours | No | **None** — the tab does not appear |
+
+**Depositing into your own station's hold *is* stocking your own shop, and that is the feature, not a
+leak.** It is the first concrete economic action on `features.md` §5.10's player-as-faction path, and
+it is what makes a player-built trading post a thing that can run dry.
+
+⚠️ **A per-visitor rented locker was considered and rejected.** Three reasons, in weight order:
+
+1. **It needs a hold keyed by owner on the station** — a second granularity for a concept §5.0
+   settled as per-station, which is the `MountedModules`/`EquippedModule` shape (§13.3 C) arriving
+   for the fourth time.
+2. **§5.0's "destroy a station and its stockpile goes with it" would have to except it**, or the
+   player's stored goods die with a station they do not control. The first is a special case in the
+   one rule that gives blockades teeth; the second is a feature nobody asked for.
+3. **Multiplayer multiplies it per client**, and Law 9 would then have every client's locker in one
+   component on a shared entity.
+
+Recorded so the omission reads as a decision.
+
+##### Layout
+
+**One screen, two holds, and the verb is the direction of transfer.** Buy is station → you with
+credits; Sell is you → station with credits; Deposit is you → station for nothing; Withdraw is the
+inverse. Four verbs, one mechanic — which is why they are one screen rather than the two sections
+§12.30's inventory table names.
+
+| Section | Contents |
+|---|---|
+| **Header** | Station name · **owner** · the `Trade` hardpoint's integrity `Gauge` (§3.4's mandatory readout) · your credits |
+| **Left `ListView`** | Your vessel's hold |
+| **Right `ListView`** | The station's hold |
+| **Footer** | The verb buttons for the selected row, enabled per the table above |
+
+Each `Row` carries: **`glyph`** — the periodic abbreviation for an Element (`Fe`, `Ir`, `Xe`), the
+monogram placeholder for anything else. `features.md` §2.10 chose real elements partly for *"free
+icons — the periodic abbreviation"*, and this is the surface that spends them, so §3.9's
+**glyph-is-identity** rule arrives with real glyphs rather than placeholders on at least one axis.
+**`label`** — display name. **`value`** — quantity, and unit price when the Trade gate is live.
+**`RowStyle`** — disabled, with the reason, when the row's verb is unavailable: `NO TRADE FACILITY`,
+`HOLD FULL`, `CANNOT AFFORD`. That is `features.md` §3.10's *degrade-never-remove* rule applied per
+row rather than per button.
+
+**Grouping stays in the screen** (§12.30). The Market emits header rows by `ItemKind`, then by
+Material family — because `features.md` §2.10's roster is **~50 Elements plus 8 Material families
+across 7 grades**, and an ungrouped flat list of that is the exact failure `storage_menu::Rows`
+returning `std::vector<std::string>` was flagged for.
+
+##### The verbs
+
+| Row is | Verb | Mechanism | Blocked on |
+|---|---|---|---|
+| In the station's hold, `Trade` living, not yours | **Buy** | `BuyItemRequest` on **the vessel root** | §12.19 · `Pricing.h` |
+| In your hold, `Trade` living, not yours | **Sell** | `SellItemRequest` on the vessel root | §12.19 · `Pricing.h` |
+| In your hold, station is yours | **Deposit** | `TransferItemRequest{ toStation = true }` | §12.19 |
+| In the station's hold, station is yours | **Withdraw** | `TransferItemRequest{ toStation = false }` | §12.19 |
+
+⚠️ **The request lands on the entity carrying `Docked`, which is *not* the entity the player
+controls.** `StationServicesSystem::DockedStation` reads `Docked` off the requester and bails on
+`entt::null`. Under §12.30.1 the player's derived `PlayerControlled` while docked is **the station**,
+and a station carries no `Docked` — so **a screen that places its request on `PlayerControlled` trades
+nothing, silently.** There is no log, no refusal, and no failing test today. The requester is the
+**vessel root the player arrived in**, and §12.30.2's Bay roster is where that hull is identified.
+This trap is worth one assertion in every screen that places a request (§12.30's shared test shape).
+
+##### Price is computed by the system. The request must not carry one.
+
+*This revises `StationServices.h`'s current shape, and the reason is Law 9 rather than convenience.*
+
+`BuyItemRequest { ModuleId module; int cost; }` — **`cost` is supplied by whoever builds the
+request.** `station_services_menu::BuildBuyRequest(module, cost)` takes it as a parameter and the
+system spends exactly what it is handed (`StationServicesSystem.cpp:45`). The header is candid about
+why: *"supplied already-resolved rather than looked up from a price registry."*
+
+> **A menu that names its own price is a menu that can name zero.** Under Law 9 the UI states an
+> intent — *buy three of this* — and the system decides what that costs. A request carrying a price
+> is a client-authoritative wallet write wearing an intent's clothes.
+
+**So `cost` and `value` are deleted rather than filled in**, and the request carries `item` and
+`quantity` only. `StationServicesSystem` calls the same pure pricing function the screen calls to
+*display* — one function, two callers, no trust:
+
+```
+core/economy/Pricing.h        free functions beside FactionEconomy, sr_core, no raylib
+
+int BaseValue(ItemId, const ContentLibrary&);        // features.md 2.10: derived from the recipe,
+                                                     // one credit per unit of any Element
+int LocalPrice(ItemId, int quantity, const CargoHold& stock, const ContentLibrary&);
+```
+
+> ⚠️ **Both signatures are superseded by §12.19** (later the same day), and the reason is that an
+> `ItemId` names a *design*: the recipe's size is a function of **grade**, and base value gains a
+> **quality** term without which the settled no-spread rule below becomes a free reroll machine.
+> They become `BaseValue(const ItemInstance&, …)` and `LocalPrice(const ItemInstance&, int quantity,
+> …)`. **Everything this subsection argues is unchanged** — the drawdown walk, the quantity rule, the
+> absent spread — with one clause added: the drawdown is walked over the **price key** `(ItemId,
+> Grade)`, which is deliberately coarser than the stack key. See §12.19.
+
+Three properties this has to hold, all of them already settled elsewhere:
+
+- **Nothing is stored or ticked** (`features.md` §5.0 rule 4). `LocalPrice` is a pure function of one
+  ledger, so a galaxy of any size costs nothing to price.
+- **Scarcity is read off the station's own hold**, which is the whole reason §12.30 made the
+  `CargoHold` the storage capability. Buying draws the hold down and the price up; selling does the
+  inverse. **A shop with infinite stock has no local price.**
+- **`LocalPrice` prices a *quantity*, never a unit — and that is not a convenience signature.**
+  If the price is a function of stock, and the screen offers `1` / `10` / `All`, then computing a spot
+  price and multiplying makes **one buy-of-ten strictly cheaper than ten single buys**: every unit is
+  charged at the *pre-purchase* price instead of walking the curve down. Selling is biased the same
+  direction — a naive sell-of-ten pays the pre-sale spot for all ten, while ten single sells each
+  depress the next. **Bulk wins in both directions**, so the exploit is not *buy in bulk*, it is
+  *never transact in more than one click.*
+
+> **The price of a transaction depends on what moved, never on how many clicks it took.** `LocalPrice`
+> walks the drawdown and returns the total, so bulk and repeated singles are identical by
+> construction — there is nothing to discover and no anti-exploit rule to write.
+
+Three things follow, and all three are wanted:
+
+- **It self-scales.** Against a hold of 10,000, buying 10 barely moves the curve and the two paths
+  agree to rounding. The divergence bites only when a trade is a real fraction of local stock — which
+  is exactly when a small station's market **should** feel small. The texture arrives with no number.
+- **It makes the no-spread rule below exact rather than approximate.** Buying ten and selling them
+  back walks the same path in reverse and nets **precisely** zero. Under spot × quantity it nets a
+  small profit, which is a money printer with no authored cause.
+- ⚠️ **Accumulate in float and round once, at the end.** Rounding per unit reintroduces the divergence
+  at a few credits per transaction, which is small enough to survive review and large enough to be
+  found in play.
+
+*This is also why `AffordableModules(stock, credits, pricePerModule)` is wrong in its **signature**
+rather than merely in its body: a flat per-unit price is the naive version written into a type.*
+- **There is no authored buy/sell spread.** One price per item per station, and it moves as the hold
+  moves. A spread would be a second tuning number doing what the scarcity curve already does, and
+  §2.10's whole pricing argument is that **prices are derived outputs**. Buying and selling the same
+  unit at the same station nets zero, which is correct: profit comes from carrying goods **between**
+  stations, not from a margin someone typed.
+
+⚠️ **`features.md` §5.3's reputation modifier — Allied *"trade discounts"*, Neutral *"standard
+prices"* — is a third input, and it reads `ctx.diplomacy`.** It ships as identity until §12.24 step 6,
+the same dependency as the docking gate above. **State the omission in the header**, or a Market that
+never discounts reads as a tuning failure rather than a missing pointer.
+
+⚠️ `station_services_menu::AffordableModules(stock, credits, pricePerModule)` **is deleted with
+them.** Its own comment concedes what it is: *"price is flat per module, so every item in stock is
+equally affordable or none are; there is no per-item cutoff."* It is a pure, unit-tested function
+whose entire content is the absence of pricing, and once `LocalPrice` exists the screen disables an
+unaffordable row directly.
+
+##### Capacity is enforced on every write, and this is the fourth writer that ignores it
+
+*Verified 2026-08-10.* `CargoHoldHasRoomFor` has **exactly one caller in the tree** —
+`RefactorSystem.cpp:78`. The other four writers of a `CargoHold` (`StationServicesSystem`,
+`LootSystem`, `EngineerSystem`, `ModuleEquipSystem`) push unconditionally. **Buying into a full hold
+succeeds today**, and so does selling into a full station.
+
+That was survivable while nothing could trade. It is not survivable now, because §12.30 made the
+finite hold the substrate the price curve is computed against — an overflowing hold is a hold whose
+quantity no longer means anything.
+
+> **Every transfer checks the destination and is refused whole, never partially applied** — the
+> all-or-nothing contract `FactionEconomy::Spend` already documents and `features.md` §5.0's
+> `Deposit`/`Withdraw` API repeats.
+
+**And the refusal is visible before the click**, not after: the screen disables the row with
+`HOLD FULL` (§3.10's degrade-never-remove). The system refuses anyway, because the UI is not
+authority — the same two-sided discipline §12.30.2 applies to bay capacity, where the search filters
+and the handoff still validates.
+
+⚠️ **`FacilityStats::capacity`'s comment says *"Docking bays, storage slots."*** The storage half is
+now dead: under §12.30 the hold **is** the storage capability, so `CargoHold::capacity` is the number
+and a facility has nothing to say about it. §12.30.2 gives the docking half its first reader; **the
+comment loses its second clause in the same edit**, before someone implements a facility-gated slot
+count that nothing was ever going to read.
+
+⚠️ **And `CargoHold` is neither a count nor one component — §12.23 moves it onto the cargo bays.**
+The code checks list entries today (`CargoHoldEntryCount` returns `modules.size() +
+materials.size()`), `features.md` §2.11 authors **`slotCount` stacks of `slotCapacity` mass each** per
+bay, and §12.23 settles that the hold is a component on each bay hardpoint with the rig-level hold as
+a *view*. `CargoHoldEntryCount` and `CargoHoldHasRoomFor` are deleted in favour of
+`shared/rig/CargoView.h`.
+
+**This screen is where it is visible three times.** `HOLD FULL` must be evaluated against the mass of
+*the quantity being bought* — the `1` / `10` / `All` buttons make three answers out of one row; there
+is a **second** disabled reason, `NO FREE SLOT`, when the hold has mass to spare and no slot for a new
+item type; and the finite station hold that makes `LocalPrice` meaningful is finite because of the
+bays the station was **built** with, which retires this section's own *"it also needs a non-zero
+`capacity`"* note below.
+
+##### A hold is one list, not two — and modules do not stack while materials do
+
+*Found while scoping the row model, verified 2026-08-10.*
+
+```
+struct CargoHold {
+    std::vector<ModuleId>     modules;
+    std::vector<MaterialStack> materials;   // { std::string materialId; int quantity; }
+    int capacity = 0;
+};
+```
+
+Three defects fall out of the split, and every one of them lands on this screen:
+
+1. **Half the hold cannot be traded at all.** `BuyItemRequest` and `SellItemRequest` carry a
+   `ModuleId`, and `ProcessSellRequests` searches only `sellerCargo->modules`. **The half
+   `MiningSystem` fills is the half the Market cannot touch** — which is the same unreachability
+   §13.3 B records for mining, arriving from the other end.
+2. **The two halves stack inconsistently.** `LootSystem` merges a `MaterialStack` by id
+   (`LootSystem.cpp:21`) while buying pushes a duplicate `ModuleId` per unit
+   (`StationServicesSystem.cpp:47`). Buying three of the same module makes three rows; mining three
+   iron makes one. **One hold, two stacking rules, and the row list is where a player sees it.**
+3. **Every consumer already treats them as one list.** `CargoHoldEntryCount` sums both sizes;
+   `storage_menu::Rows` concatenates them; capacity counts them together.
+
+> **After §12.19's `ItemId` and §13.5 group 2b's Element/Material rename, `CargoHold` holds one
+> `std::vector<ItemStack>` keyed on ~~`ItemId`~~ the whole `ItemInstance`.** Two parallel lists for
+> one concept is finding §13.3 C's shape, and this is its fourth instance in the audit.
+
+> ⚠️ **The key is widened by §12.19.** Keyed on `ItemId` alone, a Mythic-rolled cannon and a Common
+> one stack and the hold forgets which is which. **Two units stack when they are indistinguishable** —
+> same id, grade, attributes, mass and `Quality` — which collapses Elements always (the case this
+> subsection cared about, and the one that produced hundreds of single-unit rows), collapses
+> Materials per production run, and correctly never collapses a rolled module. One rule, three
+> outcomes, no uniformity forced.
+
+**It also fixes the row explosion by itself**: uniform stacking is what keeps ~50 Elements and 8
+Material families across 7 grades from becoming several hundred single-unit rows.
+
+##### 🐛 The tab cannot be keyed on `FacilityKind`, and Storage is the case that proves it
+
+*This revises §12.30's fix for its own tab defect, one section after that fix was written.*
+
+§12.30 corrects `AvailableTabs` to return `{ FacilityKind kind; entt::entity hardpoint; }` so the
+router can set `PlayerLocation` from the tab it draws. **That signature cannot express the Storage
+tab.** Storage is gated on a *component*, not a kind, and §12.30 itself settles that it *"stands
+alone on a station with a `CargoHold` and no `Trade` hardpoint."* Such a tab has **no `FacilityKind`
+and no hardpoint entity**, and §3.4's mandatory per-screen readout has nothing to measure.
+
+**Fix — the tab is keyed on the screen, not on the kind:**
+
+```
+struct Tab { ScreenId screen; entt::entity hardpoint; };   // hardpoint may be entt::null
+```
+
+`ScreenId` is the router's dispatch key and has seven consumers the day it lands, so it is not §2.4's
+dead abstraction; `FacilityKind` stays what it has always been — a property of a *module*. Most tabs
+still derive one-to-one from a living facility hardpoint, exactly as before.
+
+**And the readout still has a subject.** For a hardpoint-less tab the `Gauge` shows the **station's
+aggregate integrity** rather than a hardpoint's, which `CockpitHud::AggregateHullFraction` already
+computes. That is not a fallback — it is the correct predicate: **the Gauge always measures what
+kills this capability**, and a storage hold dies with the station rather than with any one hardpoint.
+The rule reads identically for every screen and needs no branch on which one it is.
+
+*§12.30's own dedupe test widens with it: `AvailableTabs` returns all six facility-derived tabs when
+all six kinds are present and living, **plus** a Storage tab on any host with a `CargoHold`, and the
+Storage tab names `entt::null`.*
+
+##### ⚠️ Whose faction is it? — an amendment to §12.30.1
+
+*The ownership table above asks one question — "is this station's `FactionRef` yours?" — and the
+codebase cannot answer it once §12.30.1 lands.*
+
+The player's `FactionId` lives on **the rig root they control** (`RigFactory.cpp:120`;
+`SpaceFlight.cpp:84` reads it off `player` to carry it across a warp). §12.30.1 settles that while
+docked, the derived `PlayerControlled` is **the station**. So at a foreign station, *"my faction"*
+reads off a hull the player does not own, and **every identity test in the game inverts.**
+
+**This has a named reader today, not a hypothetical one.** `DiscoverySystem.cpp:13` views
+`<PlayerControlled, FactionRef>` and credits discovery to that faction; `ConstructionSystem`'s
+`RequesterFaction` (`ConstructionSystem.cpp:15`) reads it off the requester and stamps it on
+everything built. Docked in a Zenith station, the player would explore and build under Zenith's flag.
+
+> **Identity is not location.** `PlayerLocation` answers *where the player is*, and §12.30.1 is right
+> that it should be the only writer of that. It cannot also answer *who the player is*, because a
+> player standing in a bay may own none, one, or three of the hulls parked there — ownership is not
+> derivable from position in either direction.
+
+**The player's `FactionId` moves off the occupied hull and onto the player record** — the lazily
+created singleton §12.24 already settled as the home for player-scoped state, on the `CommsLog`
+precedent. Reads of `FactionRef` **for identity** (`DiscoverySystem`, `ConstructionSystem`'s
+requester, this screen's ownership test, §12.30.2's *"marked as yours"*) resolve against that record.
+Reads of `FactionRef` **for a hull's allegiance** — `TargetingSystem`, `DockingSystem`'s gate,
+`ContractSystem`'s kill credit — are unchanged and correct as they are.
+
+**It is cheap now and expensive later, for the same reason §12.30.1 itself gave**: there are three
+identity readers today and every screen in this batch adds one. It is not reachable until the docking
+gate widens, so **it lands with that widening**, not before.
+
+##### Types
+
+- **`BuyItemRequest` / `SellItemRequest`** — `ModuleId module` → **`ItemId item`**, gain
+  **`int quantity`**, and **lose `cost` / `value`** entirely (Law 9, above).
+- ⚠️ **§12.19 amends the payload: a request names an `ItemInstance`, not an `ItemId`.** Under the
+  stack rule above a hold may carry two stacks of one id at two grades or two rolls, so an id does
+  not identify what the player clicked. The intent is *"trade ten units matching this"*, the system
+  finds the stack, and nothing needs a row index that a same-tick sibling request could invalidate.
+  This applies identically to `TransferItemRequest`, `DeconstructModuleRequest` (§12.30.5) and
+  `StartResearchRequest` (§12.30.6).
+- **`TransferItemRequest { ItemId item; int quantity; bool toStation; }`** — new, in
+  `shared/components/StationServices.h`. **One type with a direction**, because deposit and withdraw
+  are the same operation with a sign: no credits, no price, no gate difference, identical validation.
+- **Buy and sell stay two types**, and this is deliberate rather than inconsistent. The free path and
+  the paid path have different failure modes and, under Law 9, different authority requirements. Two
+  types keep the price **out of the free path by construction** — the same argument §12.31 makes for
+  splitting `core/serialization/` from the one factory that sees handles.
+- **`core/economy/Pricing.h`** — `BaseValue` and `LocalPrice`, free functions (§13.5 group 2c).
+- **No new component.** The station's stock is its `CargoHold`, ownership is its `FactionRef`, the
+  gate is a `FacilityRef`. That is the test §2.4 sets, and this screen passes it — the one new type
+  is an intent, which is what §12.30 says a screen is allowed to produce.
+
+##### Systems
+
+`StationServicesSystem` gains the transfer verb, the ownership check, the capacity check, and the
+pricing call; it loses the caller-supplied prices. **No new system.**
+
+`StationFactory` emplaces a `CargoHold` — §13.3 O's fix, which under §12.30 **is** this screen's
+Storage half rather than a precondition for it. ~~It also needs a **non-zero `capacity`**, or the
+finite hold that makes `LocalPrice` meaningful is finite in name only.~~ **Superseded by §12.23:**
+the hold lives on the station's cargo-bay hardpoints, so its capacity is whatever it was built with
+and there is no number for the factory to invent. What `StationFactory` needs instead is a station
+blueprint that **authors cargo bays** — content, and the same prerequisite the player's starter
+chassis has.
+
+##### Tests
+
+- Buying moves the item from the station's hold to the vessel's and debits the wallet by
+  **`LocalPrice`**, not by a number the request carried — the request has no such field to carry.
+- Selling is the exact inverse, and a buy immediately followed by a sell of the same unit nets zero
+  credits at the same station (no spread), while the price moves between two stations with different
+  stock.
+- Buying into a **full** hold is refused whole: no item moves and no credits are debited.
+- Selling into a **full** station hold is refused the same way.
+- Deposit and withdraw move items with **no wallet change**, and are refused at a station whose
+  `FactionRef` is not the requester's.
+- Buy and sell are refused when the station has **no living `Trade` hardpoint**, and permitted when
+  it has one — including on a station the requester owns.
+- A request placed on the **station** entity rather than on the docked vessel is refused rather than
+  silently dropped — the trap named above, asserted once.
+- `AvailableTabs` returns a Storage tab naming `entt::null` on a host with a `CargoHold` and no
+  `Trade` hardpoint, and no tab at all on a host with neither.
+- A material (not a module) round-trips through buy and sell — the assertion that fails today and
+  cannot pass before §12.19.
+- **The request a screen builds lands on the docked requester and is consumed by its system on the
+  following tick** — §12.30's shared per-screen shape.
+
+##### Scheduling — the two halves split, and not where §12.30 implied
+
+Both halves are §13.5 group 4b, but they do not unblock together:
+
+| | Needs | When |
+|---|---|---|
+| **Storage** | §13.3 O (`StationFactory` emplaces `CargoHold`) · the capacity fix · 4a's widgets | **With group 4b.** Nothing else |
+| **Market** | All of the above · §12.19 `ItemId` · `core/economy/Pricing.h` (2c) · §12.24 step 6 for the relation gate and the reputation modifier | **After the item model** |
+
+⚠️ **This is the reverse of the useful order and it should be said out loud.** Storage lands first
+and is reachable everywhere, while the Market — the half §12.10 was written for — waits on three
+other batches. **Ship the tab with Storage alone** rather than holding it: a warehouse that does not
+deal is one of the four ownership cases above, it is a complete screen, and it makes `CargoHold`'s
+capacity, the row model, and the transfer path all exercisable before a single price exists.
+
+##### What is deliberately not here
+
+- **No quantity slider.** §12.30 rules a slider out until it has a second consumer; `quantity` ships
+  as discrete `1` / `10` / `All` buttons, which is also what a stacked hold actually wants. **The
+  footer shows the `LocalPrice` *total* for the selected quantity**, never a unit price the player is
+  expected to multiply — under the quantity rule above, unit × quantity is not the answer, so
+  displaying a unit price would show a number that is not true.
+- **No price history, no order book, no trade route planner.** `features.md` §5.0's *"global market
+  awareness"* is a §8 navigation-map surface — knowing the price of iridium elsewhere is a map
+  question, not a shop question.
+- **No station-to-station shipping from this screen.** §5.0's internal logistics is a faction's macro
+  tick dispatching an in-transit fleet record; the player's version of that is flying the cargo.
+- **No repair.** It is Screen 3 (§12.30.4), behind its own `FacilityKind`, and §13.3 I already
+  records that docking grants free unlimited repair today regardless.
+
+#### 12.30.4 Screen 3 — Repair
+
+*Settled 2026-08-10. Verified against `src/` by grepping for readers and callers. **This screen has
+the most built code behind it of any of the seven, and the most of it is wrong** — three defects in
+`ProcessRepairRequests`, one of which makes `features.md` §3.9's status display lie. It also supplies
+a third answer to §13.4 decision 1 that the decision's own framing excluded.*
+
+**Gate:** a living `FacilityKind::Repair` hardpoint. **Subject:** a rig you own that is present here
+— the hull you arrived in, or the host you are standing in if it is yours. **One section**, and the
+`ListView` is over **your own hardpoints**, which makes this the first screen whose list is your rig
+rather than a hold or a roster.
+
+##### 🐛 Three defects in the one repair path that already exists
+
+`StationServicesSystem::ProcessRepairRequests` (`StationServicesSystem.cpp:83`) is built, tested, and
+scheduled. Verified 2026-08-10:
+
+**1 — There is no facility gate at all.** The function resolves `DockedStation` and then uses the
+result *only* as a docked-ness check (`station == entt::null || …`). It never looks for a
+`FacilityKind::Repair` hardpoint, living or otherwise. §12.24 step 5a assumed the gate existed to be
+routed; it does not exist to be routed.
+
+**2 — It heals `Destroyed` hardpoints, and that makes the status display lie.** The loop is:
+
+```
+for (const entt::entity hardpoint : rig->children) {
+    Health* health = registry.try_get<Health>(hardpoint);
+    if (health == nullptr) { continue; }
+    const float missing = health->max - health->current;
+    health->current = std::min(health->max, health->current + request.fraction * missing);
+}
+```
+
+**There is no `Destroyed` check anywhere in the file** — zero occurrences. `DockingSystem`'s free
+heal, ten lines of near-identical code, *does* check it and says why: *"Destruction is permanent
+(`Health.h`) — docking never revives one."* So the paid path restores a destroyed hardpoint's
+`Health.current` to `max` while leaving the `Destroyed` tag in place, and **`DamageSystem` never
+removes that tag** — it only ever `emplace_or_replace`s one when health reaches zero
+(`DamageSystem.cpp:37`).
+
+The result is a hardpoint at full hull that is permanently dead, and `features.md` §3.9 spends
+**colour on integrity** — so the schematic draws it green. *"Colour is condition"* becomes false for
+that circle, on the one display §3.1 and §3.5 were both waiting for. **This is worse than a wasted
+payment: it is a UI that reports the opposite of the truth**, and it would pass every test that only
+checks "health went up."
+
+**3 — `costForFullRepair` is supplied by the caller**, exactly as `BuyItemRequest::cost` is
+(§12.30.3). It is also *flat*: a pristine hull and a wreck pay the same for `fraction = 1.0`, because
+nothing in the request relates price to hull actually restored.
+
+⚠️ **And partial repair is strictly dominated.** `spend = round(fraction × costForFullRepair)` while
+the heal is `fraction × missing`. Two repairs at `0.5` cost a full repair's price and leave a quarter
+of the damage. **No rational player ever passes anything but `1.0`**, which makes `fraction` — the
+single continuous input in the whole docked set, and the reason §12.30 discussed a slider at all — a
+field with one legal value.
+
+##### §13.4 decision 1 has a third answer: the rate is not deleted, it moves
+
+*This does not reverse decision 1's recommendation. It corrects what "delete the automatic heal"
+takes with it.*
+
+§13.3 I frames the choice as binary — *"either docking-heals is the intended baseline and
+`StationServicesSystem`'s repair is redundant, or repair is a facility service and `DockingSystem`'s
+heal must be deleted"* — and §13.4 recommends the second. **Deleting the free heal is right. Deleting
+the *rate* with it is not, and two settled sections would break if it were.**
+
+| What the free heal is | Where it must go |
+|---|---|
+| `kDockHealPerSecond` — a **rate**, 15% of max per second | `FacilityStats::ratePerSecond`, whose comment reads *"**Repair HP/s**, manufacturing progress/s, research points/s"* |
+| `features.md` §2.7's **Repair crew role**, listed **twice** as ✅ *"Buildable now"* with `DockingSystem`'s dock-repair **rate** as its named consumer | The same rate, now on the facility path |
+
+🐛 **`FacilityStats::ratePerSecond` is parsed (`BlueprintJson.cpp:38`), merged by `EngineerSystem`
+(`EngineerSystem.cpp:90`), and read by no behaviour anywhere.** It is a stat that content authors,
+that merging scales, and that nothing consumes — the audit's dominant defect, in a field §13 has not
+yet catalogued. **Repair is its first reader**, the same way §12.30.2 gives `FacilityStats::capacity`
+its first reader and §12.30.3 gives the station's `CargoHold` its first meaning. Three screens, three
+dead fields revived, no new types.
+
+> **Repair is a continuous, paid, facility-gated service.** The heal that exists today keeps its
+> shape and loses its two lies: it stops being free, and it stops happening at bays that cannot do it.
+
+**Instant-on-payment was considered and rejected.** It is simpler, and it costs three things: a Mythic
+repair bay and a Common one would differ only in price, §2.7's Repair crew role would go from ✅ to ❌
+with no consumer, and `ratePerSecond` would be deleted as dead rather than revived. **A rate is what
+both the field and the crew role were authored for.**
+
+##### Continuous billing, because it is the version with no refund logic
+
+**You pay as it repairs, never up front.** This is not a flavour choice — an up-front lump sum needs
+cancel semantics, undock-mid-job semantics, and a refund rule, and every one of those is a decision
+that can be wrong. Paying per unit of hull restored needs none of them:
+
+| Event | Result |
+|---|---|
+| Target reached | Order completes |
+| Wallet empties | Repair stops where the money ran out. Nothing owed, nothing refunded |
+| The player undocks | Order is dropped. You keep exactly the hull you paid for |
+| **The Repair hardpoint is destroyed mid-job** | Order stops. §3.4's *"you die with your facility"* in its benign form — and the mandatory `Gauge` was showing it the whole time |
+
+⚠️ **Bill in whole credits with the fractional remainder carried in the order.** At 60 ticks a second
+a per-tick charge rounds to zero and the repair is free again — the same failure this section exists
+to remove, reintroduced by the cheap implementation. Written down because the cheap version is the
+one that gets typed at 2am, the same warning §12.30.2 attaches to bay occupancy.
+
+##### 🐛 Nothing in this codebase can repair a station — and this screen is where that is fixed
+
+*Verified 2026-08-10.* There are exactly **two** sites that raise a `Health.current` anywhere in
+`src/`: `DockingSystem.cpp:91` and `StationServicesSystem.cpp:108`. **Both require `Docked` on the rig
+being healed**, and a station is never `Docked` — `Docked` is written to the vessel that flew in.
+
+**So a player-built station that takes a hit stays damaged forever**, and so does every NPC station.
+That is a permanent, monotonic decay of every fixed asset in the galaxy, and it has no counterpart
+anywhere: §12.20's faction economy models stock, not structure.
+
+**The fix is a selector, not a system.** The repair order's subject is *a rig*, and while docked there
+are at most two candidates — the hull you arrived in, and the host you are standing in when its
+`FactionRef` is yours (§12.30.3's ownership test). A `TabStrip` above the list picks between them,
+which is the same widget §12.30.2 uses for sibling bays. **A station with a repair bay repairs
+itself**, which is what a repair bay is.
+
+*The subject selector is also the answer to "can I repair another vessel parked in this bay?" —
+deliberately no, for now. Ownership of a hull is a §12.30.2 question and the roster is that screen;
+adding a third candidate here before the Bay screen answers it would fork the ownership test.*
+
+##### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Facility name · the `Repair` hardpoint's integrity `Gauge` (§3.4's mandatory readout) · your credits · **rate**, HP/s |
+| **Subject selector** | `TabStrip` — your vessel · this host, when it is yours. Absent when there is one candidate |
+| **List** | `ListView` over the subject's `Rig::children`, one row per hardpoint |
+| **Footer** | The verb buttons for the selected row, plus **Repair All** |
+
+`Rig::children` is **flat** — every hardpoint of the root, not a tree — so one pass over it is the
+whole rig and the list needs no traversal. (`StructuralAttachment` is the separate structural graph;
+§3.9's LOD collapse reads that one, this list does not.)
+
+Each `Row`: **`glyph`** — the hardpoint's `ShellRole` monogram (§3.9's glyph-is-identity). **`label`**
+— display name. **`value`** — `current / max`, and the cost to bring it to full. **`RowStyle`** —
+§3.9's integrity gradient, so the list *is* a text-mode status display and reads the same way the
+schematic does. Rows sort by integrity ascending: **the thing most likely to kill you is the first
+row**, without the player sorting anything.
+
+##### The verbs
+
+| Row is | Verb | Mechanism | Blocked on |
+|---|---|---|---|
+| A living hardpoint below full | **Repair** | `RepairOrder` naming that hardpoint | `Pricing.h` |
+| Any state | **Repair All** | One `RepairOrder` with a null hardpoint, meaning the whole rig | `Pricing.h` |
+| A `Destroyed` hardpoint | **none** — disabled, with the reason | It is rebuilt, not repaired (below) | §12.30.5 |
+| An order in progress | **Stop** | Remove the order. Nothing is owed | — |
+
+**No slider, and no `fraction`.** §12.30 rules out a slider until it has a second consumer; the
+defect above shows `fraction` never had a first one, since only `1.0` is ever rational. The order
+carries a **target integrity** instead, offered as discrete buttons — and *repair to 50%* is a
+different and more useful thing than *repair half the missing hull*, because it is a statement about
+the hull you will undock with rather than about arithmetic.
+
+##### Price derives from what the hardpoint is made of
+
+`features.md` §2.10's attribute table already assigns this: **Inert — *"corrosion resistance"* —
+carries *"corona/hazard resistance, **repair cost**."*** That section also rules that *"an attribute
+with no reader is the same defect as a system with no producer."* **This screen is the Inert
+attribute's repair-cost reader**, and it is the only one named anywhere.
+
+```
+core/economy/Pricing.h        beside BaseValue / LocalPrice (§12.30.3)
+
+int RepairCostPerHp(const ShellDef&, Grade facilityGrade, const ContentLibrary&);
+```
+
+> 🐛 **That signature cannot be implemented, and §12.19 corrects it twice.** **A `ShellDef` has no
+> Inert attribute** — Inert is a property of the *elements* a shell was made of, propagated to the
+> instance (`features.md` §2.10), and a def is grade-neutral besides. **And a hardpoint does not
+> record which shell it is:** verified 2026-08-10, `RigFactory::CreateHardpoint` emplaces `MountRef`,
+> `ParentRig`, `ShellRole` (the *kind*), `HitRadius`, the transforms, `MountedModules` and `Health`
+> — **no `ShellId`** — so today the only route to the def is a three-hop join through `BlueprintRef`.
+> §12.19 adds `ShellInstance { ItemInstance shell; }` to every hardpoint and the signature becomes
+> `RepairCostPerHp(const ItemInstance& shell, Grade facilityGrade, const ContentLibrary&)`. **The
+> pricing argument above is unchanged** — this screen is still the only named reader of Inert.
+
+Three inputs, all settled elsewhere, none of them new:
+
+- **The shell's own recipe base value** — an iridium hardpoint costs more to patch than an aluminium
+  one, because §2.10 already derives value from the recipe.
+- **Its Inert attribute**, reducing the cost. Corrosion-resistant material is cheaper to keep whole.
+- **The facility's `Grade`**, as an efficiency divisor — §2.10's *"cost to build = recipe **×**
+  facility grade"* applied to its second consumer, rather than a second cost rule invented here.
+
+**And `costForFullRepair` is deleted from the request**, not filled in. Same reason as §12.30.3's
+`cost`/`value`: under Law 9 the order states *what and to what integrity*; the system decides the
+price, calling the same pure function the screen calls to display it.
+
+⚠️ `features.md` §5.3's reputation modifier applies here as it does to the Market — *"trade
+discounts"* is not scoped to goods. It ships as identity until §12.24 step 6, and the header says so.
+
+##### A destroyed hardpoint is rebuilt, not repaired — and the verb does not exist yet
+
+*This is a decision, and the honest half of it is that it names a door that is not built.*
+
+`Health.h` is unambiguous — destruction is *"gone permanently for this rig."* Repair restores hull on
+living hardpoints and never touches the `Destroyed` tag. That keeps one rule true everywhere and
+keeps this screen from overlapping Engineering.
+
+🐛 **But nothing anywhere can restore a destroyed hardpoint.** Verified: `RefactorSystem` **deletes**
+a leaf hardpoint and refunds its `MountedModules`; §12.12 covers building whole units (`BuildMenu`),
+merging modules (`EngineerMenu`), and deleting hardpoints (`RefactorMenu`). **Nothing adds a mount
+back to an existing rig**, in code or in design. So today a rig degrades monotonically toward death
+and the only remedy is buying a new hull.
+
+**Rebuild belongs on the Engineering screen (§12.30.5), as the inverse of the delete that already
+exists**, and it is cheap for a reason §12.31 already noticed while designing `RigState`: *"a
+hardpoint `RefactorSystem` deleted is simply absent from `mounts`. No tombstone."* **The blueprint
+still holds the `MountBlueprint`** — shell id, local offset, `attachedTo`, traverse. Rebuilding
+consumes the parts and restores a mount whose entire definition is content that never went away. No
+new type, no snapshot, no tombstone.
+
+**Until it lands, the destroyed row is disabled and says where to go** (§3.10's degrade-never-remove),
+and the pointer is honest only once §12.30.5 ships. Scoped there; recorded here because this is the
+screen where a player first asks the question.
+
+##### Who pays when the repaired rig is not the player's
+
+⚠️ **Deleting the free heal takes NPC repair with it, and nothing else replaces it.**
+`HealAndImmobilize` heals *every* docked rig — `view<Docked, Rig>`, with no player filter. It is the
+whole of the *"NPCs retreat to a friendly bay and heal"* behaviour, and NPCs carry no `Wallet` to pay
+a facility with.
+
+**An NPC's repair is billed to its faction's stock**, through `ctx.economy` — a pointer that exists
+and is nullable (`System.h:43`) and that **only `FactionEconomySystem` reads today**. That gives
+`FactionEconomy::Spend`'s all-or-nothing contract a real Tier 1 consumer, and it makes combat
+attrition cost a faction something, which is what §6.1's Material Security facet and §5.1's Three
+Pillars both want to read and currently cannot.
+
+The order component is identical either way — **placed by UI or by AI, exactly as `DockRequest`
+is** — and only the payer differs: `Wallet` on a rig that has one, `ctx.economy` otherwise. **This is
+a step-6 dependency**, and until it lands NPCs simply do not repair, which is a visible regression
+rather than a silent one.
+
+##### Types
+
+- **`RepairOrder { entt::entity subject; entt::entity hardpoint; float targetFraction; float creditRemainder; }`**
+  — replaces `RepairRequest`. `hardpoint == entt::null` means the whole rig. Lives in
+  `shared/components/StationServices.h` beside the others.
+- ⚠️ **It is an *order*, not a request, and that is a deliberate exception to a strong idiom.** Every
+  intent in this codebase — `DockRequest`, `FireIntent`, `BuyItemRequest`, `DeleteHardpointRequest` —
+  is consumed and cleared **the same tick**. A repair takes many ticks by construction, so this one
+  **persists until met, stopped, undocked, or invalidated.** Name it and comment it, or the next
+  contributor will "fix" it into the same-tick idiom and silently make repair instant again.
+- **`core/economy/Pricing.h` gains `RepairCostPerHp`.**
+- **No new component on the rig, and no new tag.** The subject is a `Rig`, the gate is a
+  `FacilityRef`, the rate is `FacilityStats::ratePerSecond`, destruction is `Destroyed`. §2.4's test,
+  passed.
+
+##### Systems
+
+`StationServicesSystem` keeps repair and gains: the facility gate, the `Destroyed` exclusion, the
+per-tick rate, the derived price, and the `ctx.economy` payer branch. **No new system** — the same
+verdict §12.30.2 reached for the Bay.
+
+`DockingSystem::HealAndImmobilize` **loses its heal loop and keeps the immobilise half**, per §13.4
+decision 1. The function should be renamed with it; a name that describes half of what it does is how
+the next reader learns the wrong rule.
+
+##### Tests
+
+- A repair order at a station with **no living `Repair` hardpoint** is refused — the assertion that
+  fails today, because no gate exists.
+- Docking alone heals **nothing**, at any station, for any rig — the regression test for §13.4
+  decision 1.
+- A `Destroyed` hardpoint's `Health.current` is **unchanged** by any repair order, including
+  *Repair All*, and no credits are charged for it.
+- Repair progresses at `FacilityStats::ratePerSecond` and stops exactly at the order's target
+  integrity, never above it.
+- Credits debited equal `RepairCostPerHp` × hull actually restored, ±1 for the carried remainder —
+  and a repair spanning hundreds of ticks charges a total, not zero (the rounding trap).
+- An empty `Wallet` stops the repair with the hull it paid for, and owes nothing.
+- Undocking mid-order drops it; re-docking does not resume it.
+- Destroying the `Repair` hardpoint mid-order stops it that tick.
+- A station the requester owns is a valid subject and its hardpoints heal — the assertion that fails
+  today for every station in the galaxy.
+- An NPC with no `Wallet` repairs against `ctx.economy` and is refused when its faction cannot
+  afford it; with `ctx.economy == nullptr` it does not repair, and does not repair for free.
+- **The order a screen builds lands on the docked requester and is consumed by its system on the
+  following tick** — §12.30's shared per-screen shape, with the one difference that this order is
+  *acted on* rather than cleared.
+
+##### Scheduling
+
+Group **4b**, and it is the **least blocked of the three screens so far** — no `ItemId`, no
+`LocalPrice`, no item model. It needs:
+
+| Needs | Status |
+|---|---|
+| 4a's widgets · the router · `PlayerLocation` | Group 4b |
+| A `Repair` facility authored in `modules.json` | Content; `modules.json` holds exactly one facility today |
+| `Pricing.h`'s `RepairCostPerHp` | Group 2c — **but a flat placeholder is honest here**, since the rate and the gate are what the screen is for |
+| §12.24 step 6 for `ctx.economy` | Only for the **NPC** payer. The player path needs nothing |
+| §12.30.5 | Only for the **rebuild** verb the destroyed rows point at |
+
+**The three defects should be fixed with §13.5 group 2, not held for this screen.** The facility gate,
+the `Destroyed` exclusion, and the free-heal deletion are each a few lines against built, tested code,
+and the `Destroyed` one is actively producing a display that lies. Group 2 is *"one-line and one-view
+corrections, independently startable today"*, and all three qualify.
+
+##### What is deliberately not here
+
+- **No in-flight repair.** `features.md` §2.7 records it as ❌ *"new mechanic first"* and blocks the
+  Damage-control crew role on it. Nothing here changes that, and the deletion of the free heal makes
+  the docking path the *only* heal rather than one of two.
+- **No shield repair.** `DamageSystem::RegenerateShield` already recharges shields on a delay
+  (`Health.h`'s `rechargeCooldown`), and a destroyed shield hardpoint is a rebuild question, not a
+  repair one.
+- **No repairing another player's or NPC's vessel.** Ownership of a parked hull is §12.30.2's
+  question and the roster is its screen.
+- **No repair queue.** One order per subject; a second replaces the first. A queue is a Manufacturing
+  and Research shape (§12.18, §12.1) because those have discrete jobs; repair has one continuous
+  quantity and would gain nothing but a data structure.
+
+#### 12.30.5 Screen 4 — Engineering
+
+*Settled 2026-08-10. Verified against `src/`. **This screen has four verbs, not two**, and only two of
+them exist. It also revises §12.30.2's claim that duplicate facilities are fungible, corrects a
+"requires no code change" claim in `features.md` §2.4 that is not true, and specifies the **rebuild**
+verb §12.30.4 scoped here.*
+
+**Gate:** a living `FacilityKind::Engineering` hardpoint — already the gate both built systems use,
+duplicated locally in each (`EngineerSystem.cpp:19`, `RefactorSystem.cpp:18`) with a comment
+explaining why. **Merging §12.30's two sections into one screen is what makes that duplication
+visible**, and the shared gate becomes one function on the router rather than two copies.
+
+##### Four verbs on two axes, and the shape is already proven
+
+§12.30's inventory names the sections *Merge · Refactor*. That is the two **files** being folded, not
+the operations, and the screen has four:
+
+| Verb | Acts on | State |
+|---|---|---|
+| **Merge** | Two modules in your `CargoHold` | ✅ Built — `EngineerSystem` |
+| **Deconstruct** | One module in your `CargoHold` | 📋 Designed (§12.13 item 5), not built |
+| **Delete** *(scrap)* | One hardpoint on your rig | ✅ Built — `RefactorSystem` |
+| **Rebuild** | One mount your blueprint has and your rig does not | 📋 **Specified here.** Nothing anywhere |
+
+**They fall on two axes, and the axes are the layout**: the left list is your hold, the right list is
+your rig. That is the same two-list-and-a-verb shape as the Market (§12.30.3), and the third screen in
+a row that the five widgets of §12.30 cover with nothing left over — which is the check that matters
+more than any one screen fitting.
+
+##### 🐛 `features.md` §2.4's *"requires no code change"* is not true
+
+§2.4 settles that **merging is bounded by the grade band and refused at the ceiling**, with the
+formula:
+
+```
+newQuality = primaryQ + (bandMax − primaryQ) × secondaryNorm × (facilityLevel × 0.1)
+```
+
+and states that *"`EngineerSystem` already scales by `FacilityRef::level`, so this decision requires
+**no code change** — it ratifies what is built."*
+
+**Only the level-scaling half is built. The built formula is a different operation entirely:**
+
+```
+MergeField(p, s, level) = p + s * (level * 0.1)      // EngineerSystem.cpp:42
+```
+
+That is **additive on raw stat values with no ceiling of any kind** — not a move through quality space
+toward a band maximum. The two agree on one factor (`level × 0.1`) and on nothing else. §2.4's version
+cannot be built at all yet: it needs `bandMax`, `primaryQ` and `secondaryNorm`, and **§12.21's
+`Quality` type does not exist**, which is the same dependency §12.31 hit from the other side.
+
+Three consequences, and the first is the one that would ship:
+
+1. **Merging is currently unbounded.** Nothing refuses a merge at a ceiling because there is no
+   ceiling — §2.4's refusal *"joins `EngineerSystem`'s existing refusals"* and it is not among them.
+2. **It is applied per raw field, so it is not even uniform.** `merged.weapon = primary.weapon` copies
+   the whole block and then merges three of its seven fields; `fireIntervalSeconds`, `spreadRadians`,
+   `projectilesPerShot` and `damageType` come from the primary alone. Under §2.4's quality model there
+   is one number to move and this asymmetry disappears.
+3. **`FacilityRef::level` is always `1`** — §13.3 K, `ModuleAttachment.cpp:65` passes only
+   `module.facility.kind` to the `emplace_or_replace`, dropping the level, and `ParseFacilityStats`
+   never reads it from JSON. **So every merge in the game preserves exactly 10% of the secondary**,
+   and the entire facility-level axis §2.4 calls settled has never once had a value other than its
+   default.
+
+> **The merge formula is not built and must not be treated as built.** It lands with §12.21's
+> `Quality`, and §2.4's claim should be corrected in the same pass — the decision it ratifies is
+> *"level scales the merge"*, which is true, not *"the formula is implemented"*, which is not.
+
+⚠️ **Merging also consumes nothing but the two modules.** §2.4 settles that it *"consumes Materials as
+well as credits, scaled by the module's grade and by how close to its band ceiling the merge is
+pushing it."* The built path debits no `Wallet` and no materials. Both wait on §12.19 and §12.21, and
+until then merging is free — which, combined with being unbounded, is worth knowing before it is
+routed to a screen a player can reach.
+
+⚠️ **And the crafted id grows without bound.** `merged.id` is
+`primary + "+" + secondary + "@L" + level` (`EngineerSystem.cpp:52`), so merging two merged modules
+produces `a+b@L1+a+b@L1@L1`. Ids **double in length per generation**, they are the key
+`ContentLibrary::craftedModules_` is stored under, and §12.31 already needs that map serialized. A
+crafted module should take a **short generated id** and carry its lineage in `displayName` if
+anywhere — a save format should not have a key whose length is exponential in how many times the
+player used the bench.
+
+> ✅ **Dissolved by §12.19, and the fix is a deletion rather than a shorter id.** A merge moves the
+> primary's **quality** within its band (§2.4), and a band move is not a new *definition* — so a
+> merged module is the primary `ItemInstance` with a new `Quality`, `ContentLibrary::
+> RegisterCraftedModule` and `craftedModules_` are deleted, and there is no generated id left to
+> concatenate. §12.31's *"a crafted module does not survive its own process"* dissolves with it, and
+> §12.30.8 re-points the overlay at the type that genuinely needs one: a drafted Template.
+
+##### Rebuild — the delete, inverted
+
+*This is the verb §12.30.4's destroyed rows point at, and §12.30.4 verified it exists nowhere: §12.12
+covers building whole units, merging modules, and deleting hardpoints. **Nothing adds a mount back to
+an existing rig**, in code or in design.*
+
+**It is cheap for the reason §12.31 already noticed while designing `RigState`:** *"a hardpoint
+`RefactorSystem` deleted is simply absent from `mounts`. No tombstone."* The rig's `BlueprintRef`
+still holds the `MountBlueprint` — shell id, `localOffset`, `localRotation`, `attachedTo`,
+`traverseRadians`. **Every input rebuild needs is content that never went away.**
+
+> **Rebuild restores a mount the rig's blueprint authors and the live rig does not have in working
+> order.** Nothing else. You cannot invent a mount, and you cannot rebuild one the blueprint never had.
+
+That single constraint is what keeps this verb small. Adding an *arbitrary* hardpoint would need
+placement validation, §3.5's ring-capacity formula, hull-envelope coverage (rule 12), and a traverse
+check — an entire feature. **Restoring an authored mount needs none of them, because the blueprint
+already passed all four when it loaded.**
+
+###### Delete refuses a non-leaf; rebuild refuses an orphan
+
+`RefactorSystem` already refuses to delete a hardpoint another hardpoint's `StructuralAttachment`
+points at — *"deletion is scoped to leaves."* Rebuild reads the same graph in the other direction:
+
+> **A mount whose `attachedTo` parent is missing or `Destroyed` cannot be rebuilt.** You cannot hang a
+> wing off a hull that is not there.
+
+**Delete works leaves-inward. Rebuild works root-outward.** One graph, two opposite refusals, no new
+type — and a player rebuilding a shattered flank does it in the order the structure implies rather
+than in an order a rule told them.
+
+###### A rebuilt mount is empty, and that is a duplication fix rather than a stinginess
+
+`MountBlueprint` carries a `modules` list. **Restoring it would print modules**: delete a mount, keep
+its `MountedModules` (which `RefactorSystem` already refunds to your hold), rebuild it, receive a
+second copy of the same modules from the blueprint. Repeat.
+
+> **A rebuilt mount comes back bare.** `MountedModules` is empty, `AttachModuleComponents` is not
+> called, and the player re-equips from their hold through the §3.10 loadout overlay —
+> `ModuleEquipSystem`, which is built.
+
+###### Destruction stops being free, and this is a one-line change to a built system
+
+`RefactorSystem` refunds a deleted hardpoint's `MountedModules` to the hold with **no `Destroyed`
+check** (`RefactorSystem.cpp:76`). So scrapping a hardpoint that was shot off returns every module it
+carried, intact. **Losing a hardpoint in combat currently costs you a shell and nothing else.**
+
+> **Scrapping a `Destroyed` hardpoint returns nothing. Scrapping a living one returns its modules.**
+
+That one branch separates the two operations that share a verb: **voluntary refit** — you chose to
+strip a mount, you keep what was in it — from **involuntary loss** — it was destroyed, and what was
+inside it was destroyed with it. It is what gives §3.2's localised damage an economic weight it does
+not have, and it is what makes rebuild a decision rather than a formality.
+
+*It also settles the one contradiction rebuild raises with built code.* `Health.h` says a destroyed
+hardpoint's capability is *"gone permanently for this rig"*, and `DockingSystem` cites that comment
+when refusing to heal one. **Rebuild does not contradict it — nothing is ever revived.** The destroyed
+entity is removed and a new one is built from content. **The comment should say so**, because *"never
+healed"* and *"never replaced"* are different rules and only the first one is true.
+
+###### Cost
+
+The mount's shell is content with a recipe (§12.19), so rebuild consumes **that shell's recipe
+inputs**, scaled by the facility's grade — §2.10's *"cost to build = recipe × facility grade"* applied
+to its third consumer, after manufacturing and §12.30.4's repair. **No new pricing rule and no
+authored cost table.** Until §12.19 lands it is a flat placeholder, and that is honest: the gate, the
+graph rules and the empty-mount rule are what the verb is for.
+
+##### Duplicate facilities are not fungible — a revision of §12.30.2
+
+§12.30.2 settles the sibling-bay selector and justifies it as a Docking special case:
+
+> *"`Docking` is therefore the one kind where the deduped tab is not the whole story… every other
+> `FacilityKind` is fungible across duplicates — any living Repair bay repairs identically."*
+
+**That is already false for three of the six kinds, and this screen is where it breaks first.**
+`EngineerSystem::DockedEngineeringLevel` returns the **first** living Engineering facility's level
+found while walking `Rig::children`. On a station with two benches of different grade, which one you
+get is iteration order. And §2.4 makes the bench's grade decide *the outcome of the operation*, not
+merely where it happens — as §12.30.4 makes the Repair bay's grade decide the rate and the price, and
+§2.4's tables make a Research or Manufacturing facility's grade decide sample survival, duration and
+recovery.
+
+> **A duplicate is fungible only when the facility has no grade-dependent output.** Once §12.19 folds
+> `FacilityStats::level` into `Grade` and every facility carries one, **no kind is fungible.**
+
+**So the sibling selector generalises from Docking to every tab.** It is not a Docking special case
+that Engineering also happens to need; it is the general case, and Docking was simply where it was
+noticed first — because a bay's identity is visible (a specific hull is parked in it) while a bench's
+identity is only visible in the result.
+
+**Two corrections follow, and neither costs a new mechanism:**
+
+- **`AvailableTabs` still dedupes to one tab per kind**, and the selector inside the screen lists the
+  living hardpoints of that kind. Unchanged from §12.30.2 — only the justification widens.
+- **The facility's grade comes from `PlayerLocation`, not from a first-found scan.** `DockedEngineering
+  Level`'s walk is replaced by reading the hardpoint the player is standing in. **This is where
+  §12.30's tab-entity fix pays off outside §3.4's death predicate** — that change was justified solely
+  by the death rule, and it turns out to be what makes every graded facility addressable.
+
+##### ⚠️ One hardpoint, many modules, one `FacilityRef`
+
+`MountedModules::ids` is a list and `AttachModuleComponents` is called once per module
+(`RigFactory.cpp:36`), so a mount holding two facility modules **silently keeps only the last one's
+`FacilityRef`** — `emplace_or_replace` overwrites. Every screen in this batch is keyed on a facility
+hardpoint, so a content author fitting a Trade and a Repair module to one mount gets one tab and no
+diagnostic.
+
+*This is the same class as §12.30's `kind`-is-optional finding and belongs in the same parser/attach
+pass: either a mount accepts at most one facility module (a `Validation` rule), or `FacilityRef`
+becomes a set. **The rule is the cheaper and more honest of the two** — a hardpoint is a place, and
+two benches in one place is a content error, not a feature.*
+
+##### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Facility name · **grade** · this Engineering hardpoint's integrity `Gauge` (§3.4) · your credits |
+| **Sibling selector** | `TabStrip`, one entry per living Engineering hardpoint. Absent when there is one |
+| **Left `ListView`** | Your `CargoHold`'s modules — the Merge and Deconstruct axis |
+| **Right `ListView`** | Your rig's mounts — living, `Destroyed`, and **absent-but-authored**, all three |
+| **Footer** | The verb buttons for the current selection |
+
+**The right-hand list is the screen's real contribution, and it is not `Rig::children`.** It is the
+**blueprint's mount list**, joined against the live rig — which is the only list in the game that can
+show a mount that is *missing*. Three row states, and §8.3's *absence must never look like emptiness*
+is the reason all three are drawn:
+
+| Row state | Source | `RowStyle` | Verb |
+|---|---|---|---|
+| Living | `Rig::children` | §3.9's integrity gradient | **Delete** |
+| Destroyed | `Rig::children` + `Destroyed` | Disabled, `DESTROYED` | **Delete** *(returns nothing)* |
+| **Absent** | In the blueprint, not in the rig | Outline only, `MISSING` | **Rebuild** |
+
+*A rig that has been shot apart and stripped reads, in one list, as what it is: what you have, what is
+wrecked, and what is gone. No other screen can say the third thing.*
+
+Merge is a two-selection verb — pick a primary, pick a secondary — so the left list carries a
+**primary marker** on the first selection and the footer names both. `EngineerMenu::Draw(bounds,
+primary, secondary)` already takes exactly those two ids and no list at all, which is the whole of its
+current UI.
+
+##### The verbs
+
+| Selection | Verb | Mechanism | Blocked on |
+|---|---|---|---|
+| Two modules of one `ModuleKind` | **Merge** | `MergeModulesRequest` | §12.21 for the band; §12.19 for the cost |
+| One module | **Deconstruct** | `DeconstructModuleRequest` (§12.13 item 5) | §12.19 |
+| One living mount | **Delete** | `DeleteHardpointRequest` — built, unchanged | — |
+| One destroyed mount | **Delete** | The same request, **returning nothing** | The one-line `Destroyed` branch |
+| One absent mount | **Rebuild** | `RebuildMountRequest { MountId mount; }` | — for the mechanism; §12.19 for the cost |
+
+##### Deconstruction reads the recipe backwards — `deconstructsTo` is superseded
+
+§12.13 item 5 specifies *"a `deconstructsTo` field on `ModuleDef` in `modules.json`."* **§12.19 later
+gives every item a `Recipe`**, and §2.4's recovery table is stated as a **percentage** — *"Materials
+recovered, 20–45% … 80–100%"* — which is a percentage *of the inputs*. Two authored answers to *"what
+is this made of"* would drift the moment either was edited, which is the discipline §12.19 applies to
+mass and price and §12.30.3 applies to the cargo hold's two lists.
+
+> **Deconstruction yields the item's own `Recipe` inputs at the facility grade's recovery band.**
+> `deconstructsTo` is deleted from §12.13 item 5 before it is authored.
+
+⚠️ **§12.19 adds the clause that makes *"the recipe's inputs"* resolve to matter.** A recipe names
+**roles**, not elements (`features.md` §2.10), so read backwards it yields roles. The missing
+definition is the **nominal fill** — the roster's lowest-density element scoring ≥ 1 in that role,
+which needs no authoring and has three consumers. **The rule and the deletion both stand**; what a
+deconstruct returns is deliberately *not* the premium stock the item was built from, and recovery is
+clamped so it never returns more **mass** than the instance carried.
+
+*This is the cheapest correction in this section — `modules.json` has no `deconstructsTo` today, so
+there is no content to migrate. Fold it into §12.19's content pass.*
+
+##### Types
+
+- **`RebuildMountRequest { MountId mount; }`** — new, in `shared/components/Refactor.h` beside
+  `DeleteHardpointRequest`. **A `MountId`, not an `entt::entity`**, because the thing being rebuilt has
+  no entity — that is what makes it rebuildable. `RigBlueprint.h` already promises `MountId`
+  *"survives saves"*, which is exactly the stability this needs.
+- **`DeconstructModuleRequest { ItemId item; }`** — §12.13 item 5, kind-tagged per §12.16 item 21.
+  ⚠️ **§12.19 makes it `{ ItemInstance item; }`**: a hold may carry two stacks of one id at two
+  grades or two rolls, and deconstructing *the good one* by accident is the failure that makes the
+  distinction matter. What it yields is the **nominal fill** of that instance's recipe, clamped by
+  the instance's own mass.
+- **No new component on the rig.** The missing mounts are a **join between the blueprint and
+  `Rig::children`**, computed by a pure function for the list — never a stored "missing" tag, which
+  would be a second answer to a question content already answers.
+- `refactor_menu::DeletableHardpoints` gains its mirror: **`RebuildableMounts(registry, rigRoot,
+  blueprint)`** — pure, headless, and the natural home for the orphan refusal.
+
+##### Systems
+
+`RefactorSystem` gains **rebuild** and the `Destroyed` refund branch. `EngineerSystem` gains
+**deconstruct**, per §12.13 item 5's *"a second intent, not a new file"* — it is 167 lines against a
+600-line cap.
+
+**Both keep their own gate function, and the duplication should be resolved now rather than tripled.**
+The comment in `RefactorSystem.cpp:15` justifies the copy — *"a dozen lines each, and the two systems
+have no other reason to depend on one another"* — and that was true with two callers. **With this
+screen there are four verbs across two systems behind one gate**, and §12.30.4 adds a third system
+asking a structurally identical question about a different kind. `DockedFacility(registry, requester,
+kind) -> entt::entity` belongs in `shared/rig/` beside `ModuleAttachment`, which both may include.
+*This is Law 11's tie-breaker arriving on schedule: the second consumer was arguable, the fourth is
+not.*
+
+##### Tests
+
+- Merge is refused at the band ceiling, and refused when the primary is already there — **the
+  assertion `features.md` §2.4 claims is already satisfied and is not.**
+- A merge at a **Mythic** bench preserves more than one at a Common bench — which requires
+  `AttachModuleComponents` to forward the facility's **grade** (§13.3 K, re-aimed by §12.19: neither
+  `level` nor `grade` is parsed today, so fixing it once as `grade` is strictly cheaper than fixing
+  it as `level` and then deleting it), and fails today for both reasons.
+- Rebuilding a mount the blueprint does not author is refused.
+- Rebuilding a mount whose `attachedTo` parent is absent or `Destroyed` is refused; rebuilding the
+  parent first then the child succeeds.
+- **A rebuilt mount carries no modules**, and delete → rebuild → delete does not increase the number
+  of modules in the hold — the duplication regression, asserted directly.
+- Scrapping a `Destroyed` hardpoint returns **nothing**; scrapping a living one returns its
+  `MountedModules` — the two halves of one verb, asserted side by side.
+- Rebuild is refused when the requester is not docked at a living Engineering facility, and when the
+  parts cannot be afforded.
+- The right-hand list shows a mount the rig lost as **absent**, not as missing from the list — §8.3,
+  and the only screen that can fail this test.
+- Deconstruction yields the item's recipe inputs within the facility grade's band, never above 100%.
+- A merged module's id is bounded in length across repeated merges.
+- **The request a screen builds lands on the docked requester and is consumed by its system on the
+  following tick** — §12.30's shared shape, four times over.
+
+##### Scheduling
+
+Group **4b**, and it splits by verb rather than shipping whole:
+
+| Verb | Needs | When |
+|---|---|---|
+| **Delete** | Nothing — built. Plus the `Destroyed` refund branch | **4b, and the branch belongs in group 2** |
+| **Rebuild** | The blueprint join · the orphan rule · `MountId` request | **4b.** Mechanism needs nothing; only the *cost* waits on §12.19 |
+| **Merge** | §12.21 `Quality` for the band · §12.19 for the material cost · §13.3 K's `level` parse | **After §12.21.** It is routable before that, and it is unbounded and free until then |
+| **Deconstruct** | §12.19's `Recipe` | After the item model |
+
+⚠️ **Merge is the one verb that is worse routed than unrouted.** Every other screen in this batch is
+inert-but-correct today; merge is *reachable-and-wrong* the moment a gate passes — unbounded, free,
+and producing ids that grow exponentially into a map §12.31 needs to serialize. **Ship the Engineering
+tab with Delete and Rebuild, and hold Merge behind §12.21**, the same call §12.30.3 makes for holding
+the Market behind the item model.
+
+##### What is deliberately not here
+
+- **No shell upgrade in place.** `features.md` §2.4 leaves it ❓ open and calls it *"a new mechanic in
+  `RefactorSystem` territory rather than a reuse of an existing one."* Rebuild is not it — rebuild
+  restores the grade the blueprint authored, never a higher one.
+- **No merging of shells.** §2.4 rules it out on design grounds — a merged cockpit has no answer to
+  where it sits or what was mounted in it — and §12.16 item 21 confirms `MergeModulesRequest` stays
+  module-only while deconstruction widens.
+- **No adding a mount the blueprint never had.** That is the whole of what keeps rebuild cheap, and
+  the four validation rules it would otherwise need are named above.
+- **No re-equipping from this screen.** Live refit is unrestricted (§2.7) and lives in the §3.10
+  loadout overlay; a second equip surface behind a facility gate would re-create the gate §12.30
+  deleted.
+
+#### 12.30.6 Screen 6 — Research
+
+*Settled 2026-08-10. Verified against `src/`. **Taken before Screen 5**, because Manufacturing is
+§12.19's primary consumer — §11.9 already records that `features.md` §2.10's whole attribute-
+propagation chain is computed there and nowhere else — and specifying a UI over an undefined recipe
+model is the confusion this pass exists to avoid. Research's item dependency is one already-settled
+line (§12.16 item 21), so it can be written now.*
+
+**Gate:** a living `FacilityKind::Research` hardpoint. **One section**, a queue. **This screen is the
+missing producer for the deepest unproduced chain in the codebase**, and that is most of what it is
+for.
+
+##### 🐛 Four missing links in one chain, and every link looks built
+
+Verified 2026-08-10 by grepping for every occurrence:
+
+| Link | State |
+|---|---|
+| `ResearchSystem::Tick` | ✅ Built, scheduled, tested. **Advances** jobs |
+| `ResearchJob` | 🐛 **Zero producers.** The symbol appears nowhere in `src/` outside `ResearchSystem` and its own header |
+| `StationFacility` — the component holding the jobs | 🐛 **Zero producers** (§13.3 O already records this) |
+| `StationFacility::researchTier` | 🐛 **Written only by two lines in `ResearchSystemTests.cpp`** |
+| `ctx.knowledge` — the grant target | 🐛 `nullptr` (§12.24 step 6) |
+| `NetworkOwner` — the component naming *which* network | 🐛 **Zero producers.** Nothing on any entity points at a knowledge network |
+
+**The loop is closed with no entry point.** `Tick` advances jobs; `CollapseResearchJobs` turns jobs
+into records; `PromoteResearchJobs` turns records back into jobs. Every path consumes a job that
+already exists, and **nothing creates the first one.** There is no `StartResearchRequest` anywhere.
+
+*This is the audit's dominant defect at its deepest — five links, each individually built, tested and
+documented, forming a mechanism that cannot be started. It is worth naming as the strongest possible
+case for §2.4's rule: **`ResearchSystem`'s tests all pass**, because every one of them constructs the
+job by hand.*
+
+**This screen is the entry point**, and specifying it is most of what closes the chain.
+
+##### 🐛 Three more defects in the built half
+
+**1 — There is no facility gate.** `Tick` views `StationFacility` and never looks for a living
+`FacilityKind::Research` hardpoint. **Blowing the lab off a station does not stop the research running
+inside it.** Same shape as §12.30.4's repair finding, and `features.md` §3.4 makes it pointed: it
+cites *"they blew the engineering bay while you were mid-merge"* as the **good** death — the one that
+makes docking a real bargain. Research promises the same thing and does not honour it.
+
+**2 — `researchTier` is a *third* tier system.** §12.19 folds `FacilityStats::level` (1–5) into
+`Grade` (7 tiers) and warns that *"two tier systems for one concept would drift the moment either was
+tuned."* **There are three.** `StationFacility::researchTier` is a bare `float` on a per-station
+component, derived from no facility hardpoint, defaulting to `1.0`, and never written outside tests.
+
+> **`researchTier` is deleted.** Duration derives from the **Research hardpoint's `Grade`**, against
+> §2.4's settled table — Common 100% of base time down to Mythic 30% — the same hardpoint the tab
+> already names and the same grade §12.30.4 reads for repair and §12.30.5 for merging.
+
+**3 — `ResearchJob::cost` is a duration, not a price.** `progress += dt * tier`, complete at
+`progress >= cost`. So `cost` is **seconds**, in a codebase where `BuyItemRequest::cost` and
+`RepairRequest::costForFullRepair` are **credits**. Rename it `durationSeconds` in `ResearchJob` and
+`ResearchRecord` together. Cheap now — two structs and one ledger, no content — and it is exactly the
+kind of thing that produces a real bug the first time someone wires pricing past it.
+
+##### 🐛 A null `ctx.knowledge` completes the job and drops the unlock
+
+```
+if (it->progress >= it->cost) {
+    if (ctx.knowledge != nullptr) { ctx.knowledge->Grant(...); }
+    it = facility.researchJobs.erase(it);          // erased either way
+}
+```
+
+The header calls this *"a no-op if `ctx.knowledge` is null, the same guard `DiscoverySystem` uses."*
+**It is not the same guard, because the two operations are not the same kind.** Discovery is
+idempotent and re-derivable — skipping it loses nothing permanently. **Research is destructive**: the
+job is erased, and once the sample rule below exists, the sample is consumed. A no-op guard on a
+destructive path silently spends the input and produces nothing.
+
+> **The job freezes at completion instead of completing.** `progress` clamps at `durationSeconds`, the
+> job stays in the queue, and the grant fires on the first tick `ctx.knowledge` is non-null.
+
+*Worth stating as a general rule while it is in front of us: **a null-pointer guard may skip an effect
+only if skipping it is free.** `DiscoverySystem`'s is; this one is not; §12.30.4's `ctx.economy` payer
+branch is not either — an NPC that repairs without paying because a pointer was null is the same
+mistake pointing the other way.*
+
+##### The sample is the screen's real design content, and none of it exists
+
+`features.md` §2.4 settles four things about the sample, and `ResearchJob` implements none of them —
+it carries an item id and nothing else:
+
+| §2.4 says | State |
+|---|---|
+| Research consumes the sample, on a **survival roll** by facility grade — Common 5% … Mythic 90% | 📋 No roll anywhere |
+| *"The sample is **locked** for the job's duration and the roll resolves on completion"* | 📋 Nothing removes it from the hold |
+| ⚠️ *"**The survival chance must be shown before the player commits.** Feeding your only Mythic into a Common bench has to be a gamble the player took, not a gotcha the game sprang"* | 📋 There is no commit step |
+| *"Research cannot fail"* — the sample roll **is** the failure mechanic; the unlock is granted regardless | 📋 — |
+
+**That disclosure rule is the strongest UI requirement in this batch**, because it is a settled rule
+with a stated reason rather than a preference. It decides the screen's shape: **the commit step is a
+confirmation, not a button.**
+
+> **Committing a sample shows, before the click: the survival chance, the duration, and which network
+> the unlock lands in.** Three numbers, all derived, none authored.
+
+**The lifecycle, with no new type:**
+
+1. **Commit** — the item leaves the `CargoHold` and lives in the `ResearchJob`. The job *is* where the
+   sample is held, so it demotes with the job (`ResearchRecord` already carries `item`) and comes back
+   with it. No "locked" flag, no second home.
+2. **Complete** — the unlock is granted unconditionally (§2.4: research cannot fail). Then the survival
+   roll: on success the sample returns to the hold, on failure it is gone.
+3. **Cancel** — the sample returns whole. **Nothing was consumed, so nothing is refunded** — what you
+   forfeit is the progress, and that is the honest cost, because §2.4 prices research in *time and the
+   sample* and nothing else.
+
+⚠️ **The roll is deterministic from `(item id, tick)`** — §2.4's rule, the FNV-1a idiom `MiningSystem`
+and `CommsSystem` already share. §12.19 already names this batch as the **third consumer** that
+promotes it to `shared/math/`; this is one of the three.
+
+##### Already-known items are refused before the click, not after
+
+§2.4: *"a surviving sample is not reusable **for research** — the unlock is permanent after one
+success."* So researching something the target network already holds is pure loss. **The row is
+disabled with `ALREADY KNOWN`** (§3.10's degrade-never-remove) rather than being hidden — hiding it
+would make the player's own progress invisible, which is §8.3's rule.
+
+**This requires the screen to read the network**, which requires `NetworkOwner` to have a producer.
+`KnowledgeStore::Create` exists and returns an id; **nothing holds one.** The player's network is
+emplaced at §12.24 step 1 alongside `CargoHold` and `Wallet` (§13.3 P), and a faction's on its
+stations — the same gap, in the same factory, as three other components.
+
+##### No credit fee, and that is a decision
+
+`features.md` §2.4 prices research in **time and the sample**, deliberately, and warns in the same
+section against stacking brakes: *"Four brakes on one action is the pattern that got upkeep cut."*
+Adding a docking fee for using someone's lab would be a third.
+
+**So research at a foreign lab is free, and the reasons to build your own are grade and security** —
+a better bench is faster and returns your sample more often, and a station you own is not one you will
+find destroyed. Which lands on the risk the ownership model already gives for nothing:
+
+> **A job runs on the host's `StationFacility`, so it dies with the host.** Research at a foreign lab
+> is a real decision with a real exposure, and §3.4 already built the exposure. No new mechanism.
+
+##### Duration derives; it is not authored per item
+
+§2.4's table gives the facility grade's **percentage** of research time and never says what it is a
+percentage *of*. Filling that with the discipline §12.19 already applies to mass and price:
+
+```
+duration(item, facility) = baseDuration(item.grade) * gradeTimeFactor(facility.grade)
+```
+
+**One ladder, no per-item authored time.** A Legendary module takes longer than a Common one because
+its grade says so, and adding a module never requires guessing a number — the same argument §12.19
+makes for its authored element masses. ~~*Flagged as a fill rather than a quote: §2.4 settles the
+right-hand factor and is silent on the left.*~~
+
+> ✅ **Confirmed as a quote 2026-08-10 (§12.19).** §2.4 is silent on the left-hand factor;
+> **`features.md` §2.8's time curve authors it** — 60s base for a research job, doubling per grade —
+> and the two agree to the digit at four points: Common 1m, Mythic 64m, Mythic at a Mythic lab ~19m,
+> and (on the manufacturing side, 10s base) a Mythic module in ~192s. Not a fill.
+
+##### `FacilityStats::capacity` gets its second reader, and it is the same meaning
+
+§12.30.2 gave `capacity` its first reader — docking-bay occupancy. §12.30.3 deleted its *"storage
+slots"* clause as dead. **Concurrent research jobs is its second reader, and it is the same concept,
+not a third meaning:**
+
+> **`FacilityStats::capacity` is how many units of work a facility holds at once.** Vessels for a bay,
+> jobs for a lab. `0` remains unlimited.
+
+*That is the confirmation §12.30.3's edit was right: "storage slots" was the odd one out precisely
+because a hold's capacity is the hold's own field, while everything else `capacity` names is
+concurrent occupancy.* `StationFacility::researchJobs` is a `std::vector` with no cap today — the
+header says *"a station running two jobs at once holds both in this one vector"* and nothing stops it
+holding two hundred.
+
+##### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Lab name · **grade** · this Research hardpoint's integrity `Gauge` (§3.4) · **slots `2 / 3`** |
+| **Sibling selector** | `TabStrip`, one per living Research hardpoint (§12.30.5's generalised rule) |
+| **Left `ListView`** | Your `CargoHold` — candidate samples |
+| **Right `ListView`** | The queue — one row per running job |
+| **Footer** | The commit confirmation, or **Cancel** for a queued row |
+
+Left-hand rows: **`glyph`** the item's monogram, **`label`** its name, **`value`** the survival chance
+and duration *at this bench* — so the §2.4 disclosure is present in the list itself, before any
+selection. **`RowStyle`** disabled with `ALREADY KNOWN`, or with `NO SLOTS` when the queue is full.
+
+Right-hand rows: the job, its remaining time, and its progress.
+
+##### The one widget-layer addition four screens did not need
+
+The queue needs **per-row progress**, and `Row` is `{ label, value, glyph, style }` with nowhere to
+put it. The header `Gauge` shows one thing; a queue of three jobs showing one progress bar is not a
+queue.
+
+> **`Row` gains `float fill = -1.0f`** — negative meaning none — and `ListView` draws a fill behind
+> the row when it is set.
+
+**Two consumers exist in this batch**: this queue and Manufacturing's (§12.18). That is Law 11's
+tie-breaker satisfied, and it is worth recording that **the five widgets of §12.30 covered four
+screens with nothing left over and needed exactly one field on the fifth** — which is the evidence
+that the set was scoped correctly, and the reason the sixth screen should be checked against it rather
+than assumed.
+
+##### Types
+
+- **`StartResearchRequest { ItemId item; KnowledgeNetworkId targetNetwork; }`** — new, in
+  `shared/components/Research.h`. **The missing producer**, and the whole reason the chain above is
+  dead.
+- ⚠️ **Two amendments from §12.30.8**, both found by specifying the sibling screen. **`item` becomes
+  an `ItemRef`** — an unlock is keyed on `(ItemId, Grade)`, or one Common sample teaches you to build
+  Mythics and §2.7's drop ladder stops meaning anything — and *"at most one job per item"* widens to
+  **per `ItemRef`** with it. **`ResearchJob` and `ResearchRecord` gain a `MountId facility`**, because
+  `StationFacility` is per *station*: as written, this section's grade-derived duration, its facility
+  gate and its `capacity` slot limit are all unevaluable on a station with two labs, and §12.30.5's
+  sibling selector puts exactly that station on the screen.
+- **`CancelResearchRequest { ItemId item; }`** — named by the item, which works because of one new
+  rule: **a station runs at most one job per item.** A second job on the same item is refused. That
+  gives cancel a key with no new id type, and it stops a player queuing the same research four times
+  for no gain.
+- **`ResearchJob`** — `cost` → **`durationSeconds`**; `item` becomes an **`ItemId`** carrying a
+  `NetworkEntryKind` (§12.16 item 21, so shells are researchable). `ResearchRecord` follows both.
+- **`StationFacility::researchTier`** — **deleted.**
+- **`NetworkOwner`** — gains its first producer (§12.24 step 1, and `StationFactory`).
+- **No new component.** The queue is `StationFacility`, the gate is `FacilityRef`, the slots are
+  `FacilityStats::capacity`, the sample is the job's own `item`.
+
+##### Systems
+
+`ResearchSystem` gains: the **facility gate**, the two request consumers, the **capacity check**, the
+**survival roll**, the **grade-derived duration**, and the **freeze-instead-of-drop** guard. It loses
+`researchTier`. **No new system**, and no new file — the fourth screen in a row where that holds.
+
+⚠️ **`CollapseResearchJobs` and `PromoteResearchJobs` have no callers either.** `SpaceFlight::
+WarpToSystem` carries `CargoHold`, `Wallet` and `wreckLedger_` across a jump and nothing else
+(§12.31), so a job on a station in the departing system is destroyed with the world rather than
+demoted. **The demotion path is built and correct and is never invoked** — it joins the parked-hull
+and crafted-module cases as a fourth thing §12.31's work has to actually call.
+
+##### Tests
+
+- A `StartResearchRequest` at a station with **no living `Research` hardpoint** is refused; one at a
+  station with a living lab creates exactly one job.
+- Destroying the Research hardpoint mid-job stops progress — the assertion that fails today, in the
+  form §3.4 promises.
+- A second job on an item already queued at that station is refused; the same item at a *different*
+  station is allowed.
+- The queue refuses a job beyond `FacilityStats::capacity`; `capacity: 0` never blocks.
+- Duration scales with the **facility hardpoint's grade**, not with a per-station float — and
+  `researchTier` no longer exists to be set.
+- On completion the unlock is granted **exactly once**; the sample returns on a passing roll and is
+  gone on a failing one; the roll is identical for the same `(item, tick)` on every platform.
+- **With `ctx.knowledge == nullptr` the job does not complete and is not erased**, and grants on the
+  first tick the pointer is supplied — the regression test for the drop above.
+- Cancelling returns the sample whole and forfeits the progress.
+- A row for an item the target network already holds is disabled, not hidden.
+- A demote → promote cycle resumes at caught-up progress **and carries the sample** — the existing
+  §12.1 test, now with something in the job that can be lost.
+- **The request a screen builds lands on the docked requester and is consumed by its system on the
+  following tick** — §12.30's shared shape.
+
+##### Scheduling
+
+Group **4b**, and it is the one screen where §12.24 **step 6 is a real prerequisite** rather than a
+degradation: with `ctx.knowledge` null there is no network to grant into and none to check
+`ALREADY KNOWN` against. The freeze fix makes that safe rather than destructive, but the screen is not
+meaningfully playable without it.
+
+| Needs | Status |
+|---|---|
+| 4a's widgets **plus `Row::fill`** · the router · `PlayerLocation` | Group 4b |
+| **§12.24 step 6 — `ctx.knowledge`** | Group 3, independently startable today |
+| `NetworkOwner`'s producer · `StationFacility`'s producer | With §13.3 O/P's factory pass — the same factories, the same commit |
+| A `Research` facility authored in `modules.json` | Content |
+| §12.19 for `ItemId` and the grade ladder | Only for **shells** as samples and for derived duration. Modules work with `ModuleId` today |
+
+**The three defects in the built half belong in group 2**, like §12.30.4's: the facility gate, the
+`researchTier` deletion, and the `cost` → `durationSeconds` rename are each a few lines against built
+code, and the freeze fix is one more.
+
+##### What is deliberately not here
+
+- **No research failure roll.** §2.4 settles this at length — the sample roll *is* the failure
+  mechanic, and a second probability would give four outcomes, two of which read identically.
+- **No quality-capped unlock at a low-grade bench.** §2.4 considered it, called it *"genuinely
+  interesting"*, and set it aside because it needs a per-unlock quality cap nothing reads — §2.4's own
+  dead-abstraction rule applied to itself.
+- **No research queue reordering or priority.** Jobs are concurrent up to `capacity`, not sequential,
+  so there is no order to change.
+- **No espionage or network theft.** §5.10's defection path copies a network with
+  `KnowledgeStore::Copy` and belongs to that feature, not to a bench.
+
+#### 12.30.7 The two flight overlays — inventory and loadout
+
+*Settled 2026-08-10. §12.30 moved `StorageMenu` and `ModulesMenu` out of the docked router and into
+`features.md` §3.10's overlay set, and warned they **"do not become trivial by moving."** They do not:
+the loadout overlay's two pure functions are **both inverted**, and following that through finds a
+module-duplication bug and a module-destruction bug reachable from the same click. Verified against
+`src/` 2026-08-10.*
+
+**Gate:** none. Neither is facility-gated — that is the whole point of the supersession, and
+`features.md` §2.7's **live refit is unrestricted** is the rule behind it. **Keyed on a HUD button or
+its §3.6 key**, per §3.10.
+
+##### Where they live, now that a docked screen is full screen
+
+§12.30's frame decision creates a question neither surface had: §3.10 describes overlays as
+*"semi-transparent and offset from centre"* over the viewport, and a docked screen has no viewport.
+
+> **An overlay is defined by being over something, not by what it is over.** Both open in flight over
+> the world, and both open while docked over the docked screen. Same widgets, same rows, same
+> selection state — only the background differs.
+
+Two reasons this is not a special case:
+
+- **The loadout overlay is the *only* refit surface.** §12.30 removed `ModulesMenu` from the router,
+  so if it did not open while docked, refitting at a station — the least controversial place to refit
+  — would be impossible.
+- **The inventory overlay is not redundant with the Market.** A station with neither a `CargoHold` nor
+  a `Trade` hardpoint has no Storage tab at all (§12.30.3's fourth ownership case), and the player
+  still needs to read their own manifest there.
+
+**Neither pauses** (§3.4), and opening one in flight is the real tactical cost §3.10 already prices.
+
+---
+
+##### The inventory overlay
+
+**It is your own `CargoHold`, everywhere.** `storage_menu::Rows(const CargoHold&) ->
+std::vector<std::string>` becomes `ListView` over `Row`, per §12.30 — which is most of the change, and
+§12.30.3's one-`ItemStack`-list unification is the rest.
+
+###### It owns exactly one verb, and that verb has a job
+
+**Everything else you might do to an item belongs to a screen that already exists**: buy and sell to
+the Market, deposit and withdraw to Storage, merge and deconstruct to Engineering, equip to the
+loadout overlay beside it, research to the Research lab. `StorageMenu`'s own header says it *"only
+reads `CargoHold`, it never mutates it."* **That remains true but for one addition, and the addition
+is not a convenience.**
+
+🐛 **A full hold has no exit, and §12.30.3 is what closes the trap.** Once `CargoHoldHasRoomFor` gains
+its other four callers, a full hold refuses loot, refuses a `RefactorSystem` refund, and refuses a
+buy. And **every operation that could make room also fills it**: unmounting a module pushes to the
+hold, scrapping a hardpoint pushes to the hold, deconstruction pushes to the hold. The only drain in
+the entire game is **selling, at a station with a living `Trade` hardpoint.**
+
+> **Jettison.** One verb on the inventory overlay: drop the selected stack into space as a
+> `LootDrop` / `MaterialDrop` at the rig's position.
+
+It is worth more than the corner it closes. **§13.3 T records that `LootDrop` and `MaterialDrop` have
+zero producers** — `LootSystem` collects drops nothing creates. **Jettison is that producer**, and it
+is the shape §13.5's deferral warning points *toward*: a UI-emitted intent consumed by a built system,
+not a producer invented inside the system.
+
+*It also makes the hold's capacity a real constraint rather than a wall. A cap you cannot act against
+is a bug report; a cap you resolve by choosing what to throw away is the constraints puzzle §2.2 is
+built on.*
+
+###### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Capacity `34 / 50` · total mass — the number §2.2's puzzle is actually about |
+| **List** | `ListView` over the hold, grouped by `ItemKind` then Material family (§12.30.3) |
+| **Footer** | **Jettison**, with a quantity, and nothing else |
+
+Rows are §12.30.3's exactly — periodic abbreviation or monogram in `glyph`, quantity in `value`. **The
+two screens share the row builder**, since it is the same hold rendered the same way; the Market
+simply draws a second one beside it.
+
+⚠️ **Mass in the header is not decoration.** §2.2's constraints puzzle is mass against thrust, §12.23's
+`RecomputeRigTotals` makes cargo mass affect handling, and `features.md` §2.10 authors a mass per
+element for exactly this. Without it the player carries fifty units of tungsten and discovers the cost
+by flying badly.
+
+###### Types and systems
+
+⚠️ **`JettisonRequest`'s payload widens with the rest** (§12.19): `{ ItemInstance item; int
+quantity; }`, and `LootDrop`/`MaterialDrop`/`DeathWreck` all become `ItemStack` in the same pass, so
+a jettisoned Mythic roll is the same object when it is picked back up. The loadout overlay's
+`MountedModules::ids` becomes `::items` of `ItemInstance` for the same reason — a mounted module has
+a quality and a composition, and unmounting must return *that* module rather than its def.
+
+**`JettisonRequest { ItemId item; int quantity; }`** in `shared/components/Loot.h`, consumed by
+`LootSystem` — which already owns both drop types and their lifetimes. **No new system, no new
+component**, and one dead component pair gains a producer.
+
+---
+
+##### The loadout overlay
+
+###### 🐛 Both of its pure functions are inverted, and the bug is real
+
+`modules_menu::EquippableMounts` returns every hardpoint that *"carries `ShellRole`, does not already
+carry `EquippedModule`."* `EquippedMounts` returns those that do. And `Equip.h` states the premise
+that breaks both:
+
+> *"`EquippedModule` is only present on a hardpoint while `ModuleEquipSystem` is the one that put a
+> module there — a rig's original, `RigFactory`-instantiated loadout is **not** retroactively tagged."*
+
+**So on a freshly spawned ship, every occupied hardpoint reports as an empty slot, and the list of
+things you can unmount is empty.** The overlay's two lists are exactly backwards, and each is wrong in
+the direction that causes damage.
+
+**Following the first one through, against `ModuleEquipSystem`:**
+
+1. `ProcessMountRequests` refuses an occupied mount by testing `all_of<EquippedModule>`
+   (`ModuleEquipSystem.cpp:33`) — *"Already occupied — unmount first."* **A blueprint-mounted
+   hardpoint has no `EquippedModule`, so it passes.**
+2. `AttachModuleComponents` runs `emplace_or_replace<Weapon>` — **silently overwriting the original
+   module's live components** — while `MountedModules.ids` still names the original.
+3. The hardpoint now holds three disagreeing answers: `MountedModules` = the original, `EquippedModule`
+   = the new one, live components = the new one.
+
+**Two different bugs fall out of that state, from one click each:**
+
+| Action | Result |
+|---|---|
+| **Unmount** | Returns the **new** module to the hold and `DetachModuleComponents` **removes** `Weapon` outright. The original is now gone from the ship *and* absent from the hold — **destroyed** |
+| **Scrap the hardpoint** (§12.30.5) | `RefactorSystem` refunds `MountedModules` — the **original**. The player receives a module they no longer had and loses the one they just fitted — **duplicated** |
+
+*This is finding §13.3 C's abstract warning made concrete, and it is the argument §13.4 decision 2 has
+been waiting for.* That decision — *"keep `MountedModules`, delete `EquippedModule`"* — currently reads
+as tidiness. **It is a dupe-and-destroy fix**, and this overlay is the surface that reaches it.
+
+> **After decision 2 there is one list.** `EquippableMounts` becomes *"`MountedModules` is empty"*,
+> `EquippedMounts` becomes *"it is not"*, and both are correct for blueprint-mounted and
+> runtime-mounted modules alike, because there is only one kind.
+
+###### 🐛 Mounting does not check `Destroyed` — and that is the third system that does not
+
+`ProcessMountRequests` validates ownership, occupancy, `ShellRole`, mountability and possession, and
+**never tests `Destroyed`.** You can fit a module to a hardpoint that was shot off; it is consumed
+from the hold, its components are attached, and every system skips the mount because of the tag.
+
+*Three systems now write to hardpoints without checking the tag* — `StationServicesSystem`'s repair
+(§12.30.4), `RefactorSystem`'s refund (§12.30.5), and this. **`DockingSystem` and `DamageSystem` are
+the only two that do.** It should be swept once, as a group-2 pass over every hardpoint writer, rather
+than three times in three screens' worth of issues.
+
+###### Two more things live refit needs, both already recorded
+
+| Gap | Recorded as |
+|---|---|
+| `AttachModuleComponents(registry, mount, *module, **0.0f**)` — every runtime-mounted weapon gets a **zero-width firing arc** and never fires | §13.3 D · `MountTraverse`, §13.5 group 2 |
+| Nothing recomputes `BodyMass` or `Propulsion` on mount or unmount, so **a swap does not change how the hull flies** | §12.23's `RecomputeRigTotals` · §11.9 |
+
+**§11.9 already makes the second one a hard dependency of shipping this overlay**, and the reason is
+worth repeating because it is the whole mechanic: *"live refit is now sanctioned combat play, so a
+swap that does not change how the hull flies is the mechanic broken."*
+
+⚠️ `IsMountable(module->kind, shellRole->kind)` is the hardcoded table §12.22 replaces with
+`ShellDef::acceptsKinds`. The overlay greys an illegal target either way; the only question is whether
+the rule is content or code, and §12.22 settled it as content.
+
+###### Select, then target. No drag-and-drop.
+
+§12.10's promotion note names legacy StarReach2's *"slot-rendering and trash-can widgets"*, which were
+a drag-and-drop grid. **Not carried forward**, and the reason is §12.30's own widget decision: a drag
+is **retained state spanning frames** — what is held, where the cursor took it, what it is over — and
+*"no retained tree, no widget-owned state"* is the one thing that decision forbids.
+
+> **Click the module, then click the mount.** Two clicks, both stateless; the pending selection is one
+> more field on the UI-state singleton §12.24 already settled, exactly like a selected row index.
+
+It is also better under §4.4's no-pause rule: a drag demands sustained precise attention for its whole
+duration, which is the class of interaction §4.4 disqualifies during combat — and combat is precisely
+when §2.7 legalised refit.
+
+###### Layout, and the schematic it becomes
+
+| Section | Contents |
+|---|---|
+| **Header** | Rig name · aggregate integrity · **mass and power**, both live against the pending swap |
+| **Left `ListView`** | Your hold, filtered to modules mountable *somewhere* on this rig |
+| **Right `ListView`** | Every hardpoint on the rig — living, empty, and `Destroyed` |
+| **Footer** | **Mount** / **Unmount** for the current pair |
+
+The right-hand rows are three states again, and §3.10's degrade-never-remove decides all three:
+occupied (its module, integrity gradient), **empty** (outline, `EMPTY`), and **destroyed** (disabled,
+`DESTROYED — REBUILD AT ENGINEERING`, §12.30.5).
+
+⚠️ **The header numbers change with the *pending* selection, before the click.** §2.2's puzzle is mass
+against thrust and draw against generation, and a refit screen that shows the consequence only
+afterwards is asking the player to guess at the one decision the game is built around. This costs
+nothing — `RecomputeRigTotals` is the same function, run against a hypothetical.
+
+> **When §3.9's status projection lands (§13.5 group 2e), it becomes this overlay's second selector.**
+> §3.9 promises *"the same object for the player's own ship, for the current target, and — degraded —
+> for a map marker. Not three designs."* **A loadout screen is the fourth use and the most obviously
+> spatial one**: which mount, and where on the hull. §3.9 already permits *"a single click to expand a
+> section"*, and the hit test is the same pure function `ListView` uses —
+> `HardpointAtPoint(projection, cursor) -> index` — over the **same selection state**, so the list does
+> not go away and nothing is re-modelled.
+
+**Ship the list in 4b; the projection is an addition, not a prerequisite.** Recorded here so 2e knows
+it has a consumer waiting, and so nobody builds a second hardpoint-selection model when it lands.
+
+###### Types and systems
+
+- **No new component.** `MountModuleRequest` and `UnmountModuleRequest` are built and correct; what is
+  wrong is the predicate that decides which mounts to offer.
+- **`EquippedModule` is deleted** (§13.4 decision 2), and `EquippableMounts`/`EquippedMounts` are
+  rewritten against `MountedModules`.
+- `ModuleEquipSystem` gains the **`Destroyed` refusal**, a real **`MountTraverse`** (§13.3 D), and a
+  **`RecomputeRigTotals`** call on both paths (§12.23). **No new system.**
+
+---
+
+##### Tests
+
+**Inventory:**
+
+- Jettison removes exactly the requested quantity and spawns a matching `LootDrop`/`MaterialDrop` at
+  the rig's position; jettisoning more than is held is refused whole.
+- A jettisoned stack is collectable again by `LootSystem` — the round trip, which is the first time
+  either drop type has had one.
+- A full hold that refuses a `RefactorSystem` refund accepts it after a jettison — **the trap, asserted
+  end to end.**
+- The header's mass equals the sum of the hold's item masses (once §12.19 authors them).
+
+**Loadout:**
+
+- On a **freshly spawned** rig, the mount list shows its blueprint modules as *occupied* and its empty
+  hardpoints as *empty* — **the assertion that fails today in both directions.**
+- Mounting onto an occupied hardpoint is refused whether the module got there from the blueprint or
+  from a previous mount.
+- Mount → unmount → scrap the hardpoint yields **exactly one** of each module involved, and never a
+  module the player did not have — the duplication and destruction regressions, asserted together.
+- Mounting onto a `Destroyed` hardpoint is refused and consumes nothing.
+- A runtime-mounted weapon **fires** — the `MountTraverse` regression (§13.3 D).
+- Mounting a heavier engine changes `BodyMass` and `Propulsion` the same tick (§12.23), and the
+  header's pending numbers match what the rig has after the click.
+- An illegal module/shell pair is greyed in the list and refused by the system — the UI is not
+  authority.
+
+##### Scheduling
+
+**Group 4a and 4b, and they are the last two surfaces in the batch.** Neither needs a facility, a
+station, or a docked state.
+
+| | Needs | When |
+|---|---|---|
+| **Inventory** | 4a's widgets · §12.30.3's `ItemStack` unification for grouping · `JettisonRequest` | **4b.** Jettison alone could land with group 2 — it is one intent and one existing system |
+| **Loadout** | **§13.4 decision 2** · §13.3 D's `MountTraverse` · §12.23's `RecomputeRigTotals` · the `Destroyed` refusal | **After decision 2**, which is now a dupe-and-destroy fix rather than a cleanup |
+
+⚠️ **The loadout overlay joins Engineering's merge as *worse routed than unrouted*.** Every other
+surface in this batch is inert-but-correct; these two are reachable-and-wrong. **Do not wire the
+loadout button before decision 2 lands** — the first player to refit a fresh ship destroys a module,
+and the failure looks like a UI bug.
+
+##### What is deliberately not here
+
+- **No drag-and-drop**, per the widget decision above.
+- **No loadout presets or saved fits.** That is `CustomizeMenu`'s Template (§12.9) — a *design*, not a
+  live rig, and §12.31 is emphatic about not letting the two types converge.
+- **No repair or rebuild from the loadout list.** They are §12.30.4 and §12.30.5, both facility-gated;
+  this overlay is not, and putting a gated verb on an ungated surface is how the gate stops meaning
+  anything.
+- **No cargo transfer between vessels.** Deposit and withdraw are §12.30.3's, against a station's hold
+  and its ownership rule.
+#### 12.30.8 Screen 5 — Manufacturing
+
+*Settled 2026-08-10, after §12.19. **Taken last of the seven**, and deliberately: §11.9 records that
+`features.md` §2.10's whole attribute-propagation chain is computed in `ManufacturingSystem` and
+nowhere else, so this screen is a UI over the item model rather than over a facility, and specifying
+it before §12.19 existed would have been writing a parts list against an undefined idea of a part.
+Verified against `src/` by grepping for readers and callers. **It amends §12.30.6 in two places** and
+completes §12.30's supersession of step 5a's drafting facility.*
+
+**Gate:** a living `FacilityKind::Manufacturing` hardpoint **and** the design present in the actor's
+knowledge network — `features.md` §2.8's *"gated by facility and by knowledge, both."* **Two
+sections, Queue and Draft**, and they are not two views of one thing: one consumes a network category
+and the other produces a different one.
+
+##### The screen is the missing producer for two chains, and they are different chains
+
+| Section | Produces | Read by | State |
+|---|---|---|---|
+| **Queue** | `ManufacturingJob` | `ManufacturingSystem` | Neither exists. §12.18 specified the system; **nothing is built** |
+| **Draft** | A Template — a `ShipBlueprint` in a network | `ConstructionSystem` | 🐛 **Built at both ends and severed in the middle** |
+
+##### 🐛 A saved Template can never be built, and the body is discarded one line from being kept
+
+*Verified 2026-08-10 by following the chain end to end. This is the same five-link shape §12.30.6
+found in research, with one difference that makes it worse: **the missing datum is already in the
+intent.***
+
+| Link | State |
+|---|---|
+| `customize_menu::NewDraft` / `AddMount` / `EquipModule` assemble a draft `ShipBlueprint` in local UI state | ✅ Built |
+| `CanSave` runs `Validation.h`'s full rule set and returns a `ValidationResult` | ✅ Built |
+| `BuildSaveRequest` builds a `SaveTemplateIntent` **carrying the whole blueprint** — `intent.blueprint = draft` | ✅ Built |
+| `ConsumeSaveTemplateRequests` re-validates, then calls `Grant(network, SavedTemplate, request.blueprint.id.str())` | 🐛 **Grants the id and drops the body** |
+| `KnowledgeNetwork::savedTemplates` is `std::unordered_set<std::string>`, and its comment says why: *"never a blueprint body (Law 10 — the content library already owns those)"* | 🐛 **The content library does not own this one** |
+| `ContentLibrary::FindShip` searches `ships_`, the JSON-loaded set. **There is no runtime overlay for ships** — the overlay that exists is `craftedModules_`, and it is for modules | 🐛 |
+| `ConstructionSystem`'s `BuildStationRequest` / `PlaceShipRequest` resolve through `rig_factory::Spawn(ctx.world, ctx.content, params)` → `FindShip` → **`nullptr`**, and `Spawn` returns not-ok | 🐛 |
+
+> **A player designs a ship, it validates, it is saved, it appears in their network — and it cannot
+> be built, ever, with nothing logged anywhere.**
+
+**And §12.19's retirement is the fix, because the overlay is on the wrong type.** §12.19 deletes
+`RegisterCraftedModule` on the ground that a rolled module instance is a **value** that travels in a
+hold, not a definition. **A drafted Template is a definition** — a body that has to be resolvable by
+id from anywhere, which is precisely what an overlay is for.
+
+> **`ContentLibrary::RegisterCraftedModule` becomes `RegisterDraftedTemplate(ShipBlueprint)`.** Same
+> map, same *"runtime wins"* tie-break, same survives-`LoadFromDirectory` rule, and the same one save
+> section §12.31 already scoped for the module version — pointed at the type that needs it.
+
+*Law 3 decides which is which and needs no judgement call: a merge produces a **live form**, drafting
+produces a **blueprint form**, and an overlay on `ContentLibrary` holds blueprint forms. The two were
+swapped.*
+
+##### 🐛 `ConstructionSystem` has no knowledge gate at all
+
+*Verified 2026-08-10.* `ProcessStationRequests` and `ProcessShipRequests` read a `Wallet`, compare
+`wallet->credits < request.cost`, and spawn. **There is no `ctx.knowledge`, no network membership
+check, and no facility check** — §12.26 gates *build mode*, not the request, and carries no knowledge
+rule either.
+
+So `features.md` §2.8's *"a faction that bought your Template can manufacture it forever precisely
+because the design sits in their network — that is the same gate, applied to them"* is enforced
+against nobody. **Any requester can build any blueprint in the library, for a price they supplied
+themselves** — which is `BuyItemRequest::cost`'s Law 9 defect (§12.30.3) in a second system, and
+§12.7's royalty model has nothing to hang on, since building someone's design is not an event anyone
+can observe.
+
+**Both belong in one edit:** `ConstructionSystem` reads `ctx.knowledge` and refuses a blueprint the
+requester's network does not hold, and `cost` is **deleted** from both requests rather than filled in,
+priced by `Pricing.h` from the blueprint's parts (§12.19) exactly as the other four requests now are.
+
+##### 🐛 An unlock has no grade, and that decides whether the rarity ladder means anything
+
+`KnowledgeNetwork::unlockedBlueprints` is a `std::unordered_set<std::string>`, and `ResearchJob::item`
+is a bare `ModuleId`. **An unlock is therefore keyed on a design, not on a design at a grade.**
+
+If finding one Common cannon unlocks *the cannon*, a player manufactures **Mythic** cannons off it,
+gated only by cost. That deletes `features.md` §2.7's drop ladder outright, and it contradicts the
+stated reason that ladder is safe to make steep: *"**One recovered Mythic** can be reverse-engineered
+into something manufacturable forever, so a drop rate gates first acquisition."* First acquisition of
+**that Mythic** — not of the design, which the Common already gave you.
+
+> **An unlock is keyed on `(ItemId, Grade)`. You manufacture the grade you researched, and the grade
+> you researched is the grade you found.**
+
+**This is not the facility-tier cap §2.4 rejected.** That cap said *"you may not research this at this
+bench"* — a gate on the action. This is the drop ladder doing the job §2.7 already assigns it, and
+research stays uncapped in exactly the way §2.4 means: any grade you can find, you can research, at
+any bench, and the bench only changes the odds and the clock.
+
+*Three small consequences: `NetworkEntryKind::UnlockedBlueprint` entries carry a grade;
+§12.30.6's `StartResearchRequest { ItemId item; }` becomes `{ ItemRef item; … }`; and that section's
+"a station runs at most one job per item" widens to **per `ItemRef`**, so two grades of one cannon are
+two legitimate concurrent jobs.*
+
+##### 🐛 A job cannot name its own bench — and §12.30.6 settled three rules that require it
+
+*This is an amendment to §12.30.6, found by specifying its sibling. `StationFacility` is **per
+station**: `{ std::vector<ResearchJob> researchJobs; float researchTier; }`.*
+
+Three rules settled the same day evaluate against a hardpoint that the job does not identify:
+
+| Rule | Needs |
+|---|---|
+| §12.30.6 — duration derives from *"the **Research hardpoint's** `Grade`"* | Which hardpoint |
+| §12.30.6 — the queue stops when the lab is destroyed (§3.4's bargain) | Which hardpoint |
+| §12.30.6 — slots are `FacilityStats::capacity`, **a per-module field** | Which hardpoint |
+| §12.30.5 — the sibling selector generalises: *n* benches of different grade behind one tab | Which hardpoint |
+
+**On a station with two labs of different grade, all four are unevaluable**, and this screen doubles
+the problem by adding a second queue on the same component.
+
+> **`ResearchJob` and `ManufacturingJob` each gain a `MountId facility`.** Not an `entt::entity` —
+> Law 2, and both demote into `core/galaxy/` records that outlive the registry. `RigBlueprint.h`
+> already promises `MountId` *"survives saves"*, `SystemWorld.h:42` already addresses a hardpoint as
+> `(rig NetworkId, MountId)`, and `rig_factory::FindHardpoint(registry, root, mount)` is built.
+
+The gate becomes *"is the mount with this id alive"*, the grade and the slot count are read off that
+hardpoint, and **destroying one bench stops only its own jobs** — which is the version §3.4 actually
+promises.
+
+##### Why Draft is a section here rather than a facility — the argument, corrected
+
+§12.30 supersedes step 5a's drafting facility on the ground that *"`ManufacturingSystem` is the only
+system that reads designs out of a knowledge network."* ⚠️ **That premise is wrong** — building a
+vessel reads a design out of a network too, or would if `ConstructionSystem` had the gate above.
+**The conclusion is right and its real reason is the other one §12.30 gives:**
+
+> **A seventh `FacilityKind`, authored by no content and gating one screen, is §2.4's dead
+> abstraction in its purest form** — and a design and the things a design is made of belong on one
+> surface, because the parts list is the same list.
+
+##### Layout
+
+| Section | Contents |
+|---|---|
+| **Header** | Facility name · **grade** · this Manufacturing hardpoint's integrity `Gauge` (§3.4) · **slots `1 / 3`** · your credits |
+| **Sibling selector** | `TabStrip`, one per living Manufacturing hardpoint (§12.30.5's generalised rule) |
+| **Section selector** | `TabStrip` — **Queue** · **Draft** |
+| **Queue · left `ListView`** | What this network can make: one row per unlocked `(ItemId, Grade)` |
+| **Queue · right `ListView`** | The queue — one row per job, with `Row::fill` |
+| **Draft · left `ListView`** | Your unlocked shells and modules, as parts |
+| **Draft · right `ListView`** | The draft's mounts, one row each, carrying the `Validation` rule each fails |
+| **Footer** | The commit confirmation, or **Cancel** for a queued row, or **Save** for a valid draft |
+
+Queue left-hand rows: **`glyph`** the monogram; **`label`** the item at its grade; **`value`** the
+duration *at this bench* and the recipe's demand. **`RowStyle`** disabled with `NO SLOTS` when the
+queue is full, or with the missing **role** when the hold cannot fill a slot.
+
+⚠️ **The row cannot say *"missing 5 × Neodymium"*, and must not try.** §2.10's recipes name roles, so
+the refusal is per role — **`NO MAGNETIC ELEMENT`** — and the confirmation shows **what the fill would
+actually be** out of the hold before the click. *This is the one screen where §2.10's substitution
+model is either legible or invisible: a parts list of named elements would present a role-based recipe
+as a named-element one and teach the player the wrong model on the first click.* It is the same
+disclosure discipline §2.4 forces on research, applied to composition instead of to odds.
+
+Draft's right-hand list is the second contribution. `CanSave` returns a full `ValidationResult` today
+and `CustomizeMenu::Draw` renders it as the single word `INVALID`. **One rule per row** — §8.3's
+*absence must never look like emptiness*, applied to a failure that already knows its own name.
+
+##### The verbs
+
+| Selection | Verb | Mechanism | Blocked on |
+|---|---|---|---|
+| An unlocked `(ItemId, Grade)` | **Queue** | `StartManufacturingRequest { ItemRef item; MountId facility; int quantity; }` | §12.19 · §12.18 |
+| A running job | **Cancel** | `CancelManufacturingRequest { ItemRef item; MountId facility; }` | ditto |
+| A valid draft | **Save** | `SaveTemplateIntent` — **built, and it already carries the body** | The one-line fix above |
+| An invalid draft | **none** — disabled, naming the failing rule | — | — |
+
+##### Inputs are consumed per unit, never per job — which is §12.30.4's argument again
+
+*A job of ten is ten units, not one large one, because `features.md` §2.8 rolls quality **per unit**
+and §12.19 stacks by indistinguishability: ten units are up to ten stacks.*
+
+> **The job produces one unit per `duration`, decrementing `remaining`, and consumes that unit's
+> inputs at the moment it starts it.**
+
+This is §12.30.4's continuous-billing reasoning transplanted, and it earns the same thing — **no
+refund logic anywhere:**
+
+| Event | Result |
+|---|---|
+| A unit completes | It lands in the requester's hold with a fresh quality roll (§2.8) |
+| The hold cannot fill the next unit's recipe | The job **stalls at the unit boundary** and resumes when it can. Nothing owed |
+| The destination hold is **full** | The job stalls at delivery, holding the finished unit in the job — §12.30.3's *refused whole, never partially applied*, and §12.30.6's *"the job is where the sample is held"* |
+| The player cancels | Only the **in-progress** unit's inputs are at stake |
+| The Manufacturing hardpoint is destroyed | The job stops. §3.4's bargain, and the mandatory `Gauge` was showing it |
+
+⚠️ **And cancel is not free the way §12.30.6's is.** Research consumes nothing until completion, so
+cancelling a research job returns the sample whole. Manufacturing has already put matter into the
+unit on the bench. **A cancelled unit returns its inputs at the facility grade's deconstruction
+recovery band** (§2.4's 20–45% … 80–100%) — reuse rather than a new rule, and it gives that table its
+third consumer after deconstruction itself and §12.19's nominal fill. *Two screens, one word, two
+behaviours: say so on the confirmation, or the second one reads as a bug.*
+
+##### Manufacturing at someone else's factory is free, for §12.30.6's reason
+
+The materials are yours, the design is in your network, the bench is theirs. **No fee** — §2.4 warns
+that *"four brakes on one action is the pattern that got upkeep cut"*, and this action already carries
+three (materials, time, and the knowledge gate).
+
+> **The job runs on the host's `StationFacility`, so it dies with the host** — and unlike research, a
+> stalled or cancelled job here has your **materials** in it. Building at a foreign yard is a real
+> exposure and §3.4 already built it. No new mechanism.
+
+##### The output lands on the vessel, not on the station
+
+§12.30.3's trap applies unchanged and is worth one assertion here too: the request goes on **the
+vessel root the player arrived in**, which is the entity carrying `Docked`, and the finished unit
+lands in *that* hold. A screen that places its request on `PlayerControlled` builds nothing, silently
+(§12.30.1).
+
+##### Types
+
+- **`ManufacturingJob { ItemRef item; MountId facility; int remaining; float progress; float durationSeconds; ItemStack pendingOutput; }`** — on `StationFacility::manufacturingJobs`, **a separate queue on the same component** (`features.md` §2.8: *"they share a shape, not a resource"*).
+- **`StartManufacturingRequest` / `CancelManufacturingRequest`** — new, `shared/components/Manufacturing.h`.
+- **`ResearchJob` and `ResearchRecord` gain `MountId facility`** — the amendment above.
+- **`KnowledgeNetwork`'s unlock entries carry a `Grade`** — the amendment above; `KnowledgeSerialization` bumps with it.
+- **`ContentLibrary::RegisterDraftedTemplate(ShipBlueprint)`**, replacing `RegisterCraftedModule`; `SystemContext::craftedModules` is deleted (§12.19) and the store is reached through `ctx.content` like every other definition.
+- **`BuildStationRequest::cost` / `PlaceShipRequest::cost`** — **deleted**, not filled in (Law 9), joining `BuyItemRequest::cost`, `SellItemRequest::value` and `RepairRequest::costForFullRepair`.
+- **`core/galaxy/ManufacturingRecord`** — exactly parallel to the built `ResearchRecord` (§12.18).
+- **No new component.** The queue is `StationFacility`, the gate is `FacilityRef` plus `ctx.knowledge`, the slots are `FacilityStats::capacity`, the rate is `FacilityStats::ratePerSecond`, the inputs are the requester's `CargoHold`. §2.4's test, passed — and `ratePerSecond` gets its **second** reader after §12.30.4's repair.
+
+##### Systems
+
+**`ManufacturingSystem` is new, and it is the only screen in this batch that needs a new system** —
+the other six added verbs to systems that already existed. §12.18 settles its home and why it is
+neither `ConstructionSystem` (which spawns entities and carries the layering exemption) nor
+`EngineerSystem` (which does not share the gate). It is also, per §11.9, **the only place
+`features.md` §2.10's attribute propagation is computed**, which is most of why the item model had to
+land first.
+
+`ConstructionSystem` gains the knowledge gate and loses its two caller-supplied costs.
+`customize_menu::ConsumeSaveTemplateRequests` keeps the body it currently discards, registering it
+through `RegisterDraftedTemplate` before granting the id. *(It also stays where §12.24 🐛 put it —
+that finding is about **where** the consumer lives, not about what it does.)*
+
+##### Tests
+
+- A `StartManufacturingRequest` at a station with **no living `Manufacturing` hardpoint** is refused;
+  one at a living factory creates exactly one job, naming that hardpoint's `MountId`.
+- A request for a design **absent from the requester's network** is refused — and a request for the
+  right design at the **wrong grade** is refused, which is the unlock-key assertion.
+- Destroying the Manufacturing hardpoint mid-job stops **that** job and leaves a job on a sibling
+  bench running — the two halves of the `MountId` fix, asserted together.
+- Duration scales with the **facility hardpoint's grade** and with the item's grade, and matches
+  §2.8's table: a Mythic module at a Mythic bench is ~192s.
+- Two units of one job roll **independent qualities** and land as two stacks; two units that roll
+  identically land as one stack of two (§12.19's stacking rule, both directions).
+- A unit consumes its inputs at its own start: a job of ten against inputs for three produces three
+  units and then **stalls**, with the remaining inputs untouched and nothing owed.
+- A full destination hold stalls delivery rather than dropping the unit, and the unit is delivered
+  once room exists.
+- Cancelling returns the in-progress unit's inputs **within** the facility grade's recovery band and
+  never above 100%; a completed unit's inputs are never returned.
+- A demote → promote cycle resumes at caught-up progress and carries `remaining` and
+  `pendingOutput` — §12.18's rule, with something in the job that can be lost.
+- **A saved Template round-trips into the network and is then successfully built by
+  `ConstructionSystem`** — the regression test for the severed chain, and the assertion that fails
+  today at the last link.
+- A `PlaceShipRequest` for a blueprint the requester's network does not hold is refused.
+- An invalid draft cannot be saved and the screen names **which** rule failed, not that one did.
+- **The request a screen builds lands on the docked requester and is consumed by its system on the
+  following tick** — §12.30's shared per-screen shape.
+
+##### Scheduling
+
+Group **4b**, and it is the **most blocked of the seven** — which is why it was specified last rather
+than built last.
+
+| Needs | Status |
+|---|---|
+| 4a's widgets **plus `Row::fill`** · the router · `PlayerLocation` | Group 4b |
+| **§12.19 in full**, including `Pricing.h` and the Element/Material content set | Its own issue |
+| **§12.18 — `ManufacturingSystem`** | Unstarted; §12.19 is its prerequisite |
+| **§12.24 step 6 — `ctx.knowledge`** | Group 3. A hard prerequisite, exactly as for Research: with a null pointer there is no network to check and the Queue list is empty by construction |
+| A `Manufacturing` facility authored in `modules.json` | Content |
+
+⚠️ **Ship the tab with Draft alone.** The Template chain's fix is one retained field, one overlay
+rename, and one gate on `ConstructionSystem`; it needs neither §12.19 nor `ManufacturingSystem`, and
+it turns a feature that is built, tested and unreachable into one that works. **That is the third
+screen in this batch to split by verb** — Storage before Market (§12.30.3), Delete and Rebuild before
+Merge (§12.30.5), Draft before Queue — and at three occurrences it is the batch's shape rather than
+three coincidences: **a screen is a tab plus a set of verbs, and the verbs do not unblock together.**
+
+*The four defects above are **not** 4b work.* The `MountId` on a job and the grade on an unlock are
+schema changes against built, tested code and belong with §13.5 group 2's research pass; the
+`SaveTemplateIntent` body and `ConstructionSystem`'s gate are group 2 by the same test — *"one-line
+and one-view corrections, independently startable today."*
+
+##### What is deliberately not here
+
+- **No vessel manufacturing.** `features.md` §2.8's table puts vessels on `ConstructionSystem`
+  because building one *is* entity assembly; this screen makes shells, modules and Materials, which
+  land as inventory. The Draft section designs a vessel and does not build one — `B` and §12.26 do.
+- **No queue reordering or priority.** Jobs are concurrent up to `capacity`, not sequential, so there
+  is no order to change — §12.30.6's reasoning, unchanged.
+- **No recipe editing.** A Material's recipe is generated from §2.10's grade table and a module's is
+  authored on its def; a player choosing slots by hand would be authoring content at runtime, and
+  §2.10's substitution rule already gives them the only choice that matters — what they feed it.
+- **No Template marketplace.** Selling a design is §12.7's `TemplateMarketSystem`, and it is a comms
+  surface rather than a factory one.
+- **No blueprint versioning.** §12.9's ❓ *(does saving over a name overwrite, version, or refuse)*
+  is still open and this screen does not close it. It is now reachable, which is a reason to close
+  it, and the cheapest answer is **refuse and say so** — a name collision on a surface with a
+  `ListView` is visible before the click.
+
+
+### 12.31 The Rig Snapshot — `RigState`, and why it is not a blueprint
+
+*Settled 2026-08-10, from §13.3 AC. `SpaceFlight.h:62` calls the missing capability a
+"live-rig-to-blueprint snapshot," and `BlueprintSerialization.h` defers it as "a factory-adjacent
+concern that lives wherever that conversion is first needed." **The name is the design error.** Most
+of this section is separating two operations that phrase has been holding together.*
+
+#### One phrase, two operations
+
+| | Live rig → **Template** | Live rig → **state** |
+|---|---|---|
+| Produces | `ShipBlueprint` | `RigState` — new |
+| Lossy? | **Deliberately.** A Template is a *design* | **Never.** A save that loses damage is a bug |
+| Carries | Composition: shells, offsets, module ids | Damage · destruction · per-instance quality · position |
+| Wanted by | §12.9 "save this ship as a Template", §2.2–2.3 | Warp · parked hulls (§12.30.2) · the world save (§13.3 Y) |
+| Transferable to another actor? | **Yes** — sold, manufactured, pitched | **No.** Nobody buys your hull damage |
+
+Both exist. Both are wanted. **They are not the same function returning the same type**, and building
+the Template version first — which is the easier one — and then extending it into a save format is
+how one type ends up meaning two things. This document has caught that pattern three times already
+(`MountedModules`/`EquippedModule`, `Element`/`Material`, `Storage`-the-kind vs. `CargoHold`).
+
+#### Why the state form cannot be a `ShipBlueprint`
+
+Three reasons, in weight order. The third is the one that would have shipped and then hurt.
+
+**1 — §12.21 makes it impossible, not merely awkward.** `MountBlueprint::modules` is
+`std::vector<ModuleId>`. §12.21 settles that a `Quality` roll is *"stored per instance"*, so two
+`pulse_cannon_i` on the same hull can have different rolled stats and **collapse to identical bytes**
+in blueprint form. A blueprint round-trip would silently re-roll or flatten every module on the ship.
+That is a data-loss bug of exactly the shape §12.21 warns about for `Direction` — one that *"would
+pass every test that only checks 'the number changed.'"*
+
+**2 — It puts state inside content.** A blueprint is authored content (Law 10), and §12.21's own
+persistence rule already forbids the inverse mistake for the same reason: *"Storing the derived block
+would let a content edit and a save disagree forever."* A hull's damage is a session fact; a shell's
+geometry is content. `check_content_pipeline.py` polices how blueprints are constructed precisely
+because they are the content boundary.
+
+**3 — `ShipBlueprint` has four uses and adding a fifth breaks the other four.** Its own comment:
+*"This is what a player Template is, what a save file stores, what gets sold to a faction, and what a
+faction manufactures from… which is what makes all four of those uses the same code path."* Add
+`health` to `MountBlueprint` and **`TemplateMarketSystem` sells a damaged design and
+`ManufacturingSystem` builds pre-damaged ships.** The four uses are unified because they are all
+*designs*; a state record is not one, and the comment's own justification is the test it fails.
+
+> ⚠️ **`ShipBlueprint`'s comment claims "what a save file stores." That claim is now wrong** and
+> should be corrected in the same commit: a save stores blueprints **and** `RigState`, and confusing
+> the two is what this section exists to prevent.
+
+#### `RigState` is a delta against a `BlueprintId`, not a copy of the rig
+
+This is the whole economy of the design. Shells, local offsets, `attachedTo`, and `traverseRadians`
+are **content** and come back from the `BlueprintId`. `RigState` stores only what content cannot
+know.
+
+```
+shared/rig/RigState.h        POD, no entt::entity anywhere (Law 2)
+
+struct ModuleInstance { ModuleId id; Quality quality; };        // §12.21's per-instance roll
+
+struct MountState {
+    MountId  id;            // stable, and RigBlueprint.h already promises it "survives saves"
+    float    health;        // absolute, clamped to the recomputed max on restore
+    bool     destroyed;
+    std::vector<ModuleInstance> modules;
+};
+
+struct RigState {
+    BlueprintId blueprint;  // content is authoritative; this is a delta against it
+    FactionId   faction;
+    Vec2        position;   float rotation;
+    std::vector<MountState> mounts;
+    CargoHold   cargo;      Wallet wallet;   // a parked hull keeps what is in it
+};
+```
+
+**Two deltas fall out with no extra fields**, which is the sign the shape is right:
+
+- **A hardpoint `RefactorSystem` deleted** is simply absent from `mounts`. No tombstone.
+- **A module `ModuleEquipSystem` mounted at runtime** is just an entry in `MountState::modules` that
+  the blueprint does not have. No "was this original?" flag.
+
+⚠️ **This requires §13.4 decision 2 to have landed.** `MountState::modules` is *one* list, and the
+codebase currently has two unreconciled answers to "what is in this mount" (`MountedModules` vs.
+`EquippedModule`, finding §13.3 C). A snapshot cannot be written against both. **This is a third
+independent argument for keeping `MountedModules` and deleting `EquippedModule`**, and it is the
+first one that makes the choice load-bearing rather than tidy.
+
+#### Where it lives, and the layer rule that forces the split
+
+Three files, and the homes are not a preference — `check_layers.py` decides them:
+
+| File | Why there |
+|---|---|
+| `shared/rig/RigState.h` | POD, handle-free. **`core/` may include `shared/`** but never `modes/`, so the type has to be here for a save to reach it. Sits beside the existing `shared/rig/ModuleAttachment.h` |
+| `core/serialization/RigStateSerialization.{h,cpp}` | Exactly parallel to `BlueprintSerialization` — same `ByteWriter`/`ByteReader`, same *"one Encode/Decode pair, not four"* argument |
+| `modes/space/factories/RigSnapshot.{h,cpp}` | `Capture(registry, root) -> RigState` and `Restore(world, content, RigState) -> SpawnResult`. **Law 3: "A factory is the only bridge… nothing else converts between the two forms."** It is the only file here that touches a registry |
+
+**That split is what keeps Law 2's "entity handles never cross a save file or the wire" true by
+construction** rather than by review: `core/serialization/` is handed POD and could not serialize a
+handle if it tried, and the one file that sees handles cannot be reached from `core/`.
+
+`SpaceFlight::WarpToSystem` is the first caller, and it already has the shape — it captures
+`CargoHold`/`Wallet` before `world_ = SystemWorld(...)` and re-applies them after. **It captures a
+`RigState` instead**, and the `wreckLedger_` demote/promote pair beside it is the pattern a parked-hull
+ledger copies.
+
+#### 🐛 A crafted module does not survive its own process
+
+*Found while scoping this, verified 2026-08-10.* `ContentLibrary::craftedModules_` is a plain
+`std::unordered_map<std::string, ModuleDef>` member, written only by
+`EngineerSystem`'s `RegisterCraftedModule` and **serialized by nothing.** `FindModule` checks it
+before the JSON set, so a merged module resolves perfectly — until the process ends.
+
+**Any `RigState` or save referencing a merged module's id would restore a hull with a module that no
+longer exists.** §12.12 sanctions merging as *"genuinely new content, generated at runtime"*; content
+generated at runtime has to be persisted somewhere, and no one decided where. **`RigState`'s restore
+path is the first consumer that makes this fail loudly**, so the crafted-module overlay gets a save
+section in the same work — it is one more `Encode`/`Decode` pair over a type that is already POD.
+
+*Left alone, the failure mode is a player merging two modules, warping, and finding the hardpoint
+empty — with nothing in the log to say why.*
+
+> ✅ **Dissolved by §12.19, and the save section is not written.** A merge produces a new `Quality` on
+> the primary `ItemInstance`, not a new `ModuleDef`, so `craftedModules_` is deleted rather than
+> serialized and the merged module is already inside the hold this snapshot carries. **What `RigState`
+> must carry instead** is each mount's `ShellInstance` and `MountedModules::items` — the attributes,
+> mass and `Quality` of every instance on the rig, which are stored precisely because their inputs
+> were consumed and the derivation is not repeatable. §12.30.8 re-points the overlay at the type that
+> does need one: a drafted Template, whose body `ConsumeSaveTemplateRequests` currently discards.
+
+#### What this retires
+
+| | Today | After |
+|---|---|---|
+| §13.3 AC — warp fully repairs the hull | Free full repair at every system boundary | Damage crosses the jump |
+| `features.md` §2.7 — live refit across systems | Silently rolled back at the boundary | Refits persist |
+| §12.30.2 — parked hulls | Destroyed by `world_ = SystemWorld(...)` | A `core/galaxy/` ledger, same shape as `WreckRecord` |
+| §13.3 Y — the world save | *"no registry serialization, no player rig state"* | The player-rig half exists |
+
+**It does not deliver the world save.** §13.3 Y also needs the seed, `FactionEconomy`,
+`DiplomacyMatrix`, `DiscoveryState` and `WreckLedger`. `RigState` is the piece that has four callers
+instead of one, which is why it is worth building first and alone.
+
+#### Tests
+
+All headless — `RigState` is POD and `Capture`/`Restore` need no window:
+
+- Capture → Restore round-trips a damaged rig: per-mount health, destroyed flags, and mount count all
+  survive.
+- A hardpoint deleted by `RefactorSystem` does not come back.
+- A module mounted at runtime does come back, and one the blueprint authored is not duplicated.
+- Health above a *reduced* max after a content edit clamps down; it never silently heals.
+- **A restored rig re-derives its stat block from `def + quality`**, not from stored derived values —
+  §12.21's rule, asserted at the snapshot boundary where it is easiest to violate.
+- `Encode`/`Decode` round-trips `RigState` bytes, and a truncated buffer fails rather than
+  half-decoding — the assertion `BlueprintSerialization`'s tests already make.
+- A rig carrying a crafted module restores it, given the crafted-module section (the regression test
+  for the 🐛 above).
+- **No `entt::entity` value appears anywhere in an encoded buffer** — Law 2's rule, made a test rather
+  than a review note.
+
+#### Scope
+
+**Its own issue, and it is not group 1.** It has no dependency on the player existing and can be
+verified by tests alone, like §12.28 — but it *does* depend on §13.4 decision 2 (`MountedModules`
+unification) and reads better after §12.21's `Quality` type exists. Sequence: **decision 2 → §12.21 →
+this → the world save.**
+
+**Nothing in §12.30's docked screens waits on it.** The Bay screen ships with Board and Launch against
+hulls in the current system; parked hulls across systems are the part that waits.
+
+---
+
 ## 13. System Wiring Audit
 
 *Compiled 2026-08-09, by grepping for readers and callers rather than by reading schemas. Every
@@ -3926,7 +7443,9 @@ producer.**
 | **`core::diplomacy::Territory`** | — | ❌ zero users outside `core/` | ❌ | — | ❌ |
 | **`core::diplomacy::DiplomacyMatrix`** | ❌ zero writers | ⚠️ read only by the unreachable `TemplateMarketSystem` | ❌ | — | ❌ the exact failure §5.3 was written to prevent |
 | **`TickCoarse`** | — | ❌ **three definitions, zero callers** — `RunTick` calls only `tick` | — | — | ❌ §1.1's LOD tiers have an interface and no driver |
-| **The nine menus** | ❌ none places the request it builds | — | ❌ **none is referenced outside its own TU and tests**; none handles input | ⚠️ | ❌ §12.24 step 5 |
+| **The nine menus** | ❌ none places the request it builds | — | ❌ **none is referenced outside its own TU and tests**; none handles input | ⚠️ | ❌ §12.24 step 5, settled in §12.30 |
+| **`InventoryGrid`** | ✅ `StorageMenu`, `ModulesMenu` | — | ❌ | — | ❌ **the shared row widget has two verbatim clones** — `StationServicesMenu.cpp` and `RefactorMenu.cpp` each re-implement its `kRowHeight = 20.0f` loop, and `EngineerMenu.cpp` hardcodes offsets. Four copies of one widget across six files nothing calls (§12.30) |
+| **`FacilityStats::kind`** | ✅ `ParseFacilityStats` | ✅ `FacilityRef` | — | ⚠️ one facility authored | ❌ **`OptionalEnum`, not `Require`** — a `"facility": {}` block silently becomes the enum's default. Finding W's class, applied to the facility's *identity* (§12.30 🐛) |
 | **`CockpitHud` · `AvionicsMenu` · `BridgeView`** | ✅ called from `SpaceFlight::Draw` | ✅ | ✅ | ✅ | ⚠️ `BridgeView::kAllKinds` omits `Engineering`; no tab selection |
 
 ### 13.3 What this audit found that §0's list did not
@@ -4073,6 +7592,20 @@ decision, not a mechanical fix: either docking-heals is the intended baseline an
 verbatim port of legacy `DockRepair.h`'s `kDockHealPerSecond`, it predates the facility model
 entirely, and free full repair at any bay removes the entire economic pressure §2.7 cites as the
 credit sink that justifies deferring upkeep.
+
+> ⚠️ **§12.30.4 supplies a third answer this framing excluded, and two more defects in the same
+> path.** Deleting the heal is right; **deleting the *rate* with it is not.** `kDockHealPerSecond` is
+> the only rate in the codebase that `FacilityStats::ratePerSecond` (*"Repair HP/s"* — parsed, merged
+> by `EngineerSystem`, **read by nothing**) and `features.md` §2.7's Repair crew role (listed twice as
+> ✅ *"Buildable now"*, consumer named as *"`DockingSystem`'s dock-repair **rate**"*) were both
+> authored for. **The rate moves to the facility path rather than dying with the free heal.**
+>
+> The paid path is also worse than "charges credits for the same outcome": it has **no facility gate
+> at all** — `DockedStation`'s result is used only as a docked-ness check — and it has **no `Destroyed`
+> check**, so it heals a permanently dead hardpoint to full while the tag remains, which makes
+> `features.md` §3.9's colour-is-condition schematic draw a destroyed mount green. **And deleting the
+> free heal removes NPC repair entirely**, since `HealAndImmobilize` views `<Docked, Rig>` with no
+> player filter and NPCs carry no `Wallet`. See §12.30.4.
 
 #### J · Stations sit in the physics view with no damping
 
@@ -4283,14 +7816,43 @@ caller nor the capability underneath it.
 else. Save/Load is a separate, larger piece of work that has to define what a world save even
 contains — and it should not be allowed to hold up the pause menu.
 
+#### AC · Warping fully repairs your hull and undoes every refit
+
+*Added 2026-08-10 by §12.30.2's parked-hull work. **This audit missed it on the first pass**, and the
+reason is worth recording: §13's method is to catch places where a header comment and the code
+disagree. Here they agree — `SpaceFlight.h:62` states the gap accurately — and neither this document
+nor `features.md` ever learned what the comment says. **A truthful comment about a missing capability
+is still a missing capability**, and a method tuned to find lies will not find it.*
+
+`WarpToSystem` does `world_ = SystemWorld(targetSystemId)` — Law 2's clean handoff, *"nothing survives
+this line except what was captured above"* — then re-generates the destination and **re-spawns the
+player from their `BlueprintRef`**. Only `CargoHold`, `Wallet` and demoted `DeathWreck`s cross.
+
+| Consequence | |
+|---|---|
+| **Every jump is a free, complete repair** | Finding I by a second route. That finding deletes free repair at a docking bay; this one hands out the same thing at every system boundary — on a `WarpSystem` §13.1 already scores as having no fuel cost, no module gate and no charge time |
+| **Every jump rolls back the loadout** | `features.md` §2.7's live refit is silently undone at the boundary, so a refit only matters within one system |
+| **Anything else parked in the system is destroyed** | Which is what §12.30.2's parked hulls need solved |
+
+**✅ Specified 2026-08-10 in §12.31** — and the header comment's name for it turned out to be the
+design error: the state form **must not be a `ShipBlueprint`**, because §12.21's per-instance
+`Quality` cannot survive one and because adding health to `MountBlueprint` would have
+`ManufacturingSystem` building pre-damaged ships. `RigState` is a delta against a `BlueprintId`.
+
+**The missing capability is a live-rig snapshot**, and it is the same one §13.3 Y needs:
+*"no registry serialization, no player rig state."* Four things wait on it — parked hulls, warp damage
+persistence, cross-system refit, and the world save. **Scope it once**, rather than special-casing a
+parked hull; the demote/promote half already has three working precedents in `core/galaxy/`
+(`WreckRecord`, `ResearchRecord`, and §12.18's planned `ManufacturingRecord`).
+
 ### 13.4 Five decisions this raises that are yours, not mechanical
 
 Everything above except these has a correct answer that falls out of the existing design.
 
 | # | Question | Recommendation |
 |:---:|---|---|
-| **1** | **Does docking heal for free?** (finding I) A facility-gated repair service and an unconditional 15%/s heal cannot both exist | **Delete the automatic heal.** It predates the facility model and removes the credit sink §2.7 relies on |
-| **2** | **`MountedModules` or `EquippedModule`?** (finding C) Two representations, three inconsistent readers | **Keep `MountedModules`, delete `EquippedModule`.** A mount holds a list either way, and the factory path must never diverge from what `RefactorSystem` refunds |
+| **1** | **Does docking heal for free?** (finding I) A facility-gated repair service and an unconditional 15%/s heal cannot both exist | **Delete the automatic heal.** It predates the facility model and removes the credit sink §2.7 relies on. ⚠️ **Refined 2026-08-10 by §12.30.4:** the recommendation stands, but the **rate** moves to `FacilityStats::ratePerSecond` rather than being deleted with it — otherwise a dead field stays dead and `features.md` §2.7's Repair crew role loses its only named consumer. Deleting the heal also removes **NPC** repair, which re-homes onto `ctx.economy` |
+| **2** | **`MountedModules` or `EquippedModule`?** (finding C) Two representations, three inconsistent readers | **Keep `MountedModules`, delete `EquippedModule`.** A mount holds a list either way, and the factory path must never diverge from what `RefactorSystem` refunds. ⚠️ **Reclassified 2026-08-10 by §12.30.7: this is not a cleanup, it is a dupe-and-destroy fix.** `EquippedModule` is absent on blueprint-mounted hardpoints, so `modules_menu::EquippableMounts` offers **every occupied mount on a fresh ship as an empty slot**. Mounting there overwrites the original's live components; unmounting then **destroys** the original, and scrapping the hardpoint **duplicates** it. Both reachable from one click on a surface that ships in this batch |
 | **3** | **Build the coarse loop, or delete `TickCoarse`?** (findings L, M) §1.1's LOD tiers have three implementations and no driver, and `FactionDecisionEngine` has no home without one | **Delete the three `TickCoarse` functions now**, per §2.4, and reinstate them with the loop. `FactionDecisionEngine` is pure and loses nothing by waiting. Keeping them is the same "scaffolded, never adopted" pattern §0 opens with |
 | **4** | ✅ **RESOLVED 2026-08-09 — see §12.28.** How do non-rig world bodies render and collide? (finding A) | `WorldBody { radius; BodyKind }` for drawing; **hittability needed no new component at all** — narrowing `FindHit`'s view is the whole fix. Asteroids orbit rather than fall, the belt moves to 1,800–2,800, and a star's `Corona` burns rather than killing at a line. Planets and stars stay non-colliding, deliberately |
 | **5** | **Is `traverseRadians = 0` legal?** (finding W) It currently means "welded forward and unable to fire" | Make it a `Validation` error on a weapon-capable shell. A fixed-forward gun is a real design, but it should be authored as such, not reached by omission |
@@ -4318,9 +7880,34 @@ dependency on the player existing, so it can land first and be verified by tests
 - `BridgeView::kAllKinds` gains `Engineering` + a `static_assert` on the enumerator count
 - `ModuleEquipSystem` passes a real traverse via a new `MountTraverse` component (D)
 - `WeaponSystem` reads `PowerShed`; `SpawnProjectiles` uses `currentOffset` (E, F)
-- `ParseFacilityStats` reads `level`; `AttachModuleComponents` forwards it (K)
+- ~~`ParseFacilityStats` reads `level`; `AttachModuleComponents` forwards it (K)~~ →
+  **`ParseFacilityStats` reads `grade`; `AttachModuleComponents` forwards it as `FacilityRef::grade`**
+  (K, re-aimed by §12.19). Neither field is parsed today, so the two fixes cost the same and only one
+  of them then has to be deleted — `FacilityStats::level` folds into `Grade`, as does
+  `StationFacility::researchTier`
 - `RefactorSystem` refuses the last hardpoint (V)
 - Content: `traverseRadians` on `gun_nose`; weapon mounts on `aegis_outpost` (W)
+- **One `Destroyed` sweep across every hardpoint writer (§12.30.7), not three separate fixes.**
+  `StationServicesSystem`'s repair heals a destroyed hardpoint, `RefactorSystem`'s scrap refunds its
+  modules, and `ModuleEquipSystem`'s mount fits a module to it. **`DockingSystem` and `DamageSystem`
+  are the only two writers that test the tag.** Sweep it once as a group-2 pass rather than three
+  times in three screens' worth of issues.
+- **The four research defects (§12.30.6), all against built and tested code.** `ResearchSystem::Tick`
+  gains a **`FacilityKind::Research` gate** (it has none, so blowing the lab off a station does not
+  stop the jobs in it); **`StationFacility::researchTier` is deleted** — it is a *third* tier system
+  beside `FacilityStats::level` and `Grade`, written only by tests; `ResearchJob::cost` and
+  `ResearchRecord::cost` are renamed **`durationSeconds`**, since they hold seconds in a codebase
+  where every other `cost` is credits; and a null `ctx.knowledge` **freezes the job instead of
+  erasing it**, because the current guard silently spends the input and produces nothing.
+- **`RefactorSystem` returns nothing when scrapping a `Destroyed` hardpoint** (§12.30.5). One branch
+  at `RefactorSystem.cpp:76`, which has no `Destroyed` check at all — so losing a hardpoint in combat
+  currently costs a shell and nothing else, and every module it carried comes back intact.
+- **The three repair defects (§12.30.4), all against built and tested code.** `ProcessRepairRequests`
+  gains a **`FacilityKind::Repair` gate** (it has none — the station handle is used only as a
+  docked-ness check) and a **`Destroyed` exclusion** (it has none — it heals a permanently dead
+  hardpoint to full, which makes `features.md` §3.9's colour-is-condition schematic draw it green);
+  `DockingSystem::HealAndImmobilize` **loses its heal loop** per §13.4 decision 1 and is renamed.
+  *Do not hold these for group 4b — the `Destroyed` one is actively producing a display that lies.*
 
 *(Finding B's asteroid fix moved into group 1 as part of §12.28 — it shares the `WorldBody` work.)*
 
@@ -4352,10 +7939,16 @@ that is not even an element) against no registry.
   *after* `DrawProjectiles` — **the case §12.28 predicted by name** when it ruled that a body wanting
   to draw in front of rigs is a new pass rather than a `BodyKind` value. Ordinary asteroids and gas
   giants sit inside; what is scarce is the ability to be there. **Content for built systems**
-- **`core/economy/Pricing.h`** — a free function beside `FactionEconomy`, computing base value from a
+- **`core/economy/Pricing.h`** — free functions beside `FactionEconomy`, computing base value from a
   recipe and modulating it by local stock (`features.md` §2.10). **There is no pricing logic anywhere
   today**: `StationServicesMenu::BuildBuyRequest(module, cost)` takes cost as a *parameter*, so
-  `BuyItemRequest::cost` is invented by whoever calls it — the same producer gap as the request itself
+  `BuyItemRequest::cost` is invented by whoever calls it — the same producer gap as the request itself.
+  **All three signatures take an `ItemInstance`, not an `ItemId`** (§12.19): `BaseValue`, `LocalPrice`
+  and `RepairCostPerHp`, the last of which reads §2.10's **Inert** attribute and is its only named reader
+- **`tools/economy_sim` is promoted from 🧊 to a prerequisite for authoring the content set** (§12.19).
+  §2.10's cost check counts one of **three** compounding knobs — quantity per grade, the 2→8 breadth
+  of the grade table, and §2.8's input-grade chain — so the real multiplier across the ladder is
+  ~10⁴ rather than ×64, and a three-term curve cannot be read by inspection
 - **`tools/economy_sim`** — 🧊 in §3's blueprint since the start, and now with a concrete job: run the
   price derivation across the authored content set and print the curve. `features.md` §9 names it as
   what settles pacing, and pacing cannot be closed by argument because **prices are derived outputs**
@@ -4391,8 +7984,45 @@ Unblocks `DiscoverySystem`, `EngineerSystem`, `ResearchSystem`, `TemplateMarketS
 `TargetingSystem`'s relation check (N). `TemplateMarketSystem` is a guaranteed no-op until
 `ctx.diplomacy` is non-null, regardless of any producer work.
 
-**Group 4 — the docked-menu router (§12.24 step 5), after group 1.**
-Nine menus, nine request producers, `PlayerLocation`, the facility content set.
+**Group 4 — the docked screens (§12.24 step 5, completed in §12.30). Splits in two.**
+
+- **4a — the shared widget layer. Startable today, nothing blocking.** `shared/ui/` gains `UiInput`,
+  `Row`, and five widgets (`PanelFrame`, `ListView`, `Button`, `TabStrip`, `Gauge`); `sr_shared_ui`
+  becomes `STATIC`; **`InventoryGrid` is deleted** and the four hand-rolled row loops in
+  `StationServicesMenu`, `RefactorMenu`, `EngineerMenu` and `InventoryGrid` itself fold into one.
+  Pure presentation over POD — **no player, no world, no station**, so like §12.28 it can land first
+  and be verified headless. *Landing it first is what stops seven screens being written in parallel
+  against no shared widget, which is how `InventoryGrid` came to have two verbatim copies before any
+  consumer could be run.*
+- **4b — the router and the screens. After group 1.** `PlayerLocation`; `AvailableTabs` returning a
+  **`ScreenId` and the hardpoint entity**, not just the kind (§12.30.3); the seven screens; the
+  request placement; the `Storage` → `Trade` enum swap and its six sites; **`ParseFacilityStats`'s
+  `kind` becoming `Require`** (§12.30 🐛, and it belongs with §13.5 group 2's `level` fix in one
+  parser pass); the facility content set — `Trade`, `Repair`, `Engineering`, `Manufacturing`,
+  `Research` authored in `modules.json`, which today holds exactly one facility.
+- **4b splits a third time at Manufacturing (§12.30.8).** The **Draft** half needs one retained
+  field (`ConsumeSaveTemplateRequests` discards a blueprint body the intent already carries), one
+  overlay rename (`RegisterCraftedModule` → `RegisterDraftedTemplate`, since §12.19 retires the
+  module version) and one gate on `ConstructionSystem`. **The Queue half needs §12.19 in full plus
+  §12.18's `ManufacturingSystem`** — the only new system in the whole batch. **Ship the tab with
+  Draft alone**, which turns a built, tested and unreachable feature into a working one. *Three
+  screens now split by verb, which makes it the batch's shape rather than three coincidences.*
+- **4b splits again at the Market (§12.30.3).** The **Storage** half needs only §13.3 O's
+  `CargoHold` on `StationFactory` plus the capacity fix, and ships with 4b. The **Market** half also
+  needs §12.19's `ItemId`, `core/economy/Pricing.h` (group 2c), and group 3's `ctx.diplomacy` — for
+  the relation-band docking gate *and* `features.md` §5.3's reputation price modifier. **Ship the tab
+  with Storage alone** rather than holding it: a warehouse that does not deal is a complete screen and
+  exercises the row model, the capacity check and the transfer path before a price exists.
+- **Two group-2-shaped corrections this screen forces**, both one-liners with real consequences:
+  `CargoHoldHasRoomFor` has **exactly one caller** (`RefactorSystem.cpp:78`) while four other systems
+  write a `CargoHold` unchecked; and `BuyItemRequest`/`SellItemRequest` must **lose** their
+  caller-supplied `cost`/`value` rather than have them filled in — a menu that names its own price is
+  a client-authoritative wallet write (Law 9).
+
+*`StorageMenu` and `ModulesMenu` leave this group for `features.md` §3.10's overlay set (§12.30), and
+ship on 4a's widgets rather than on a facility gate. **Both are specified in §12.30.7**, and the
+loadout half carries a hard prerequisite: §13.4 decision 2, without which the overlay duplicates and
+destroys modules on a fresh ship.*
 
 **Group 5 — decisions from §13.4, then their code.**
 Docking heal (1) · module-record unification (2) · `TickCoarse` (3) · world-body model (4, folded

@@ -265,6 +265,94 @@ of lead is a genuine distinction — but it needs a volume stat on every item to
 gameplay it buys is a second number saying almost what the first one says. One physical limit, with
 "fill up and crawl home" getting a hard stop rather than a soft one.
 
+> ❌ **The paragraph above is out of date, and §2.11 is where it was already superseded.** *"Slots
+> are presentation, not a second constraint"* was written while `CargoHold::capacity` was a bare
+> entry count with no bay module behind it and nothing to author a second number on. **§2.11's
+> `CargoBay` roster entry authors two, and gives each one a job:**
+>
+> | | | |
+> |---|---|---|
+> | **`slotCount`** | How many **distinct stacks** | Variety |
+> | **`slotCapacity`** | **Mass per stack** | Bulk |
+>
+> — with the total derived, never authored, and a worked example showing the two are not
+> interchangeable: *"4 × 250 is an ore hauler; 20 × 50 is a trade-goods runner; **both carry
+> 1,000**."* `architecture.md` §12.23 authors the identical pair on the kind, and both are rollable
+> pool entries (§2.7), so a bay can roll into variety or into bulk.
+>
+> **Two numbers, two constraints, two refusals** — a hold can be out of *slots* with mass to spare,
+> or out of *mass* with slots to spare, and §3.10's degrade-never-remove wants a row that says which.
+> The sentence above is corrected rather than the roster: **capacity is a mass budget *per slot*, and
+> the slot count is a real cap on variety.**
+##### The enforcement rule, and the code still counts entries 📋
+
+*Added 2026-08-10. This section settles what capacity **measures** and never says how it is
+**checked** — and the check that exists counts list entries:* `CargoHoldEntryCount` *returns*
+`modules.size() + materials.size()`*, and* `CargoHoldHasRoomFor` *compares that count to* `capacity`.
+**A mass limit measured in rows is not a mass limit**, and it becomes actively wrong under §12.19's
+stacking rule, where one row is an unbounded quantity.
+
+> **A hold accepts an incoming stack when its current total mass plus that stack's mass is at or under
+> capacity, and refuses it whole otherwise.** One number, one comparison, and `capacity: 0` still
+> means unlimited so every existing fixture behaves as before.
+
+**The total is maintained on the write, never recomputed on the read.** §5.0 already sets this shape
+for faction stock — *"there is exactly one `Deposit`/`Withdraw` API and it updates the totals as it
+writes"* — and every reason carries over: the total is read by the refusal check on **every**
+transfer, by §3.10's inventory overlay header, and by the rig's own mass, and re-summing a hold at
+each of those is the iteration §9.1 warns about.
+
+⚠️ **Cargo mass is part of the rig's mass**, which is the entire point of denominating the limit in
+mass: a laden hauler accelerates and turns worse, so §2.2's constraints puzzle is played by what you
+are carrying and not only by what you bolted on. It also gives `BodyMass` a **third** writer beside
+mount and unmount — and §2.11 records that it is currently recomputed on neither.
+
+##### 🐛 "Shooting a cargo bay spills its contents" cannot mean what it says
+
+*Found 2026-08-10, by asking what a bay dying does to a hold that is over the new limit.* This
+section settles two rules that do not fit together:
+
+- **`CargoHold` is the rig-level aggregate**, summed from living bays — under which a bay contributes
+  *capacity* and never storage.
+- **"Destroy the hardpoint, lose what was in it as salvage."**
+
+Under a rig-level pool **nothing is in any particular bay**, so a destroyed bay has no contents to
+spill — no such set exists. Two ways out, and the second is the one this section's own promise was
+already describing:
+
+> ~~**A destroyed bay reduces capacity, and the hold spills whatever no longer fits — heaviest stack
+> first — as recoverable `LootDrop`s.**~~ *Written 2026-08-10 and withdrawn the same day: it is a
+> tiebreak rule invented to paper over a mismatch, and the loss it produces has nothing to do with
+> which hardpoint was hit.*
+
+> ✅ **The hold lives on the bay. `CargoHold` is a component on each cargo-bay hardpoint, holding
+> `slotCount` stacks of at most `slotCapacity` each, and the rig-level hold is a *view* over the
+> living ones.** Destroying a bay drops **that bay's stacks** and nothing else.
+
+**This makes §2.11's aggregation law literally true for cargo** — *"every rig-level attribute is the
+sum of contributions from living hardpoints; destroying a hardpoint removes its contribution"* —
+instead of nearly true with a spill rule bolted on. There is no overflow, no ordering, and no
+special case: the contribution *is* the contents.
+
+Three properties follow, and all three were wanted:
+
+- **Piracy gets a target with a legible payoff.** Shooting a specific bay takes what was in that bay,
+  which is §3.2's localized damage meaning something for a hauler and not only for a warship.
+- **More bays is a survivability axis, not just capacity.** Two 500 kg bays and one 1,000 kg bay carry
+  the same cargo; the first loses half of it to a hit and the second loses all of it. That is a real
+  fit decision costing no new mechanic.
+- **The player never places anything.** Deposits pick a bay automatically, so there is no slot to
+  manage, no grid, and no drag-and-drop — the surface `architecture.md` §12.30 rules out stays ruled
+  out. Bay identity is invisible until one dies, which is exactly when it should become visible.
+
+**The same path runs when a bay is unmounted rather than destroyed**, so there is one rule and not
+two — and live refit being unrestricted (§2.7) makes unmounting a full bay mid-flight a reachable act
+rather than a hypothetical.
+
+*This also gives `LootDrop` and `MaterialDrop` a producer, which `architecture.md` §13.3 T records
+they have never had — the second, after §12.30.7's jettison. The mechanics are in `architecture.md`
+§12.23.*
+
 
 ✅ **Mass is conserved through the manufacturing chain, with a loss at each step** (settled 2026-08-08).
 Elements in ≈ Material out, Materials in ≈ module out. Only Elements carry an authored mass;
@@ -405,7 +493,26 @@ Engineering facility preserves more of the secondary module's contribution. Skil
 property of pilots and commanders and is deliberately *not* wired into the workbench: the facility
 is the thing being upgraded here, and adding a second scaling axis to a merge makes the outcome
 unpredictable to the player for no gain. `EngineerSystem` already scales by `FacilityRef::level`,
-so this decision requires **no code change** — it ratifies what is built.
+so this decision requires ~~**no code change** — it ratifies what is built~~ **only the change below.**
+
+> 🐛 **Corrected 2026-08-10 (`architecture.md` §12.30.5).** *"Scales by `FacilityRef::level`"* is
+> true; *"requires no code change"* is not, and the two claims were run together. **Two separate
+> things are unbuilt:**
+>
+> - **The band clamp below does not exist.** `MergeField` is `primary + secondary × (level × 0.1)` —
+>   **additive on raw stat values with no ceiling of any kind** — and it is applied per field, so a
+>   merged weapon takes `damage`, `rangeUnits` and `projectileSpeed` from the formula and its other
+>   four fields from the primary alone. §2.4's formula moves a *normalised quality* against `bandMax`;
+>   the two share the `level × 0.1` factor and nothing else, and §2.4's version cannot be built until
+>   §12.21's `Quality` type exists. **Merging is unbounded today, and nothing refuses it at a ceiling.**
+> - **`FacilityRef::level` has never held a value other than `1`.** `ModuleAttachment.cpp:65` passes
+>   only `module.facility.kind` when it emplaces the component, and `ParseFacilityStats` never reads
+>   `level` from JSON at all (`architecture.md` §13.3 K). **So every merge in the game preserves
+>   exactly 10% of the secondary**, and the facility-level axis this paragraph settles has never been
+>   exercised.
+>
+> Merging also **consumes nothing but the two modules** — no credits and no Materials, contrary to the
+> cost rule below. All three land together with §12.21 and §12.19.
 
 **Merging is bounded by the grade band, and refused at the ceiling** (settled 2026-08-08, with
 §2.7's quality band). A merge raises the primary module's quality *within* its grade and can never
@@ -470,6 +577,23 @@ and how long the job takes:
 > Common bench has to be a gamble the player took, not a gotcha the game sprang. Mythic caps at 90%
 > rather than 100% so late-game research keeps a little tension; a surviving sample is not reusable
 > *for research* — the unlock is permanent after one success — so it is loot you keep, not a loop.
+
+> 🐛 **None of the sample model exists, and neither does a way to start research at all** (verified
+> 2026-08-10, `architecture.md` §12.30.6). `ResearchJob` carries an item id and nothing else — no
+> lock, no roll, no consumption — and **there is no `StartResearchRequest` anywhere in the codebase.**
+> `ResearchSystem` advances jobs nothing creates, on a `StationFacility` nothing emplaces, granting
+> into a `KnowledgeStore` that is `nullptr`, keyed on a network id no entity carries. Five links, each
+> built and tested; every test passes because each one constructs the job by hand.
+>
+> **The disclosure rule above is what decides the screen's shape** — it makes committing a sample a
+> confirmation rather than a button, showing survival chance, duration, and target network before the
+> click. It is the strongest UI requirement in the docked batch precisely because it is a settled rule
+> with a stated reason.
+>
+> ⚠️ **One gap filled rather than quoted:** the table below gives the facility grade's *percentage* of
+> research time and never says what it is a percentage **of**. §12.30.6 settles
+> `duration = baseDuration(item.grade) × gradeTimeFactor(facility.grade)` — one ladder, no per-item
+> authored time, the same discipline §2.10 applies to mass and price.
 
 **Merging consumes Materials** as well as credits, scaled by the module's grade *and* by how close to
 its band ceiling the merge is pushing it. Since the gain uses the diminishing-returns headroom
@@ -761,13 +885,21 @@ stat one crew module may or may not have spent budget on.*
 | **`operation`** | `TargetingSystem`, `WeaponSystem`, `FiringArc` | ✅ Built or specified |
 | **`command`** | `CommanderSystem`, and command authority (§4.0) | ✅ Specified (§4.5) |
 | **Sensors** | `SensorRange` exists; `DiscoverySystem` reads it — and §8.3 just made sensor coverage **strategic infrastructure** | ✅ **Buildable now** |
-| **Repair** | `DockingSystem`'s dock-repair rate, already listed in this section as a valid boost target | ✅ **Buildable now** |
+| **Repair** | ~~`DockingSystem`'s dock-repair rate~~ → the **Repair facility's** `ratePerSecond` (`architecture.md` §12.30.4) | ✅ **Buildable now**, but see below |
 | **Damage control** | Needs **in-flight repair**, which does not exist. Docking is the only heal | ❌ New mechanic first |
 | **Navigator** | No skill hook in `WarpSystem` — would need warp charge time, jump accuracy, or fuel | ❌ New mechanic first |
 
 **So there is real runway: four roles before a new mechanic is required.** That also retires the
 claim below that a bridge beyond two berths has nothing to hold — `crewSlots` can scale past 2, and
 each new role still lands in the same commit as its consumer.
+
+> ⚠️ **The Repair role's consumer moves, and it nearly disappeared.** `architecture.md` §13.4
+> decision 1 deletes `DockingSystem`'s free unconditional heal — the exact rate this table names as
+> the Repair role's consumer, listed twice as ✅ *"Buildable now."* Deleting the heal without moving
+> the rate would have turned this row into ❌ *new mechanic first* silently. **§12.30.4 moves the rate
+> onto `FacilityStats::ratePerSecond`**, a field that is parsed, scaled by `EngineerSystem`'s merge,
+> and read by nothing today. The role survives, and it now boosts a service the player pays for
+> rather than one that was free — which is the version where a Repair officer is worth carrying.
 
 The two blocked roles are the natural expansion path, and each is a small feature in its own right
 rather than a stat: in-flight repair would also give §3.3's attrition a counter, and a warp hook
@@ -1145,9 +1277,18 @@ reason to keep running past volume — which is §1's Macro loop.
 **Merging clamps to the band** (§2.4) — it moves an item up *within* its grade and never out of it.
 Otherwise merging becomes the way to exceed tiers and the ladder stops meaning anything.
 
-**Implementation note:** the mechanism already exists. `ContentLibrary::RegisterCraftedModule` — the
+~~**Implementation note:** the mechanism already exists. `ContentLibrary::RegisterCraftedModule` — the
 runtime-registered overlay `FindModule` checks before the JSON set — was built for `EngineerSystem`'s
-merged modules. A rolled instance registers through the identical path.
+merged modules. A rolled instance registers through the identical path.~~
+
+> ❌ **Withdrawn 2026-08-10 (`architecture.md` §12.19).** That path makes every rolled instance a
+> **definition**: the overlay grows one permanent entry per manufactured unit, has to be saved, and
+> is never collected. A merge is rare enough that nobody noticed; **manufacturing is a loop.**
+> §2.7's own next section already chose the other answer — an instance stores its budget point and
+> its distribution and recomputes its stat block from `def + quality` — and that is the one that
+> scales. **A rolled instance is a value that travels in the hold, not an entry in a content table.**
+> `RegisterCraftedModule`, `craftedModules_` and the merged module's generated id are all retired
+> with it.
 
 #### Budget distribution — how a roll is spent 📋
 
@@ -1548,6 +1689,19 @@ needs no runtime handling at all.
 it. So a player-piloted vessel likely ignores the pilot rating on its crew module, and the player's
 crew modules matter only for work they *delegate*: commanders running fleets elsewhere, and NPC
 pilots flying vessels the player owns but is not sitting in.
+
+> ✅ **That last clause got its mechanism on 2026-08-10** (`architecture.md` §12.30.2). A hull you park
+> in a docking bay is flyable again by exactly two routes and no third: **go back and board it**, or
+> **crew it** — assign a `Crew` module and it becomes an asset an operator or commander flies for you.
+> There is no remote recall and no fleet teleport, so parking is a real decision with a real cost,
+> which is what §3.4 asks of every other choice. It is the first mechanic that makes a `command` or
+> `operation` roll matter on a hull the player is *not* in.
+>
+> ⚠️ Blocked twice over: `ModuleKind::Crew` does not exist (`architecture.md` §13.3 Z — zero
+> occurrences of "crew" in `src/`), and **warping currently destroys the parked hull outright**, since
+> `WarpToSystem` tears the whole world down and re-spawns the player from their blueprint. The second
+> is `architecture.md` §12.31's `RigState` — which also means **every jump today is a free full repair
+> and rolls back every live refit this section sanctions.**
 
 ### 2.8 Manufacturing 📋
 
@@ -2022,6 +2176,26 @@ impossible to balance or to explain.
 > which does not exist. Not circular — the content lands first — but none of this is visible in play
 > until §12.18 is built. Recorded in §11.9.
 
+> ⚠️ **There are three axes, not two, and `architecture.md` §12.19 names the third** (2026-08-10).
+> Attributes and quality are the two this table separates; **composition** is the one it assumes.
+
+| Axis | Set by | Rolled? |
+|---|---|:--:|
+| **Grade** — how *broad* the recipe is | The builder: which recipe you ran | No |
+| **Composition** — which elements filled its role slots | The builder's stock, resolved at manufacture | No |
+| **Quality** — §2.7's band | Creation | **Yes** |
+
+> **Grade buys breadth. Composition buys depth. Quality buys magnitude.** No two of them touch the
+> same number, which is what lets all three be tuned independently.
+
+**And the propagation rule needs one word this section never supplies.** *"Sums and weighted
+averages"* does not say which is which, and the answer is forced by what the numbers mean:
+**attributes average, mass sums.** An attribute is a property of the substance — four units of silver
+are not four times as conductive as one — while mass is a property of the quantity. That split is
+what makes density-as-universal-cost actually cost something: reaching for iridium raises the
+Structure average **and** the summed mass. Under a summing rule the choice would collapse, because
+more units would mean more of everything at once.
+
 #### Recipes demand roles, never named elements 📋
 
 *Settled 2026-08-09, and it is what makes the whole model safe.*
@@ -2037,6 +2211,34 @@ Three consequences, all wanted:
   makes it a price.
 - **It answers the softlock directly.** You need elements to build a hyperdrive and a hyperdrive to
   reach new elements. With named-element recipes that is a real dead end; with roles it cannot occur.
+
+##### 🐛 A recipe is therefore a demand, not a bill of materials
+
+*Found 2026-08-10 while scoping `architecture.md` §12.19 against the six specified docked screens.*
+
+If a slot names a role and *"whatever the builder holds that scores highest in that role fills it,"*
+then **the recipe cannot say what any particular item is made of.** Two Common Alloy Plates off one
+recipe are iron in a poor system and iridium in a rich one, and the paragraph above requires them to
+differ. Three settled mechanics read what actually went in — attribute propagation, an item's mass,
+and `architecture.md` §12.30.4's repair cost reading **Inert** — and none of them can get it from a
+def.
+
+> **The recipe is the demand. What an item is made of is a fact about the instance, and it is not
+> derivable from the design.**
+
+⚠️ **What an instance stores is what its composition *produced*, never the composition itself** —
+eight attributes and one mass (`architecture.md` §12.19). The inputs are consumed, so the derivation
+is not repeatable and there is nothing for a stored value to drift against; that is the one case
+where this document's derive-never-store discipline does not apply, and it needs saying or someone
+will delete the fields as redundant.
+
+**And *"deconstruction reads the recipe backwards"* needs a definition to resolve to.** Reading roles
+backwards yields roles, and roles are not matter. §12.19 supplies it: **the nominal fill of a role is
+the roster's lowest-density element scoring ≥ 1 in it** — cheapest available, which is exactly what
+generic reclaimed stock should be. It has three consumers, so it is not an abstraction ahead of its
+readers: deconstruction yield, the attributes of an item that was **found** rather than built, and
+the base value of the same. **Recovery is clamped by mass**, so reclaiming a lithium-built module at
+a heavier nominal fill can never return more mass than the module held.
 
 ##### The seeding invariant
 
@@ -2189,6 +2391,24 @@ total mass" stops being a separate rule and becomes the same rule seen from the 
 demand modulate it on query. This is the same discipline §3.5 applies to system radius — *"seed-derived
 and must never be stored, because caching it invites the two to drift."*
 
+> ⚠️ **Corrected 2026-08-10 (`architecture.md` §12.19): mass derives from the *composition*, not from
+> the recipe.** The recipe fixes how many units of which roles; the composition fixes which elements
+> filled them, and those have different densities. Two instances of one def at one grade can weigh
+> different amounts, and **that is the design** — density is this section's universal cost, so a
+> silver coil has to weigh more than an aluminium one or the cost is not paid. §2.4's *"mass stays
+> deterministic"* survives intact: mass is deterministic **given the composition**, and composition
+> is a choice, never a roll.
+>
+> **Base value gains a second term for a different reason.** Priced on the recipe alone, a high-roll
+> and a low-roll instance of one def cost the same — and with §12.30.3's settled no-spread rule
+> (buying and selling at one station nets exactly zero) a player buys ten Mythics, keeps the 5.0
+> roll, and sells nine back for what they paid. That is a **free reroll machine**, and it bypasses
+> the brake §2.8 built against exactly this: *"each attempt costing a full Legendary-Material
+> pipeline run is the brake."* **`BaseValue = recipeValue(id, grade) × the instance's quality
+> multiplier.`** The recipe measures what went in, quality measures what came out, and a market that
+> prices only the first lets rolls be laundered at zero cost. *Value remains a property of the design
+> rather than of where it was built — a facility grade still changes nothing.*
+
 #### Pricing — one authored number, three separate layers 📋
 
 *Settled 2026-08-09. These three are conflated constantly, and keeping them apart is what stops the
@@ -2271,6 +2491,30 @@ argued.
   is the thing that broke. Matching drop rates was never the requirement — *outpacing stat benefit*
   is, and that is a much weaker constraint with far more room in it.
 
+##### ⚠️ The curve compounds three knobs, and the check above counts one
+
+*Found 2026-08-10 (`architecture.md` §12.19), by running the derivation rather than the argument.*
+
+| Term | Across the seven tiers | Inside the ×64? |
+|---|---:|:--:|
+| Quantity per slot, ~2×/grade | ×64 | ✅ |
+| **Distinct slots, 2 → 8** — this section's own grade table | **×4** | ❌ |
+| **The input-grade chain** — §2.8: a grade-*N* item needs grade ≥ *N*−1 Materials, themselves ×256 | **×10²ish** | ❌ |
+
+Multiplied out, a Mythic module costs on the order of **10⁴** Common modules rather than 64. §2.4's
+constraint is satisfied by an enormous margin — **which is its own failure**, because a 10,000×
+multiplier is the scarcity ladder rebuilt on the cost side, and that is precisely what the 3× → 2×
+revision was made to avoid. *"Industry gives you more of it"* does not survive ×10,000 any better
+than it survived ×729.
+
+> **The ~2× figure was chosen against a one-knob model. Against three it is probably nearer ~1×** —
+> breadth alone already delivers ×4 per rung, and the input chain delivers the rest.
+
+⚠️ **Do not re-tune this by argument.** This section's own rule is that prices are outputs. The real
+consequence is that **`tools/economy_sim` stops being optional and becomes a prerequisite for
+authoring the content set**: a curve with three compounding terms cannot be read by inspection, and
+the first place a bad shape becomes visible is a player being quoted a number.
+
 ##### Nobody decides what a ship costs
 
 *The obvious next question — "so what does a starter fighter cost?" — is the wrong question, and
@@ -2334,11 +2578,15 @@ it in different ways:
 | Shields | Contribution never extends past its own mount (§3.1's defect) |
 | Cargo capacity | Unspecified until now |
 
+*⚠️ The row above read "cargo **slots**" until 2026-08-10. §2.2 settled on 2026-08-08 that capacity is
+a **mass** budget and that slots are presentation; this table was the last place the rejected word
+survived, and it is the one a schema would have been written from.*
+
 **Each attribute declares whether it sums or maxes**, and the distinction is not cosmetic:
 
 | Aggregation | Attributes |
 |---|---|
-| **Sum** | thrust · turnTorque · power generation · cargo slots · shield capacity · hull bonus · fuel capacity |
+| **Sum** | thrust · turnTorque · power generation · **cargo mass capacity** · shield capacity · hull bonus · fuel capacity |
 | **Max** | **maxSpeed** · sensor range · jump range |
 
 **`maxSpeed` is the instructive one.** Two engines should not double your top speed, but they *should*
@@ -3251,6 +3499,19 @@ and makes selecting a tab the act of moving. Two things this section promises fa
 than needing to be written: the death predicate becomes uniform across flying and docked, and
 "they blew the engineering bay while you were mid-merge" becomes `DamageSystem` destroying a
 hardpoint that happens to be the one `PlayerLocation` names.
+
+> ✅ **Sharpened 2026-08-10 — `architecture.md` §12.30.1.** `PlayerLocation` is not a component
+> *alongside* `PlayerControlled`; it is the **only** one written, and `PlayerControlled` is derived
+> from it — the rig root whose hardpoint you occupy. Two components naming where the player is would
+> let this section's death predicate and the camera disagree, and the player would die while the
+> screen showed a healthy hull. `Identity.h` already says the tag *"moves rather than duplicating"*;
+> it has always been derived data and nothing has ever derived it.
+>
+> **Three consequences this section should own.** While standing in a facility you *are* aboard the
+> station, so the hull bar measures the **station's** integrity — correct, since you die with your
+> facility, but it must be labelled or it silently changes subject. Switching to another of your ships
+> is the *same* single write, not a new mechanism. And **`R` while docked is board-then-launch**, two
+> writes behind one key, since the hull you occupy is not the one that undocks.
 
 ⚠️ **Two gaps behind it, both content rather than design.** `data/base_game/modules.json` authors
 exactly one facility (`docking_bay_i`), so a correct implementation still surfaces a one-tab bridge
@@ -4245,7 +4506,7 @@ see their own hull, so the viewport is contested by the world itself.
 | └ *right* | The module-gated button bar · comms ticker |
 | **Top centre** | **Target status projection** (§3.9), sensor-gated |
 | **Screen edges** | Hazard tint · sensor contacts · directional damage indicators. **Zero layout cost** |
-| **Overlays, on demand** | Orders · build queue · inventory · loadout · navigation map |
+| **Overlays, on demand** | Orders · build queue · **inventory · loadout** · navigation map |
 
 *The band height follows the status projection rather than a chosen fraction. A solid full-width
 strip was considered and rejected — 1600×200 of continuous chrome, where three clusters give the same
@@ -4390,6 +4651,35 @@ bar or their §3.6 key.
 - **They do not pause** (§3.4). The system menu remains the only pause (§12.29).
 - **Opening one is a real tactical cost**, and that is deliberate. If reading were free, §3.2's "no
   risk" objection returns through a different door. This is the same bargain docking already makes.
+
+> ✅ **Two of these five already exist as code, misfiled as docked menus** (settled 2026-08-10,
+> `architecture.md` §12.30). **`StorageMenu` is the inventory overlay and `ModulesMenu` is the loadout
+> overlay** — neither is facility-gated and neither belongs in the docked-menu router. `architecture.md`
+> §12.24 step 5a had gated `StorageMenu` on a Storage facility; that row is superseded, because §2.7
+> makes **live refit unrestricted** and a station gate on reading your own manifest would put it out of
+> reach in exactly the fight it was legalised for.
+>
+> **They are not trivial for having moved.** They need the same widget layer, the same row model, and
+> the same input plumbing as the docked screens, and they ship in that batch — keyed on a button here
+> rather than on a tab. What they shed is the facility gate and §3.4's per-screen hardpoint readout.
+>
+> 🐛 **Specified 2026-08-10 in `architecture.md` §12.30.7, and the loadout half was worse than
+> "not trivial."** `modules_menu::EquippableMounts` lists every hardpoint without an `EquippedModule`
+> tag as an empty slot — and that tag is only applied to *runtime* mounts, never to a ship's own
+> blueprint loadout. **So on a freshly spawned vessel every occupied hardpoint reads as free**, and the
+> list of things you can unmount is empty. Fitting a module there overwrites the original's live
+> components; unmounting afterwards **destroys** the original, and scrapping the hardpoint
+> **duplicates** it. Both are one click from a surface in this batch, so the overlay must not be wired
+> before `architecture.md` §13.4 decision 2 lands.
+>
+> ✅ **The inventory overlay gains one verb: jettison.** With cargo capacity enforced on every write,
+> unmount, scrap and deconstruct all *fill* the hold and only selling at a Trade station drains it — so
+> a full hold locks refit out entirely. Jettison closes that, and gives the loose-drop components their
+> first producer in the codebase.
+>
+> **Both open while docked as well as in flight**, over the full-screen docked frame — an overlay is
+> defined by being *over* something, not by what it is over. The loadout overlay is the only refit
+> surface there is, so a station is exactly where it must work.
 
 #### Every surface has a home
 
@@ -4889,6 +5179,21 @@ stockpile goes with it.** Under a per-system ledger, blowing up a faction's forw
 nothing, which is absurd, and it would quietly undercut §6.1's Material Security facet and the entire
 case for blockades.
 
+> ✅ **And it settles what depositing into a station means** (2026-08-10, `architecture.md` §12.30.3).
+> If stock is held per station and dies with it, the station's hold is **one owner's inventory**, not
+> a warehouse with tenants:
+>
+> > **A transfer within one owner is free, and is called deposit. A transfer across an ownership
+> > boundary costs credits, and is called trade.**
+>
+> So deposit and withdraw are offered only at a station whose owner is you, and **stocking your own
+> station's hold is stocking your own shop** — the first concrete economic action on §5.10's
+> player-as-faction path, and what makes a player-built trading post a thing that can run dry. At
+> anyone else's station there is no locker; you sell. **A per-visitor rented locker was rejected**:
+> it would need a hold keyed by owner (a second granularity for the concept this section just
+> settled), and the rule above would have to either except it or destroy the player's goods with a
+> station they do not control.
+
 **Per-system totals are a derived sum, computed on query and never stored** — the same discipline
 this section applies to price, and §3.5 applies to system radius.
 
@@ -5045,6 +5350,21 @@ every write.
 | **Distrustful** | −15 … −49 | Docking refused, scanned and shadowed |
 | **Hostile** | −50 … −84 | Fired on in claimed territory |
 | **War** | −85 … −100 | Fired on anywhere, raids actively dispatched |
+
+> 🐛 **Three of those six rows are unimplementable against the built code** (verified 2026-08-10,
+> `architecture.md` §12.30.3). `DockingSystem::FindEligibleBay` accepts a bay only when the station's
+> `FactionRef` **equals** the seeking rig's — its own comment says *"a different, same-faction rig."*
+> An equality test has two outcomes; this table has six, and §5.10 starts the player as *"an
+> independent rogue operator — not a faction, not a member of one,"* for whom equality admits exactly
+> the stations they built themselves. **The gate becomes a band lookup, refusing at Distrustful and
+> below** — a reader of `DiplomacyMatrix`, which has none in gameplay today. It is the same predicate
+> `TargetingSystem` needs (`architecture.md` §13.3 N) asked in the other direction — *may I dock*
+> versus *may I shoot* — and both should land in one pass.
+>
+> **"Trade discounts" and "standard prices" have the same gap**: nothing in the codebase derives a
+> price at all, so the reputation modifier ships as identity until the matrix has a reader. Say so in
+> the header, or a Market that never discounts reads as a tuning failure rather than a missing
+> pointer.
 
 **Player inheritance** — aligning with a faction inherits that faction's *outgoing* relations as the
 player's baseline. Branching off to found a rogue faction retains those baselines as a starting
