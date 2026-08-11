@@ -341,9 +341,25 @@ Three properties follow, and all three were wanted:
 - **More bays is a survivability axis, not just capacity.** Two 500 kg bays and one 1,000 kg bay carry
   the same cargo; the first loses half of it to a hit and the second loses all of it. That is a real
   fit decision costing no new mechanic.
-- **The player never places anything.** Deposits pick a bay automatically, so there is no slot to
-  manage, no grid, and no drag-and-drop — the surface `architecture.md` §12.30 rules out stays ruled
-  out. Bay identity is invisible until one dies, which is exactly when it should become visible.
+- ❌ **Superseded 2026-08-11. The player *may* place things** — reversing this bullet, because
+  distribution-as-survivability (above) is a strictly richer idea when the player can act on it
+  deliberately instead of only inheriting whatever an algorithm happened to produce.
+  **Auto-assignment stays the default** for routine deposits (mining, looting, buying) so the common
+  case costs nothing extra; **manual bay choice and drag-and-drop between bays/storages** are
+  available for a player who wants to be deliberate about risk distribution. This does reopen the
+  surface `architecture.md` §12.30 previously ruled out — see below for what it costs.
+
+  > **The auto-assignment algorithm: greedy, most-remaining-capacity-first, deterministic.** A
+  > deposit goes into whichever *living* bay currently has the most remaining mass capacity; if it
+  > doesn't fully fit, the remainder spills into the next-most-empty bay, following the existing
+  > "split across bays as needed, refuse whole only if nothing fits" rule. Rejected alternatives:
+  > **round robin** balances by deposit *count*, not mass, so a few large stacks landing on
+  > whichever bay is "next in rotation" can still produce lopsided distribution regardless of how
+  > full it already is; **random** is unpredictable in a way that reads as arbitrary even when the
+  > outcome is fine, and a player who opts out of managing bays still deserves a legible reason for
+  > where things landed. Greedy most-empty-first is self-balancing by construction, which is what
+  > makes the survivability property above hold even for a player who never opens the storage
+  > screen.
 
 **The same path runs when a bay is unmounted rather than destroyed**, so there is one rule and not
 two — and live refit being unrestricted (§2.7) makes unmounting a full bay mid-flight a reachable act
@@ -433,6 +449,27 @@ hull's hardpoint count emergent rather than authored — see §3.5's ring-capaci
 sweeps over neighbouring hardpoints; validating against the sprite's full length rejects hulls that
 are correctly built.
 
+#### These same rules run against every JSON-authored def at load, not only a Template at save 📋
+
+*Settled 2026-08-11.* This section already states the reason validation exists: *"a corrupt save or
+malicious wire packet cannot inject"* an invalid state. That reasoning applies exactly as much to
+`data/base_game/ships.json` (and to any mod's content directory) as it does to a Template a player
+saves through `CustomizeMenu` — a hand-edited or malicious content file is a wire packet with a
+different mail slot, not a different threat.
+
+> **On load, every ship/shell/module def runs through the same twelve rules above.** A def that
+> fails is **excluded from the game, not silently accepted and not a crash** — logged with which
+> rule it failed and why, and surfaced to the player as a popup naming the specific def and the
+> specific violation (*"the `raider_x` ship was not loaded: hardpoint `gun_wing_2` overlaps
+> `gun_wing_1` — rule 10, separation"*), not a generic "invalid content" message. The same
+> per-rule error reporting rules 6–9 already require for the Engineering UI is the reporting this
+> needs — one mechanism, two call sites.
+
+This closes two problems with one gate: a modder cannot construct a ship that breaks the same
+mountability/mass/geometry rules a player is held to in `CustomizeMenu`, and the base game's own
+content gets the same integrity check for free — a malformed def in `ships.json` is caught at load
+with a specific reason, not discovered later as an unexplained crash or an exploitable edge case.
+
 #### Mountability is authored on the shell, not hardcoded 📋
 
 *Settled 2026-08-08, prompted by shields needing to sit somewhere other than a dedicated housing.*
@@ -487,6 +524,37 @@ its own inputs, costs, and output.*
 §2.5 rule ("knowledge lives in networks, matter lives in ships and stations") applied to the
 workbench: a research unlock lands in a knowledge network and survives the actor's death, while a
 merged module and a pile of salvaged materials sit in a cargo hold and do not.
+
+#### Manufacturing was already knowledge-gated; this section names every way to acquire the knowledge 📋
+
+*Settled 2026-08-11.* §2.8 already states the gate — *"manufacturing requires... that the actor's
+knowledge network actually holds the design"* — but until now this section only described one way to
+satisfy it: reverse-engineering a physical instance you already hold. **Four paths, not one:**
+
+| Path | How | Notes |
+|---|---|---|
+| **Reverse-engineering** | The existing Research mechanic, above — bring an undiscovered module to a facility, spend time + materials/credits | Unchanged. Needs a physical instance |
+| **Research from scratch** | A **technology tree**, costing resources and time per node, no physical sample required | Same-faction or faction-less (rogue operator, §5.10) progression. **Tree shape (nodes, per-owner storage, how far a single unlock reaches) is agreed in principle and not yet specified** — see the forward pointer below |
+| **Trade** | Acquiring another faction's already-unlocked recipe through them, gated on relations improved **dramatically** — the `Allied` band (§5.3), not merely `Friendly` | The same lump-sum/royalty negotiation §2.6 already specifies for Templates, widened to recipes and to non-player sellers |
+| **Exploration** | "Mysterious sites" — anomalies, ruins, derelicts around stars, planets, and asteroid belts — have a chance to yield a recipe sample belonging to **any** faction, or none, reverse-engineerable via the existing mechanic once found | This is not a new setting element: `lore.md` §2 already names *"Deep-Space Anomalies... primary sources for rare technology, anomalies, and reverse-engineering components"* — this is the mechanical implementation of something already in the bible, unused until now |
+
+**Successfully reverse-engineering a module doesn't only unlock that module — it grafts access to
+the surrounding region of whichever tech tree it belongs to**, including a foreign faction's tree.
+Capturing one piece of a rival's technology is what lets you catch up along *their* lineage through
+normal research, rather than being permanently confined to researching only your own faction's
+isolated tree from a standing start.
+
+**This is also the first real computation source §6.1's Tech Superiority facet has ever had.**
+`FactionDecisionEngine::ComputeFacets` currently holds it at a permanent placeholder — *"how much of
+the tree a faction has unlocked, relative to rivals"* is exactly the kind of number that facet was
+always meant to be, once the tree exists to measure.
+
+> 📋 **Agreed in principle, not yet specified — the technology tree's internal shape.** Node
+> structure, what a node actually is (one recipe? a bundle?), per-owner progress storage (extending
+> `KnowledgeNetwork`, which already models per-owner state for `Player`/`Commander`/`Faction`), and
+> the exact rule deciding how far one reverse-engineering success reaches into a tree are all open.
+> Recorded here as a known commitment, the same way the signature/detection model was recorded in
+> §9 before it had a shape — a design pass of its own, not decided inline with this list.
 
 **The engineering loss is set by the facility's level** (decided 2026-08-07) — a better-equipped
 Engineering facility preserves more of the secondary module's contribution. Skill (§2.7) is a
@@ -615,14 +683,19 @@ tick to resolve identically to a played one, and a stateful RNG breaks that sile
 
 
 
-#### Research cannot fail 📋
+#### Research cannot fail — from a second roll. It can still be destroyed from outside 📋
 
-*Asked and settled 2026-08-08: should a research job have a chance of outright failure?*
+*Asked and settled 2026-08-08: should a research job have a chance of outright failure? Scope
+corrected 2026-08-12.*
 
-**No — because it already has one, and it is a better one.** The sample-survival roll above *is* the
-failure mechanic. Adding a second roll would mean two probabilities compounding into four outcomes,
-two of which read identically to the player, on top of a material cost and a time cost. Four brakes
-on one action is the pattern that got upkeep cut (§2.7).
+**No — not from a second roll, because it already has one, and it is a better one.** The
+sample-survival roll above *is* the failure mechanic. Adding a **second roll** would mean two
+probabilities compounding into four outcomes, two of which read identically to the player, on top of
+a material cost and a time cost. Four brakes on one action is the pattern that got upkeep cut (§2.7).
+**This has always been a rule about not stacking a second probability, not a guarantee that nothing
+can end a job.** A job still dies if the facility hosting it is destroyed or unmounted mid-run
+(§2.8's fuel section) — that is an external cause with its own existing consequences elsewhere in
+this design, not a random check bolted onto research.
 
 The sample roll is also the better-designed risk on its own terms:
 
@@ -754,9 +827,47 @@ same one after standing improves.
 at war with each other. Nothing prevents this and it should not — two rival fleets flying the same
 silhouette because the player armed both is the macro loop working exactly as intended.
 
-❓ *Open: royalty rate scale and whether royalties survive the seller's death. Under §2.5 the design
-sits in the buyer's network and keeps being manufactured regardless — the open part is only whether
-the payment stream has anywhere to go.*
+✅ **Settled 2026-08-11: royalties do not survive the seller's death.** Under §2.5 the design still
+sits in the buyer's network and keeps being manufactured regardless — that was never in question.
+What was open is where the payment stream goes, and the answer is: nowhere, once the seller is gone.
+Royalty rate scale (the exact number, not the mechanism) is deferred with §9's other undecided
+constants, pending `tools/economy_sim`.
+
+#### The seller is not always the player, and neither is the buyer 📋
+
+*Settled 2026-08-11.* Everything above describes the player pitching to an AI faction — accurate as
+far as it goes, but not the only trade this section governs:
+
+- **A Commander may be the seller, not only the player.** `KnowledgeNetwork` already supports
+  `Commander` as an owner kind alongside `Player`/`Faction` (§2.5) — this is `TemplateMarketSystem`
+  widening who can originate a pitch, not a new concept. **A Commander's death stops their royalty
+  stream the same way the player's would**, per the rule above — the payment is tied to the seller
+  as an actor, not to whichever faction they happened to belong to.
+- **Player-to-player (or more generally, actor-to-actor) trade is genuinely new scope.** Nothing
+  above covers it today. It needs its own negotiation surface — choosing lump sum vs. royalty and
+  setting the value — mirroring the AI-faction pitch flow but without a disposition roll deciding the
+  outcome, since two players negotiate directly. This matters more here than in most games given
+  `architecture.md`'s multiplayer support. **Left as a follow-on design pass, not specified here.**
+- **Trade between factions themselves — not just player-to-faction — is the third acquisition path
+  §2.4's recipe-acquisition table above already names.** A faction with `Allied`-band relations to
+  another can buy a finished item or license its recipe the same way a player can pitch a Template,
+  using the identical lump-sum/royalty structure.
+
+#### A faction's ship roster is preset and research-unlocked, not reverse-engineerable 📋
+
+*Settled 2026-08-11.* Unlike modules and shells (§2.4, freely acquirable by any of the four paths),
+**a faction's ship designs are curated content, not a free-for-all.** Each faction manufactures from
+a fixed, thematically-authored list, unlocked the same way any recipe is researched from scratch
+(§2.4) — never by reverse-engineering a captured hull. A faction can still acquire *another*
+faction's ship design, but only through trade (above), the same as any other recipe.
+
+**This makes the player, and whichever crew type eventually designs Templates for factions, the only
+sources of genuinely new ship arrangements.** Everyone else — every faction, acting alone — works
+from its preset list, its research unlocks, or what it can buy. See §2.7's crew section for the
+Template-Designer and Trade Master roles this implies; **how an AI faction's Template-Designer
+actually invents a new arrangement (the algorithmic equivalent of a player using `CustomizeMenu`) is
+still open** — the natural hook is §6.2's archetype weighting biasing what gets designed, but that
+facet has the same "not yet computed" status as Tech Superiority above.
 
 ### 2.7 Skill 📋
 
@@ -805,6 +916,18 @@ module.
 
 **A rig needs one crew module, not two.** A single `Crew` module covers operating *and* commanding, so
 no shell is ever required to hold a matched pair.
+
+> ⚠️ **Floored 2026-08-11: neither stat may roll to exactly zero, and this reconciles a tension in
+> the text above rather than adding a new rule.** The stat table says a zero `operation` roll means
+> *"the crew cannot usefully work the shell they are in"* — stronger language than "officers multiply,
+> never create" (below) would suggest, since a pure multiplier hitting zero should mean *no bonus*,
+> not *unable to work the shell*. Whichever reading is correct, an explicit floor above zero on both
+> `operation` and `command` removes the ambiguity and is required by an already-settled mechanic:
+> §4.0/§6.5 sanction a commanding crew module sitting alone in a **1-crew-slot cockpit** (*"a fighter
+> can now be a boss"*), and there is no second module possible there to cover for a zero. A build
+> that dumps its whole budget into `command` still keeps a non-zero floor on `operation`, and
+> vice versa — specialization stays real (§2.7's weighted-budget rule is unchanged), it just never
+> reaches a stat that breaks an already-sanctioned scenario.
 
 ##### Why two kinds became one 📋
 
@@ -917,6 +1040,43 @@ would give `WarpSystem` its first tuning surface.
 > `command` has baseline `operation`, so a fleet admiral in a cockpit is a *worse* gunner, not a
 > free one. See the consolidation above.
 
+#### Three more roles raised 2026-08-11, at varying stages of settled 📋
+
+**Facility manager — agreed, with a framing that avoids contradicting an already-settled rule.**
+A crew stat that boosts a station facility's **automation/speed**, not its output quality —
+`EngineerSystem`'s merge quality is already specified as scaling with *facility grade*, not crew
+skill (above), and that stays exactly true. Facility grade remains the capability ceiling; a
+facility-manager crew module modifies how fast a facility works within that ceiling, the same
+relationship `operation`/`command` have to the modules they multiply rather than replace.
+
+**Template Designer — agreed, and it's what answers §2.6's "who can create new ship arrangements."**
+A crew type or facility letting a *faction* originate new Templates, the algorithmic equivalent of a
+player using `CustomizeMenu`. **Still open: how an AI faction's designer actually invents an
+arrangement** — the natural hook is §6.2's archetype weighting biasing what gets designed (Kore
+builds rugged and cheap, Zenith builds sensor-heavy), but that facet is uncomputed today, same as
+Tech Superiority (§2.4). Without a Template Designer, the player is the *only* source of new ship
+arrangements in the entire simulation — every faction, acting alone, is otherwise limited to its
+preset roster (§2.6).
+
+**Trade Master — agreed, replacing Commander as the default template seller.** A dedicated crew role
+for negotiating and orchestrating sales/royalties, separate from fleet command — Commander can still
+be a seller (§2.6 already settles that Commander is a valid `KnowledgeNetwork` owner), but selling
+stops being *specifically* a command function once this role exists to do it instead.
+
+**Crew bribery — agreed in concept, mechanics still open.** A low base chance to convert a specific
+NPC crew module to the player's (or a faction's) side, improvable by paying credits, with some crew
+simply immune regardless of offer — a gamble, not a purchase. Two things need pinning down before
+this is fully spec-able: whether a successful bribe causes outright **defection** (vacating their
+current post, which then needs replacing) or something softer, and whether this applies
+**symmetrically** — the player's own crew biddable away by rivals too, not just something the player
+does to NPCs. Law 4's "applies identically to player and NPCs" pattern, used everywhere else in this
+design, argues for symmetric by default.
+
+> 📋 **Also raised and deliberately deferred: crew training/leveling.** Whether a crew module's stats
+> can improve after acquisition (reroll vs. flat increment, a new facility kind to host it, time and
+> resource cost) is a real system with real interactions, not a one-line addition. Recorded as a
+> known commitment, not decided here — its own design pass when picked up.
+
 #### Fire control is its own `ModuleKind`, and there is no `Auxiliary` 📋
 
 *Settled 2026-08-08 alongside the turret change above, which needs it.*
@@ -947,7 +1107,7 @@ withdrawn on 2026-08-08 (see below); every turret has one slot regardless of gra
 |---|:---:|---|
 | **Bridge** (capital, station) | 2 | One `Crew` module suffices; two lets a specialist fly and another command (§2.7) |
 | **Cockpit** (fighter) | 1 | One `Crew` module — flying, commanding, or a split of both, per its roll |
-| **Chassis** | 0–1 | Optional reserve `Crew` — the co-pilot berth |
+| **Chassis** | **0, always** | **Settled 2026-08-11 — no longer 0–1.** Chassis death is rig death (§3.7); a crew slot living on the chassis would always die in perfect lockstep with the ship itself, with none of the distinct exposure a Bridge/Cockpit crew slot has under localized damage (§3.2). No interesting variance, just an authored slot with nothing to say. A co-pilot berth belongs on a shell that can be lost *without* the ship dying, not on the one that guarantees it |
 | **Turret** | **1, always** | Crewed = independent tracking; uncrewed = slaved, unless a fire-control module is fitted (§2.7) |
 | Thruster, power bay, wing, armour | 0 | — |
 
@@ -978,18 +1138,29 @@ an officer's grade sets a total boost budget and caps how many of its role's sta
 be spread across. A specialist officer concentrates it; a generalist spreads it thinner. This is the
 same mechanism every other module kind uses, not a crew-specific rule.
 
-#### Living and artificial officers ❓
+#### Living and artificial officers ✅
 
-*Proposed 2026-08-08.* Officers come in two flavours, acquired two different ways, and the choice
-between them should be a real one that changes as the player's economy matures.
+*Proposed 2026-08-08, settled 2026-08-13.* Officers come in two flavours, acquired two different
+ways, and the choice between them is a real one that changes as the player's economy matures.
 
 | | **Living** (hired) | **Artificial** (manufactured) |
 |---|---|---|
-| Acquired by | Credits, at a station | Materials + credits, at a Manufacturing facility (§2.8) |
+| Acquired by | Credits, at a station | `Circuit Wafer` + credits, at a Manufacturing facility (§2.8) |
 | Ongoing cost | **A recurring salary** | **None** — build it once, it works forever |
 | Skill ceiling | Higher | Lower, but perfectly consistent |
 | Mass | Lower | Higher — it is hardware |
 | Researchable | No | **Yes** — it is manufactured content like any other module |
+
+**Both cost credits, deliberately.** If Artificial were the free option, Living would only ever be
+a cash-poor starting crutch rather than a standing choice. Charging credits for both keeps the
+tradeoff live for the whole campaign: salaried-and-flexible vs. paid-once-and-fixed, not
+cheap-now vs. expensive-later.
+
+**The material is `Circuit Wafer` specifically**, not a generic "materials" placeholder — it is
+already the family §2.10 tags "Feeds: Targeting, avionics, crew modules," and it is what every
+entry in the Crew Roster (below) already builds from. An artificial officer is a crew module like
+any other; it uses the crew recipe, plus the manufacturing facility and the one-time cost that
+`Circuit Wafer`'s presence in a recipe always implies.
 
 **The strategic shape this produces:** hire early, when credits are easier to come by than a
 production base; build robots later, once you have the pipeline and a standing fleet whose salary
@@ -1002,6 +1173,15 @@ Concordance sees hand-built hydraulics as gross inefficiency."* Today that is pu
 officer flavours it becomes something the player *does*: crewing artificial pleases the Concordance
 and offends Kore, and vice versa. A rivalry the design already committed to gains a lever without
 inventing anything.
+
+> 💡 **Candidate mechanism raised 2026-08-11, not yet adopted: Ion vulnerability as a third axis.**
+> The table above already has two balance levers (upkeep vs. none, skill ceiling vs. consistency) —
+> this would be a third, using a weapon type that already exists rather than a new stat. Ion is
+> already specified as attacking power/electronics rather than hull (§3.1); making **artificial
+> officers specifically vulnerable to Ion** (living crew unaffected) gives synthetic crew a real
+> tactical downside beyond cost, gives Ion a second niche beyond shield-stripping, and reinforces the
+> same Kore ↔ AI Concordance framing from a combat angle instead of only an economic one. Offered as
+> a candidate for whichever pass finalizes this section, not asserted as settled.
 
 #### Upkeep is a general module property, not a crew feature 🧊
 
@@ -1221,6 +1401,7 @@ a mythic chassis still has finite slots, and you still cannot fit everything.
 | **Module capacity** | `moduleSlots` — **already exists on `ShellDef`** | Immediate. A mythic chassis carries four modules where a common one carries two. Zero new mechanics |
 | **Mass** | `mass` | Immediate. Lighter at higher grade, per above |
 | **Hull** | `hull` | Immediate. Tougher hardpoint, harder to strip |
+| **Structural mass threshold** | `structuralMassCap` (new) — Rule 4's per-chassis cap | **Settled 2026-08-11.** Without this, `moduleSlots` growing with grade is a trap: a Mythic chassis gains a fourth slot it may not be able to afford to fill, since nothing raised what it can carry. See below — this steps with `moduleSlots`, not the quality band |
 | **Crew slots** | `crewSlots` (new) | **Useful only up to two today** — see below |
 
 #### How each property scales across the ladder 📋
@@ -1233,6 +1414,7 @@ the quality band below, which replaced what was previously a separate hand-autho
 | **Every capability stat** — `hull`, weapon damage, shield capacity, thrust, officer boost | **The quality band** | One mechanism for everything a higher grade makes *better*. Gives per-item variance for free |
 | **`mass`** | **The settled ladder** — 100% → 70% at Mythic | Must move *down* with grade, so it cannot ride the same band |
 | **`moduleSlots`** | **Step** — +1 at Unique, Epic, Mythic | Discrete, legible, and it caps the compounding |
+| **`structuralMassCap`** | **Step, same tiers as `moduleSlots`, same instant** — +*N*% at Unique, Epic, Mythic | Deliberately **not** the quality band — a structural budget rolling per-instance would let two Mythic chassis of the same type carry different maximum loadouts, which fights planning around a known chassis rather than rewarding it. Deliberately **not** an independent curve either — it steps exactly where `moduleSlots` steps because the two are causally linked: the extra slot and the capacity to use it should land together. Exact percentage is a tuning question, not decided here |
 | **`crewSlots`** | **Authored per shell, not grade-scaled** — steps as new crew roles ship | See below |
 
 > ⚠️ **Tier must be applied exactly once per property.** An earlier draft of this section carried a
@@ -1840,6 +2022,86 @@ proportionate; sixty-four minutes at a crude bench is the reason to build a bett
 job slots, so a better facility runs more jobs *and* runs each one faster — two multipliers on one
 upgrade, which is what makes investment in industry compound.
 
+#### Two fuel sources, not one — corrected 2026-08-12 📋
+
+*Originally settled 2026-08-11 as a single shared pool; corrected the next day. The original version
+routed Manufacturing, Research, Engineering, and Deconstruction through the same fuel `WarpSystem`'s
+jumps consume. That conflated two things that shouldn't share a resource: a jump needs **reaction
+mass**, physically expended for thrust, no substitute possible. A stationary facility running a job
+doesn't need reaction mass at all — it needs **electricity to run its equipment**, which is a
+completely different resource with a completely different model already built.*
+
+| Fuel type | Powers | Resource | Model |
+|---|---|---|---|
+| **Propellant** (material) | Hyperdrive jumps only | Energetic elements → manufactured Propellant, physically consumed per jump | Unchanged, already specified above |
+| **Power** (energy) | Manufacturing, Research, Engineering, Deconstruction — running the facility's equipment | Whatever the station generates | Draws against the **Facilities** power category §2.9 already defines (one of the four keys, `F`/`G`/`H`/`J`) — not a new mechanism, the existing one gains a new consumer |
+
+This also cleanly separates from *materials/elements consumed as recipe inputs* — what a manufactured
+item is physically made **from**, already fully specified above — from *power drawn to run the
+process* — what keeps the equipment operating **while** it runs. Three different consumption
+patterns (becomes-the-output, runs-the-equipment, spent-as-reaction-mass), not one undifferentiated
+bucket.
+
+**Engineering and Deconstruction still gain a time-to-complete component they've never had**, and it
+is still mass-derived rather than grade-derived — unchanged from the original proposal. Manufacturing
+and Research keep their existing grade-based time curve untouched.
+
+**A player or faction may substitute Propellant/material requirements with their credit equivalent,
+at a markup, plus additional time** — reusing `Pricing.h::BaseValue` rather than a second pricing
+model. This applies to the **materials/Propellant side only**; it does not extend to power, which
+isn't purchased externally, it's generated locally, so there is nothing to substitute it with.
+
+#### A facility process stalls, not fails, if its power draw cannot be sustained 📋
+
+*Settled 2026-08-12.* If the Facilities category cannot sustain a running job's draw — Offline, or
+Reduced below what the job needs — the job **stalls**: it stops progressing and resumes the instant
+power is available again, the same "stalls, resumes when the constraint clears, nothing lost" shape
+already used elsewhere in this exact design (Manufacturing already stalls when its destination hold
+is full; Research already freezes rather than erases when `ctx.knowledge` is null). This is not a
+second failure roll and does not reopen *"research cannot fail"* above (§2.4) — it is fully
+deterministic and player-visible (build more generation, or wait), not a probability.
+
+#### Power generation gains storage, and a second and third source type 📋
+
+*Settled 2026-08-12.* Power generation today is a pure instantaneous ratio — generation vs. draw,
+recomputed fresh every tick, no buffer. Shields already work differently: `capacity` (a pool) +
+`rechargePerSecond` (a refill rate). Giving `PowerSource` the same two-stat shape is not new
+machinery, it is the same stat-pool pattern applied a second place, and it gives **"boost refuses
+without headroom"** (§2.9, below) a literal meaning instead of an abstract one — headroom becomes the
+stored buffer, and a boost can draw it down instead of only shedding other categories in real time.
+A generator built for a deep reserve and one built for sustained rate are now genuinely different
+fits, not the same stat under two names.
+
+**Three ways to generate power, each a real tradeoff rather than a strictly-better option:**
+
+| Source | Cost | Output | Constraint |
+|---|---|---|---|
+| **Standard `PowerCell`** (existing) | None ongoing | Fixed by grade/quality | None — works anywhere |
+| **Fuel-consuming generator** (new) | Consumes Energetic elements/materials over time | Higher ceiling than a standard cell | Needs resupply — a second real sink for Energetic materials, beyond Propellant. Not a new resource relationship: the Energetic attribute already explicitly feeds `PowerSource::generation` *and* hyperdrive fuel (§2.10) — this makes that dual role literal instead of only a composition bonus |
+| **Solar panel** (new) | None ongoing | Scales with proximity to a star | Position-dependent — negligible in the outer system, strong parked near a sun. Gives the star-luminosity/system-radius work an actual gameplay hook instead of a purely visual one |
+
+#### A workbench job also fails outright if the facility hosting it is destroyed or removed 📋
+
+*Settled 2026-08-12, correcting "research cannot fail" above (§2.4) to the scope it actually has.* That rule
+rejects a **second random roll** stacked on the existing sample-survival roll — it says nothing about
+external causes, which already have their own consequences everywhere else in this design. A
+research, manufacturing, engineering, or deconstruction job runs *on* a specific facility hardpoint;
+if that hardpoint dies in combat or is unmounted mid-job, the job — and whatever sample or
+in-progress materials it held — is destroyed with it. This is the same cascade-of-destruction rule
+already governing everything else attached to a hardpoint (§2.2: shooting a cargo bay spills its
+contents; §3.7: destroying a shell destroys everything attached to it) applied to one more thing a
+hardpoint can carry. Not a new mechanic — the existing one gains a new kind of contents.
+
+This is also precisely what `architecture.md` §13.5 group 2's research-defects bullet already tracks
+from the wiring side (*"`ResearchSystem::Tick` gains a `FacilityKind::Research` gate... blowing the
+lab off a station does not stop the jobs in it"*) — that fix and this rule are the same requirement
+seen from two directions: the gate stops a dead facility from *starting* new work, this stops a dead
+facility from *continuing* work already in progress.
+
+**One related question this does not resolve: what happens to a research job if the hosting station
+changes owner mid-job (capture)?** Left open — it depends on §3.2's capture state, which is itself
+still blocked on the crew shell (§13.3 Z) and not built yet. Worth revisiting once capture exists,
+not decided here.
 
 ### 2.9 Power Allocation 📋
 
@@ -2012,8 +2274,11 @@ bar (§2.7 cut upkeep deliberately).
 
 ##### The roster
 
-**Real elements only.** The target is **~50**, and the list below is a drafted starting set of 30 —
-not a final answer. Ratings 0–3; **ρ** is real g/cm³.
+**Real elements only.** The target was **~50**; eleven of the twenty candidates below survived
+`element_check` reasoning on 2026-08-12 (nine cut for dominance or Pareto failure — see the
+candidates section), landing the roster at **41**. §2.10 itself authorizes stopping short: *"keep
+whatever survives `element_check`; cut the rest without argument, even if the roster lands under
+50."* Ratings 0–3; **ρ** is real g/cm³. New rows from the 2026-08-12 pass are marked 🆕.
 
 | | Element | ρ | Str | Cnd | Sem | Eng | Mag | Opt | Thm | Inr | Character |
 |---|---|---:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
@@ -2024,29 +2289,55 @@ not a final answer. Ratings 0–3; **ρ** is real g/cm³.
 | **Si** | Silicon | 2.33 | 0 | 0 | 3 | 0 | 0 | 1 | 1 | 2 | The logic substrate, and it is light |
 | **B** | Boron | 2.34 | 2 | 0 | 2 | 1 | 0 | 0 | 3 | 2 | Stiff fibre, neutron sponge |
 | **Al** | Aluminium | 2.70 | 2 | 2 | 0 | 0 | 0 | 2 | 0 | 2 | Good at four things, best at none |
+| **Sc** 🆕 | Scandium | 2.99 | 2 | 1 | 0 | 0 | 0 | 0 | 1 | 2 | Titanium's lighter, weaker cousin — aerospace-grade lift |
 | **Y** | Yttrium | 4.47 | 1 | 0 | 1 | 0 | 1 | 3 | 2 | 1 | Laser and sensor glass |
 | **Ti** | Titanium | 4.51 | 3 | 0 | 0 | 0 | 0 | 0 | 2 | 3 | Strength per kilo that never corrodes |
+| **Se** 🆕 | Selenium | 4.81 | 0 | 0 | 3 | 0 | 0 | 2 | 0 | 1 | The original photocell element — light in, current out |
 | **Ge** | Germanium | 5.32 | 0 | 0 | 3 | 0 | 0 | 3 | 1 | 2 | Sensors and energy optics both |
+| **V** 🆕 | Vanadium | 6.11 | 2 | 1 | 0 | 1 | 0 | 0 | 2 | 2 | A workhorse alloy metal with a flow-battery side job |
+| **Te** 🆕 | Tellurium | 6.24 | 0 | 0 | 2 | 1 | 0 | 1 | 1 | 1 | Thermoelectric — turns waste heat into a trickle of power |
 | **Zr** | Zirconium | 6.52 | 2 | 0 | 0 | 1 | 0 | 0 | 3 | 3 | Reactor cladding |
 | **Nd** | Neodymium | 7.01 | 0 | 0 | 0 | 0 | 3 | 1 | 1 | 0 | The magnet. Oxidises fast |
+| **Zn** 🆕 | Zinc | 7.14 | 1 | 1 | 0 | 1 | 0 | 0 | 0 | 1 | Cheap, light, mildly everything |
 | **Cr** | Chromium | 7.19 | 3 | 1 | 0 | 0 | 0 | 2 | 2 | 3 | Hard, bright, corrosion-proof |
+| **Mn** 🆕 | Manganese | 7.21 | 2 | 0 | 0 | 1 | 1 | 0 | 1 | 1 | Toughens steel, powers a battery on the side |
 | **Sn** | Tin | 7.31 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 2 | Joins things cheaply |
+| **In** 🆕 | Indium | 7.31 | 0 | 2 | 1 | 0 | 0 | 2 | 0 | 1 | Transparent conductor — electronics you can see through |
 | **Sm** | Samarium | 7.52 | 0 | 0 | 0 | 1 | 3 | 0 | 2 | 1 | Magnets that survive heat |
 | **Fe** | Iron | 7.87 | 3 | 1 | 0 | 0 | 3 | 0 | 2 | 0 | Strong and magnetic — and it rusts |
 | **Nb** | Niobium | 8.57 | 2 | 1 | 0 | 0 | 1 | 0 | 3 | 3 | Refractory and inert |
+| **Cd** 🆕 | Cadmium | 8.65 | 0 | 1 | 2 | 1 | 0 | 2 | 0 | 2 | Thin-film photovoltaics — Optical Array's second real option |
 | **Co** | Cobalt | 8.90 | 2 | 1 | 0 | 0 | 3 | 0 | 3 | 2 | Magnetism that holds under heat |
 | **Ni** | Nickel | 8.91 | 2 | 1 | 0 | 0 | 2 | 0 | 2 | 3 | The dependable alloy |
 | **Cu** | Copper | 8.96 | 1 | 3 | 0 | 0 | 0 | 1 | 1 | 1 | The default conductor |
 | **Mo** | Molybdenum | 10.28 | 3 | 2 | 0 | 0 | 0 | 0 | 3 | 2 | Structure that shrugs off heat |
 | **Ag** | Silver | 10.49 | 0 | 3 | 0 | 0 | 0 | 3 | 1 | 1 | Best conductor and best mirror — tarnishes |
 | **Th** | Thorium | 11.72 | 1 | 0 | 0 | 2 | 0 | 0 | 3 | 1 | Fuel that tolerates heat |
+| **Pd** 🆕 | Palladium | 12.02 | 1 | 2 | 0 | 0 | 0 | 1 | 1 | 3 | The compact noble conductor — catalytic and clean |
+| **Rh** 🆕 | Rhodium | 12.41 | 2 | 2 | 0 | 0 | 0 | 3 | 2 | 3 | The mirror metal — reflects almost everything, corrodes in nothing |
 | **Hf** | Hafnium | 13.31 | 2 | 0 | 0 | 2 | 0 | 0 | 3 | 3 | Reactor control |
 | **Ta** | Tantalum | 16.65 | 2 | 2 | 0 | 0 | 0 | 0 | 3 | 3 | Capacitors, extreme service. Soft |
 | **U** | Uranium | 19.05 | 2 | 0 | 0 | 3 | 0 | 0 | 2 | 0 | Raw fission. Dangerous to store |
 | **W** | Tungsten | 19.25 | 3 | 1 | 0 | 0 | 0 | 0 | 3 | 2 | Nothing melts it |
 | **Au** | Gold | 19.30 | 0 | 3 | 0 | 0 | 0 | 2 | 1 | 3 | Heavy, but still working in a century |
+| **Re** 🆕 | Rhenium | 21.02 | 3 | 1 | 0 | 0 | 0 | 0 | 3 | 3 | The lightest way to get iridium-grade refractory strength |
 | **Pt** | Platinum | 21.45 | 1 | 2 | 0 | 2 | 0 | 1 | 2 | 3 | Catalyst and noble all-rounder |
 | **Ir** | Iridium | 22.56 | 3 | 1 | 0 | 0 | 0 | 1 | 3 | 3 | The premium hull element |
+
+⚠️ **`Cd` was cut in the first pass of this validation and reinstated the same day** — the original
+rating (`Sem1/Opt1`) undersold real cadmium chalcogenide chemistry (CdTe thin-film photovoltaics run
+near 22% efficiency; CdSe is a foundational quantum-dot optical material). Corrected to `Sem2/Opt2`,
+it survives dominance cleanly and gives **Optical Array** (§2.10, below) a second real
+Semiconductive+Optical option instead of Germanium alone — previously this roster's single worst
+role-coverage bottleneck.
+
+**`Zr`'s existing `Eng1/Thm3` rating already answers a question this section almost got wrong.**
+`Power Core` (wants Energetic + Thermal, below) was flagged as a two-element bottleneck — Uranium
+and Thorium — until re-examining Zirconium's own row: real zirconium alloy (zircaloy) is *the*
+nuclear fuel-cladding material specifically for its combination of low neutron absorption and high
+heat tolerance. It was never added for this pass; it was already sitting in the original thirty,
+undercounted because the check only looked for elements rated ≥2 on **both** attributes at once.
+The honest Power Core pool is **U, Th, and Zr** — three, not two.
 
 ##### Volatiles are Elements too 📋
 
@@ -2116,12 +2407,28 @@ already records that *"`MiningSystem` reads no module stat"* — and a planet **
 `WorldGen.cpp`'s own comment concedes *"every planet below is mechanically identical aside from its
 orbit."*
 
-**Candidates to test toward ~50**, chosen because each plausibly holds a niche none of the thirty-six
-above covers: **Pb** (radiation shielding — a genuinely missing role), **V**, **Se**
-(photoconductive), **In** (transparent conductor), **Te** (thermoelectric), **Re**, **Os**, **Pd**,
-**Rh**, **Sc**, **Bi**, **Cd**, **Gd**, **Eu**, **Er**, **Zn**, **Mn**, **Sb**, **La**, **Ce**.
-**Keep whatever survives `element_check`; cut the rest without argument, even if the roster lands
-under 50.**
+**Tested against `element_check`'s four rules by hand, 2026-08-12 — eleven survived, nine were cut.**
+This is the pass the roster above already reflects; recorded here so the reasoning is auditable
+rather than just the outcome.
+
+**Survived (11):** Sc, Se, V, Te, Zn, Mn, In, Cd, Pd, Rh, Re — all now in the roster above.
+
+**Cut (9), and the specific failure each one hit:**
+
+| Element | Failure |
+|---|---|
+| **Pb** | Dominated outright by **Ni** — same-or-better on every attribute at lower density. Its real niche (radiation shielding) isn't one of this roster's eight consumers |
+| **Os** | Dominated outright by **Ir** — near-identical profile, Ir is lighter |
+| **Bi** | Survives dominance narrowly, fails Pareto — no weighting of its thin Sem/Opt edge over Sn beats the density it costs |
+| **Gd** | Dominated by **Sm** — same magnetic-lanthanide shape, Sm is lighter with more Thermal/Energetic |
+| **Eu**, **Er** | Both dominated outright by **Y** — the *"lanthanides collapse"* effect this section already predicted by name |
+| **Sb** | Survives narrowly, too thin a differentiator from **V** to earn a slot |
+| **La**, **Ce** | Same lanthanide-collapse failure as Gd/Eu/Er, folding into Y's already-covered territory |
+
+**Net result: 41 elements, not 50.** This section already authorizes that outcome explicitly —
+*"keep whatever survives `element_check`; cut the rest without argument, even if the roster lands
+under 50"* — and the cut list matches what this section predicted: most of the losses are exactly
+the lanthanide collapse it named as the expected failure mode, not a surprise.
 
 ##### Why not the whole periodic table
 
@@ -2150,10 +2457,17 @@ That leaves **~45–50 genuinely distinct profiles**, which is where the target 
 Counting the drafted thirty by how many elements rate **3** in each attribute: Inert 10 · Thermal 9 ·
 Structure 6 · Magnetic 4 · Optical 4 · Conductive 3 · **Energetic 2** · **Semiconductive 2**.
 
+*(Recount across the full 41-element roster, 2026-08-12: Inert 13 · Thermal 10 · Structure 7 ·
+Optical 5 · Magnetic 4 · Conductive 3 · **Semiconductive 3** · **Energetic 2**. Semiconductive
+gained a third element (`Se`); **Energetic is now the roster's sole worst-covered attribute**,
+unchanged by this pass — see the `Power Core`/`Field Emitter` discussion below for why that's judged
+a real chemistry limit rather than a gap this section should try to close by inventing a rating.)*
+
 Refractory and corrosion-proof elements are everywhere; top-grade reactor fuel and top-grade logic
-substrate are two elements each out of thirty. **That is the pressure point, and it arrived without a
-rarity tier being invented.** Systems holding germanium or uranium are worth fighting over because of
-what grows there, not because a table said "rare." Do not even this out.
+substrate were two elements each out of thirty, one of which (Semiconductive) has since gained a
+third. **That is the pressure point, and it arrived without a rarity tier being invented.** Systems
+holding germanium or uranium are worth fighting over because of what grows there, not because a table
+said "rare." Do not even this out.
 
 #### Attributes propagate. Quality is rolled once. 📋
 
@@ -2288,10 +2602,13 @@ It runs in CI beside the four existing structural checks (`architecture.md` §2.
 first time that section's *"boundaries enforced by a format, a parser, or a linker survive"* principle
 reaches **content** rather than code. The same shape validates the module roster later.
 
-#### Materials — eight manufactured families 📋
+#### Materials — eleven manufactured families 📋
 
 *Renamed from "Crafts" 2026-08-09 (§2's vocabulary block). Weightings are now expressed as
-**attribute roles** rather than named elements, which is what makes substitution work.*
+**attribute roles** rather than named elements, which is what makes substitution work. Grew from
+eight to ten families 2026-08-12 (`Refractory Plate`, `Transparent Composite`), then to eleven the
+same day (`Radiation Shielding`) — see the new rows below. All eleven are universal; none carry
+faction specificity — see below.*
 
 Materials are manufactured intermediates. They **carry a grade** (§2.8's input chain requires it) but
 **do not roll quality** — quality is rolled once, at the finished module or shell. If every link
@@ -2308,16 +2625,83 @@ to explain.
 | **Power Core** | Energetic, Thermal | Power cells, reactors |
 | **Field Emitter** | Magnetic, Conductive | Shields, Ion weapons |
 | **Propellant** 📋 | Energetic, low density | Hyperdrive fuel (§2.11), thrusters |
+| **Refractory Plate** 📋 | Structure, Thermal | Weapon barrels, engine linings, reactor housings |
+| **Transparent Composite** 📋 | Structure, Optical | Cockpit canopies, sensor domes, viewports |
+| **Radiation Shielding** 📋 | Inert, low density | Hull plating and hazard-rated modules exposed to Corona/nebula radiation (`architecture.md` §12.28) |
 
 ⚠️ **A material's "wants" is a weighting, never a gate.** Every material exists at every grade, and a
 Common Field Emitter built from iron is a crude thing that works. **Nothing is locked behind a
 particular element** — the weighting decides what the recipe *reaches for*, and what you actually
 hold decides what it *gets*. This is §2.10's role-substitution rule seen from the recipe side.
 
+**`Radiation Shielding` is new, 2026-08-12, and it closes a real coverage gap rather than a
+faction-flavor one.** Inert is the best-covered attribute at the element level (13 of 41 elements
+rate it 3), but none of the other ten families want it at all — a whole attribute with excellent
+element support and zero material consumer. It also gives `architecture.md` §12.28's Corona/nebula
+hazards something concrete to feed a resistance stat from, which nothing in the content model
+currently provides.
+
+✅ **Settled 2026-08-12: materials carry no faction specificity, ever — exclusivity lives entirely at
+the module/shell/vessel design level, which is where it was already specified.** §2.8 already gates
+manufacturing on *"the actor's knowledge network actually holds the design"* — for modules, shells,
+and vessels, never for the materials they're built from. A faction-exclusive material *variant*
+(a proprietary bonus recipe, considered and rejected the same day) would have been a second gating
+mechanism sitting one layer below where gating already lives, solving the same problem twice and
+needing its own tracking for which variant a given instance used. **Any actor who can manufacture at
+all can manufacture any of these eleven families, at any grade, from whatever they hold** — the
+same "cannot be hard-stuck" guarantee §2.10 already promises for elements, extended down to the
+layer built from them. Faction identity — a signature alloy, a proprietary reactor design — is
+expressed by *what a faction builds*, not by *what they're allowed to build it from*, and lands when
+the module/shell roster is designed, not here.
+
 **`Propellant` is new**, and it closes a real gap: §2.11 settled that hyperdrives consume fuel and
 **nothing anywhere said what fuel is made of**. It is a manufactured material like any other, drawn
 from Energetic elements — which is what lets hydrogen, helium and the other volatiles be ordinary
 Elements rather than a parallel resource class.
+
+**`Refractory Plate` and `Transparent Composite` are new, and neither is a named-element recipe
+wearing a material's name.** Both were raised alongside a batch of exotic, fictional element
+proposals (Vitreous-Silicon, Phason-Gas) that couldn't be adopted as Elements — §2.10 is explicit
+that layer is real elements only — but the underlying gaps they pointed at were real: nothing in the
+original eight wants Structure **and** Thermal together (weapon barrels and engine linings currently
+have no material that reaches for both), and nothing wants Structure **and** Optical together
+(transparent armor — a shatter-resistant, see-through hull material — has no family to draw from
+either). Both slot into the existing generation rule with no change to the mechanism: role-weighted
+slots, substitutable, no element named. `Refractory Plate` feeds weapon barrels, engine linings, and
+reactor housings; `Transparent Composite` feeds cockpit canopies, sensor domes, and viewports —
+giving the Armored Observation Canopy idea (visibility traded for a lower health pool than solid
+plating) a real material to be made of.
+
+⚠️ **This changes §2.10's "~50-material roster" arithmetic, restated there — twice now, since
+`Radiation Shielding` landed the same day.** Eleven families × seven grades is closer to 77 than 50;
+two Mythic recipes drawing 8 distinct materials each now share roughly **0.8 of them, not 1.3** —
+the same argument that section already makes, strengthened by having three more families to draw
+from, not weakened.
+
+##### Five materials want a combination the roster can't fully satisfy — checked by hand, 2026-08-12
+
+*A material wanting two attributes at once is only as well-served as the elements that score decently
+on **both simultaneously**, not the elements that score well on either alone. Checked against the
+full 41-element roster:*
+
+| Material | Wants (combined) | Elements serving both decently | Verdict |
+|---|---|---|---|
+| **Optical Array** | Semiconductive + Optical | `Ge`, and now `Cd` (above) | Was a single-element bottleneck before `Cd`'s correction — the worst case found |
+| **Power Core** | Energetic + Thermal | `U`, `Th`, and `Zr` (above, previously undercounted) | Three, not two |
+| **Transparent Composite** | Structure + Optical | `Cr`, `Rh` | Two — a real physical tension, not a gap |
+| **Field Emitter** | Magnetic + Conductive | `Fe`, `Co`, `Ni` | Three — these are the *only* three elements ferromagnetic at room temperature, full stop |
+| **Circuit Wafer** | Semiconductive (alone) | `Si`, `B`, `Ge`, `Se` | Single-attribute, not a dual-intersection — thin but not a bottleneck |
+
+**Deliberately not padded further.** `Field Emitter` and `Transparent Composite` stay at their
+narrow counts on purpose: real chemistry doesn't offer more elemental ferromagnets, and structural
+strength and optical transmission are close to opposing properties in an element's own bonding —
+metallic bonds give strength, non-metallic bonds give transparency, rarely both. Inventing a fourth
+"pretty good at both" element for either would mean either picking something already dominated (the
+same failure `Ga`, `Gd`, `Eu`, and `Er` already hit above) or authoring a rating past what real
+chemistry supports, which undermines the free-intuition argument this whole layer is built on.
+**Composition averaging across a material's multiple slots is the intended answer to a narrow pool,
+not a workaround for one** — a Mythic `Power Core` blending `U`+`Th`+`Zr` slots gets a genuinely
+strong blend of both wanted attributes without needing a single perfect element to exist.
 
 #### What a grade actually costs 📋
 
@@ -2345,9 +2729,14 @@ Common/Uncommon/Unique/Rare/Epic/Legendary/Mythic. This table previously had a r
 (a grade) whose cell read **"≤ uncommon"** (a band). **Deleting the bands removes the collision
 entirely** — `Grade` is now the only ladder in the content model.
 
-Against a ~50-material roster (up from fourteen), two Mythic recipes drawing 8 distinct materials each
-share roughly **1.3 of them rather than 4.6** — so recipes read as genuinely different parts lists
-rather than as the same one reshuffled. That, not scarcity, is what the roster size buys.
+Against a ~77-material roster (eleven families × seven grades, up from fourteen under the old
+pre-rename system), two Mythic recipes drawing 8 distinct materials each share roughly **0.8 of them
+rather than 4.6** — so recipes read as genuinely different parts lists rather than as the same one
+reshuffled. That, not scarcity, is what the roster size buys.
+
+*(Was ~50/1.3 against eight families; revised 2026-08-12 twice — first to ~70/0.9 when
+`Refractory Plate` and `Transparent Composite` brought the count to ten, then to ~77/0.8 when
+`Radiation Shielding` brought it to eleven — see below.)*
 
 **Quantity scales on top of variety**, steeply — roughly against the inverse of §2.7's drop-rate
 curve (~3× per grade). §2.4 requires cost to climb faster than the stat benefit does, or
@@ -2566,6 +2955,17 @@ rig-level attributes.*
 
 > **Every rig-level attribute is the sum — or the maximum — of contributions from *living*
 > hardpoints. Destroying a hardpoint removes its contribution. Nothing is all-or-nothing.**
+
+⚠️ **Sharpened 2026-08-11: this is a recompute rule, not a zero-out rule, and the two are easy to
+conflate.** A dying hardpoint's *own* contribution correctly drops to zero the instant it dies —
+that part is simple and already intended. What this section actually requires is broader: every
+**other** module's rig-level effect that depends on the *living set as a whole* — `PowerSystem`'s
+draw-vs-generation satisfaction is the clearest example, since it is computed across every
+power-consuming module, not just the one that changed — must be **recomputed**, not left stale,
+whenever that set changes. And "changes" means all four ways it can: a player equipping or
+unmounting a module, an NPC doing the same, a hardpoint dying in combat, and a hardpoint being
+repaired back to life. A fix that only handles deliberate player equip/unmount is not this rule; it
+is one quarter of it.
 
 This is not a new pattern; it is **the pattern one system already follows and the others do not.**
 `PowerSystem` recomputes `PowerBudget` from living hardpoints every tick. Four things currently break
@@ -2799,6 +3199,863 @@ armoured targets want punch.
 | **ECM / jamming** | Suppresses enemy sensor range. Genuinely strategic once §8.3's fog is real | Small mechanic, real depth. Wants fog first |
 | **Cloak / stealth** | ⚠️ **The one on this list that is not a module.** Sensors carry only a range; there is nothing to *detect against*. Cloak needs a signature stat on every hull and a detection check — a system, not an attribute | Large |
 
+#### The Weapon Roster — per-faction and general 📋
+
+*Settled 2026-08-12. First content pass on `ModuleKind::Weapon` — ten factions plus a faction-less
+General roster, five weapons each (55 total). Crew and Facility modules stay universal, not
+per-faction (§2.10's precedent for Materials, applied here) — the variety that's worth authoring per
+faction lives in Weapon, ShieldGenerator, PowerCell, Engine, Armor, FireControl, and CargoBay.*
+
+**Two axes stay independent, and getting them confused is the mistake this pass corrected twice.**
+`DamageType` (Kinetic/Energy/Ion) is what happens **on impact**, and it decides shield interaction —
+unaffected by anything below. A weapon's **recipe** — which Material(s) it's built from — is decided
+by its **role**, not its damage type, and a role can imply a real second physical subsystem the way
+`§3.1`'s "weapon behaviour is a separate, unbounded axis from damage type" already said in the
+abstract. This section is that principle made concrete:
+
+> **A role that implies storing or routing energy in a specific way earns a second material. A role
+> that's just aim-and-fire stays on one.**
+
+| Role | Implies | Recipe |
+|---|---|---|
+| **Kinetic — Sustained, Spread** | A barrel/housing surviving repeated firing. Nothing else | `Refractory Plate` alone |
+| **Kinetic — Penetration** | The same barrel, **plus** a magnetic accelerator — real railguns achieve penetration velocity electromagnetically, not chemically | `Field Emitter` + `Refractory Plate` |
+| **Energy — Precision** | Beam focusing and targeting. Nothing else — `Optical Array`'s own Optical+Semiconductive want already covers aim | `Optical Array` alone |
+| **Energy — Burst** | Beam focusing, **plus** a capacitor to store a charge and release it fast | `Optical Array` + `Power Core` |
+| **Energy — Sustained** | Beam focusing, **plus** efficient continuous power routing so a long beam doesn't waste itself as heat | `Optical Array` + `Conductive Coil` |
+| **Ion — Disable (standard)** | A crude-but-functional EMP burst. Nothing else | `Field Emitter` alone |
+| **Ion — Disable (heavy)** | The same field generator, **plus** a capacitor for a stronger pulse — the same logic as Energy Burst | `Field Emitter` + `Power Core` |
+
+**This is the rule to carry into every other per-faction module kind**, not a Weapon-specific
+exception: ask what a role's own description physically requires before authoring its recipe, the
+same way a railgun's recipe was wrong until "penetration" was read as "electromagnetic," not just as
+a bigger number.
+
+Stat bias below is qualitative — exact tuning is `tools/economy_sim` territory (§2.10), not decided
+by inspection. Each faction's **weakest weapon category is named explicitly** rather than pretended
+away; nobody is equally good at everything, per §2.2's no-strictly-best-loadout rule applied to
+faction identity instead of only to individual fits.
+
+##### Aegis Directorate — disciplined, standard-issue, by-the-book
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Sentinel Autocannon | Kinetic | Sustained | Refractory Plate | High Thermal tolerance → high sustained rate, modest per-shot damage |
+| Bulwark Railgun | Kinetic | Penetration | Field Emitter + Refractory Plate | High Structure bias → armor-piercing, slow fire rate |
+| Directorate Beam Array | Energy | Precision | Optical Array | Low spread, steady damage, moderate power draw |
+| Containment Lance | Energy | Burst | Optical Array + Power Core | High burst damage, real cooldown window |
+| Suppressor EMP Caster | Ion | Disable | Field Emitter | Standard Ion — strips shields, cuts power, no hull damage |
+
+##### Meridian Star Corps — cost-efficient, mass-produced, mercenary-adjacent
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Ledger-Line Cannon | Kinetic | Sustained | Refractory Plate | Cheap recipe, average everything — the "good enough" gun |
+| Contractor Flak Battery | Kinetic | Spread | Refractory Plate | Wide spread, low per-hit damage — point-defense-adjacent |
+| Q3 Pulse Emitter | Energy | Precision | Optical Array | Low power draw, prioritizes cost over ceiling |
+| Liquidator Beam | Energy | Burst | Optical Array + Power Core | Higher-tier option — bought, not built, for the client who pays |
+| Repossession Caster | Ion | Disable | Field Emitter | Standard Ion, marketed as a "peaceful" disable-not-kill weapon |
+
+##### Kore Industries — repurposed mining tools, rugged, blunt
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Drillhead Mass Driver | Kinetic | Penetration | Field Emitter + Refractory Plate | Repurposed mining tool — extreme Structure bias, slow |
+| Foreman's Scattergun | Kinetic | Spread | Refractory Plate | Close-range, heavy per-hit, short effective range |
+| Slag-Cutter Laser | Energy | Sustained | Optical Array + Conductive Coil | Industrial cutting laser repurposed — steady, unglamorous |
+| Blast-Charge Launcher | Energy | Burst | Optical Array + Power Core | Mining-charge derived — high burst, real self-risk at close range |
+| Demag Field Caster | Ion | Disable | Field Emitter | Standard Ion, framed as "clearing a jammed rig" tech |
+
+##### The Forgotten — jury-rigged, salvaged, high-variance
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Scrapgun | Kinetic | Sustained | Refractory Plate | Wide quality-roll variance — could be great, could be junk |
+| Patchwork Ripper | Kinetic | Spread | Refractory Plate | Whatever scrap filled the recipe slots — unpredictable damage |
+| Jury-Rig Laser | Energy | Precision | Optical Array | Cobbled together, high variance, cheap when it works |
+| Overcharged Splicer | Energy | Burst | Optical Array + Power Core | Deliberately overdriven — real risk of self-damage on overheat |
+| Salvaged EMP Coil | Ion | Disable | Field Emitter | Standard Ion, stolen tech rather than built |
+
+##### AI Concordance — precise, optimized, post-biological
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Calculus Autocannon | Kinetic | Sustained | Refractory Plate | Their weakest category, by design — still computer-tuned |
+| Precision Beam Array | Energy | Precision | Optical Array | Best-in-class low spread — the archetype energy weapon |
+| Recursive Pulse Caster | Energy | Burst | Optical Array + Power Core | Optimized burst timing, minimal wasted energy |
+| Statistical Disruptor | Ion | Disable | Field Emitter | Enhanced Ion — the faction that most wants "disable, don't destroy" |
+| Entropy-Minimizing Lance | Ion | Disable (heavy) | Field Emitter + Power Core | Second Ion option — signature weapon, high power cost |
+
+##### Pyre Ascendancy — fire/plasma, aggressive, high-risk
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Cinder Cannon | Kinetic | Sustained | Refractory Plate | Their weakest category — kept only for tradition |
+| Sacred Flame Lance | Energy | Burst | Optical Array + Power Core | Highest burst damage of any faction's Energy weapon, short range |
+| Purification Beam | Energy | Sustained | Optical Array + Conductive Coil | Continuous-beam plasma, heavy Thermal demand, real overheat risk |
+| Immolator Pulse Caster | Energy | Burst | Optical Array + Power Core | Second Energy option — signature weapon |
+| Cleansing EMP Font | Ion | Disable | Field Emitter | Standard Ion, framed narratively as "burning out" the target's power |
+
+##### Voidwalkers — exotic, anomaly-touched, cryptic
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Rift-Edge Driver | Kinetic | Penetration | Field Emitter + Refractory Plate | Their weakest category — used only when cornered |
+| Umbral Beam | Energy | Precision | Optical Array | Low signature, low spread — matches their stealth leaning |
+| Anomalous Pulse Caster | Energy | Burst | Optical Array + Power Core | Erratic-but-strong, "borrowed" physics flavor |
+| Dissonance EMP Font | Ion | Disable | Field Emitter | Standard Ion — the faction most thematically aligned with disabling |
+| Silence Caster | Ion | Disable (heavy) | Field Emitter + Power Core | Second Ion option, signature weapon |
+
+##### Zenith Collective — precision instruments, sensor-integrated
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Archivist Autocannon | Kinetic | Sustained | Refractory Plate | Their weakest category |
+| Cataloguing Beam Array | Energy | Precision | Optical Array | Best-in-class low spread, shares tech with their sensor suite |
+| Study Pulse Caster | Energy | Burst | Optical Array + Power Core | Second Energy option |
+| Discovery Lance | Energy | Sustained | Optical Array + Conductive Coil | Third Energy option, tuned for prolonged engagement over specimens |
+| Preservation EMP Font | Ion | Disable | Field Emitter | Standard Ion — "disable and recover intact," matches their ethos |
+
+##### Edenian Pact — bio-integrated, defensive-leaning, corrosive
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Thornbranch Driver | Kinetic | Sustained | Refractory Plate | Their weakest category |
+| Bloomspore Caster | Energy | Burst | Optical Array + Power Core | Organic-themed area denial |
+| Verdant Beam | Energy | Precision | Optical Array | Second Energy option |
+| Blight Lance | Energy | Burst | Optical Array + Power Core | Corrosive-flavored third Energy option — "protecting the garden" |
+| Symbiotic EMP Font | Ion | Disable | Field Emitter | Standard Ion |
+
+##### The Reapers — brutal, mass-destruction, entropic
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Harvest Driver | Kinetic | Penetration | Field Emitter + Refractory Plate | Highest raw Structure bias of any faction's Kinetic weapon |
+| Culling Scattergun | Kinetic | Spread | Refractory Plate | Second Kinetic option — brutal close range |
+| Unmaking Beam | Energy | Sustained | Optical Array + Conductive Coil | Continuous, remorseless, high Thermal demand |
+| Entropy Lance | Energy | Burst | Optical Array + Power Core | Second Energy option |
+| Decay Font | Ion | Disable | Field Emitter | Standard Ion — matches their power-suppression identity |
+
+##### General — faction-less baseline, always available
+
+| Weapon | Type | Role | Recipe | Bias |
+|---|---|---|---|---|
+| Standard Autocannon | Kinetic | Sustained | Refractory Plate | The flat baseline every other Kinetic weapon is judged against |
+| Standard Railgun | Kinetic | Penetration | Field Emitter + Refractory Plate | Baseline penetration option |
+| Standard Beam Emitter | Energy | Precision | Optical Array | The flat baseline Energy weapon |
+| Standard Pulse Caster | Energy | Burst | Optical Array + Power Core | Baseline burst option |
+| Standard EMP Caster | Ion | Disable | Field Emitter | Baseline Ion — what every faction's Ion weapon is a variant of |
+
+#### The Shield Roster — per-faction and general 📋
+
+*Settled 2026-08-12. `ModuleKind::ShieldGenerator` has three independent variety axes — shield-matching
+type (Kinetic/Energy, §3.1's deliberate "stays two"), coverage (Personal/Bubble/Conformal, §3.1), and
+recharge archetype (Regenerative/Capacitor, §3.1) — not one, which is why this roster is less
+combinatorially uniform than Weapon's.*
+
+**The Weapon roster's rule extends here directly, across two axes instead of one:**
+
+| Property | Implies | Adds |
+|---|---|---|
+| **Personal** coverage | No extra subsystem — the field never leaves its own hardpoint | — |
+| **Bubble** coverage | Projecting the field outward over a radius — a routing/amplification problem | `Conductive Coil` |
+| **Conformal** coverage | Computing and maintaining a field against the whole hull's changing geometry in real time | `Circuit Wafer` |
+| **Regenerative** recharge | Continuous low-rate trickle — the baseline behavior a Field Emitter already has | — |
+| **Capacitor** recharge | Storing a large charge before releasing it — the same logic as Energy Burst weapons | `Power Core` |
+
+**These stack.** A Conformal **and** Capacitor shield wants `Field Emitter` + `Circuit Wafer` +
+`Power Core` — three distinct materials, which a Common-grade recipe's 2-slot cap can't afford. That
+gives §3.1's *"Conformal is the premium mode and should be priced and gated as such"* a concrete
+economic reason rather than just an authored label.
+
+**Investment varies by faction on purpose, the same as Weapon's weakest-category rule** — shields
+aren't every faction's focus, so the count below isn't uniform: 25 across 11 owners, not 5 each.
+
+##### Aegis Directorate
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Sentinel Aegis | Kinetic | Personal | Regenerative | Field Emitter | Basic backup, always-on |
+| Bulwark Field | Kinetic | Bubble | Capacitor | Field Emitter + Conductive Coil + Power Core | Their doctrine shield — absorb the big hit |
+| Perimeter Ward | Energy | Bubble | Regenerative | Field Emitter + Conductive Coil | Secondary coverage |
+
+##### Meridian Star Corps
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Standard Coverage Plan | Kinetic | Personal | Regenerative | Field Emitter | Cheapest possible, insurance-flavored |
+| Premium Coverage Plan | Energy | Personal | Regenerative | Field Emitter | "Premium" in name only — still baseline hardware |
+
+##### Kore Industries
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Drillhard Plating Shield | Kinetic | Personal | Capacitor | Field Emitter + Power Core | Their only shield — tank one big hit, no finesse |
+
+##### The Forgotten
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Scav-Ward | Kinetic | Personal | Regenerative | Field Emitter | Salvaged, unreliable |
+| Patched Barrier | Energy | Personal | Regenerative | Field Emitter | Whatever they scavenged — Bubble/Conformal are beyond their means |
+
+##### AI Concordance
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Recursive Envelope | Energy | Conformal | Regenerative | Field Emitter + Circuit Wafer | Signature — elegant, computed, whole-hull |
+| Calculated Bubble | Kinetic | Bubble | Capacitor | Field Emitter + Conductive Coil + Power Core | Secondary |
+| Baseline Field | Energy | Personal | Regenerative | Field Emitter | Basic backup |
+
+##### Pyre Ascendancy
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Faithguard | Kinetic | Personal | Regenerative | Field Emitter | Their only shield — offense is the doctrine, this is the bare minimum |
+
+##### Voidwalkers
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Long-Drift Ward | Energy | Bubble | Regenerative | Field Emitter + Conductive Coil | Signature — long-endurance deep-space coverage |
+| Wayfarer's Field | Kinetic | Personal | Regenerative | Field Emitter | Basic |
+| Rift-Cloak Envelope | Energy | Conformal | Regenerative | Field Emitter + Circuit Wafer | Premium — full-hull protection for isolated runs |
+
+##### Zenith Collective
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Archive Envelope | Energy | Conformal | Regenerative | Field Emitter + Circuit Wafer | Signature — protects the whole specimen-carrying hull |
+| Cataloguer's Bubble | Kinetic | Bubble | Capacitor | Field Emitter + Conductive Coil + Power Core | Secondary |
+| Study Field | Kinetic | Personal | Regenerative | Field Emitter | Basic |
+
+##### Edenian Pact
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Symbiotic Ward | Energy | Bubble | Regenerative | Field Emitter + Conductive Coil | Signature — self-sustaining, "living" recharge flavor |
+| Garden Envelope | Kinetic | Conformal | Regenerative | Field Emitter + Circuit Wafer | Whole-ship protection, matches their protective doctrine |
+| Root Field | Energy | Personal | Regenerative | Field Emitter | Basic |
+
+##### The Reapers
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Pressure Bulwark | Kinetic | Bubble | Capacitor | Field Emitter + Conductive Coil + Power Core | Signature — absorbs sustained assault, matches "absorbs the most pressure" (§5.7) |
+| Husk Field | Energy | Personal | Regenerative | Field Emitter | Basic backup |
+
+##### General — faction-less baseline, always available
+
+| Shield | Type | Coverage | Recharge | Recipe | Bias |
+|---|---|---|---|---|---|
+| Standard Kinetic Shield | Kinetic | Personal | Regenerative | Field Emitter | The flat baseline every Kinetic-matching shield is judged against |
+| Standard Energy Shield | Energy | Personal | Regenerative | Field Emitter | The flat baseline Energy-matching shield |
+
+#### The Power Cell Roster — per-faction and general 📋
+
+*Settled 2026-08-12. `ModuleKind::PowerCell` has three generation archetypes — standard cell,
+fuel-consuming generator, and solar panel — established a few sessions prior alongside the storage
+(`storageCapacity`) + rate (`productionRate`) model. Unlike Weapon and Shield, the three archetypes
+turn out to want genuinely different primary materials, not just additions to a shared one.*
+
+| Archetype | Why | Recipe |
+|---|---|---|
+| **Standard cell** | Baseline reactor/battery — no ongoing cost, fixed output by grade | `Power Core` alone |
+| **Fuel-consuming generator** | Actively burning/reacting fuel for a higher ceiling needs **containment**, not just generation | `Power Core` + `Radiation Shielding` |
+| **Solar panel** | Not thermal/nuclear generation at all — photovoltaic conversion is `Optical Array`'s domain, not `Power Core`'s | `Optical Array` alone |
+
+`Radiation Shielding` (§2.10) gets its first real module consumer here, beyond hull plating — an
+active reactor genuinely needs containment against what it's producing, which is exactly the Inert
+role that material was added to fill.
+
+**Investment varies by archetype fit, not uniformly** — 20 across 11 owners. Factions built around
+consuming something (industrial, zealous, entropic) lean fuel-burning; factions built around
+preservation or ecology lean solar; Voidwalkers stay self-sufficient rather than sun-dependent,
+since "near a star" isn't where a deep-space nomad chooses to be.
+
+##### Aegis Directorate
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Standard Reactor Core | Standard | Power Core | Reliable baseline, no fuss |
+| Sentinel Fusion Plant | Fuel-consuming | Power Core + Radiation Shielding | Backup for heavy weapon/shield draw |
+
+##### Meridian Star Corps
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Ledger Power Cell | Standard | Power Core | Cost-efficient baseline |
+| Margin Array | Solar | Optical Array | Zero ongoing cost — maximizes margin, very on-brand |
+
+##### Kore Industries
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Furnace Core | Fuel-consuming | Power Core + Radiation Shielding | Signature — industrial-scale burning, matches their mining doctrine |
+| Rugged Power Cell | Standard | Power Core | Backup |
+
+##### The Forgotten
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Scrap Cell | Standard | Power Core | Salvaged baseline |
+| Anything-Burner | Fuel-consuming | Power Core + Radiation Shielding | Burns whatever fuel they scavenge — high variance, unreliable |
+
+##### AI Concordance
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Optimized Core | Standard | Power Core | Algorithmically tuned baseline |
+| Photonic Array | Solar | Optical Array | Computed stellar tracking for maximum conversion efficiency |
+
+##### Pyre Ascendancy
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Sacred Furnace | Fuel-consuming | Power Core + Radiation Shielding | Their only power cell — "sacred fire" is the whole doctrine |
+
+##### Voidwalkers
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Drift Reserve | Standard | Power Core | Storage-heavy, self-sufficient — no dependency on stellar proximity or fuel resupply for long isolated runs |
+
+##### Zenith Collective
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Solar Array Mk. | Solar | Optical Array | Signature — sustainable, matches their preservation ethos |
+| Archive Power Cell | Standard | Power Core | Backup |
+
+##### Edenian Pact
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Photosynth Array | Solar | Optical Array | Signature — non-depleting generation, matches their ecological identity directly |
+| Bio-Power Cell | Standard | Power Core | Backup |
+
+##### The Reapers
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Consumption Core | Fuel-consuming | Power Core + Radiation Shielding | Signature — matches their entropic, consuming nature |
+| Husk Cell | Standard | Power Core | Backup |
+
+##### General — faction-less baseline, always available
+
+| Power Cell | Archetype | Recipe | Bias |
+|---|---|---|---|
+| Standard Power Cell | Standard | Power Core | The flat baseline every reactor-type cell is judged against |
+| Standard Solar Array | Solar | Optical Array | The flat baseline photovoltaic option |
+
+#### The Engine Roster — per-faction and general 📋
+
+*Settled 2026-08-13. `ModuleKind::Engine`'s pool (thrust ↑ · turnTorque ↑ · maxSpeed ↑ ·
+boostMultiplier ↑) splits along one axis with two families — chemical combustion and
+electromagnetic (Ion) — the same duality `modules.json`'s placeholder `ion_thruster_i` already
+gestured at in its name before a roster existed to back it up.*
+
+**The Weapon roster's rule applies unchanged: ask what the role physically needs before writing its
+recipe.**
+
+| Role | Implies | Recipe |
+|---|---|---|
+| **Chemical — Thrust** | A burn chamber and nozzle. Nothing else | `Propellant` alone |
+| **Chemical — Maneuvering** | The same burn chamber, **plus** plumbing to split it across vectoring nozzles for turn authority | `Propellant` + `Conductive Coil` |
+| **Ion — Cruise** | No combustion at all — a sustained electromagnetic acceleration field | `Conductive Coil` alone |
+| **Ion — Boost** | The same field, **plus** a capacitor for a burst multiplier — the same logic as Energy Burst weapons | `Conductive Coil` + `Power Core` |
+
+**Investment isn't uniform** — chemical thrust is the one every faction can build; Ion is the one
+that separates them, the same shape as Weapon's Ion split.
+
+##### Aegis Directorate
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Sentinel Drive | Chemical — Thrust | Propellant | Standard-issue, reliable, unremarkable |
+| Formation Thruster | Chemical — Maneuvering | Propellant + Conductive Coil | Tuned for holding formation, not top speed |
+| Directorate Ion Core | Ion — Cruise | Conductive Coil | Disciplined efficiency over raw thrust |
+
+##### Meridian Star Corps
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Ledger Thruster | Chemical — Thrust | Propellant | Cheapest possible, average everything |
+| Contractor Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Sold as an upgrade package |
+| Premium Ion Drive | Ion — Cruise | Conductive Coil | "Premium" in name only, still baseline hardware |
+
+##### Kore Industries
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Strip-Mine Thruster | Chemical — Thrust | Propellant | Signature — repurposed mining-rig burn engine, extreme thrust |
+| Foreman's Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Blunt, functional |
+| Rugged Ion Core | Ion — Cruise | Conductive Coil | Their weakest category — finesse isn't the doctrine |
+
+##### The Forgotten
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Scrap Thruster | Chemical — Thrust | Propellant | Wide quality-roll variance |
+| Patchwork Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Whatever scrap filled the recipe slots |
+| Salvaged Ion Core | Ion — Cruise | Conductive Coil | Stolen tech, their weakest category, unreliable |
+
+##### AI Concordance
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Calculated Thruster | Chemical — Thrust | Propellant | Their weakest category, kept minimal |
+| Statistical Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Computer-tuned turn authority |
+| Recursive Ion Core | Ion — Cruise | Conductive Coil | Signature — smooth, computed, efficient |
+| Optimized Boost Array | Ion — Boost | Conductive Coil + Power Core | Second Ion option, minimal wasted energy |
+
+##### Pyre Ascendancy
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Cinder Thruster | Chemical — Thrust | Propellant | Signature — the biggest burn of any faction's thruster |
+| Zealot Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Aggressive close-in turning |
+| Ember Ion Core | Ion — Cruise | Conductive Coil | Their weakest category — kept only for tradition |
+
+##### Voidwalkers
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Wayfarer Thruster | Chemical — Thrust | Propellant | Their weakest category, basic |
+| Umbral Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Low-signature turning, matches their stealth leaning |
+| Drift Ion Core | Ion — Cruise | Conductive Coil | Signature — long-endurance deep-space efficiency |
+| Rift Boost Array | Ion — Boost | Conductive Coil + Power Core | Second Ion option, erratic-but-strong |
+
+##### Zenith Collective
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Archivist Thruster | Chemical — Thrust | Propellant | Their weakest category |
+| Cataloguing Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Precise turn control for close specimen work |
+| Study Ion Core | Ion — Cruise | Conductive Coil | Signature — sustainable, matches their preservation ethos |
+
+##### Edenian Pact
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Rootwalker Thruster | Chemical — Thrust | Propellant | Their weakest category |
+| Bloomdrift Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Organic-themed, matches their defensive doctrine |
+| Symbiotic Ion Core | Ion — Cruise | Conductive Coil | "Living" efficiency, low signature |
+
+##### The Reapers
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Harvest Thruster | Chemical — Thrust | Propellant | Signature — highest raw thrust of any faction's chemical drive |
+| Culling Vector Jets | Chemical — Maneuvering | Propellant + Conductive Coil | Brutal, close-in turning |
+| Decay Ion Core | Ion — Cruise | Conductive Coil | Matches their power-suppression identity |
+
+##### General — faction-less baseline, always available
+
+| Engine | Role | Recipe | Bias |
+|---|---|---|---|
+| Standard Chemical Thruster | Chemical — Thrust | Propellant | The flat baseline every other chemical drive is judged against |
+| Standard Vector Thruster | Chemical — Maneuvering | Propellant + Conductive Coil | Baseline maneuvering option |
+| Standard Ion Drive | Ion — Cruise | Conductive Coil | Baseline Ion — what every faction's Ion Core is a variant of |
+
+#### The Armor Roster — per-faction and general 📋
+
+*Settled 2026-08-13. `ModuleKind::Armor`'s pool is `hullBonus` alone for most of the family, with
+flat reduction scoped to one family per "Armour: flat reduction is one family's identity, not a
+universal stat" (above) — that scoping is what makes Armor a three-family roster rather than a
+one-line stat.*
+
+| Family | Implies | Recipe |
+|---|---|---|
+| **Standard Plating** | Pure structural bulk. Nothing else | `Alloy Plate` alone |
+| **Ablative/Composite Plating** | The same structural bulk, **plus** a sacrificial layer that blunts each hit — this is the flat-reduction family, and it stays rare by construction | `Alloy Plate` + `Composite Housing` |
+| **Hazard-Rated Plating** | The same structural bulk, **plus** containment against Corona/nebula radiation (`architecture.md` §12.28) | `Alloy Plate` + `Radiation Shielding` |
+
+**Not every faction fields all three** — the same weakest-category rule as Weapon and Shield.
+
+##### Aegis Directorate
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Sentinel Plating | Standard | Alloy Plate | Standard-issue baseline |
+| Bulwark Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Signature — "absorb the big hit," same doctrine as their shield |
+| Directorate Hazard Plating | Hazard-Rated | Alloy Plate + Radiation Shielding | Standard-issue hazard tolerance |
+
+##### Meridian Star Corps
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard-Issue Plating | Standard | Alloy Plate | Cheapest possible baseline |
+| Contractor Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Sold as an upgrade package |
+
+##### Kore Industries
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Drillhard Plating | Standard | Alloy Plate | Rugged, repurposed mining-hull baseline |
+| Foreman's Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Blunt, functional |
+| Shaft-Rated Hazard Plating | Hazard-Rated | Alloy Plate + Radiation Shielding | Signature — mining rigs already need radiation tolerance |
+
+##### The Forgotten
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Scrap Plating | Standard | Alloy Plate | Salvaged, unreliable |
+| Patchwork Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Whatever scrap filled the recipe slots |
+
+##### AI Concordance
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Calculated Plating | Standard | Alloy Plate | Their weakest category — precision and avoidance substitute for bulk |
+| Recursive Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Computer-tuned absorption layer |
+
+##### Pyre Ascendancy
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Cinder Plating | Standard | Alloy Plate | Their weakest category — offense is the doctrine |
+| Sacred Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Signature — "endure the flame" |
+
+##### Voidwalkers
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Wayfarer Plating | Standard | Alloy Plate | Basic |
+| Rift Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Absorbs the unpredictable |
+| Drift Hazard Plating | Hazard-Rated | Alloy Plate + Radiation Shielding | Signature — built for anomaly-laced deep space |
+
+##### Zenith Collective
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Archivist Plating | Standard | Alloy Plate | Basic |
+| Cataloguing Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Protects the specimen-carrying hull |
+| Study Hazard Plating | Hazard-Rated | Alloy Plate + Radiation Shielding | Signature — for fieldwork near hazardous specimens |
+
+##### Edenian Pact
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Rootwalker Plating | Standard | Alloy Plate | Basic |
+| Bloomshield Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Signature — "protecting the garden," matches their protective doctrine |
+
+##### The Reapers
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Harvest Plating | Standard | Alloy Plate | Basic |
+| Culling Composite Armor | Ablative/Composite | Alloy Plate + Composite Housing | Signature — absorb and grind, not preserve |
+
+##### General — faction-less baseline, always available
+
+| Armor | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard Plating | Standard | Alloy Plate | The flat baseline every hullBonus-only armor is judged against |
+| Standard Composite Plating | Ablative/Composite | Alloy Plate + Composite Housing | Baseline flat-reduction option |
+| Standard Hazard Plating | Hazard-Rated | Alloy Plate + Radiation Shielding | Baseline hazard-tolerance option |
+
+#### The Fire Control Roster — per-faction and general 📋
+
+*Settled 2026-08-13. `ModuleKind::FireControl` is still 📋 planned in code — `WeaponSystem` reads
+`FiringArc::turnRatePerSecond` hardcoded to `kPi` (above, "The three kinds that close existing
+gaps") — but the roster is written ahead of the pool, the same way Sensor and CargoBay's gaps were
+described before their implementation.*
+
+| Method | Implies | Recipe |
+|---|---|---|
+| **Radar-Directed** | Basic electronic tracking — targeting logic alone | `Circuit Wafer` alone |
+| **Optically-Guided** | The same targeting logic, **plus** a sighting system it slaves to | `Circuit Wafer` + `Optical Array` |
+| **Predictive** | The same targeting logic, **plus** a heavier compute core to solve intercepts and re-lock faster | `Circuit Wafer` + `Power Core` |
+
+**This is the thinnest roster of the seven** — several factions field only one, which is honest:
+fire control is a force multiplier on a weapon that already exists, not every faction's identity.
+
+##### Aegis Directorate
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Sentinel Fire Director | Radar-Directed | Circuit Wafer | Standard-issue, disciplined |
+| Directorate Predictive Array | Predictive | Circuit Wafer + Power Core | Signature — first-shot accuracy is the doctrine |
+
+##### Meridian Star Corps
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Ledger Tracking Unit | Radar-Directed | Circuit Wafer | Cheapest possible baseline |
+| Contractor Optical Sight | Optically-Guided | Circuit Wafer + Optical Array | Sold as an upgrade package |
+
+##### Kore Industries
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Foreman's Tracking Rig | Radar-Directed | Circuit Wafer | Their only option — blunt doctrine, no finesse budget |
+
+##### The Forgotten
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Scrap Tracker | Radar-Directed | Circuit Wafer | Their only option, unreliable |
+
+##### AI Concordance
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Baseline Tracking Unit | Radar-Directed | Circuit Wafer | Barely needed — everything else compensates |
+| Calculated Optical Sight | Optically-Guided | Circuit Wafer + Optical Array | Computer-tuned aim |
+| Recursive Predictive Core | Predictive | Circuit Wafer + Power Core | Signature — computed lead-solving is their whole identity |
+
+##### Pyre Ascendancy
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Zealot Tracking Rig | Radar-Directed | Circuit Wafer | Their only option — aggression, not precision |
+
+##### Voidwalkers
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Umbral Optical Sight | Optically-Guided | Circuit Wafer + Optical Array | Signature — low-signature lock, matches their stealth leaning |
+| Rift Predictive Core | Predictive | Circuit Wafer + Power Core | Erratic-but-strong |
+
+##### Zenith Collective
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Archivist Tracking Unit | Radar-Directed | Circuit Wafer | Their weakest category |
+| Cataloguing Optical Sight | Optically-Guided | Circuit Wafer + Optical Array | Signature — shares tech with their sensor suite |
+| Study Predictive Core | Predictive | Circuit Wafer + Power Core | Second option, tuned for prolonged engagement |
+
+##### Edenian Pact
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Bloomwatch Tracking Rig | Radar-Directed | Circuit Wafer | Their only option — defensive doctrine, not offense-optimized |
+
+##### The Reapers
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Culling Tracking Rig | Radar-Directed | Circuit Wafer | Basic |
+| Harvest Predictive Core | Predictive | Circuit Wafer + Power Core | Signature — brutal efficiency |
+
+##### General — faction-less baseline, always available
+
+| Fire Control | Method | Recipe | Bias |
+|---|---|---|---|
+| Standard Tracking Unit | Radar-Directed | Circuit Wafer | The flat baseline every fire control is judged against |
+| Standard Optical Sight | Optically-Guided | Circuit Wafer + Optical Array | Baseline optical option |
+| Standard Predictive Core | Predictive | Circuit Wafer + Power Core | Baseline predictive option |
+
+#### The Cargo Bay Roster — per-faction and general 📋
+
+*Settled 2026-08-13. `ModuleKind::CargoBay` is still 📋 planned in code (above, "The three kinds
+that close existing gaps"). Its pool is exactly the two-word split already named there —
+`slotCount` is **Variety**, `slotCapacity` is **Bulk** — which makes the roster's axis pick itself.*
+
+| Family | Implies | Recipe |
+|---|---|---|
+| **Variety Bay** (slotCount) | A modular rack of small containers — structural housing alone | `Composite Housing` alone |
+| **Bulk Hold** (slotCapacity) | The same housing, reinforced and enlarged for mass over count | `Composite Housing` + `Alloy Plate` |
+
+**The thinnest roster of the seven by design** — cargo is a utility every faction can build, not a
+combat identity, so most factions field exactly one.
+
+##### Aegis Directorate
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard-Issue Hold | Variety | Composite Housing | Their only option — military doctrine doesn't prioritize freight |
+
+##### Meridian Star Corps
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Ledger Freight Rack | Variety | Composite Housing | Cheapest possible baseline |
+| Contractor Bulk Hold | Bulk | Composite Housing + Alloy Plate | Signature — mercenary/trade-adjacent hauling |
+
+##### Kore Industries
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Foreman's Bulk Hold | Bulk | Composite Housing + Alloy Plate | Signature — ore hauling, matches their mining doctrine directly |
+
+##### The Forgotten
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Scrap Rack | Variety | Composite Housing | Whatever fits |
+| Patchwork Bulk Hold | Bulk | Composite Housing + Alloy Plate | Salvaged, unreliable capacity |
+
+##### AI Concordance
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Calculated Freight Rack | Variety | Composite Housing | Their only option — not a trade-focused faction |
+
+##### Pyre Ascendancy
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Zealot Cargo Rack | Variety | Composite Housing | Their only option — raiders keep only what they can burn through fast |
+
+##### Voidwalkers
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Wayfarer Freight Rack | Variety | Composite Housing | Basic |
+| Drift Bulk Hold | Bulk | Composite Housing + Alloy Plate | Signature — long isolated runs need bulk supply reserves |
+
+##### Zenith Collective
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Cataloguing Freight Rack | Variety | Composite Housing | Signature — specimen variety over bulk |
+| Archive Bulk Hold | Bulk | Composite Housing + Alloy Plate | Second option |
+
+##### Edenian Pact
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Rootwalker Freight Rack | Variety | Composite Housing | Their only option |
+
+##### The Reapers
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Harvest Bulk Hold | Bulk | Composite Housing + Alloy Plate | Signature — hauling the spoils of destruction |
+
+##### General — faction-less baseline, always available
+
+| Cargo Bay | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard Freight Rack | Variety | Composite Housing | The flat baseline every Variety bay is judged against |
+| Standard Bulk Hold | Bulk | Composite Housing + Alloy Plate | The flat baseline Bulk hold |
+
+#### The Facility Roster — general only 📋
+
+*Settled 2026-08-13, revised 2026-08-13 to track `architecture.md`'s two facility-taxonomy
+decisions. Facility modules stay universal by design (above — "the variety that's worth authoring
+per faction lives in Weapon, ShieldGenerator, PowerCell, Engine, Armor, FireControl, and CargoBay"
+deliberately left Facility off that list). The roster targets **seven** `FacilityKind`s, not the
+six currently in code: §12.26 (2026-08-09) adds **`Construction`**, carrying `buildRange`, gating
+the `B` build-mode key and Build orders — not a docked screen, but a real facility hardpoint. §12.30
+(2026-08-10) **deletes `Storage`** — deposit/withdraw is gated on the `CargoHold` component, not a
+facility kind — and reuses that enumerator slot for **`Trade`**, which gates Buy/Sell (the Market
+screen). `data/base_game/modules.json` currently authors exactly one of the seven (`docking_bay_i`,
+Docking); this roster fills the other six.*
+
+| Facility | Kind | Recipe | Bias |
+|---|---|---|---|
+| Docking Bay | Docking | Composite Housing | Existing (`docking_bay_i`) — simple structural bay, no tooling |
+| Trading Post | Trade | Circuit Wafer + Composite Housing | Market concourse plus transaction logic — feeds Buy/Sell, the Market screen (§12.30.3) |
+| Repair Bay | Repair | Alloy Plate + Conductive Coil | Structural handling plus powered tooling to patch hulls — feeds §12.30.4's `ratePerSecond` |
+| Manufacturing Line | Manufacturing | Circuit Wafer + Composite Housing | Automated fabrication — control logic housed in a structural bay |
+| Research Lab | Research | Circuit Wafer + Optical Array | Data processing plus scanning optics — feeds `ResearchSystem`'s reverse-engineering jobs |
+| Engineering Bay | Engineering | Conductive Coil + Circuit Wafer | Powered workbench tooling plus control logic — feeds `EngineerSystem`'s merge |
+| Construction Yard | Construction | Circuit Wafer + Alloy Plate | Placement/targeting logic for `buildRange` plus structural scaffolding — gates `B` and Build orders (§12.26) |
+
+**No faction variants** — same rule as Crew below: identity lives in what a faction builds and
+fights with, not in the workbench it repairs at.
+
+#### The Crew Roster — general only, Living and Artificial 📋
+
+*Settled 2026-08-13. `ModuleKind::Crew` is one kind carrying multiple rollable stats (above, "One
+`ModuleKind::Crew`, and what it does is what it rolled") — a single module can specialize in one
+role or split its budget across several. This roster authors one single-stat baseline per role, the
+same function the General row serves in every other roster: the flat thing every specialized roll
+is judged against. **Each role now comes in the two flavours settled above** — Living (credits, at
+a station, recurring salary, higher ceiling) and Artificial (`Circuit Wafer` + credits, at a
+Manufacturing facility, no upkeep, lower-but-consistent ceiling) — fourteen entries, not seven.*
+
+**Only roles with a real consumer get a module** (§2.4's rule, applied to crew directly, above):
+`operation`, `command`, Sensors, and Repair are ✅ buildable now; Facility Manager, Template
+Designer, and Trade Master are agreed and specified enough to author. **Damage Control and
+Navigator are deliberately excluded** — both are still ❌ blocked on a mechanic that doesn't exist
+yet (in-flight repair; a `WarpSystem` skill hook), and authoring a module for a stat nothing reads
+would violate the exact rule that got those two withheld in the first place.
+
+| Crew | Role | Type | Acquired | Bias |
+|---|---|---|---|---|
+| Pilot | `operation` | Living | Credits, at a station | Higher skill ceiling, draws a recurring salary |
+| Pilot Drone | `operation` | Artificial | Circuit Wafer + credits, Manufacturing facility | Lower ceiling, perfectly consistent, no upkeep |
+| Commander | `command` | Living | Credits, at a station | Fleet dispatch and standing orders — `CommanderSystem`, command authority (§4.0) |
+| Tactical Core | `command` | Artificial | Circuit Wafer + credits, Manufacturing facility | Same function, built rather than hired — favoured by AI Concordance, resented by Kore (§5.6) |
+| Sensor Officer | Sensors | Living | Credits, at a station | Reads the sensor array itself, not just a console — boosts `SensorRange` |
+| Sensor Drone | Sensors | Artificial | Circuit Wafer + Optical Array + credits, Manufacturing facility | Second material — the drone carries its own optical interface, not just a console |
+| Repair Officer | Repair | Living | Credits, at a station | Boosts the Repair facility's `ratePerSecond` (§12.30.4) |
+| Repair Bot | Repair | Artificial | Circuit Wafer + credits, Manufacturing facility | Never calls in sick, never gets better either |
+| Facility Manager | Facility manager | Living | Credits, at a station | Boosts a facility's automation/speed, never its output quality — grade still caps the ceiling |
+| Automation Core | Facility manager | Artificial | Circuit Wafer + credits, Manufacturing facility | The natural endpoint of "automation" as a word, not just a stat |
+| Template Designer | Template Designer | Living | Credits, at a station | Originates new ship arrangements for a faction — the human counterpart to `CustomizeMenu` |
+| Design AI | Template Designer | Artificial | Circuit Wafer + credits, Manufacturing facility | The literal algorithmic counterpart to `CustomizeMenu` — an AI designing ships |
+| Trade Master | Trade Master | Living | Credits, at a station | Negotiates `TemplateMarketSystem` sales/royalties, separate from fleet command |
+| Negotiation Core | Trade Master | Artificial | Circuit Wafer + credits, Manufacturing facility | Consistent terms, no relationship-building — a harder sell to some counterparties, narratively open |
+
+#### The Sensor Roster — general only 📋
+
+*Settled 2026-08-13. `ModuleKind::Sensor` is still 📋 planned in code — `RigFactory` emplaces
+`SensorRange` hardcoded at `2000.0f` on every rig root (above, "The three kinds that close existing
+gaps"), a producer with nothing authored behind it. This roster also gives `Transparent Composite`
+its first real consumer — its stated purpose, "cockpit canopies, **sensor domes**, viewports"
+(§2.10), had zero recipes drawing on it until now.*
+
+| Family | Implies | Recipe |
+|---|---|---|
+| **Passive** | A housing dome, plus electronics that process radio returns. Nothing else | `Transparent Composite` + `Circuit Wafer` |
+| **Active** | The same dome, but reading light directly instead of processing radio returns — an optical array in place of the signal processor | `Transparent Composite` + `Optical Array` |
+
+**No faction variants** — same rule as Facility and Crew: this pool is one stat (`range`), thin by
+design, and grows "when there is something to detect against" (§2.11) rather than by faction flavor.
+
+| Sensor | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard Sensor Dome | Passive | Transparent Composite + Circuit Wafer | The flat baseline — replaces `RigFactory`'s hardcoded 2000 range |
+| Standard Sensor Array | Active | Transparent Composite + Optical Array | Longer effective range, higher power draw |
+
+#### The Hyperdrive Roster — general only 📋
+
+*Settled 2026-08-13. `ModuleKind::Hyperdrive` is still 📋 planned in code — `WarpSystem` performs
+local, system, and galaxy warp today with **no module and no fuel concept at all** (above,
+"`Hyperdrive` and fuel"). `Propellant` already feeds "Hyperdrive fuel" per §2.10, but that is the
+**consumable** `fuelPerJump` burns each jump, not the drive's own construction recipe — the module
+itself is a field generator, and is reciped as one below.*
+
+| Family | Implies | Recipe |
+|---|---|---|
+| **Standard** | A jump-field generator plus the power routing to drive it. Nothing else | `Field Emitter` + `Conductive Coil` |
+| **Long-Range** | The same generator, plus a capacitor that reaches further per jump at the cost of a slower spin-up | `Field Emitter` + `Power Core` |
+| **Rapid-Cycle** | A stripped-down generator alone — no routing, no capacitor, just the fastest possible countdown and cooldown | `Field Emitter` alone |
+
+**No faction variants.** `jumpCountdown` is explicitly the tactical vulnerability window (above) —
+these three are archetypes of *when* a rig is willing to be caught, not a faction identity axis.
+
+| Hyperdrive | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard Hyperdrive | Standard | Field Emitter + Conductive Coil | The flat baseline every hyperdrive is judged against |
+| Long-Haul Hyperdrive | Long-Range | Field Emitter + Power Core | Longer `jumpRange`, slower `jumpCountdown` |
+| Interdiction-Runner | Rapid-Cycle | Field Emitter | Fastest `jumpCountdown` and `cooldown`, shortest range — built to escape, not to explore |
+
+#### The Comms Roster — general only 📋
+
+*Settled 2026-08-13. `ModuleKind::Comms` is still 📋 planned in code — `CommsSystem` gates hailing
+on `SensorRange` today purely because it was the only range stat that existed when it was written
+(above, "`Comms` — the kind that closes two gaps at once"); `commsRange` is the fix, and it also
+gates command reach (§4.0/§4.3), which had no module behind it at all.*
+
+| Family | Implies | Recipe |
+|---|---|---|
+| **Standard** | An antenna coil plus the signal-processing logic to drive it. Nothing else | `Conductive Coil` + `Circuit Wafer` |
+| **Long-Range** | The same array, plus an amplifier for extended reach | `Conductive Coil` + `Circuit Wafer` + `Power Core` |
+
+**No faction variants** — one stat (`commsRange`), aggregation `max`, the same thin-pool shape as
+Sensor.
+
+| Comms | Family | Recipe | Bias |
+|---|---|---|---|
+| Standard Comms Array | Standard | Conductive Coil + Circuit Wafer | The flat baseline — replaces `CommsSystem`'s current `SensorRange` conflation |
+| Long-Range Comms Relay | Long-Range | Conductive Coil + Circuit Wafer + Power Core | Amplified reach, for fleet command across a whole system |
+
 
 ---
 
@@ -2866,6 +4123,50 @@ price of its unique effect — and it gives Ion a clean role: it is terrible alo
 vessel kills nothing, and excellent in a mixed group. That pushes varied loadouts and gives §4.3's
 squad orders something to coordinate.
 
+⚠️ **Correction, 2026-08-10 (`architecture.md` §15.1 finding 5): "needs no new machinery" is only
+half true.** The power-drain half is correct as written — an Ion hit really is exactly a generation
+drop, and `PowerSystem`'s existing shed path handles everything downstream. But **"absorbed by every
+shield type, never bypasses" has nothing to implement it.** `Shield::absorbs` holds one
+`DamageType` — `Kinetic` or `Energy` — and `DamageSystem` treats anything that doesn't match as a
+straight bypass. Ion is neither Kinetic nor Energy, so under that rule it would **always** bypass
+every shield — the exact opposite of this section's rule. This needed one small addition, specified
+below, that does not touch the two-shield-types decision above.
+
+#### The damage-type effect table — how Ion (and anything after it) plugs in without new branches 📋
+
+*Settled 2026-08-10, in response to `architecture.md` §15.1 findings 1 and 5. The goal stated
+alongside the request: future weapon types should cost "one enum value and one content row," not a
+new `if` in `DamageSystem` — modular, scalable, readable, matching Law 10's content-pipeline
+principle applied to damage rules instead of just to stats.*
+
+**This does not reopen "shield-matching types stay at two."** That decision (above) is about how
+many types a *shield* can be built to counter, and the balance reasoning for keeping it at two is
+unchanged. What follows is about how a *damage type* behaves when it either matches or doesn't —
+today that behavior is one hardcoded rule (absorb-if-match, full bypass otherwise) with no way for a
+type to say "I'm different." Ion is the first type that needs to say that; it will not be the last.
+
+> **Every `DamageType` has a small, authored effect profile. `Kinetic` and `Energy` both take the
+> default profile — absorb-if-matching-shield, full damage otherwise, exactly today's rule. A type
+> that needs to behave differently — Ion today — authors an override instead of `DamageSystem`
+> growing a branch for it.**
+
+| Field | Default (Kinetic, Energy) | Ion's row |
+|---|---|---|
+| `alwaysAbsorbedByAnyShield` | false | **true** — never bypasses, regardless of `Shield::absorbs` |
+| `bypassStillDrainsShieldCharge` | — (n/a, only meaningful with the above) | **true** — "strips shields quickly" |
+| `hullDamageFraction` | 1.0 | **0.0** — deals no hull damage at all once through |
+| `powerDrainFraction` | 0.0 | the hit's full value, redirected to `PowerSource` per the mechanism above |
+
+`DamageSystem`'s per-hit path becomes one generic lookup instead of type-named branches: read the
+incoming `PendingDamage::type`'s profile, decide absorbed-or-not (matched shield, or
+`alwaysAbsorbedByAnyShield`), then split the surviving amount by `hullDamageFraction` /
+`powerDrainFraction` — hull damage applies exactly as today, power drain writes into
+`PowerSource` exactly as the mechanism above already specifies. **Adding a fourth weapon type that
+needs its own special interaction is one more row in this table, not a new code path** — and a
+type that behaves like Kinetic or Energy (which most future "weapon behaviour" variety, per the
+roster section above, will) needs no row at all.
+
+Ramming (§3.7) needs no row either — it is plain `Kinetic`, and gets the default profile for free.
 
 #### Coverage: Personal, Bubble, Conformal 📋
 
@@ -3449,6 +4750,30 @@ this — the circumstance is whether the host holds.
 
 **It also makes the recovery run (§3.3 Tier 2) reachable from a dock death**: a station's
 destruction should leave the wrecks of what was inside it, not silently delete them.
+
+> ⚠️ **Confirmed unimplemented 2026-08-10 (`architecture.md` §15.1 findings 2–3): neither half of
+> this subsection's headline rule exists in code.** A docked vessel can currently still be hit
+> directly (only auto-lock targeting excludes it), and destroying a docking facility does not
+> destroy what's docked to it at all — the docked rig persists, `Docked` to a now-dead entity.
+>
+> **The fix, and the mechanism for "leave the wrecks":** excluding `Docked` from hit-testing
+> (projectile and collision candidate views, alongside the existing `Targetable` removal) closes
+> the first half. For the second half — **don't invent a new destruction path.** When a rig with
+> occupied docking bays dies, route every rig `Docked` to it through the *same* `DeathWreck`
+> creation `LootSystem` already uses for an ordinary combat kill. This is not a new mechanic wearing
+> a different trigger; it is "this rig died," caused by "its host died" instead of "its hull hit
+> zero." The demote/promote/salvage-window lifetime that pipeline already has is what makes a dock
+> death sometimes salvageable and sometimes not — a natural consequence of whether anyone reaches
+> the wreck field before it expires, not a dice roll bolted onto the moment of destruction.
+>
+> **The station's own `CargoHold`, if it has one, spills the same way** — its contents become
+> `MaterialDrop`/`LootDrop` entities at the wreck site via `LootSystem`'s existing drop-spawn
+> convention, rather than vanishing with the station. Whether *all* of it survives the blast or only
+> a fraction is a tuning question (a partial-survival fraction is the more interesting answer, but
+> the exact number belongs to a balancing pass, not this decision) — the mechanism is what's settled
+> here, not the percentage.
+>
+> Architecture: `architecture.md` §12.34.
 
 #### Where the player is, always 📋
 
@@ -4116,6 +5441,41 @@ becomes tactically meaningful rather than only visual.
 
 ⚠️ **Worth confirming:** whether `BuildWorldHull` currently excludes `Destroyed` hardpoints. If not, a
 stripped capital still collides at full size under any model.
+
+✅ **Confirmed 2026-08-10 by `architecture.md` §15.4** — it already does. A stripped capital does not
+collide at full size.
+
+#### Ramming is Kinetic damage, and shields apply to it exactly like a shot 📋
+
+*Settled 2026-08-10, correcting a live bug `architecture.md` §15.1 finding 1 found: ram damage is
+already tagged `DamageType::Kinetic`, but `DamageSystem` doesn't yet apply the shield-absorption
+rule to it, so today a Kinetic-shielded target's shield does nothing against a ram — full damage
+lands regardless.*
+
+> **A ram is a Kinetic hit with no weapon behind it. It is not a fourth thing.**
+
+Route it through the exact same `DamageSystem` path a projectile uses, no special case:
+
+- **A Kinetic shield absorbs its share of ram damage**, exactly as it would absorb a Kinetic shot —
+  depleting the pool, resetting `rechargeCooldown`, same as any other absorbed hit.
+- **An Energy shield does nothing against a ram** — full Kinetic damage reaches the hull, same as it
+  would against a Kinetic gun.
+- **Each side's own shield governs only what happens to that side.** Two ships colliding are two
+  independent absorption checks against the *same* collision event — an Energy-shielded ship ramming
+  a Kinetic-shielded one takes full damage while dealing damage the other's shield eats. The whole
+  Kinetic/Energy × Kinetic/Energy matrix falls out of this for free; nothing new needs authoring
+  per pairing.
+
+**This changes what ramming is *for*, and the replacement is sharper than "unblockable."** The
+original framing (§3.1: shields are projectile-only, so ramming bypasses them) traded away in favor
+of consistency: ramming needs no weapon hardpoint at all, its mass/speed-scaled damage (above) is
+unchanged and still hits both parties, and it specifically punishes an all-Energy loadout — a real
+build weakness rather than a mechanic that made every shield irrelevant to a desperate or
+weapons-stripped ship. **Shields no longer have a hole in them; ramming has an identity that isn't
+"the thing shields cannot stop."**
+
+No new component. This is the same `DamageTypeEffect` lookup §3.1's Ion section below now
+specifies, applied to `Kinetic`'s (unremarkable, default) row — see that section for the mechanism.
 
 #### Destruction cascades along the rig graph 📋
 
@@ -5365,6 +6725,14 @@ every write.
 > price at all, so the reputation modifier ships as identity until the matrix has a reader. Say so in
 > the header, or a Market that never discounts reads as a tuning failure rather than a missing
 > pointer.
+>
+> ✅ **Specified 2026-08-10 in `architecture.md` §12.32.** The equality-vs-band-table gap went one
+> layer deeper than this callout knew: `Relation` (`core/diplomacy/Relation.h`) was itself a
+> three-state enum, so even a correct band-lookup gate would have had nothing to test against. §12.32
+> widens `Relation` to the real six states above, seeds `DiplomacyMatrix` from this table, and gives
+> the Reapers' `War`-tier row (§5.7) a value that actually exists now instead of collapsing into
+> `Hostile`. The docking gate itself and `TargetingSystem`'s reader are still §13.5 group 3's work —
+> this closes the type gap underneath both, not the wiring.
 
 **Player inheritance** — aligning with a faction inherits that faction's *outgoing* relations as the
 player's baseline. Branching off to found a rogue faction retains those baselines as a starting
@@ -5502,6 +6870,50 @@ do all five alliances.
 the faction profiles as written — the profiles were never the problem, the table was. If the two
 *new* rivalries are kept, adding a clause to each faction's Relationship Rationale in `lore.md` §3
 would make the bible self-consistent, and that is the only lore edit worth making.
+
+> ⚠️ **Verified 2026-08-10 — this section's "documented so anything here can be vetoed without
+> archaeology" claim, and "the profiles were never the problem," are incomplete.** Cross-checking all
+> ten `lore.md` §3 Relationship Rationale lines against the current 15-pair table finds hostility
+> `lore.md` still states that is neither in the table nor in the seven tracked drops above:
+>
+> - **AI Concordance ↔ Pyre Ascendancy — the one symmetric case.** AI Concordance's own rationale:
+>   *"Opposed to volatile factions like Pyre Ascendancy and The Reapers."* Pyre's own rationale:
+>   *"At war with corporate and scientific factions (Meridian, Zenith, **Concordance**)."* Both sides
+>   name each other — unlike every dropped pair above, which were one-sided by definition. This is not
+>   flavor left in a single profile; it is two profiles independently agreeing, and it is simply
+>   absent from both the table and the drop list.
+> - **The Forgotten → Meridian Star Corps.** *"At war with everyone else, especially Aegis and
+>   **Meridian**."* One-sided — Meridian's own rationale names only Kore and Voidwalkers.
+> - **Pyre Ascendancy → Meridian Star Corps** (same sentence as the Concordance case above).
+>   One-sided, same reason.
+> - **Voidwalkers → Aegis Directorate.** *"Distrustful of industrial empires (Meridian,
+>   **Aegis**)."* One-sided — Aegis's own rationale names Reapers, The Forgotten, and Pyre, not
+>   Voidwalkers. Weakest of the four: §5.3 names **Distrustful** as its own band, milder than a
+>   starting **Rival**, so this may be intentional — a relationship worth a lighter starting value
+>   rather than evidence of a missed rivalry.
+>
+> **This is a decision, not a mechanical fix**, for the same reason `architecture.md` §13.4 keeps its
+> design calls separate from its bug list: the balance constraint (§5.3 — exactly 1 ally and 3 rivals
+> per faction, already true of all ten today) means adding any pair above requires removing another to
+> compensate. The available options are the same shape as the seven already-dropped pairs: disclose
+> these as `lore.md`-only flavor the way Kore→Pyre already is, or rebalance the graph to include one at
+> another pair's expense. **Recommendation: add Concordance↔Pyre to the dropped list explicitly** — it
+> is the one case with two-sided lore support, which every currently-listed rivalry has and every
+> currently-dropped entry lacks — **and leave the three one-sided cases undisclosed**, the way
+> Kore→Pyre already is, since flagging every one-sided adjective across ten profiles would make this
+> list longer than the table it explains.
+>
+> ✅ **Resolved 2026-08-10.** `lore.md` §3 was swept faction by faction: every Relationship Rationale
+> line now names exactly that faction's real ally and three rivals from §5.4, drawing its reasoning
+> from this section's own Basis column rather than inventing new justification. **Concordance↔Pyre
+> was dropped from both sides**, per the recommendation above — neither profile claims it any longer.
+> The two one-sided flavors this document had already named as worth keeping — Kore's resentment of
+> Pyre, and the Voidwalkers' calm around the Reapers — were relocated into each faction's Decision
+> Logic rather than deleted, so they read as color and can no longer be mistaken for a rivalry claim
+> the way they were before this pass. **`Dropped (7)` above is now fully retired from every
+> Relationship Rationale line** — none of the seven, nor Meridian↔The Forgotten, Meridian↔Pyre, or
+> Aegis↔Voidwalkers (the three additional one-sided cases this cross-check surfaced), remain stated
+> as an active hostility in `lore.md` §3.
 
 ### 5.9 Unlisted Pairings
 
@@ -5781,6 +7193,70 @@ screens.
 which is what makes this one interface rather than four. There is no modal transition and — per §3.4
 — no pause at any level.
 
+#### Level 1 is not one view — it is a continuous zoom through territory scales 📋
+
+*Settled 2026-08-10, extending §15.1 finding 4's fix (Level 1 was drawing individual system markers,
+which this table's own row already forbade) into the fuller design that prompted the fix.* This
+mirrors the pattern Level 3→4 already uses — a continuous re-scale within one representation,
+not a stack of separate screens — applied to the **outer** end of the map instead of the inner one.
+Nothing here moves the Level 2/3 registry boundary (§8.1 below); every scale on this list stays on
+the grid-index, schematic side of it.
+
+| Zoomed from → to, within Level 1 | Shows | Aggregates |
+|---|---|---|
+| **Regional** (bordering Level 2) | Clusters of nearby star systems | Individual systems, grouped by proximity |
+| **Galactic** | This galaxy's full territory picture | Regional clusters |
+| **Intergalactic** | Groups of galaxies | Whole galaxies |
+| **Universal** | Everything | Galaxy groups |
+
+*(See the open question in §9 about whether "groups of galaxies" and "the universe" are literal —
+this table's shape doesn't depend on the answer, only its labels do.)*
+
+**Every scale shows territory, never individual objects**, per this section's existing rule — a
+regional cluster is still an aggregate blob, just a smaller one than the galactic view. The
+`core::diplomacy::Territory` type (`architecture.md` — currently has zero consumers anywhere in
+`src/`) is exactly the record this rendering needs and does not yet read.
+
+**Hover and click, gated by sensors.** At every scale above Level 2, hovering a territory blob or a
+system/galaxy point surfaces summary info — name, controlling faction, threat picture — **exactly
+as far as §8.3's fog-of-war model already allows.** Undiscovered or out-of-sensor-range objects show
+as present-but-unknown (§8.3: *"absence must never look like emptiness"*), never invisible and never
+fully detailed. This is not a new gating rule; it is §8.3 applied one more level out than it
+currently reaches.
+
+**Clicking opens a popup with a warp button; whether the button is enabled is `WarpSystem`'s job,
+not the map's.** The popup surfaces whatever hover already showed (name, controlling faction, threat
+picture — fog-gated per above), plus a Warp action. The button renders enabled or disabled based on
+the same hyperdrive-range gate §2.11 already assigns `WarpSystem` and `architecture.md` §13.1 already
+records as unbuilt (*"no fuel, no module, no charge time"*) — the navigation map is a **consumer** of
+that gate, not a second place that decides range. Pressing an enabled button is what turns the
+eventual `SystemWarpRequest` producer on.
+
+**Warp plays a fade transition at every scale except local.** Confirming a warp within the current
+system (an in-registry `WarpRequest` to a planet, station, or point of interest) cuts instantly —
+same scene, no loading boundary to hide. Confirming a warp to a different star system or beyond
+(a `WarpToSystem` registry swap, or its eventual galaxy-scale equivalent) fades out, then fades in
+on arrival — there **is** a loading boundary there (Law 2's clean registry handoff), and the fade is
+what keeps it from reading as a hitch. This is presentation, not new simulation state: the same
+distinction already exists in code as "local warp" vs. "system warp," this just assigns each one its
+correct transition.
+
+**Icon collapse follows the same zoom-out logic at both existing boundaries, not just the new
+outer one.** Level 3 already shows individual objects (ships, planets, the sun); crossing out to
+Level 2 already collapses a system to a single point per system (§8.2's existing culling rule). This
+section's outer tiers extend the identical pattern one more step each: crossing from Regional into
+Galactic collapses a cluster of systems into a single star-cluster icon; crossing from Galactic into
+Intergalactic collapses a galaxy's full territory picture into a single galaxy icon. Nothing new is
+being invented at the boundary — it's the same "aggregate below, point above" rule §8.2 already
+states, applied consistently at every scale rather than only at the one it was first written for.
+
+**What this reuses, and what it's new work for:** `Territory` gets its first real reader; §8.3's fog
+model extends outward with no new rule; `WarpSystem`'s range gate becomes something the UI can
+finally depend on once it exists. The genuinely new piece is the aggregation itself — building a
+territory blob from the systems/galaxies inside it — which has no existing analog.
+
+Architecture: `architecture.md` §12.35.
+
 #### The zoom levels split where the data model splits 📋
 
 *Settled 2026-08-08. This resolves a worry that procedurally-sized systems would, on zoom-in, sprawl
@@ -6012,6 +7488,19 @@ types (Kinetic, Energy, Ion), with weapon *behaviour* on a separate unbounded ax
 with occupancy scaling by hull size and a mandatory shadow cue. See §3.7. **Revisit trigger:** the
 escort-fighter, docking, and formation-keeping pass, since those are the systems that would inherit it.
 
+**Is the setting one galaxy or a literal multiverse? — ❓ genuinely open, raised 2026-08-10.** §8.1's
+Level 1 now describes zoom scales up through "groups of galaxies" and "the universe." `lore.md`'s
+Diaspora backstory (§1) is written as one galaxy's hyper-gate network collapsing and reopening — it
+does not currently support multiple galaxies existing as a real, reachable place. Two ways this
+resolves, and they cost differently: **(a) it's literal** — the ten-faction setting is one galaxy
+among many, `lore.md` gains a line establishing that, and "groups of galaxies"/"universal" are real
+places a player could theoretically reach; or **(b) it's the same galaxy, relabeled** — the outer
+zoom tiers are structural (spiral arms, galactic quadrants, the whole known galaxy), not literally
+other galaxies, and only the *labels* in §8.1's table change, not the mechanism. §8.1's zoom-tier
+design doesn't depend on the answer; nothing about aggregation, sensor-gating, or warp-range
+selection changes either way. Only the words "galaxy," "intergalactic," and "universal" in that
+table, and whether `lore.md` needs a new line, hang on this.
+
 **Physical (hull-blocking) shields — 🧊 deferred.** §3.1 keeps shields projectile-only so that
 ramming bypasses them. A physical model is a real future feature with an anti-ram identity, but it
 would neuter ramming and entangle collision, docking, and friend/foe rules.
@@ -6019,13 +7508,17 @@ would neuter ramming and entangle collision, docking, and friend/foe rules.
 **Fighter persistence in Bridge mode — ✅ settled 2026-08-08.** It persists in the bay, cannot be
 shot, and dies only with its host. See §4.1.
 
-**Elements, Materials, and the recipe base — ✅ settled 2026-08-08, substantially revised 2026-08-09.**
-The 2026-08-08 version had fourteen tiered materials and seven manufactured families. **Now:** a
-**~50-element** roster on real densities with **no rarity tiers at all**, eight attributes per element,
-eight Material families weighted by attribute *role* rather than by named element, and both mass and
-base price deriving from the recipe. See §2.10. **What remains is authoring plus one tool** —
-`elements.json` and `materials.json` do not exist, and `tools/element_check` is what decides the final
-roster.
+**Elements, Materials, and the recipe base — ✅ settled 2026-08-08, substantially revised 2026-08-09,
+roster validated and family count grown 2026-08-12.** The 2026-08-08 version had fourteen tiered
+materials and seven manufactured families. **Now:** a **41-element** roster (target was ~50; eleven
+of twenty candidates survived hand-run `element_check` validation, and the section authorizes
+stopping short) on real densities with **no rarity tiers at all**, eight attributes per element,
+**eleven** Material families (`Refractory Plate`, `Transparent Composite`, and `Radiation Shielding`
+added 2026-08-12) weighted by attribute *role* rather than by named element and carrying **no
+faction specificity at all** — exclusivity lives at the module/shell/vessel design level instead —
+and both mass and base price deriving from the recipe. See §2.10. **What remains is authoring plus
+one tool** — `elements.json` and `materials.json` do not exist, and `tools/element_check` is what
+would re-verify the final roster in CI rather than by hand.
 
 **Recovery-run parameters.** §3.3 Tier 2 — the window's duration, wall-clock vs. in-game time, and
 whether the death wreck is marked on the navigation map.

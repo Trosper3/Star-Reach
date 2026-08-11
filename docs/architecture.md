@@ -18,8 +18,12 @@ marked so that no contributor — human or AI agent — builds on an assumed fou
 | 📋 | **Planned.** Designed, agreed, not yet written. |
 | 🧊 | **Deferred.** Deliberately unbuilt. Do not start until a shipped feature demands it. |
 
-**Current reality (updated 2026-07-29):** the enforcement infrastructure, the First Vertical Slice
-(§10), and the **twenty-two ✅ rows of the §4 system inventory** are built. What remains is what
+**Current reality (updated 2026-08-10 by §14.1; this paragraph was last written 2026-07-29 and
+undercounted until then):** the enforcement infrastructure, the First Vertical Slice (§10), and
+**thirty-one of the §4 system inventory's thirty-three rows** are built — thirty of them scheduled
+in `SystemSchedule.cpp` and audited row-by-row in §13.1. Only `ManufacturingSystem` and
+`HazardSystem` remain 📋. **Built is not the same claim as wired** — §13 exists precisely because
+most of those thirty-one rows do less than their ✅ implies. What remains beyond wiring is what
 §3/§5/§6 mark 🧊 — deliberately deferred until a shipped feature demands it — plus the new **§12**
 batch.
 
@@ -718,30 +722,40 @@ does, not from guesswork.
 | `FactionEconomySystem` | Production, stock, spending, station rebuild/upgrade | 2–3 | ✅ |
 | `FactionDecisionSystem` | The 4-facet engine, colonization, raid dispatch | 3 | ✅ *(as `core/ai/FactionDecisionEngine`, see §3)* |
 | `DiscoverySystem` | Sensor intel, system discovery, shared knowledge | 2–3 | ✅ |
-| `ResearchSystem` | Reverse-engineering jobs: cost, progress, unlock into a network | 1–2 | 📋 |
-| `CommanderSystem` | AI sub-commander standing orders, fleet dispatch, death | 1 / 2–3 | 📋 |
-| `TemplateMarketSystem` | Template pitch, valuation, negotiation roll, royalty accrual | 2–3 | 📋 |
-| `StationServicesSystem` | Buy/sell modules & materials, hull repair, module merge (§12.10) | 1 | 📋 |
-| `ModuleEquipSystem` | Mount/unmount modules onto an already-live rig (§12.11) | 1 | 📋 |
+| `ResearchSystem` | Reverse-engineering jobs: cost, progress, unlock into a network | 1–2 | ✅ *(scheduled; see §13.1 for wiring gaps)* |
+| `CommanderSystem` | AI sub-commander standing orders, fleet dispatch, death | 1 / 2–3 | ✅ *(scheduled; see §13.1 for wiring gaps)* |
+| `TemplateMarketSystem` | Template pitch, valuation, negotiation roll, royalty accrual | 2–3 | ✅ *(scheduled; see §13.1 for wiring gaps)* |
+| `StationServicesSystem` | Buy/sell modules & materials, hull repair, module merge (§12.10) | 1 | ✅ *(scheduled; see §13.1 for wiring gaps)* |
+| `ModuleEquipSystem` | Mount/unmount modules onto an already-live rig (§12.11) | 1 | ✅ *(scheduled; see §13.1 for wiring gaps)* |
 | `ConstructionSystem` | Player-initiated station/ship build via `StationFactory`/`RigFactory` (§12.12) | 1 | ✅ |
 | `EngineerSystem` | Merge two owned same-kind modules into one, level-scaled loss (§12.12) | 1 | ✅ |
 | `RefactorSystem` | Delete a live hardpoint, returning its modules to storage (§12.12) | 1 | ✅ |
 | `ManufacturingSystem` | Queued module/shell/craft production; the consumer research has lacked (§12.18) | 1–2 | 📋 |
 | `HazardSystem` | Environmental `PendingDamage` from hazard volumes — a star's corona today; nebulae, radiation belts and minefields on the same shape (§12.28) | 1 | 📋 |
 
-All twenty-two ✅ rows above are built. Each landed as its own GitHub issue (§11.9 tracked the few
-cross-issue dependencies among them).
+**Thirty-one of these thirty-three rows are ✅.** Thirty are `SystemSchedule.cpp`'s exact schedule
+(§13.1 audits all thirty against `src/`); the thirty-first, `FactionDecisionSystem`, is built as
+`core/ai/FactionDecisionEngine` with its own entry point rather than a `TickSchedule()` slot (§13.2
+— and §13.3 L records that nothing calls it yet, a wiring gap rather than a build gap). Each landed
+as its own GitHub issue (§11.9 tracked the few cross-issue dependencies among them). Only
+`ManufacturingSystem` and `HazardSystem` remain 📋 — designed (§12.18, §12.28) but not yet written.
 
-**The six 📋 rows are new.** The first three (`ResearchSystem`, `CommanderSystem`,
-`TemplateMarketSystem`) were added by the §12 pass that gave `features.md`'s design sections
-architecture homes. The last three (`StationServicesSystem`, `ModuleEquipSystem`,
-`ConstructionSystem`, §12.10–§12.12) were added by a second pass surveying `../StarReach2`'s menu
-files directly — they back UI that was never a numbered `features.md` section but existed as
-working code and as components already built anticipating them (`CargoHold`'s doc comment names
-`StorageMenu` as a future consumer by name). They are listed here rather than left to be discovered
-because that is this section's entire purpose — §4 exists because naming only three systems is how
-12,947 lines ended up in an orchestrator. Two further design sections deliberately do **not** appear
-as new systems:
+*(§14.1 corrects five of those thirty-one: `ResearchSystem`, `CommanderSystem`,
+`TemplateMarketSystem`, `StationServicesSystem` and `ModuleEquipSystem` were still marked 📋 in this
+table until this pass, even though they were already scheduled when §13 was written the day
+before.)*
+
+**They landed in three passes.** `ResearchSystem`, `CommanderSystem` and `TemplateMarketSystem` came
+from the §12 pass that gave `features.md`'s design sections architecture homes.
+`StationServicesSystem`, `ModuleEquipSystem`, `ConstructionSystem`, `EngineerSystem` and
+`RefactorSystem` (§12.10–§12.12) came from a second pass surveying `../StarReach2`'s menu files
+directly — they back UI that was never a numbered `features.md` section but existed as working code
+and as components already built anticipating them (`CargoHold`'s doc comment names `StorageMenu` as
+a future consumer by name). `ManufacturingSystem` and `HazardSystem` (§12.18, §12.28) are the third
+pass, and remain the only rows still to write. They are all listed here rather than left to be
+discovered because that is this section's entire purpose — §4 exists because naming only three
+systems is how 12,947 lines ended up in an orchestrator. Two further design sections deliberately do
+**not** appear as new systems:
 
 - **Knowledge networks** (`features.md` §2.5) are a `core/` store, not a ticking system — nothing
   about them needs to run per frame. See §12.1.
@@ -7354,7 +7368,347 @@ hulls in the current system; parked hulls across systems are the part that waits
 
 ---
 
-## 13. System Wiring Audit
+### 12.32 The Reapers — Universal Hostile-Default and Structural-Density Targeting — `features.md` §5.7
+
+Two genuinely separate pieces of work hide inside one `features.md` subsection, and only one of
+them is Reapers-specific.
+
+#### A prerequisite this pass decided to fix rather than route around
+
+`Relation` (`core/diplomacy/Relation.h`) was a **three-state enum** — `Hostile`, `Neutral`,
+`Friendly` — not the six-band signed range `features.md` §5.3 describes (Allied / Friendly /
+Neutral / Distrustful / Hostile / War). This sharpens §12.30.3's already-recorded finding
+(*"three of those six rows are unimplementable against the built code"*) from an inference into a
+direct read of the type: there was no code-level distinction between Allied and Friendly, or among
+Distrustful / Hostile / War, at all. An earlier draft of this section mapped Ally onto
+`Relation::Friendly` and Rival onto `Relation::Hostile` to route around the gap rather than close
+it — reversed below, because two other places already assume the fuller range exists and get more
+correct, not more complicated, once it does:
+
+- **`Reputation`** (`core/diplomacy/Reputation.h`) already tracks a continuous **−100..100** score
+  per faction and only throws away the resolution at the last step — `ThresholdRelation` collapses
+  it to 3 states at a flat ±25. The score itself was always six-band-shaped.
+- **`TemplateMarketSystem.cpp:10-13`**'s own comment names the mismatch directly: *"DiplomacyMatrix
+  has no native numeric value — Relation is a 3-state enum — but `architecture.md` 12.7's roll
+  formula wants '...-100..100.' This is the discrete-to-numeric bridge."* A bridge function
+  apologizing for its own type is a defect wearing a comment, not a design.
+
+`Relation` becomes:
+
+```cpp
+// Six-state diplomatic stance, features.md §5.3. Ordered War < Hostile < Distrustful < Neutral <
+// Friendly < Allied so callers can threshold a continuous score into this enum with a plain
+// comparison -- the same property the old three-state version documented, extended rather than
+// dropped.
+enum class Relation : std::uint8_t {
+    War,
+    Hostile,
+    Distrustful,
+    Neutral,
+    Friendly,
+    Allied,
+};
+```
+
+`DiplomacyMatrix::Get`'s unset-pair default stays `Relation::Neutral` (`DiplomacyMatrix.cpp:14`) —
+§5.9 already settles that for every faction but the Reapers, and nothing about widening the enum
+changes what an *unwritten* pair means, only what a *written* one can say.
+
+`Reputation::ThresholdRelation` gains three more thresholds, matching §5.3's own band boundaries
+instead of inventing new ones: `kAlliedThreshold = 50.0f`, `kFriendlyThreshold = 15.0f` (unchanged
+in spirit, moved from the old ±25), `kDistrustfulThreshold = -15.0f`, `kHostileThreshold = -50.0f`,
+`kWarThreshold = -85.0f`. `TemplateMarketSystem::RelationValue` stops bridging and starts mapping —
+the exact per-band numeric value is a tuning question for whoever wires the roll for real (§6.3
+already flags this class of constant as `tools/economy_sim` territory), not a decision this section
+pins down.
+
+`DiplomacyMatrix::Get` already established the matrix has zero writers anywhere (finding N, §13.3).
+Neither §12 nor §13.5 specifies how the twenty pairs in §5.4's baseline actually get written — group
+3 unblocks the *pointer* (`ctx.diplomacy` non-null), not the *contents*. This section specifies both
+the general seeder that gap needs regardless of the Reapers, and the one exception §5.7 layers on
+top of it.
+
+#### Types
+
+No new component beyond the widened enum above. Two free functions in `core/diplomacy/`:
+
+```cpp
+// Writes features.md §5.4's twenty pairs: five Relation::Allied (the alliances), fifteen
+// Relation::Hostile (the rivalries -- the standard severity; the Reapers' own three are escalated
+// below). Idempotent -- safe to call once at startup.
+void SeedBaselineRelations(DiplomacyMatrix& matrix);
+
+// features.md §5.7's exception, called immediately after SeedBaselineRelations. Two effects:
+// (1) escalates the Reapers' three seeded rivals -- Aegis Directorate, The Forgotten, AI
+// Concordance -- from Relation::Hostile to Relation::War, the priority-target tier that "absorbs
+// the most pressure"; (2) every faction not already covered by the Reapers' one ally and three
+// rivals (five factions -- Meridian Star Corps, Kore Industries, Voidwalkers, Zenith Collective,
+// Edenian Pact) gets an explicit Relation::Hostile against FactionId("reapers"), overriding Get()'s
+// Neutral default the same way every other baseline entry does.
+void SeedReaperHostility(DiplomacyMatrix& matrix);
+```
+
+Deliberately two functions, not one Reapers-aware branch inside a single seeder:
+`SeedBaselineRelations` stays a pure transcription of §5.4's table with no named-faction logic in
+it, so it can be generated from data later — §14.2 already records that no `factions.json` exists
+yet, and when one does, this is the function that gets replaced first. `SeedReaperHostility` is the
+one place in the codebase permitted to say `"reapers"` by name outside content, because it is not
+expressing a generic relation, it is expressing a rule §5.7 states only the Reapers have. Folding
+it into the generic seeder would make the *next* faction with a special case reach for the same
+branch instead of writing its own function. It is also now the **only** place `Relation::War` gets
+written at seed time — every other faction's worst standing is `Hostile` unless play drifts it
+further, which is exactly §5.7's point about what makes the Reapers different.
+
+#### Where it's called
+
+Both are Law 8 galaxy-wide state, like `DiplomacyMatrix` itself — not per-registry, so they run
+once, not on a schedule. The natural call site is wherever `ctx.diplomacy` stops being `nullptr`
+(§13.5 group 3), since a matrix with a live pointer and zero seeded relations is just a different
+flavor of the same null-object failure. Call both immediately after construction, before any
+system's first tick.
+
+#### Systems
+
+No scheduled system changes. `TargetingSystem` and `DockingSystem` can now be widened to a real
+relation-band test (findings N and §12.30.3's docking gate) once `ctx.diplomacy` is non-null —
+the six-state enum this section adds is the type that gate needs to test against; wiring
+`DockingSystem`/`TargetingSystem` themselves is still §13.5 group 3's work, not this section's.
+
+#### The targeting half — blocked on a prerequisite this section did not create
+
+§5.7's second half — *"target selection is driven by structural density, not politics"* — is not a
+relation-matrix question at all. It is a `core/ai/FactionDecisionEngine` question, and it is
+blocked on a gap `RaidDispatchDirective`'s own doc comment already names: *"picking [a target]
+needs a border/adjacency model `core/diplomacy/Territory.h` does not carry — it records ownership,
+not neighbors."* `EvaluateColonization` sidesteps the same hole by taking `candidateSystemId` from
+the caller instead of discovering it. Nothing about the Reapers makes this gap bigger or smaller —
+every faction's raid/colonization target selection is equally blocked on "which systems exist and
+are reachable" not existing anywhere in `core/galaxy/` yet.
+
+What *is* Reapers-specific, and buildable the moment that prerequisite lands, is the scoring
+function candidates get ranked by. This follows `EvaluateRaidDispatch`/`EvaluateColonization`'s
+established idiom exactly — `core/` has no registry, so it cannot compute a system's station count
+or grade itself; the caller supplies it:
+
+```cpp
+// A candidate system and the caller-computed density score features.md §5.7 targets by -- station
+// count and grade, once core/galaxy/ has a per-system roster to compute it from. Not owned here
+// for the same reason EvaluateColonization takes candidateSystemId instead of discovering it.
+struct ReaperTargetCandidate {
+    std::string systemId;
+    float structuralDensity;  // Caller's units; only relative order matters here.
+};
+
+// Highest-density candidate wins, full stop -- no relation check, no roll. Isolated or derelict
+// sectors (features.md §5.7) score at or near zero and simply never win. nullopt only for an
+// empty list.
+std::optional<std::string> SelectReaperTarget(const std::vector<ReaperTargetCandidate>& candidates);
+```
+
+Deliberately the smallest possible function — a max-by-key over caller-supplied data — because
+everything upstream of it (what counts as "structural density," how a candidate list gets built)
+belongs to the same future work that gives every other faction's `RaidDispatchDirective` a target.
+Duplicating that design here for the Reapers alone would repeat the two-systems-for-one-concept
+mistake §13.3 C already caught once (`MountedModules` / `EquippedModule`).
+
+#### Tests
+
+`SeedBaselineRelations` / `SeedReaperHostility`: the four invariants §5.4 already states as
+unit-testable (symmetry, degree, disjointness, closure) plus what this section adds — after both
+seeders run, Pyre reads `Relation::Allied`; Aegis, The Forgotten, and AI Concordance each read
+`Relation::War`; Meridian, Kore, Voidwalkers, Zenith, and Edenian each read `Relation::Hostile`; and
+every other faction's fifteen rivalries (Reapers' excluded) read plain `Relation::Hostile`, not
+`War` — the escalation is exclusive to `SeedReaperHostility`'s caller, not a property of "being
+someone's rival" in general. `Reputation::ThresholdRelation`: one assertion per new threshold
+boundary, the same shape as the existing ±25 tests. `SelectReaperTarget`: empty list, single
+candidate, and a documented tie-break rule (state whichever behavior the implementation produces
+rather than leaving it unspecified — the `ProjectileSystem::FindHit` iteration-order lesson §12.16
+#17 already paid for once).
+
+#### Scope
+
+**Buildable today, independent of everything else:** the widened `Relation` enum,
+`SeedBaselineRelations`, `SeedReaperHostility`, `Reputation`'s new thresholds,
+`TemplateMarketSystem::RelationValue`'s real mapping, and `SelectReaperTarget`. **Blocked:** calling
+either seeder from `SpaceFlight`/`main.cpp` (needs §13.5 group 3's `ctx.diplomacy` wiring); widening
+`DockingSystem`/`TargetingSystem` to a real band test (same dependency, §12.30.3); and ever calling
+`SelectReaperTarget` for real (needs the system-adjacency/roster model `RaidDispatchDirective` has
+been waiting on since before this section existed, plus §1.1's coarse-tick loop to have anywhere to
+call it from).
+
+---
+
+### 12.33 The Damage-Type Effect Table, and Ramming as Kinetic Damage — `features.md` §3.1, §3.7
+
+*Answers §15.1 findings 1 and 5 together — they're the same fix. Finding 1: ram damage is tagged
+`DamageType::Kinetic` but isn't run through shield absorption, so a Kinetic shield currently does
+nothing against a ram. Finding 5: `DamageType` has no `Ion` value anywhere, so §3.1's "absorbed by
+every shield, never bypasses" rule has nothing to implement it. Both trace to the same root: today's
+absorb-or-bypass rule is a single hardcoded shape (`Shield::absorbs` matches `PendingDamage::type`
+or it doesn't) with no way for a type to say "I'm different."*
+
+#### Types
+
+```cpp
+// shared/blueprints/Taxonomy.h -- one more enumerator. Shield-matching stays exactly {Kinetic,
+// Energy} (features.md §3.1's "it stays two" is unchanged); Ion is a weapon type, not a shield type.
+enum class DamageType : std::uint8_t { Kinetic, Energy, Ion };
+
+// core/registries/DamageTypeEffects.h -- one row per DamageType, authored in
+// data/base_game/damage_types.json (Law 10). Kinetic and Energy take the all-default row implicitly
+// -- only a type that needs to diverge from "absorb if matching shield, full hull damage otherwise"
+// needs an entry at all.
+struct DamageTypeEffect {
+    DamageType type;
+    bool alwaysAbsorbedByAnyShield = false;   // Ion: true -- never bypasses, regardless of Shield::absorbs
+    bool bypassStillDrainsShieldCharge = false; // Ion: true -- "strips shields quickly"
+    float hullDamageFraction = 1.0f;          // Ion: 0.0 -- "deals no hull damage at all once through"
+    float powerDrainFraction = 0.0f;          // Ion: 1.0 -- redirected to PowerSource, features.md §2.9's shed path
+};
+```
+
+`Shield::absorbs` is unchanged — still a single `DamageType`, still exactly `Kinetic` or `Energy`.
+This table does not reopen that decision; it only changes what happens once the match check runs.
+
+#### Systems
+
+`DamageSystem`'s per-hit path becomes one generic lookup instead of per-type branches:
+
+1. Look up `PendingDamage::type`'s `DamageTypeEffect` (default row if none authored).
+2. **Absorbed** if the hardpoint's `Shield::absorbs == type`, **or** `effect.alwaysAbsorbedByAnyShield`.
+   If absorbed: deplete the shield pool, reset `rechargeCooldown` — unchanged from today — and if
+   `effect.bypassStillDrainsShieldCharge` is also set, this is where that extra drain applies (Ion's
+   case: absorbed *and* draining, not mutually exclusive).
+3. **Not absorbed** (no shield present, or the type doesn't match and isn't always-absorbed): the
+   surviving amount splits by `hullDamageFraction` (→ ordinary hardpoint health subtraction,
+   unchanged) and `powerDrainFraction` (→ `PowerSource`, via the existing generation-drop shed path
+   §2.9 already specifies for Ion — no new machinery there).
+
+**`CollisionSystem::ApplyRamDamage` needs no change beyond what already exists** — it already tags
+`DamageType::Kinetic` (§15.1 finding 1 confirmed this). The fix is entirely inside `DamageSystem`
+correctly running that tag through step 2 above instead of the absorption check silently not
+applying to ram-sourced `PendingDamage`. Concretely: whatever currently causes ram damage to skip
+absorption (§15.1 didn't name the exact branch — likely `ApplyToHealthAndShield` never being
+reached for `CollisionSystem`'s writes, or a source-agnostic pathway existing but not being taken) is
+what group 2d's issue closes; the *rule* it should close to is exactly step 2/3 above, unmodified for
+ramming.
+
+#### Content
+
+`data/base_game/damage_types.json` — new file (§14.2 already records this content category doesn't
+exist). One row: Ion, per the table above. Kinetic and Energy need no entries.
+
+#### Tests
+
+Ion vs. a Kinetic shield: absorbed, shield charge drains, zero hull damage, power drops by the hit's
+value. Ion vs. an Energy shield: same outcome — `alwaysAbsorbedByAnyShield` ignores the match check
+entirely. Kinetic ram vs. a Kinetic shield: absorbed, shield charge drains, zero hull damage (the
+new behavior finding 1 exists to produce). Kinetic ram vs. an Energy shield: full hull damage,
+unchanged from today. A rig with no shield: `effect`'s absorption fields never evaluated, straight to
+hull/power split — confirms the default path still matches pre-this-section behavior exactly for
+Kinetic/Energy against an unshielded target.
+
+#### Scope
+
+Buildable today, independent of everything else in §12 — no dependency on the game loop, `ctx.diplomacy`,
+or the coarse tick. Lands with group 2d (the damage-model pass), since it changes the same file
+(`DamageSystem.cpp`) group 2d's other items already touch.
+
+---
+
+### 12.34 Docked Invulnerability and Cascading Destruction — `features.md` §3.4
+
+*Answers §15.1 findings 2 and 3. Both halves of §3.4's headline rule — "cannot be shot," "dies with
+its host" — are unimplemented; only the auto-lock half of the first one exists.*
+
+#### Systems
+
+**Closing "cannot be shot":** add `exclude<Docked>` to `ProjectileSystem::FindHit`'s view and to
+`CollisionSystem`'s ramming-candidate view, alongside the `Targetable` removal `DockingSystem`
+already performs on dock. Three call sites, one tag, no new component — the same shape as the
+`NpcAiSystem`/`WeaponSystem` `Docked` exclusion finding H already fixed elsewhere in group 2.
+
+**Closing "dies with its host," and the loot mechanism `features.md` §3.4 already called for but
+never specified:** when `DamageSystem` tags a rig `Destroyed` (the existing `HasLivingHardpoint`
+check, unchanged), a new step queries every rig with `Docked.station == thisEntity` and, for each,
+calls the **same** `DeathWreck`-creation path `LootSystem` already runs for an ordinary combat kill
+— not a parallel mechanism, the identical function, invoked with a different cause. If the dying
+rig carries a `CargoHold`, its contents spawn as `MaterialDrop`/`LootDrop` entities at the wreck
+site via `LootSystem`'s existing drop-spawn convention. A partial-survival fraction on the cargo
+spill (not everything survives) is a tuning constant for later, not a design decision this section
+needs to pin down.
+
+**Ordering:** this step must run in the same tick as the `Destroyed` tag is applied, before anything
+downstream treats the now-orphaned `Docked.station` reference as valid — the natural position is
+immediately after `DamageSystem`'s existing rig-death branch, same system, no new schedule entry.
+
+#### Tests
+
+A docked rig survives a direct projectile hit and a ramming collision aimed at it (regression for
+the exclusion). A rig docked to a host that dies is itself tagged `Destroyed` the same tick and
+produces a `DeathWreck`. A host's `CargoHold` contents appear as pickups at the wreck position.
+Multiple docked rigs on one dying host all resolve, not just the first found. A host with an empty
+bay dies cleanly (no phantom wreck from a bay with nothing in it).
+
+#### Scope
+
+Buildable today, independent of the game loop and `ctx.diplomacy`. The `exclude<Docked>` half is a
+group-2-shaped one-liner; the cascade-destroy half changes `DamageSystem.cpp`, so it belongs beside
+§12.33 in group 2d rather than as a separate issue.
+
+---
+
+### 12.35 Multi-Scale Territory Navigation — `features.md` §8.1
+
+*Answers §15.1 finding 4 (`NavigationMap` shows individual objects at the Galaxy zoom level, which
+`features.md` §8.1 forbids there by name) by specifying the fuller design that motivated the fix,
+per `features.md` §8.1's new "Level 1 is a continuous zoom" subsection.*
+
+#### Types
+
+No new component for the zoom mechanism itself — this is a rendering and query concern over state
+that mostly already exists:
+
+- **`core::diplomacy::Territory`** gets its first real reader. It currently has zero consumers
+  anywhere in `src/` (§13.2). `NavigationMap` at every Level-1 scale queries it to build the
+  aggregate blobs the design requires, rather than iterating individual `DiscoveredSystemIds` the
+  way today's code does at every level indiscriminately.
+- **A new, small aggregation step** — grouping systems into regional clusters, clusters into
+  galactic territory, and (pending §9's open scope question) galaxies into groups — has no existing
+  analog and is the one genuinely new piece of work here. It is a pure function over `Territory` +
+  `Discovery` data, not a system: no per-frame state, callable on demand the same way
+  `IconRenderer`'s existing draw functions are.
+
+#### Systems
+
+`NavigationMap::Draw` gains real scale-dependent branching instead of the current
+`level == Galaxy || level == Region` single case: each Level-1 sub-scale renders the aggregation
+step's output as territory shapes, not points. Hover/click info at every scale is gated through
+`DiscoveryState`/`KnowledgeNetwork` exactly as §8.3's fog-of-war model already specifies — no new
+gating rule, extended one level further out than it currently reaches. Selecting a target checks
+`WarpSystem`'s hyperdrive-range gate (§13.1: currently unbuilt — "no fuel, no module, no charge
+time") to decide available-vs-unavailable rendering; `NavigationMap` reads that gate, it does not
+reimplement range-checking itself.
+
+#### Content / Data
+
+None required to build the mechanism. Aggregation works over however many systems/factions are
+already authored; it degrades gracefully with the sparse content set §14.2 already records.
+
+#### Tests
+
+A cluster of undiscovered systems renders as present-but-unknown, not absent (§8.3's rule, asserted
+at this new scale). A territory blob's aggregate composition updates when a member system's owner
+changes (`Territory` write → blob recomputation, not a cached stale picture). A target outside
+hyperdrive range renders unavailable and cannot be confirmed; one inside range can.
+
+#### Scope
+
+**Blocked on two prerequisites, neither of which this section creates:** `WarpSystem`'s range gate
+(§13.1, unbuilt) for the click-to-warp half, and — for hover info to mean anything — the same
+`ctx.diplomacy`/`ctx.discovery` wiring group 3 already tracks. The territory-blob rendering itself
+(no individual objects at Level-1 scale) is the part finding 4 actually flagged as broken *today*,
+and is buildable now, independent of both blockers — ship that part first.
 
 *Compiled 2026-08-09, by grepping for readers and callers rather than by reading schemas. Every
 row below was verified against `src/`; nothing here is inferred from a header comment, and where a
@@ -7663,7 +8017,8 @@ none of it reaches combat. `DockingSystem` makes the same simplification and *do
 predating `core/diplomacy/`; `TargetingSystem` does not.
 
 Fixing this is blocked on §12.24 step 6 (`ctx.diplomacy` is `nullptr`), so it belongs in the same
-issue as the step-6 pointer work rather than with the targeting changes.
+issue as the step-6 pointer work rather than with the targeting changes. §12.32 specifies the
+seeder that same pointer work needs regardless of the Reapers, plus their §5.7 exception.
 
 #### O · A station cannot trade, because nothing gives a station a `CargoHold`
 
@@ -7877,6 +8232,9 @@ dependency on the player existing, so it can land first and be verified by tests
 **Group 2 — one-line and one-view corrections, independently startable today.**
 - Move `HierarchySystem` after `PhysicsSystem` (G)
 - `NpcAiSystem` and `WeaponSystem` exclude `Docked` (H)
+- **`ProjectileSystem::FindHit` and `CollisionSystem`'s ramming-candidate view exclude `Docked`**
+  (§15.1 finding 2, §12.34) — the same shape as the bullet above, closing the half of
+  `features.md` §3.4's "cannot be shot" rule that `Targetable` removal alone doesn't cover
 - `BridgeView::kAllKinds` gains `Engineering` + a `static_assert` on the enumerator count
 - `ModuleEquipSystem` passes a real traverse via a new `MountTraverse` component (D)
 - `WeaponSystem` reads `PowerShed`; `SpawnProjectiles` uses `currentOffset` (E, F)
@@ -7886,6 +8244,20 @@ dependency on the player existing, so it can land first and be verified by tests
   of them then has to be deleted — `FacilityStats::level` folds into `Grade`, as does
   `StationFacility::researchTier`
 - `RefactorSystem` refuses the last hardpoint (V)
+- **`RefactorSystem::ProcessDeleteRequests` refuses deletion of a hardpoint that still holds
+  modules, instead of refunding them** (§15.1 finding 8) — `features.md` §2.2's settled reversal,
+  tracked as a pending decision in §12.13 but never given its exact line until this audit. Lands
+  beside the last-hardpoint refusal above — both are refusal conditions on the same function.
+- **`RefactorSystem`'s storage-room check stops going through `CargoHoldHasRoomFor`'s
+  count-not-mass bug** (§15.1 finding 9) — same underlying bug group 4b's `CargoHoldHasRoomFor`
+  bullet already tracks; this names the previously-unlisted `RefactorSystem.cpp:78` call site.
+- **`BuildMenu::CanAfford` reads `CargoHold`, not just `Wallet`** (§15.1 finding 15) — the file's
+  own header already claims this; the code doesn't do it
+- **`CustomizeMenu::Draw` iterates `ValidationResult::errors` and names which rule failed**,
+  instead of rendering the literal string `"INVALID"` (§15.1 finding 21) — the data already exists,
+  `§12.9`'s Tests bullet already requires this
+- **Citation fix: `StationServicesMenu.h`'s promotion-note reference moves from §12.11 to §12.10**
+  (§15.1 finding 23), matching `InventoryGrid.h`'s correct citation for the same note
 - Content: `traverseRadians` on `gun_nose`; weapon mounts on `aegis_outpost` (W)
 - **One `Destroyed` sweep across every hardpoint writer (§12.30.7), not three separate fixes.**
   `StationServicesSystem`'s repair heals a destroyed hardpoint, `RefactorSystem`'s scrap refunds its
@@ -7952,6 +8324,16 @@ that is not even an element) against no registry.
 - **`tools/economy_sim`** — 🧊 in §3's blueprint since the start, and now with a concrete job: run the
   price derivation across the authored content set and print the curve. `features.md` §9 names it as
   what settles pacing, and pacing cannot be closed by argument because **prices are derived outputs**
+- **`FactionEconomy` widens from one scalar per faction to `(FactionId, StationId) → ItemId,
+  quantity`** (§15.1 finding 11), per `features.md` §5.0/§12.20's already-specified shape. Not a
+  wiring fix — the current math (`Deposit`/`Spend` on a bare `int`) would give wrong answers about
+  blockades or Material Security even fully wired, since it has no notion of *what* is held or
+  *where*. Lands with §12.20 whenever that work is picked up, not standalone.
+- **`MiningSystem` gains a `core/galaxy/` depletion record**, the same shape as `WreckRecord` (§12.5),
+  so a depleted asteroid stays depleted across a demotion/promotion cycle (§15.1 finding 13). A
+  second, independent blocker behind mining beyond finding B's unreachability — §7.2's own boundary
+  rule (*"a system that regenerates mutable state from a seed will silently undo player actions"*)
+  is what this closes. Lands with whichever issue makes asteroids hittable (group 1, §12.28).
 
 **Group 2d — the damage-model pass (`features.md` §3.2, §3.5, §3.9). One issue; it changes built code.**
 - **Structural integrity** — derived aggregate, structural failure at ~30%, normalised display so the
@@ -7962,6 +8344,16 @@ that is not even an element) against no registry.
 - **§12.22's cascade**, already designed and startable, lands with this rather than separately
 - **Draw the tested shape** (§13.3 AB), and `ShellDef`'s optional baked collision polygon
 - **The §3.9 palette**, fixing Ion and Kinetic rendering identically (§13.3 AA)
+- **§12.33 in full: the `DamageType` enum gains `Ion`, the `DamageTypeEffect` table, and
+  `DamageSystem`'s generic absorb/hull/power-split path** (§15.1 findings 1, 5) — this is what makes
+  ram damage actually interact with shields (today it's tagged `Kinetic` but skips absorption
+  entirely) and gives Ion somewhere to exist as a value at all. Same file (`DamageSystem.cpp`) as
+  the structural-integrity and hit-resolution bullets above, so it lands in this pass rather than
+  as a separate issue.
+- **§12.34's cascade-destroy half: a dying rig's docked occupants route through `LootSystem`'s
+  existing `DeathWreck` path, and its `CargoHold` spills as pickups** (§15.1 finding 3) — reuses the
+  combat-death pipeline with a different trigger, not a new mechanic. The `exclude<Docked>`
+  hit-testing half of the same finding is a group-2 one-liner, already listed there.
 
 **Group 2e — the status display and flight HUD (`features.md` §3.9, §3.10).** Colour-is-condition /
 glyph-is-identity, outline-encloses-coverage with dash-density charge, and fit-based LOD driven by
@@ -7979,10 +8371,54 @@ indicators in combat and as the navigation map out of it. **No `RadarSystem`.**
 exists (§13.3 Z), and ownership transfer is still an open design question. Disabling is complete
 without it.
 
+**Group 2f — multi-scale territory navigation (`features.md` §8.1, §12.35). Splits by what's
+actually blocked.**
+- **Buildable now, and it's the part that's actively broken today:** `NavigationMap` renders
+  territory aggregates instead of individual system markers at every Level-1 sub-scale (§15.1
+  finding 4) — `features.md` §8.1 already forbids individual objects there, and today's code fakes
+  the zoom difference with layout spacing instead of actually changing what it draws. Gives
+  `core::diplomacy::Territory` its first consumer anywhere in `src/`.
+- **`IconRenderer::DrawMapMarker` gains a camera/zoom parameter** (§15.1 finding 19) — not a
+  one-line addition, the current signature has nowhere to put a cull or a `BodyKind` dispatch, so
+  this is a real signature change every caller needs updating for.
+- **`IconRenderer`'s markers become cached per-kind shapes instead of one immediate-mode circle**
+  (§15.1 finding 20), closing the second, independent way §8.2's icon model is unmet.
+- **Blocked on two prerequisites:** hover/click info gated by sensors needs group 3's
+  `ctx.diplomacy`/`ctx.discovery` wiring — this is also where `NavigationMap`'s own relation-check
+  gap belongs (§15.1 finding 17: `VisibleHostileRigs` never consults `DiscoveryState` or
+  `DiplomacyMatrix`, the same simplification finding N already records for `TargetingSystem`, on a
+  file that finding didn't cover). Click-to-warp needs `WarpSystem`'s hyperdrive-range gate, which
+  §13.1 already records as entirely unbuilt (no fuel, no module, no charge time) — a prerequisite
+  this group doesn't create and shouldn't duplicate.
+- **Depends on `features.md` §9's open scope question** (one galaxy vs. literal multiverse) only
+  for the outermost tiers' labels, not for anything mechanical — startable before that's resolved.
+
 **Group 3 — the five null pointers (§12.24 step 6), independently startable today.**
 Unblocks `DiscoverySystem`, `EngineerSystem`, `ResearchSystem`, `TemplateMarketSystem`, and
 `TargetingSystem`'s relation check (N). `TemplateMarketSystem` is a guaranteed no-op until
-`ctx.diplomacy` is non-null, regardless of any producer work.
+`ctx.diplomacy` is non-null, regardless of any producer work. **§12.32 rides with this group**,
+not as a sixth null pointer but as what the fifth one needs to be correct rather than merely
+non-null: the widened six-state `Relation` enum, `SeedBaselineRelations` / `SeedReaperHostility`
+called at the same startup point that stops `ctx.diplomacy` being `nullptr`, and `Reputation`'s
+matching threshold widening. Land it in the same issue — a live pointer into an unseeded matrix is
+the same null-object failure one layer down.
+
+Three more items ride with this group, none of them new null pointers, all of them "the pointer
+alone isn't enough" the same way §12.32 already is:
+
+- **`DiscoverySystem` writes `KnowledgeNetwork`, not `DiscoveryState`** (§15.1 finding 12) —
+  `features.md` §8.3 already settled this (*"knowledge networks win... `DiscoveryState` cannot
+  implement this section at all"*) and named the cost (`DiscoverySystem` rewrites, `SaveFile` drops
+  its `DiscoveryState` section). This group is where a system reachable through `ctx.discovery`
+  should already be writing the right store, not the one §8.3 retired.
+- **`TemplateMarketSystem::PassesAccept` needs a real `archetypeFits` computation**, not a
+  pre-set boolean nothing ever sets true (§15.1 finding 10) — becoming reachable via `ctx.diplomacy`
+  doesn't fix this; it's a second, independent gap in the same system.
+- **`ContractSystem`, `CommsSystem`, `FactionEconomySystem` gain the relation-writing trigger logic
+  `features.md` §5.3 already names them for** (contract complete/fail, successful diplomacy,
+  trade/blockade drift) **— §15.1 finding 14 found none of the three contain it at all**, which is
+  stronger than "blocked on the null pointer": there's no dormant trigger waiting behind it. Scope
+  this as its own line within the group, since it's new logic in three files, not a pointer fix.
 
 **Group 4 — the docked screens (§12.24 step 5, completed in §12.30). Splits in two.**
 
@@ -8018,18 +8454,407 @@ Unblocks `DiscoverySystem`, `EngineerSystem`, `ResearchSystem`, `TemplateMarketS
   write a `CargoHold` unchecked; and `BuyItemRequest`/`SellItemRequest` must **lose** their
   caller-supplied `cost`/`value` rather than have them filled in — a menu that names its own price is
   a client-authoritative wallet write (Law 9).
+- **`BuildMenu` needs actual build content, beyond the `CargoHold` affordability fix already in
+  group 2** (§15.1 finding 16) — today's `Draw` renders one hardcoded-cost, affordability-colored
+  "BUILD" label and never calls the `BuildStationBuildRequest`/`BuildPlaceShipRequest` functions the
+  file itself exports. A blueprint list, and the placement-mode hookup §12.12 already names as this
+  menu's home, are what turn the label into a construction UI. Rides with 4b since it's a docked/
+  command surface at the same maturity as the other screens here, not group 1's minimal loop.
 
 *`StorageMenu` and `ModulesMenu` leave this group for `features.md` §3.10's overlay set (§12.30), and
 ship on 4a's widgets rather than on a facility gate. **Both are specified in §12.30.7**, and the
 loadout half carries a hard prerequisite: §13.4 decision 2, without which the overlay duplicates and
 destroys modules on a fresh ship.*
 
+**Two more one-liners land with 4b's `RefactorMenu`/`ModulesMenu` work**, found by §15's behavioral
+pass rather than by wiring:
+- `RefactorMenu::Draw` iterates *all* leaf hardpoints and renders the non-deletable ones as disabled
+  rows, instead of omitting them from the list entirely (§15.1 finding 18) — the file's own header
+  already promises "greyed out," and the omission is the exact §8.3 failure ("absence must never
+  look like emptiness") inside the one file whose comment says it does the opposite. Each row also
+  gains its real name/`ShellRole` glyph instead of the literal string `"hardpoint"` (finding 22).
+- `ModulesMenu::Draw` calls `EquippableMounts` as well as `EquippedMounts` (§15.1 finding 24) — the
+  function is already exported and already correct, `Draw` just never calls it, covering roughly a
+  third of §12.30.7's required surface today.
+
 **Group 5 — decisions from §13.4, then their code.**
 Docking heal (1) · module-record unification (2) · `TickCoarse` (3) · world-body model (4, folded
 into group 1) · traverse validation (5).
+
+**§6's Simulation Decision Engine has two gaps waiting on the same `TickCoarse` decision, found by
+§15 rather than by §13's wiring pass**, worth scoping alongside decision 3 rather than rediscovering
+later: **§6.2's entire archetype-weighting table has no code at all** — three of `ComputeFacets`'
+four operational facets are permanently `50.0f`, so no faction ever branches on its archetype
+(§15.1 finding 6); and **§6.4's border-skirmish mechanic has no function to call**, not merely no
+caller — `RaidDispatchChance` exists and matches its threshold exactly, but there is nothing
+named `Border`/`Skirmish` anywhere in `src/` for the second of the section's two tuned constants
+(finding 7). Both are scope for whichever issue builds out the facet engine once `TickCoarse` has
+a driver, not one-line fixes.
 
 **Deferred by this audit, deliberately:** `PartySystem`, `CommanderSystem`, `ContractSystem`,
 `DistressSystem`, `CommsSystem`, `TutorialSystem` and `SpawnSystem` all wait on producers that
 §12.26/§12.27 or a contract-board feature will supply. They are correctly built and correctly
 inert; **do not "fix" them by inventing a producer in the system itself**, which is how
 `CustomizeMenu::ConsumeSaveTemplateRequests` became a Law 9 violation.
+
+**§15's findings 25 and 26 are deliberately not given a task-list line.** Finding 25
+(`EvaluateColonization`'s threshold has no `features.md` backing) is the audit running in reverse —
+undocumented code, not incorrect code — and the fix, if any, is a documentation one, not an
+implementation one. Finding 26 (`WorldRenderer::DrawHardpoints` has no draw-layer sort) confirms
+`features.md` §3.5's five-layer model is exactly as unbuilt as its 📋 status already says, with
+nothing partial to reconcile — whoever eventually builds that feature has an accurate starting
+description waiting, which is what §15 exists to leave behind, not a task to schedule twice.
+
+---
+
+## 14. Coverage Beyond §13
+
+*Compiled 2026-08-10. §13 audits the thirty scheduled systems against `src/`. It does not ask
+whether the document describing them is itself still accurate, whether `data/base_game/` can
+support what the code already expects, or what sits outside `modes/space/` entirely. This section
+checks those three things, the same way — against the repository, not against a summary.*
+
+### 14.1 §4's system inventory has five stale 📋 rows
+
+`SystemSchedule.cpp:90-123` registers exactly thirty systems. Five of them —
+`ResearchSystem`, `CommanderSystem`, `TemplateMarketSystem`, `StationServicesSystem`,
+`ModuleEquipSystem` — are `#include`d, scheduled, and scored with real producer/consumer detail in
+§13.1. §4's table still marks all five 📋 **Planned**, which the Status Legend defines as
+*"designed, agreed, not yet written."* They are written. `ManufacturingSystem` and `HazardSystem`
+are correctly 📋 — neither appears in `SystemSchedule.cpp` — so the table isn't wrong throughout,
+only on the five rows §12's first two batches landed.
+
+This is the exact class of defect §0 says this document watches for: *"where a header comment and
+the code disagree, the disagreement is recorded as a finding."* §4 predates §13 and was never swept
+after it. **Fixed above, in the same pass that found it** — the five rows now read ✅ *(scheduled;
+see §13.1 for wiring gaps)*, since ✅ here means *scheduled*, not *wired*, and §13.1 remains the sole
+authority on whether each one does anything.
+
+### 14.2 The content pipeline has three files, and a fourth category doesn't exist
+
+`data/base_game/` holds exactly `ships.json`, `shells.json` (74 lines), and `modules.json`
+(87 lines) — no `facilities.json`, no `materials.json`, no `elements.json`. Individual findings
+already note this piecemeal (§13.1's `ResearchSystem` row: *"no Research facility"*; §13.5 group 2b:
+*"no `materials.json` exists yet"*; group 4b's facility content set), but nowhere is it inventoried
+as one fact with one blast radius:
+
+**Every facility-gated system in §13.1 is content-blocked, independently of its code-wiring gap.**
+`ResearchSystem`, `EngineerSystem`, `RefactorSystem`, `StationServicesSystem` all gate on a living
+`FacilityKind` hardpoint, and `modules.json` authors exactly one facility, of an unstated kind. Even
+after every producer/consumer fix in §13.5 lands, none of these four can be exercised in a generated
+world until `modules.json` grows `Trade`/`Repair`/`Engineering`/`Research` facility entries — the
+same content debt group 4b already schedules, restated here as a standalone blocker rather than a
+line inside four other groups.
+
+**`Element`/`Material` (§13.5 group 2b) has no content to migrate yet, which the group's own text
+already calls "cheapest it will ever be."** That stays true: this pass found nothing to revise it.
+
+### 14.3 `MainMenu` — confirmed intentional, not an unaudited unknown
+
+`src/modes/main_menu/` (`MainMenu.h:16-28`) is outside §13's scope — it audits `modes/space/`'s
+schedule, not `modes/main_menu/`. Read directly: it is a 3-file, self-documented stub. Its own
+header comment states the legacy `MainMenu.cpp` (1,249 lines) carried a ship showcase, a
+multiplayer connect flow, a lore-backed faction picker, and a save picker, and that this port
+deliberately keeps only *"a title screen the player can actually get past"* because none of the
+other four have a supporting system yet (no showcase renderer, `net/` is 🧊, no faction lore
+content, no working save path per §13.3 Y). **This is not a gap this audit is revealing** — it is a
+gap the code already names accurately, which is the one class of defect §13.3 AC found this
+method structurally cannot catch on its own (*"a truthful comment about a missing capability is
+still a missing capability, and a method tuned to find lies will not find it"*). Recorded here so
+`modes/main_menu/` has an explicit line in this document instead of simply never being mentioned.
+
+### 14.4 A stale figure in §0's own "current reality" snapshot
+
+Line 153's **"281 tests pass (690 assertions)"** was written 2026-07-29 (`git blame`), the same
+commit that stamped line 21's *"Current reality (updated 2026-07-29)."* At least ten feature PRs
+merged to `main` since — `#95` Wreck/Recovery, `#97` WarpSystem, `#104` CommanderSystem, `#99`
+CustomizeMenu, `#105` Faction Survival, `#100` NavigationMap, `#98` StationServicesMenu, `#102`
+StorageMenu/ModulesMenu/ModuleEquipSystem, `#103` BuildMenu/ConstructionSystem, `#101`
+TemplateMarketSystem, `#106` ResearchSystem — each adding a test file. A static count today
+(`grep -rc TEST_CASE tests/`) finds **424** occurrences across 72 files, against the 281 this
+document still cites. This branch's own commits (§0's `git log`) never touch `tests/`, so the drift
+predates them — the four documentation passes that produced §§9–13 rewrote the surrounding
+paragraphs repeatedly without revisiting this one number.
+
+Not a functional defect — the tests themselves are fine. Flagged because this document's entire
+method is *"verified against `src/`, not inferred from a header comment,"* and §0 is the one
+paragraph that method was never re-applied to. **Fix: re-run the count and correct the figure**,
+which needs a build (§13's method doesn't reach this one) rather than another grep.
+
+### 14.6 A systematic design-coverage sweep, and one confirmed gap
+
+*The question this answers: does every `features.md` section have an architectural translation
+somewhere in this document — not "is it wired" (§13's question), but "was it ever given a plan at
+all"? Extracted all 64 numbered sections/subsections from `features.md`, then checked each against
+`architecture.md` for a citation. The first pass (`features.md §X` literal citations) missed several
+sections that turned out to be covered anyway — by a bare `§X` reference, by "features.md section X"
+spelled out instead of using `§`, or by discussing the mechanism without citing the number at all
+(§12.30.2 covers §4.1's boarding/bay mechanic in full without once writing "§4.1"). **Number-citation
+matching alone produces false negatives as often as §14's first draft's title-only matching produced
+false positives** — every apparent gap below needed a manual read of the actual `features.md`
+content and a content-level (not citation-level) search of `architecture.md` before it could be
+trusted.
+
+Sections that looked uncovered by citation search and were **not** actual gaps, once read:
+
+| Section | Looked uncovered because | Actually covered by |
+|---|---|---|
+| §4.1 Boarding, the bay | No `§4.1` citation anywhere | §12.30.2 ("Screen 1 — the Bay") covers the mechanic in full under a different name |
+| §5.2 Canonical Faction Registry | No faction id string anywhere in `src/` | Correctly content-only per Law 10 — `FactionRef` (`Identity.h:24`) documents *"resolves against features.md section 5.2"*, and `ships.json` already authors two of the ten keys (`aegis_directorate`, `the_forgotten`) |
+| §5.9 Unlisted Pairings | No dedicated section | One sentence, entirely downstream of §5.3's relation-writer gap (already finding N) — not a distinct gap |
+| §6.5 Boss encounters | No dedicated architecture section | Explicitly designed as an emergent consequence of §2.5/§2.7/§4.5/§5.1, all already covered elsewhere — the section's own text says so |
+| §7.3 On-Demand Streaming | No dedicated section | Resolves into §1.1's Tier 3 boundary rule (*"no registry exists at all,"* §12.2) — the same `TickCoarse` gap findings L/M already record, not a second one |
+| §5.8 Changes From Earlier Drafts | No dedicated section | A changelog, not a mechanic — correctly needs no architecture home |
+
+**One section is a confirmed, standalone gap: §5.7, "The Reapers."** `features.md` §5.7 specifies a
+named-faction special case that a generic diplomacy fix will not produce by itself: universal
+hostility to every faction not explicitly listed (rather than the neutral default §5.9 gives
+everyone else), a mutual alliance with Pyre that both `DiplomacyMatrix` and `FactionDecisionEngine`
+would need to special-case, and **target selection by structural density of a system rather than by
+relation standing** — a distinct AI-targeting axis nothing else in the design uses. `grep -i
+"reaper\|structural density" docs/architecture.md` returns nothing. This is not the same gap as
+finding N (`TargetingSystem` ignores `DiplomacyMatrix` entirely) or finding L (`FactionDecisionEngine`
+has no invocation path) — fixing both of those wires the *general* relation model into combat and
+faction AI, and the Reapers' behavior still would not exist, because it isn't expressible as a
+relation-matrix lookup at all.
+
+> ✅ **Given its own design-to-architecture pass, §12.32 (2026-08-10).** The relation half
+> (`SeedBaselineRelations`, `SeedReaperHostility`) is buildable today, independent of the coarse
+> loop — and widened `Relation` itself from three states to the full six `features.md` §5.3
+> specifies, once checking `Reputation` and `TemplateMarketSystem` showed both already assumed the
+> richer range and only got more correct for it. That widening is what lets the Reapers' three
+> priority rivals actually be stored as `War`, distinct from the other five factions' `Hostile` —
+> the earlier draft of §12.32 had collapsed both onto one value and pushed the distinction into the
+> targeting layer instead, which this revision retired. The structural-density targeting half still
+> turned out not to need new design at all — it's blocked on the same missing system-adjacency/
+> roster model `RaidDispatchDirective` already names as unbuilt for *every* faction, not a
+> Reapers-specific gap, so §12.32 gives it the smallest possible function (`SelectReaperTarget`, a
+> max-by-key over caller-supplied density scores) rather than a parallel design.
+
+### 14.7 What this section does not change
+
+§13's "eight of thirty wired end to end" and its task list stand as written. §14.1's five systems
+being *scheduled* is orthogonal to whether they're *wired* — §13.1 already scores all five ⚠️/❌ on
+producer, content, or both, and none of those rows move. §14.6's sweep found the design-to-
+architecture link is in materially better shape than a first, title-only pass suggested — one real
+gap in 64 sections, not the handful a keyword search first implied. This section's net additions:
+one internal consistency defect (§4 vs. reality), one content-inventory fact previously scattered
+across four findings, one confirmed-intentional stub, one stale number in the document's own status
+line, and one confirmed design gap (§5.7) with no architectural home yet.
+
+---
+
+## 15. System & UI Behavior Audit — Design vs. Implementation
+
+*Compiled 2026-08-10. §13 asked whether a system is **connected** — producer, consumer, UI surface.
+This section asks a different question of the same code: for a system or UI file that already
+exists, does its **actual logic** do what the specific `features.md`/`architecture.md` section
+naming it says it should? Nine passes, one per subsystem area, each re-verifying the specific
+design section's checkable claims (numeric rules, specific algorithms, specific type-matching)
+against the code directly — not against §13's own summary of it. Findings already recorded in §13.3
+or elsewhere are cited, not restated.*
+
+### 15.1 Findings that invert or contradict an explicit design rule
+
+**1. Ramming bypasses shields — inverted.** `features.md` §3.1 settles *"shields are projectile-only
+… ramming bypasses shields entirely,"* stated as ramming's whole tactical identity. `CollisionSystem
+::QueueDamage` tags every ram hit `DamageType::Kinetic` and writes it into the same `PendingDamage`
+component projectiles use; `DamageSystem::ApplyToHealthAndShield` makes no distinction by source. A
+rig with a charged Kinetic shield **absorbs ram damage exactly as it would gunfire** — the opposite
+of the documented mechanic. Not the same question as §12.22's "Recorded as rejected" table, which
+only covers *physical* hull-blocking shields.
+
+**2. A docked vessel can still be shot and rammed.** `features.md` §3.4's table states plainly:
+*"Direct fire, ramming, targeting — **No**, the vessel is not a target."* `architecture.md` line 1869
+scores this row **"Yes."** `DockingSystem::Tick` only strips `Targetable` from the docked rig, which
+stops new auto-lock acquisition (`TargetingSystem::IsValidTarget` checks it) — but
+`ProjectileSystem::FindHit`'s view (`HitRadius, WorldTransform, ParentRig`) and `CollisionSystem`'s
+candidate view never check `Docked` at all. A stray or pre-aimed shot, or a ramming rig, still lands
+on a docked ship. "Cannot be shot" holds only for the auto-targeted-fire path.
+
+**3. Destroying a docking facility does not destroy the vessels docked to it.** Same §3.4 table,
+second row: *"Destruction of the docking facility — **Yes, total.** Every vessel inside is destroyed
+with it."* Also scored "Yes" at line 1869. No file in `src/` implements this — `DamageSystem`'s
+rig-death check only looks at the dying rig's own hardpoints, never at who is `Docked` to it, and
+`DockingSystem` never reads its host's `Destroyed` state. A destroyed station's docked ships persist
+indefinitely, `Docked` to a now-dead entity — a dangling reference, not merely a missing feature.
+
+**4. `NavigationMap` shows individual objects at the Galaxy zoom level, which the design forbids
+there by name.** `features.md` §8.1: Level 1 (Galaxy) shows *"Faction territory, trade vectors,
+military weight. **No individual objects.**"* `NavigationMap::Draw` branches
+`level == Galaxy || level == Region` as one case and renders every `DiscoveredSystemIds` entry as an
+individual marker at both levels, differing only by layout radius (260 vs. 140). There is no
+aggregate/territory rendering anywhere in the file — Level 1 fakes its zoom-out by spacing dots
+farther apart, not by changing what it draws.
+
+**5. `DamageType` has no Ion value at all — sharper than finding AA.** Finding AA (§13.3) records
+Ion and Kinetic rendering identically; the actual gap is structural, not cosmetic. `Taxonomy.h`
+defines `enum class DamageType : std::uint8_t { Kinetic, Energy };` — **Ion does not exist as an
+enum value**, so `Weapon::damageType`, `Shield::absorbs`, and `PendingDamage::type` cannot hold it
+under any circumstance. `features.md` §3.1's 2026-08-08 Ion redesign (*"absorbed by every shield
+type… suppresses power, not hull"*) has zero representation anywhere in the type system. Finding AA's
+own text (*"Ion is absorbed by neither shield type"*) describes the **pre-redesign** model and is
+itself stale relative to the current `features.md` text — noted as a minor doc-currency gap, not a
+second code bug.
+
+**6. §6.2's entire Task-Weighting-by-Archetype table has zero corresponding code.** `features.md`
+§6.1 presents four operational facets a faction evaluates every macro tick. `ComputeFacets`
+computes only Material Security (from `FactionEconomy::Stock`); Market Dominance, Ideological
+Doctrine, and Tech Superiority are permanently `50.0f` — disclosed in the struct's own comment, but
+never surfaced in `architecture.md`'s narrative (there is no §12.x section for the facet engine
+itself, only §12.3 for the separate Survival predicate). Direct consequence: **no function in
+`FactionDecisionEngine` reads or branches on faction archetype at all**, so §6.2's Corporate /
+Military / Scientific / Anomalous / Opportunist / Ecological weighting table is unbuilt in full, not
+partially.
+
+**7. §6.4's border-skirmish mechanic has no callee, not merely no caller.** §6.4 names two tuned
+thresholds; `RaidDispatchChance`'s (Material Security < 30 → 45% chance) matches the code exactly.
+The second — *"two rival factions sharing a border with hostile Doctrine → border skirmish, moderated
+by relative fleet strength"* — has **no function anywhere in `src/`** (`grep -i "border\|skirmish"`
+returns nothing). This is a stronger gap than finding L's "no invocation path": there is nothing to
+invoke.
+
+### 15.2 Findings that are real, internal, and lower severity
+
+**8. `RefactorSystem` still refunds a shell's modules on deletion — a settled reversal it never
+picked up.** `features.md` §2.2 (2026-08-10): *"A shell cannot be removed while it still holds
+modules… this reverses existing behaviour: hardpoint deletion currently returns a shell's modules to
+cargo automatically. The new rule refuses the deletion instead."* `architecture.md` §12.13 already
+tracks this as a pending decision, but the exact unimplemented line was never named:
+`RefactorSystem::ProcessDeleteRequests` still refunds every mounted module unconditionally before
+destroying the hardpoint, with no "does it still hold modules" check anywhere in the function.
+
+**9. `RefactorSystem` inherits the count-not-mass `CargoHoldHasRoomFor` bug at a previously unnamed
+call site.** The already-documented bug (`CargoHoldEntryCount`, a row count, compared against a
+`capacity` meant to be a mass budget) gates `RefactorSystem`'s "storage full, deletion refused"
+decision too — every such refusal is by row count, not mass, and no existing writeup names
+`RefactorSystem` as a consumer.
+
+**10. `TemplateMarketSystem`'s Accept step checks a predicate nothing ever sets.** The 3-step
+Gate→Accept→Roll shape and the negotiation-roll formula both match `architecture.md` §12.7's
+pseudocode constant-for-constant — confirmed clean. But `PassesAccept` reads
+`pitch.archetypeFits`/`pitch.beatsCurrentManufacture` as pre-set booleans on the intent; nothing in
+`src/` ever sets `archetypeFits` true, and no content type carries an archetype tag to compute it
+from. This is a logic gap, not just a missing producer — even a caller would have to invent the
+archetype-fit computation from nothing.
+
+**11. `FactionEconomy`'s stock is one scalar per faction, not per-item/per-station as §5.0/§12.20
+require.** `features.md` §5.0: *"Stock is held per **station**, not per faction and not per
+system."* `core/economy/FactionEconomy.h`'s `Deposit`/`Spend` operate on a single
+`int` per `FactionId` — no `ItemId`, no station key, no notion of *what* is held. This is a shape
+gap in the math itself, not merely a missing producer; it would give wrong answers about blockades
+or Material Security even once wired to something.
+
+**12. `DiscoverySystem` writes the store the design says must be abandoned.** `features.md` §8.3
+states outright that `DiscoveryState` (faction-keyed) *"cannot implement this section at all"* —
+fog-of-war requires per-viewing-entity divergence `KnowledgeNetwork` provides and `DiscoveryState`
+structurally can't. `DiscoverySystem::Tick` still calls `ctx.discovery->Discover(...)`, writing
+exactly the store the design already retired.
+
+**13. `MiningSystem` has no persistence path for depletion — a second, independent blocker behind
+mining beyond finding B's unreachability.** §7.2's boundary rule: *"if a player or faction could
+have changed it, it is not seed-derived… a system that regenerates mutable state from a seed will
+silently undo player actions on every revisit."* `MiningSystem` destroys a depleted asteroid entity
+outright with no `core/galaxy/` record analogous to `WreckRecord` — a revisited system would
+regenerate the asteroid from its seed, intact, exactly the failure §7.2 warns about by name.
+
+**14. Four of §5.3's named `DiplomacyMatrix` writers contain no relation-writing logic at all.**
+`ContractSystem`, `CommsSystem`, `FactionEconomySystem`, and `DiscoverySystem` are named with
+specific triggers (contract complete/fail, successful diplomacy, trade volume, trespass). None of
+the four references `Relation`/`DiplomacyMatrix` anywhere — this is stronger than "blocked on
+`ctx.diplomacy == nullptr`" (§13.5 group 3); there's no dormant trigger logic waiting behind the
+null pointer the way `PartySystem`'s formation logic waits for a producer.
+
+**15. `BuildMenu` cannot gate a build on material cost — its own header overclaims.** `BuildMenu.h`:
+*"Reads the requester's own CargoHold/Wallet for affordability,"* matching §12.12. `CanAfford`
+checks only `wallet.credits`; no function in the file reads a `CargoHold`, and `Draw` never takes
+one as a parameter.
+
+**16. `BuildMenu` has no build content — one affordability-colored label, not a construction UI.**
+Beyond finding 15: `Draw` takes one hardcoded `cost` and renders a single static "BUILD" label; it
+never calls the `BuildStationBuildRequest`/`BuildPlaceShipRequest` functions the file itself
+exports, and has no blueprint list, position/rotation selection, or input handling.
+
+**17. `NavigationMap`'s hostile coloring at System level never consults `DiscoveryState` and ignores
+`DiplomacyMatrix` — the same simplification finding N records for `TargetingSystem`, on a different,
+previously undocumented file.** `VisibleHostileRigs` treats any different `FactionId` as hostile and
+always colors `kStatusCritical`; `features.md` §3.10 requires three-state relation coloring
+("colour is relation only"), and `architecture.md` §12.6 requires the `DiscoveryState` check this
+function skips.
+
+**18. `RefactorMenu`'s own header contradicts its own body.** The header claims non-deletable
+hardpoints are shown "greyed out"; `Draw` iterates only `DeletableHardpoints(...)`, so non-leaf,
+`Destroyed`, and absent hardpoints are never drawn at all — not greyed, simply missing. This is the
+exact failure §8.3 names (*"absence must never look like emptiness"*), inside the one file whose own
+comment says it does the opposite.
+
+**19. `IconRenderer::DrawMapMarker` has no camera or zoom parameter — the missing cull (already
+recorded, finding Q) needs a signature change, not a one-line addition.** `DrawMapMarker(Vec2, Color,
+std::string)` has nowhere to receive zoom level or camera bounds; the `BodyKind`-driven icon
+substitution §12.28 assigns this function also has nowhere to dispatch from.
+
+**20. `IconRenderer`'s markers don't match §8.2's cached-per-kind-shape model.** §8.2 credits
+`IconRenderer` with already solving this for the reticle; `DrawMapMarker` draws one immediate-mode
+filled circle every call, uncached, with no shape variation — a fleet, a ship, and a wreck would all
+render as the identical dot.
+
+**21. `CustomizeMenu` never reports which validation rule failed, though the data already exists.**
+§12.9's Tests bullet requires an invalid draft to *"report which rule failed."*
+`ValidationResult::errors` (a `std::vector<ValidationError>`) exists specifically for this;
+`Draw` renders only the literal string `"INVALID"` and never iterates it.
+
+### 15.3 Low-severity and informational
+
+**22.** `RefactorMenu` renders the literal string `"hardpoint"` for every row — no per-row name or
+`ShellRole` glyph, unlike `StationServicesMenu`'s comparable stub, which at least renders real
+per-row content.
+
+**23.** Citation mismatch: `StationServicesMenu.h` cites §12.11 for a promotion note that actually
+lives in §12.10; `InventoryGrid.h`'s comment cites the correct section for the same note.
+
+**24.** `ModulesMenu::Draw` calls only `EquippedMounts`; `EquippableMounts` is exported but never
+called by `Draw` — roughly a third of §12.30.7's required surface is exercised.
+
+**25.** `FactionDecisionEngine::EvaluateColonization`'s stock threshold has no `features.md` backing
+at all (`grep -i coloniz` over `features.md` returns nothing) — an undocumented invention, the
+opposite direction from most findings here.
+
+**26.** `WorldRenderer::DrawHardpoints` has no draw-layer sort of any kind — consistent with §3.5's
+five-layer model being 📋, but recorded precisely: no field, no sort call, no layer enum reference
+exists to be *partially* right or wrong.
+
+### 15.4 Verified clean — confirmations worth keeping
+
+Several checks resolved *in the code's favor*, including two open questions this document had
+flagged without an answer:
+
+- **`CollisionSystem::BuildWorldHull` excludes `Destroyed` hardpoints** — resolves §12.22's own
+  flagged "⚠️ worth confirming" uncertainty: a stripped capital does not still collide at full size.
+- **`CollisionSystem::ApplyRamDamage`'s mass-share split matches §3.7's worked example exactly**
+  (mass-100 vs. mass-10 → 9.09%/90.9%, to the decimal).
+- **`TemplateMarketSystem`'s negotiation-roll formula and 3-step Gate→Accept→Roll shape** match
+  `architecture.md` §12.7's pseudocode constant-for-constant.
+- **`FactionDecisionEngine::RaidDispatchChance`'s threshold** (Material Security < 30 → 45%) matches
+  §6.4 and §12.16 exactly.
+- **`LootSystem`'s wreck demote/promote cycle** matches §12.5 almost verbatim, componentwise.
+- **`ModuleEquipSystem`, `ConstructionSystem`, and `EngineerSystem`'s merge/refusal logic** all match
+  their cited sections precisely, including the subtle "two distinct owned copies" merge-with-self
+  refusal §12.12 calls out by name.
+- **`BridgeView` carries no vestige of the withdrawn two-player-mode model** (§12.16 item 23).
+- **`CockpitHud` matches its own documented minimal state exactly** (one aggregate hull bar), and
+  correctly has nothing radar-like given it has no sensor-contact rendering yet.
+- **`PhysicsSystem`, `HierarchySystem`, `OrbitSystem`, `SpawnSystem`, and `ProjectileSystem`** were
+  checked against every applicable numeric/algorithmic claim in scope and diverge nowhere beyond
+  what §13.3/§12.14/§12.22/§12.28 already record.
+- **`DamageSystem`'s shield absorption/bypass/recharge logic** matches §3.1/§12.22 exactly, apart
+  from finding 1's ramming-bypass gap.
+
+### 15.5 Where these land
+
+Findings 1, 2, 3, 5, 6, 7 are new-issue-shaped — none fit cleanly inside an existing §13.5 group
+without stretching it. 8–10 belong beside their systems' existing entries in group 2 (station
+economy) and group 3 (`ctx.diplomacy`). 11–14 belong beside `architecture.md` §12.20's existing
+per-item-stock work. 15–21 belong in group 4b once each menu's screen lands. 22–26 are one-line
+follow-ups for whichever issue already touches their file. **Not yet folded into §13.5's group
+structure** — that pass is its own next step, the same way §12.32 was threaded into group 3
+separately from being written.

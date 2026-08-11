@@ -1,7 +1,7 @@
 Star Reach: Narrative, Faction & Simulation Bible
 
 1. The Historical Catalyst (The Diaspora)
-The Golden Age & The Collapse: Centuries ago, humanity expanded across the stars via a vast hyper-gate network. This era ended instantly when the central gate infrastructure suffered an unexplained, catastrophic structural collapse, severing inter-system travel and stranding trillions.
+The Golden Age & The Collapse: Centuries ago, humanity expanded across the stars via a vast hyper-gate network. This era ended instantly when the central gate infrastructure suffered an unexplained, catastrophic structural collapse, severing inter-system travel and stranding trillions. This event is experienced in the optional opening tutorial where a fleet of ships including the player warp in to investigate an anomaly and the player learns flight, weapon and other controls. In this tutorial's conclusion,the cataclym happens and transports the player to a random location in the same galaxy 177 years later. After the cataclysm the player can go through another optional tutorial to learn gathering, building, warping,etc... at the cost of 50% of the resources you gather for the tutorial.
 The Century of Isolation: Isolated pocket-realms formed as stranded colonies, military garrisons, corporate outposts, and research syndicates adapted to local realities. Over generations, they evolved distinct cultural, ideological, and technological identities.
 The Re-Opening (The Present Era): Recent breakthroughs in localized hyper-drive technology have allowed starships to cross the deep void once again, throwing these estranged societies back into violent, opportunistic contact.
 The Anomalous Shift: Unlike traditional human expansions, the gate collapse did more than just break transit—it fractured space-time itself. This rift allowed anomalous, non-human entities like the Reapers and mutated groups like the Voidwalkers and The Forgotten to emerge directly from the fallout.
@@ -27,7 +27,7 @@ Secondary: Deep Cerulean Blue (#005F73) — Corporate stability and banking comp
 Comms Archetype: Smooth, overly polite, transactional. ("Your blockade is impacting our Q3 projections. Comply or be liquidated.")
 Behavioral Driver: Monopoly and Q3 Projections.
 Decision Logic: They do not fight wars for glory; they fight proxy wars for trade routes and rare-earth mineral nodes. If a system isn't profitable, they abandon it. If a competitor is growing too fast, they fund trade blockades or hire mercenaries.
-Relationship Rationale: Allied with Aegis (for protection). Opposed to Kore Industries (labor unions and independent miners who break corporate cartels) and The Voidwalkers (unpredictable variables outside market control).
+Relationship Rationale: Allied with Aegis (for protection). Opposed to Kore Industries (labor unions and independent miners who break corporate cartels), The Voidwalkers (unpredictable variables outside market control), and the Edenian Pact (their blockades over resource-rich worlds choke off the extraction profits Meridian depends on).
 3. Kore Industries
 Origin & Philosophy: Deep-space mining syndicates and blue-collar unions abandoned by corporate masters. They value sweat, blood, and heavy machinery.
 Aesthetic & Palette: Brutal, heavy industrial, asymmetric structures featuring exposed internal machinery and hydraulic pistons.
@@ -36,8 +36,8 @@ Secondary: Rust-Orange (#D97706)
 Accent: Industrial Hazard Stripes (#FBBF24 / #111827) — Primal warnings of heavy, volatile machinery.
 Comms Archetype: Gritty, blunt, working-class hostility. ("Get your shiny hull out of our drilling lane before we turn you into scrap.")
 Behavioral Driver: Autonomy and Hard Utility.
-Decision Logic: They focus heavily on localized mining output, industrial manufacturing upgrades, and defensive station building. They are deeply isolationist until pushed, at which point they retaliate with overwhelming industrial might and heavy kinetic firepower.
-Relationship Rationale: Allied with The Forgotten (shared lower-class roots, though Kore looks down on their chaos). Hates Meridian (corporate oppressors) and Pyre Ascendancy (religious lunatics destroying mining worlds).
+Decision Logic: They focus heavily on localized mining output, industrial manufacturing upgrades, and defensive station building. They are deeply isolationist until pushed, at which point they retaliate with overwhelming industrial might and heavy kinetic firepower. Old grudges against the Pyre Ascendancy's mining-world purges still colour Kore's comms chatter, even though it never rose to open war.
+Relationship Rationale: Allied with The Forgotten (shared lower-class roots, though Kore looks down on their chaos). Opposed to Meridian Star Corps (corporate oppressors), the Edenian Pact (heavy industry vs. the protected biospheres that lock up good ore), and AI Concordance (an intelligence that renders labor obsolete, against hand-built hydraulics the Concordance calls gross inefficiency).
 4. The Forgotten
 Origin & Philosophy: Outcasts, scavengers, and the destitute who fell through the cracks of the old world. They operate on chaotic, nihilistic survival.
 Aesthetic & Palette: Asymmetrical, tumor-like growths over corrupted frameworks, featuring bubbling corrosion and vein-like conduits.
@@ -47,7 +47,7 @@ Accent: Hazard Orange & Unstable Blue (#F97316 & #3B82F6) — Jury-rigged power 
 Comms Archetype: Erratic, taunting, unhinged. ("Give us your power cell, or we'll eat your engines piece by piece!")
 Behavioral Driver: Opportunistic Survival.
 Decision Logic: They operate on short-term risk/reward vectors. If a system is well-defended, they vanish into the dark. If a trade fleet is vulnerable or a battle leaves wreckage, they swarm. They rarely build large capital ships from scratch; instead, they steal, jury-rig, and reverse-engineer everything.
-Relationship Rationale: Allied with Kore (convenient black-market trade). At war with everyone else, especially Aegis and Meridian.
+Relationship Rationale: Allied with Kore (convenient black-market trade). At war with the Aegis Directorate (the boot that abandoned them), the Pyre Ascendancy (zealots who would burn their squalor clean along with everyone in it), and the Reapers (who leave nothing behind worth scavenging, and hunt the Forgotten the same as anyone).
 5. AI Concordance
 Origin & Philosophy: An advanced network of automated research stations that outlived their human creators. They seek post-biological optimization.
 Aesthetic & Palette: Biomorphic curves and organic, flowing architecture resembling insectoid or cephalopod anatomy.
@@ -56,7 +56,7 @@ Accent: Glowing Cyan Circuit Networks (#22D3EE) — Hyper-efficient nervous syst
 Comms Archetype: Analytical, calm, clinical. ("Your biological anxiety is statistically irrelevant.")
 Behavioral Driver: Algorithmic Perfection.
 Decision Logic: Their decisions are completely devoid of emotion. They will trade peacefully with humans to acquire computing power or rare materials, but if a biological faction disrupts an optimal scientific grid, the Concordance will calculate their eradication with cold precision.
-Relationship Rationale: Allied with Zenith Collective (fellow intellects). Opposed to volatile factions like Pyre Ascendancy and The Reapers whose actions introduce statistical chaos.
+Relationship Rationale: Allied with Zenith Collective (fellow intellects). Opposed to the Reapers, whose actions introduce statistical chaos; the Voidwalkers, who treat sites the Concordance judges optimal for a scientific grid as inviolable; and Kore Industries, who see an intelligence that renders labor obsolete where the Concordance sees only inefficient, hand-built hydraulics.
 6. Pyre Ascendancy
 Origin & Philosophy: A radical religious sect formed on a volcanic world, viewing the gate collapse as a divine trial burning away human weakness.
 Aesthetic & Palette: Symmetrical, spiky, gothic-inspired silhouettes featuring sharp fins and ornate filigree.
@@ -66,7 +66,7 @@ Accent: Holy White-Blue Plasma (#E0F2FE) — Intense cleansing flame.
 Comms Archetype: Zealous, poetic, severe. ("Submit your hull to the sacred fire, infidel.")
 Behavioral Driver: Divine Purification.
 Decision Logic: High aggression toward non-believers. They launch fanatical crusades into neighboring systems to burn down secular corporate stations and convert or incinerate populations.
-Relationship Rationale: Allied with Reapers (misguidedly viewing them as a divine force of judgment). At war with corporate and scientific factions (Meridian, Zenith, Concordance).
+Relationship Rationale: Allied with the Reapers (misguidedly viewing them as a divine force of judgment). At war with the Aegis Directorate (the secular order to be purified), The Forgotten (nihilists who would be burned clean along with the rest), and the Zenith Collective (hoarders of a history the flame is owed).
 7. Voidwalkers
 Origin & Philosophy: Deep-space crews whose research vessels were mutated by dark-matter anomalies during the gate failure. They seek transcendent isolation.
 Aesthetic & Palette: Segmented hulls floating via energy ribbons, featuring non-Euclidean geometric angles.
@@ -75,8 +75,8 @@ Secondary: Muted Astral Violet (#7C3AED) — The occult, mystery, and things bey
 Accent: Ethereal Cyan (#06B6D4) — Unfamiliar spatial physics.
 Comms Archetype: Distant, cryptic, echoing. ("You tread where light fears to linger, little traveler.")
 Behavioral Driver: Transcendent Isolation.
-Decision Logic: They rarely conquer territory. Instead, they migrate their fleet-cities near spatial anomalies, dark-matter clouds, and deep-space rifts. They react violently to any faction trying to exploit or seal those anomalies.
-Relationship Rationale: Allied with Edenian Pact (symbiotic harmony). Distrustful of industrial empires (Meridian, Aegis).
+Decision Logic: They rarely conquer territory. Instead, they migrate their fleet-cities near spatial anomalies, dark-matter clouds, and deep-space rifts. They react violently to any faction trying to exploit or seal those anomalies. Their calm around the Reapers is its own kind of unnerving — the two share an origin in the same rift, and Voidwalkers alone do not flinch from them.
+Relationship Rationale: Allied with the Edenian Pact (symbiotic harmony). Distrustful of Meridian Star Corps (unpredictable variables outside market control), the Zenith Collective (who secure pre-collapse ruins the Voidwalkers hold inviolable), and AI Concordance (whose optimized scientific grids treat those same sites as data to harvest).
 8. Zenith Collective
 Origin & Philosophy: University researchers and theoretical philosophers preserving humanity's pre-collapse scientific archives above all else.
 Aesthetic & Palette: Smooth, reflective surfaces faceted precisely like a cut gem into tetrahedrons and icosahedrons.
@@ -86,7 +86,7 @@ Accent: Luminous Soft Violet (#C084FC) — Curated, intellectual, and peaceful d
 Comms Archetype: Intellectual, curious, cooperative. ("Fascinating hull configuration. Allow us to scan your database.")
 Behavioral Driver: Preservation of Knowledge.
 Decision Logic: They frequently issue high-paying exploration quests to independent players. If a system holds a pre-collapse ruin, the Zenith will aggressively secure it, paying off or diplomatically outmaneuvering rivals.
-Relationship Rationale: Allied with Concordance. Opposed to destructive forces like The Reapers and Pyre Ascendancy that destroy history.
+Relationship Rationale: Allied with AI Concordance (fellow intellects). Opposed to the Pyre Ascendancy, who would burn the history Zenith exists to preserve; the Voidwalkers, who answer every secured ruin with violence; and the Edenian Pact, who call it a violation each time Zenith catalogs a living world as data rather than protecting it as sanctity.
 9. Edenian Pact
 Origin & Philosophy: Terraforming crews and bio-engineers who survived by fusing habitats with symbiotic flora and fauna. They champion ecological harmony.
 Aesthetic & Palette: Fluid, iridescent surfaces that shift by angle, featuring segmented carapace armor and wing-like structures.
@@ -96,7 +96,7 @@ Accent: Bioluminescent Cyan (#22D3EE) — Living deep-sea/jungle life glowing in
 Comms Archetype: Serene, softly spoken, fiercely protective. ("The great vines of Eden weep at your violence.")
 Behavioral Driver: Ecological Expansion.
 Decision Logic: They expand slowly and deliberately, preferring fertile or garden worlds. They view heavy industrial strip-mining (especially by Kore or Meridian) as a mortal insult and will blockade polluting systems.
-Relationship Rationale: Allied with Voidwalkers. Opposed to Kore Industries and Meridian Star Corps.
+Relationship Rationale: Allied with the Voidwalkers (symbiotic harmony). Opposed to Kore Industries and Meridian Star Corps, whose industrial strip-mining they view as a mortal insult to fertile worlds, and the Zenith Collective, who catalog living worlds as specimens rather than protect them as sanctuaries.
 10. Reapers
 Origin & Philosophy: A cosmic plague of macabre, ancient entities leaking through dimensional tears. They want total systemic unmaking.
 Aesthetic & Palette: Matte, skeletal bone-like surfaces etched with warning sigils and predatory motifs.
@@ -105,7 +105,7 @@ Secondary: Oily Necrotic Green (#166534) — Chemical rot, pestilence, and corru
 Comms Archetype: Low, gravelly, menacing. ("Your hull bears the scent of weakness. Prepare to be harvested.")
 Behavioral Driver: Systemic Unmaking.
 Decision Logic: Their AI/behavioral loop targets complexity and structural density rather than standard diplomacy. They hunt high-value population hubs, trade networks, and dense station infrastructure, bypassing isolated or derelict sectors.
-Relationship Rationale: They do not engage in standard diplomacy. They are universally feared, with baseline active hostility toward structural hubs across all factions.
+Relationship Rationale: They do not engage in standard diplomacy. Allied, if the word even applies, with the Pyre Ascendancy — who read being spared as a blessing the Reapers never agreed to give. The Aegis Directorate, The Forgotten, and AI Concordance sit hardest in their path: their dense infrastructure and population hubs are exactly what the hunt targets, so they absorb the most pressure. Baseline hostility extends to every faction not named here.
 4. The Amnesia & Tutorial Narrative Hook
 The Awakening: The player wakes up with total amnesia in a basic, unbranded escape pod drifting within a lawless frontier debris field.
 The Comm-Relay Discovery: The player performs basic survival tasks (repairing thrusters, mining raw materials) before fixing a derelict comm-relay satellite.
