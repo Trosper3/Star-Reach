@@ -74,12 +74,16 @@ add_executable(sr_tests
     integration/StationFactoryTests.cpp
     integration/WorldGenTests.cpp
     integration/SpaceFlightSystemWarpTests.cpp
+    unit/EconomyModelTests.cpp
 )
 
 # Tests link sr_space, which pulls the whole graph. The genuinely interesting property is that
 # unit/ValidationTests and unit/MathTests would link against sr_shared ALONE -- no renderer, no
 # registry, no mode. If that ever stops being true, something has leaked downward.
-target_link_libraries(sr_tests PRIVATE sr_space sr_shared_ui Catch2::Catch2WithMain)
+#
+# sr_economy_sim is a separate, deliberately unrelated addition to that graph: EconomyModelTests
+# is the only file that needs it, and it links against nothing sr_space already provides.
+target_link_libraries(sr_tests PRIVATE sr_space sr_shared_ui sr_economy_sim Catch2::Catch2WithMain)
 
 # Precompiled header: sr_tests is the largest target in the project (50 files), every one of
 # which pulls in Catch2's macro-heavy headers, and most also touch entt::registry directly

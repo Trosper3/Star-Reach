@@ -615,7 +615,8 @@ StarReach/
 │   ├── ci/                  # ✅ check_sizes · check_layers · check_content_pipeline ·
 │   │                        #    check_dead_dirs · check_all (run this before pushing)
 │   ├── asset_viewer/        # 🧊 Modular rig assembly visualizer
-│   └── economy_sim/         # 🧊 Headless supply/demand balancing (links sr_core only)
+│   └── economy_sim/         # ✅ Built 2026-08-11 — headless grade-ladder cost/time derivation
+│                             #    (links sr_options only, no sr_core; see EconomyModel.h)
 │
 ├── tests/
 │   ├── unit/                # ✅ Math, blueprint validation, timestep, intents, SystemWorld
@@ -2799,11 +2800,12 @@ revision was made to avoid.
 > **The ~2× quantity knob was chosen against a one-knob model. Against three it is probably ~1× —
 > breadth alone already delivers ×4 per rung and the input chain delivers the rest.**
 
-⚠️ **Do not re-tune this by argument.** §2.10 rules that *"prices are outputs"* and names
-`tools/economy_sim` as what settles it. **This finding promotes `economy_sim` from 🧊 to a
+✅ **Built and run 2026-08-11.** §2.10 ruled that *"prices are outputs"* and named
+`tools/economy_sim` as what settles it. **This finding promoted `economy_sim` from 🧊 to a
 prerequisite for authoring the content set** — the curve cannot be read off three compounding knobs
-by inspection, and the first place a bad shape becomes visible is a Manufacturing screen quoting a
-number.
+by inspection — and the tool now exists and confirms exactly this shape: the quantity-per-grade knob
+is settled at ~1×, not the ~2× this section's own quote above still shows as a live guess. See
+`features.md` §2.10 for the table.
 
 #### The corrected signatures
 
@@ -3502,8 +3504,9 @@ struct ActorRef {
   that "an intent from a remote machine can name something that died locally two ticks ago."
 - **It must not poll raylib.** A system takes a bare `SystemContext` with no window, and
   `features.md` §2.7's proposed headless combat harness depends on that staying true. *(Cited as
-  §9.1 until 2026-08-09; §9.1 is the performance budget and never mentions a harness. Neither the
-  harness nor `tools/economy_sim` exists — `tools/` holds only `ci/`.)*
+  §9.1 until 2026-08-09; §9.1 is the performance budget and never mentions a harness. The combat
+  harness itself still does not exist — `tools/economy_sim` does, as of 2026-08-11, and demonstrates
+  the same "headless, no window, `SystemContext`-free" pattern the harness would need.)*
 
 **Schedule position** — in `TickSchedule()`, immediately after `HierarchySystem` and **before
 `PowerSystem`**:
@@ -8322,13 +8325,15 @@ that is not even an element) against no registry.
   `BuyItemRequest::cost` is invented by whoever calls it — the same producer gap as the request itself.
   **All three signatures take an `ItemInstance`, not an `ItemId`** (§12.19): `BaseValue`, `LocalPrice`
   and `RepairCostPerHp`, the last of which reads §2.10's **Inert** attribute and is its only named reader
-- **`tools/economy_sim` is promoted from 🧊 to a prerequisite for authoring the content set** (§12.19).
-  §2.10's cost check counts one of **three** compounding knobs — quantity per grade, the 2→8 breadth
-  of the grade table, and §2.8's input-grade chain — so the real multiplier across the ladder is
-  ~10⁴ rather than ×64, and a three-term curve cannot be read by inspection
-- **`tools/economy_sim`** — 🧊 in §3's blueprint since the start, and now with a concrete job: run the
-  price derivation across the authored content set and print the curve. `features.md` §9 names it as
-  what settles pacing, and pacing cannot be closed by argument because **prices are derived outputs**
+- ✅ **`tools/economy_sim` — built 2026-08-11, and it did its job.** §2.10's cost check counted one of
+  **three** compounding knobs — quantity per grade, the 2→8 breadth of the grade table, and §2.8's
+  input-grade chain — so the naive multiplier estimate was ~10⁴ rather than ×64. Running the actual
+  tool settled the quantity-per-grade knob at **~1×** (not the ~2× working value), which keeps
+  Common→Mythic module cost at a real but sane 14×, against ~28,672× at the old 2× value. `features.md`
+  §2.10 has the full table. **What's still open:** the tool models the curve's *shape* parametrically,
+  since no `elements.json`/`materials.json` content exists yet (§14.2) — it has no real content set to
+  run against. `core/economy/Pricing.h` (below) and the content pass are what let it graduate from
+  modeling the shape to pricing the actual authored set.
 - **`FactionEconomy` widens from one scalar per faction to `(FactionId, StationId) → ItemId,
   quantity`** (§15.1 finding 11), per `features.md` §5.0/§12.20's already-specified shape. Not a
   wiring fix — the current math (`Deposit`/`Spend` on a bare `int`) would give wrong answers about

@@ -303,6 +303,20 @@ target_include_directories(sr_space SYSTEM PRIVATE
 add_executable(StarReach src/main.cpp)
 target_link_libraries(StarReach PRIVATE sr_space sr_menu)
 
+# --- sr_economy_sim / economy_sim : the headless pricing-curve tool ---------------------------
+# tools/economy_sim/EconomyModel.h -- deliberately linked against nothing but sr_options (no
+# EnTT, no raylib, no nlohmann_json). features.md 2.10 and architecture.md 13.5 group 2c both
+# describe this as a headless derivation tool, and the model doesn't touch content JSON yet
+# (architecture.md 14.2 -- no elements.json/materials.json exists to read).
+add_library(sr_economy_sim STATIC
+    tools/economy_sim/EconomyModel.cpp
+)
+target_link_libraries(sr_economy_sim PUBLIC sr_options)
+target_include_directories(sr_economy_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+
+add_executable(economy_sim tools/economy_sim/main.cpp)
+target_link_libraries(economy_sim PRIVATE sr_economy_sim)
+
 if(SR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

@@ -1822,8 +1822,14 @@ player has established a real resource pipeline.
   this is a number on a curve, not a rule.
 
 **Manufacturing cost must therefore climb steeply with tier** — steeper than the stat benefit does,
-or mass-producing Mythics becomes correct as soon as it is possible. Cost scaling roughly against the
-drop-rate curve is the natural starting point.
+or mass-producing Mythics becomes correct as soon as it is possible. ⚠️ **Corrected 2026-08-11: not
+by scaling against the drop-rate curve.** This line originally said cost scaling roughly against
+§2.7's drop-rate curve (~3×/tier) was "the natural starting point" — §2.10 tried exactly that,
+reversed it the next day, and this line was never swept to match. Mirroring rarity's steepness on the
+cost side defeats §2.10's own governing principle (*"exploration and combat give you the first of a
+thing, industry gives you more of it"*) — confirmed concretely by `tools/economy_sim`, which puts a
+literal drop-rate-matched curve at a **2.48-million-fold** Common→Mythic module cost against a ~5×
+combat-value gain. See §2.10 for the reasoning and the settled ~1× value.
 
 #### Tier colour 📋
 
@@ -2934,10 +2940,27 @@ than it survived ×729.
 > **The ~2× figure was chosen against a one-knob model. Against three it is probably nearer ~1×** —
 > breadth alone already delivers ×4 per rung, and the input chain delivers the rest.
 
-⚠️ **Do not re-tune this by argument.** This section's own rule is that prices are outputs. The real
-consequence is that **`tools/economy_sim` stops being optional and becomes a prerequisite for
-authoring the content set**: a curve with three compounding terms cannot be read by inspection, and
-the first place a bad shape becomes visible is a player being quoted a number.
+✅ **Confirmed 2026-08-11 by `tools/economy_sim`, which now exists.** The tool prints the compounded
+Common→Mythic module cost multiplier at each candidate quantity-per-grade value:
+
+| Quantity/grade | Module cost multiplier | Cost/combat-value ratio at Mythic |
+|---|---:|---:|
+| 1.0× | **14×** | 3.08 (peaks ~3.3× at Epic/Legendary) |
+| 1.5× | 1,211× | 266× |
+| 2.0× (the prior working value) | 28,672× | 6,308× |
+| 3.0× (mirroring the drop-rate curve) | 2,480,058× | 545,613× |
+
+**The quantity-per-grade multiplier is settled at ~1.0×** — i.e., the quantity knob contributes
+nothing beyond breadth and the input-grade chain, which alone already produce a real, tier-scaling
+14× cost climb against a ~5× combat-value gain. This satisfies §2.4's constraint (cost outpaces
+benefit) without rebuilding the drop-rate's scarcity on the cost side, which every value above 1.0×
+does by a widening margin. **This is also why cost must not scale against the drop-rate curve** — see
+the correction above at "No tier cap on research."
+
+*Do not re-tune this by argument alone going forward — this section's own rule is that prices are
+outputs. `tools/economy_sim` (`tools/economy_sim/EconomyModel.h`, tested in
+`tests/unit/EconomyModelTests.cpp`) is the standing tool for re-running this derivation if any of the
+three knobs' authored values change.*
 
 ##### Nobody decides what a ship costs
 
@@ -8554,21 +8577,21 @@ dies with it. See §3.4.
 attachment, hull envelope), with hardpoint count emergent from `hullRadius`, chassis radius, and
 peripheral size. See §2.3 and §3.5.
 
-**The quantity-per-grade multiplier — ⚠️ working value, awaiting measurement.** Revised from ~3× to
-**~2×** on 2026-08-09 (§2.10): 3× compounded to 729× across the ladder against a Mythic's ~6× combat
-value, making swarms strictly correct, and it contradicted §2.10's own *"industry gives you more of
-it"* principle by reproducing the scarcity drops already impose. 2× is defensible arithmetic, **not a
-measured result** — `tools/economy_sim` is what closes it.
+**The quantity-per-grade multiplier — ✅ settled 2026-08-11 by `tools/economy_sim`.** Revised from ~3×
+to ~2× on 2026-08-09 by argument (§2.10), then to **~1×** on 2026-08-11 by actually running the tool:
+at 2×, the three-knob compound reaches a 28,672× Common→Mythic module cost against a ~5× combat-value
+gain; at 1×, breadth and the input-grade chain alone already deliver a real 14× climb, which satisfies
+§2.4's constraint without rebuilding the drop-rate's scarcity on the cost side. See §2.10 for the full
+table across candidate values.
 
-**Manufacturing and progression pacing.** §2.8/§2.10 — the shape, the gate, and the variety curve
-are settled; the **time** curve is not. How long should a Common module take against a Mythic one,
-and how does that interact with §9's still-open time-to-milestone targets? This is now a tuning
-question with a complete structure underneath it rather than a design hole, and it is what the
-headless `tools/economy_sim` is **intended** to answer. ⚠️ **That tool does not exist** — `tools/`
-holds only `ci/`, and `architecture.md` §3 marks `economy_sim` 🧊. Until it is built, this question
-cannot be closed by measurement, only by guess. *(Legacy `../StarReach2/tools/simulation/
-ItemGenerationSimulator.cpp` is the nearest prior art: it generated N items per grade and verified a
-90% cap target across all seven grades, which is §2.7's quality-band question rather than this one.)*
+**Manufacturing and progression pacing — ✅ the time curve was already settled, and this listing was
+itself stale.** §2.8's own "The time curve" subsection (*"Settled 2026-08-08"*) gives an exact table:
+base 5s (Material) / 10s (Module), doubling per grade, 60-fold across the ladder — `tools/economy_sim`
+confirms it exactly (`ManufacturingTimeSeconds`, tested against Mythic's 5m20s/10m40s figures). §9
+never removed the question after §2.8 answered it, the same drift class the deconstruction-yield entry
+below already caught. **`tools/economy_sim` now exists** (`tools/economy_sim/`, tests in
+`tests/unit/EconomyModelTests.cpp`) and is what closed the genuinely open pacing question — the
+quantity-per-grade multiplier, above — not this one.
 
 **Deconstruction yield — ✅ was already settled 2026-08-08, and this §9 listing was itself the stale
 artifact.** §2.4's own text at "Facility grade drives all three" says outright: *"Settled 2026-08-08,
