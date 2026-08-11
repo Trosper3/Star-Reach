@@ -789,10 +789,22 @@ side of this entirely, which is what makes Hard Game Over (§3.3) total rather t
 protection against that is **redundancy** — more stations, more commanders — not a meta-progression
 layer handed to the player for free.
 
-❓ *Open: whether a network has a physical location that can be raided — stealing a rival's designs
-by capturing the station hosting their network. Thematically excellent (it gives Zenith Collective
-and AI Concordance a reason to exist beyond flavor) and a significant scope addition. Not required
-by anything above.*
+✅ **Settled 2026-08-11: raiding exists, but only sub-commander networks can be raided, and it costs
+no new mechanic.** Checked against `core/knowledge/KnowledgeNetwork.h`: a network has no physical
+anchor of its own today — the only thing that ties one to a specific object is `NetworkOwner`, placed
+on the player entity or a specific sub-commander entity. A **faction's** general network is not
+anchored to any single object and **stays permanently un-raidable by design** — there is no "capture
+the capital's archive" move, matching that a faction's institutional knowledge was never meant to have
+one point of failure. A **sub-commander's** network *is* anchored, to that commander's own vessel, and
+§3.2's capture mechanic already converts a hull's crew — commander included — when it changes hands.
+Raiding a rival's designs is therefore just **capturing their commander's ship rather than destroying
+it**: the standard reward for the harder, riskier version of a kill you were already going to attempt.
+Gives Zenith Collective and AI Concordance the thematic reason §9 originally wanted, at zero
+additional design cost.
+
+*Merging a raided network's contents into the capturer's own is a `KnowledgeStore::Copy()`-shaped bulk
+operation across all three categories (a set union — no conflict resolution needed), extending the
+single-Template version §12.7 already uses for a sale.*
 
 ### 2.6 Template Negotiation & Royalties 📋
 
@@ -1063,14 +1075,37 @@ for negotiating and orchestrating sales/royalties, separate from fleet command �
 be a seller (§2.6 already settles that Commander is a valid `KnowledgeNetwork` owner), but selling
 stops being *specifically* a command function once this role exists to do it instead.
 
-**Crew bribery — agreed in concept, mechanics still open.** A low base chance to convert a specific
-NPC crew module to the player's (or a faction's) side, improvable by paying credits, with some crew
-simply immune regardless of offer — a gamble, not a purchase. Two things need pinning down before
-this is fully spec-able: whether a successful bribe causes outright **defection** (vacating their
-current post, which then needs replacing) or something softer, and whether this applies
-**symmetrically** — the player's own crew biddable away by rivals too, not just something the player
-does to NPCs. Law 4's "applies identically to player and NPCs" pattern, used everywhere else in this
-design, argues for symmetric by default.
+**Crew bribery — ✅ settled 2026-08-11.** A low base chance to convert **any** `Crew` module — not
+only officers or commanders — to the briber's side, improvable by paying credits, with **Mythic-grade
+crew simply immune regardless of offer** (the rarity ladder already gives every other tier a reason to
+exist; this gives the top one a property beyond stats). A gamble, not a purchase: paying more raises
+the odds, it never guarantees the outcome.
+
+**A success is outright defection.** The crew module leaves its post — vacating a Bridge slot,
+a turret, a facility role — and joins the briber's `Crew` roster. That post then sits empty until
+replaced, which is the real cost: bribing a rival's commander is a strictly better outcome than
+killing one (§3.2's capture already establishes this), but bribing a rank-and-file gunner is
+sabotage with a side benefit. **Symmetric by default**, per Law 4: the player's own crew is exactly
+as biddable as an NPC's, using the identical roll.
+
+**The roll reuses `architecture.md` §12.7's Template-negotiation shape** rather than inventing a
+second formula: a base chance, modified by the relation band between briber and current owner
+(§5.3) and by credits committed, resisted by the target module's own grade (§2.7's seven-tier
+ladder — a Legendary is harder to turn than a Common, a Mythic is impossible). No new pricing model,
+just a second consumer of one already-specified curve.
+
+**How each of the four directions actually happens, since the mechanism is one roll but the trigger
+differs by who's attempting it:**
+
+| Direction | Trigger | Resolution |
+|---|---|---|
+| **Player → NPC** | Requires proximity or comms contact with the target vessel — docked, boarded, or hailed, the same "speaking terms" gate §2.6's Template negotiation already uses | Player-initiated, resolves immediately against the roll |
+| **NPC → Player** | A rival faction hails the player (existing `CommsSystem`/comms-hail channel) and names a target crew module | Resolves against the same roll; the attempt and its outcome post to `CommsLog` — the log's first real reader (§13.3 finding S notes it is write-only today) |
+| **NPC → NPC** | Background: a Tier 3 macro-tick roll, the same shape as `FactionDecisionEngine::RaidDispatchChance` (§6.4), gated by relation band and paid from the acting faction's `FactionEconomy` stock | Resolves silently in the simulation; no player-facing UI required |
+| **Player → Player** | Deferred with multiplayer (`net/`, 🧊) | Needs no separate design — the roll is already keyed by `FactionId`/relation, not by "is this the player," so it falls out for free once multiplayer exists, the same inheritance pattern every other Law-4 mechanic in this design uses |
+
+No new UI surface for the Player→NPC direction beyond a "Bribe" action wherever the target's crew
+roster is already visible (a docked/boarded interaction, not a new screen).
 
 > 📋 **Also raised and deliberately deferred: crew training/leveling.** Whether a crew module's stats
 > can improve after acquisition (reroll vs. flat increment, a new facility kind to host it, time and
@@ -4057,6 +4092,919 @@ Sensor.
 | Long-Range Comms Relay | Long-Range | Conductive Coil + Circuit Wafer + Power Core | Amplified reach, for fleet command across a whole system |
 
 
+### 2.12 The Shell Roster 📋
+
+*Added 2026-08-11, alongside the Preset Ship Roster (§2.13). Where §2.11 rosters what mounts inside a
+hardpoint, this rosters the hardpoint housings themselves — the other half of Law 4's Shell →
+Component → Module split.*
+
+**Shells carry structure, nothing else.** `ShellDef` stays exactly what it is today: `hull`, `mass`,
+`radius`, `moduleSlots`, `spriteLayer`. No shell grants a stat bonus, a damage-type bias, or a special
+ability — that is what the module mounted inside it is for. Faction identity in a shell roster comes
+entirely from **how the hull/mass/radius trio is balanced** (Aegis trades mass for hull; a faction
+built for speed would trade the reverse) and from sprite/flavor, never from a hidden performance stat.
+
+**Shells are not gated by hull class.** The rig → hardpoints → modules structure is identical whether
+the rig ends up a fighter, a cruiser, or a station — a fighter and a dreadnought both start from a
+`Chassis`-kind shell and grow by attaching more hardpoints, not by picking from a different shell
+taxonomy. A roster's 2–5 variants per kind naturally span a small→large range (so there is something
+to build a corvette out of as well as a fighter), but nothing in the schema *enforces* which variant
+goes with which hull class — that judgment stays with whoever authors a ship (§2.13).
+
+**Every kind gets a full per-faction roster, unlike §2.11's modules.** The module rosters keep
+Facility/Sensor/Hyperdrive/Comms/Crew general-only because those modules carry real per-stat tuning
+that is expensive to hand-balance ten times over. A shell only carries four numbers and a sprite, so
+that cost does not exist — every kind below gets the same per-faction treatment Weapon or Engine get.
+
+**`ShellKind` grows from 7 to 13.** The six new values give every §2.11 module kind a housing of its
+own, the same 1:1 relationship `Weapon`/`Shield`/`Engine` already have with their module kinds — a
+uniform `IsMountable()` table rather than several kinds sharing a generic housing with finer-grained
+rules layered on top.
+
+| `ShellKind` | Houses | Status |
+|---|---|---|
+| `Chassis` | The rig's root; accepts `Armor` modules directly (as `aegis_vanguard`'s `core` mount already does) | ✅ exists |
+| `Armor` | `Armor` modules — pure hull with no function of its own | ✅ exists |
+| `PowerCell` | `PowerCell` modules | ✅ exists |
+| `Engine` | `Engine` modules | ✅ exists |
+| `Weapon` | `Weapon` modules | ✅ exists |
+| `Shield` | `ShieldGenerator` modules | ✅ exists |
+| `Facility` | `Facility` modules (Repair/Manufacturing/Research/Docking/Engineering, §2.11) | ✅ exists |
+| `Sensor` | `Sensor` modules | 🆕 new |
+| `Hyperdrive` | `Hyperdrive` modules | 🆕 new |
+| `Comms` | `Comms` modules | 🆕 new |
+| `CargoBay` | `Cargo Bay` modules | 🆕 new |
+| `Crew` | `Crew` modules | 🆕 new |
+| `FireControl` | `FireControl` modules | 🆕 new |
+
+#### General — the faction-neutral baseline
+
+*Every faction roster below is a variation on this set. `shells.json`'s current seven generic shells
+fold into this table as its `Standard`-tier row — several numbers correct a known defect on the way
+in: `shell_fighter_chassis`'s radius is 22 today, and §3.5 already names 12 as the corrected value for
+a fighter-scale chassis.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Light Frame | 80 | 25 | 10 | 1 | Small and cheap — a shuttle or interceptor root |
+| Standard Frame | 150 | 45 | 12 | 1 | Corrects `shell_fighter_chassis`'s current radius-22 defect (§3.5) |
+| Bulwark Frame | 900 | 220 | 60 | 2 | Corvette/cruiser-scale root; a second slot admits a backup armor plate |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Plate Segment | 60 | 15 | 6 | 1 | Baseline hull-only housing |
+| Reinforced Segment | 110 | 30 | 7 | 1 | More hull for more mass — a straight tradeoff, no hidden bonus |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Power Bay | 50 | 15 | 8 | 1 | `shells.json`'s existing `shell_power_bay`, unchanged |
+| Reactor Bay | 90 | 28 | 11 | 1 | Larger housing for a capital-scale power cell |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Thruster Mount | 45 | 12 | 9 | 1 | `shells.json`'s existing `shell_thruster_mount`, unchanged |
+| Drive Bay | 140 | 40 | 18 | 1 | Capital-scale mount |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Wing Hardpoint | 35 | 8 | 7 | 1 | `shells.json`'s existing `shell_wing_hardpoint`, unchanged |
+| Turret Ring | 200 | 55 | 20 | 1 | Independently-targeting capital battery housing (§2.7) |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Shield Emitter Housing | 40 | 10 | 8 | 1 | `shells.json`'s existing `shell_shield_emitter`, unchanged |
+| Array Housing | 85 | 22 | 13 | 1 | Capital-scale, feeds a Bubble/Conformal emitter (§3.1) |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Facility Bay | 80 | 20 | 14 | 1 | `shells.json`'s existing `shell_facility_bay`, unchanged |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Sensor Mast | 30 | 8 | 6 | 1 | Thin-pool housing, matches Sensor's single-stat module design (§2.11) |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Drive Core Housing | 70 | 35 | 12 | 1 | Houses the Hyperdrive module and its fuel gate (§2.11) |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Comms Mast | 30 | 8 | 6 | 1 | Same thin-pool shape as Sensor |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Hold Frame | 60 | 15 | 12 | 1 | Houses a Cargo Bay module; capacity lives on the module, not the shell |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Crew Berth | 40 | 20 | 8 | 1 | Houses one `Crew` module — officer or complement role, whichever it rolled |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Fire Control Housing | 35 | 10 | 6 | 1 | Small — it's a targeting computer, not a weapon |
+
+#### Aegis Directorate — the template faction
+
+*"Imposing, strictly symmetrical, military-grade geometric plating" (`lore.md` §3.1). Decision logic
+prioritizes border fortification over offense. The Directorate's shells read that directly: heavier
+hull for the same mass class as General, never the lightest or fastest option in any kind.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Sentinel Frame | 100 | 30 | 10 | 1 | Interceptor-scale, still hull-heavy for its size |
+| Directorate Frame | 190 | 50 | 12 | 1 | Standard-issue hull — +27% hull over General's Standard Frame at the same mass |
+| Fortress Frame | 1,100 | 240 | 62 | 2 | Cruiser/capital root; the heaviest Chassis in any faction's roster |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Directorate Plate | 75 | 16 | 6 | 1 | More hull than General's Plate Segment for the same mass |
+| Bulkhead Segment | 145 | 32 | 7 | 1 | Signature piece — the densest armor-per-mass in the game |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Secured Power Bay | 65 | 16 | 8 | 1 | Armored housing around a standard cell |
+| Secured Reactor Bay | 110 | 29 | 11 | 1 | Capital-scale, same hardening bias |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Drilled Thruster Mount | 55 | 13 | 9 | 1 | Slightly heavier than General — nothing on a Directorate hull is unarmored |
+| Convoy Drive Bay | 160 | 42 | 18 | 1 | Capital-scale |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Standard-Issue Hardpoint | 45 | 9 | 7 | 1 | Baseline, armored above General's equivalent |
+| Bastion Turret Ring | 230 | 58 | 20 | 1 | Faction signature — highest-hull turret ring in the roster |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Secured Emitter Housing | 50 | 11 | 8 | 1 | |
+| Secured Array Housing | 100 | 24 | 13 | 1 | |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Directorate Facility Bay | 100 | 22 | 14 | 1 | Hardened — Aegis stations are built to take a hit and keep functioning |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Watch Mast | 35 | 9 | 6 | 1 | "Security patrols" (`lore.md`) — nothing exotic, just armored |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Secured Drive Core | 85 | 37 | 12 | 1 | |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Command Mast | 35 | 9 | 6 | 1 | |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Secured Hold Frame | 75 | 16 | 12 | 1 | |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Barracks Berth | 55 | 21 | 8 | 1 | |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Directorate Fire Control | 45 | 11 | 6 | 1 | |
+
+**The pattern held across all nine remaining factions, completed 2026-08-11.** Every kind keeps
+General's `radius` and `moduleSlots` (radius is collision/targeting footprint, not a place to encode
+faction identity — §3.5 owns that axis, and only Voidwalkers breaks this rule, deliberately); only
+`hull` and `mass` move, as a fixed percentage of General's baseline applied uniformly across every
+kind, using the same archetype descriptors §2.11's Weapon Roster already established (so a faction
+reads the same whether you're looking at its guns or its girders). Named variants and the signature
+Chassis/Weapon rows carry real flavor text; the remaining rows are the same delta applied mechanically
+— reviewed for correctness, not narrated twice.
+
+#### Meridian Star Corps — cost-efficient, mass-produced, mercenary-adjacent
+
+*Hull ×0.95, Mass ×0.80 vs. General. "Sleek, luxurious, aerodynamic curves cast from single molds"
+(`lore.md`) reads as engineering efficiency, not toughness — Meridian hulls are never the strongest in
+a fight, only the cheapest to field in numbers.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Courier Frame | 76 | 20 | 10 | 1 | Cheapest Chassis in any roster |
+| Corporate Frame | 143 | 36 | 12 | 1 | The mass-produced standard — 20% lighter than General for 5% less hull |
+| Flagship Frame | 855 | 176 | 60 | 2 | Still the lightest capital-scale Chassis of any faction |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Composite Plate | 57 | 12 | 6 | 1 |
+| Reinforced Composite | 105 | 24 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Efficiency Bay | 48 | 12 | 8 | 1 |
+| Efficiency Reactor | 86 | 22 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Cruise Thruster | 43 | 10 | 9 | 1 |
+| Cruise Drive Bay | 133 | 32 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Standard Hardpoint | 33 | 6 | 7 | 1 | |
+| Corporate Turret Ring | 190 | 44 | 20 | 1 | Signature — cheapest capital battery of any faction |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Standard Emitter | 38 | 8 | 8 | 1 |
+| Standard Array | 81 | 18 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Corporate Facility Bay | 76 | 16 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Market Mast | 29 | 6 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Efficiency Drive Core | 67 | 28 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Broker Mast | 29 | 6 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Freight Frame | 57 | 12 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Crew Cabin | 38 | 16 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Standard Fire Control | 33 | 8 | 6 | 1 |
+
+#### Kore Industries — repurposed mining tools, rugged, blunt
+
+*Hull ×1.35, Mass ×1.45 vs. General. "Brutal, heavy industrial... exposed internal machinery" —
+Kore trades efficiency for raw endurance harder than any faction except the Reapers, and unlike the
+Reapers it's an honest tradeoff: heavier hull for genuinely heavier mass, nothing hidden.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Rig Frame | 108 | 36 | 10 | 1 | |
+| Foundry Frame | 203 | 65 | 12 | 1 | |
+| Bedrock Frame | 1,215 | 319 | 60 | 2 | Heaviest capital-scale Chassis outside the Reapers |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Salvage Plate | 81 | 22 | 6 | 1 |
+| Hull Slab | 149 | 44 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Drill Power Bay | 68 | 22 | 8 | 1 |
+| Drill Reactor Bay | 122 | 41 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Piston Thruster Mount | 61 | 17 | 9 | 1 |
+| Piston Drive Bay | 189 | 58 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Repurposed Hardpoint | 47 | 12 | 7 | 1 | A mining laser mount pressed into gunnery |
+| Foundry Turret Ring | 270 | 80 | 20 | 1 | Signature — heaviest turret ring of any faction |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Hardened Emitter Housing | 54 | 15 | 8 | 1 |
+| Hardened Array Housing | 115 | 32 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Foundry Facility Bay | 108 | 29 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Watch Rig | 41 | 12 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Hauler Drive Core | 95 | 51 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Relay Rig | 41 | 12 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Bulk Hold Frame | 81 | 22 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Bunk Frame | 54 | 29 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Repurposed Fire Control | 47 | 15 | 6 | 1 |
+
+#### The Forgotten — jury-rigged, salvaged, high-variance
+
+*No fixed multiplier — the whole point is that there isn't one. Each kind gets one clearly** worse**
+variant (Scrap, ~-20%/-20%) and one clearly **better** variant (Patchwork, ~+15%/+30% — heavier than
+the gain, since jury-rigged means bulky, not efficient), matching the Weapon Roster's existing
+"whatever scrap filled the recipe slots — unpredictable" bias. The Forgotten never build a Standard
+tier; General's own numbers stand in for "what they'd build if they had the parts, which they don't."*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Scrap Frame | 64 | 20 | 10 | 1 | Worse than General's Light Frame in every stat |
+| Cobbled Frame | 150 | 45 | 12 | 1 | Identical to General's Standard — "whatever they found that day" |
+| Patchwork Frame | 1,035 | 286 | 60 | 2 | Better hull than General's Bulwark, at real mass cost |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Plate | 48 | 12 | 6 | 1 |
+| Patchwork Segment | 127 | 39 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Power Bay | 40 | 12 | 8 | 1 |
+| Patchwork Reactor | 104 | 36 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Thruster | 36 | 10 | 9 | 1 |
+| Patchwork Drive Bay | 161 | 52 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Scrap Hardpoint | 28 | 6 | 7 | 1 | |
+| Patchwork Turret Ring | 230 | 72 | 20 | 1 | Signature — bulkier than Kore's, less efficient, still lands |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Emitter | 32 | 8 | 8 | 1 |
+| Patchwork Array | 98 | 29 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Patchwork Facility Bay | 92 | 26 | 14 | 1 | A working facility on a scrap fleet is notable — no Scrap-tier version |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Mast | 24 | 6 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Patchwork Drive Core | 81 | 46 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Mast | 24 | 6 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Patchwork Hold Frame | 69 | 20 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scrap Berth | 32 | 16 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Patchwork Fire Control | 40 | 13 | 6 | 1 |
+
+#### AI Concordance — precise, optimized, post-biological
+
+*Hull ×1.05, Mass ×0.75 vs. General — the best hull-per-mass ratio of any faction. "Biomorphic curves,
+hyper-efficient" reads as engineering with nothing wasted, the inverse of Kore's honest bulk.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Node Frame | 84 | 19 | 10 | 1 | |
+| Lattice Frame | 158 | 34 | 12 | 1 | Best hull-per-mass Chassis in the game |
+| Array Frame | 945 | 165 | 60 | 2 | |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Optimized Plate | 63 | 11 | 6 | 1 |
+| Optimized Segment | 116 | 23 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Efficient Power Node | 53 | 11 | 8 | 1 |
+| Efficient Reactor Node | 95 | 21 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Calculated Thruster | 47 | 9 | 9 | 1 |
+| Calculated Drive Node | 147 | 30 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Precision Hardpoint | 37 | 6 | 7 | 1 | |
+| Array Turret Ring | 210 | 41 | 20 | 1 | Signature — lightest capital battery for its hull of any faction |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Optimized Emitter | 42 | 8 | 8 | 1 |
+| Optimized Array | 89 | 17 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Node Facility Bay | 84 | 15 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Analytical Mast | 32 | 6 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Optimized Drive Core | 74 | 26 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Network Mast | 32 | 6 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Node Hold Frame | 63 | 11 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Housing Node | 42 | 15 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Calculated Fire Control | 37 | 8 | 6 | 1 |
+
+#### Pyre Ascendancy — fire/plasma, aggressive, high-risk
+
+*Hull ×0.70, Mass ×0.70 vs. General — the lightest, frailest shells of any faction. "High aggression,"
+"high-risk" (`lore.md`, §2.11's Weapon Roster) is a glass-cannon identity carried into the hull itself,
+not just the guns: Pyre wins by burning fast, not by tanking.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Zealot Frame | 56 | 18 | 10 | 1 | Frailest Chassis in the game at Light scale |
+| Ascendant Frame | 105 | 32 | 12 | 1 | |
+| Reliquary Frame | 630 | 154 | 60 | 2 | Lightest capital-scale Chassis of any faction |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Sacred Plate | 42 | 11 | 6 | 1 |
+| Sacred Segment | 77 | 21 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Flame Power Bay | 35 | 11 | 8 | 1 |
+| Flame Reactor Bay | 63 | 20 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Zealous Thruster | 32 | 8 | 9 | 1 |
+| Crusade Drive Bay | 98 | 28 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Consecrated Hardpoint | 25 | 6 | 7 | 1 | Frailest weapon housing of any faction |
+| Reliquary Turret Ring | 140 | 39 | 20 | 1 | Signature — trades survivability for the roster's highest burst damage (§2.11) |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Consecrated Emitter | 28 | 7 | 8 | 1 |
+| Consecrated Array | 60 | 15 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Reliquary Facility Bay | 56 | 14 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Vigil Mast | 21 | 6 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Crusade Drive Core | 49 | 25 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Vigil Mast | 21 | 6 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Reliquary Hold Frame | 42 | 11 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Devotee Berth | 28 | 14 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Consecrated Fire Control | 25 | 7 | 6 | 1 |
+
+#### Voidwalkers — exotic, anomaly-touched, cryptic
+
+*Hull ×0.90, Mass ×0.85, **Radius ×0.75** vs. General — the one roster where radius moves, per §2.12's
+own note above. "Segmented hulls... non-Euclidean geometric angles" (`lore.md`) is a shape claim: a
+Voidwalker hardpoint occupies less space for its stats than anyone else's, not just less mass.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Rift Frame | 72 | 21 | 8 | 1 | Smallest-footprint Chassis in the game |
+| Segmented Frame | 135 | 38 | 9 | 1 | |
+| Anomaly Frame | 810 | 187 | 45 | 2 | Capital-scale, at a fighter-adjacent radius fraction |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Ribbon Plate | 54 | 13 | 5 | 1 |
+| Ribbon Segment | 99 | 26 | 5 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Rift Power Bay | 45 | 13 | 6 | 1 |
+| Rift Reactor Bay | 81 | 24 | 8 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Ribbon Thruster | 41 | 10 | 7 | 1 |
+| Ribbon Drive Bay | 126 | 34 | 14 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Angular Hardpoint | 32 | 7 | 5 | 1 | Smallest weapon housing footprint of any faction |
+| Anomaly Turret Ring | 180 | 47 | 15 | 1 | Signature — a capital battery with a corvette's radius |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Ethereal Emitter | 36 | 9 | 6 | 1 |
+| Ethereal Array | 77 | 19 | 10 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Anomaly Facility Bay | 72 | 17 | 11 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Distortion Mast | 27 | 7 | 5 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Rift Drive Core | 63 | 30 | 9 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Echo Mast | 27 | 7 | 5 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Rift Hold Frame | 54 | 13 | 9 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Segmented Berth | 36 | 17 | 6 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Angular Fire Control | 32 | 9 | 5 | 1 |
+
+#### Zenith Collective — precision instruments, sensor-integrated
+
+*Hull ×0.90, Mass ×0.80 vs. General. "Smooth, reflective surfaces faceted like a cut gem" reads as
+instrument-grade construction — light and precise like AI Concordance, but without Concordance's
+hull premium; Zenith spends its efficiency on sensor/knowledge systems, not survivability.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Facet Frame | 72 | 20 | 10 | 1 | |
+| Lattice Frame | 135 | 36 | 12 | 1 | |
+| Archive Frame | 810 | 176 | 60 | 2 | |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Cut Plate | 54 | 12 | 6 | 1 |
+| Cut Segment | 99 | 24 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Instrument Power Bay | 45 | 12 | 8 | 1 |
+| Instrument Reactor Bay | 81 | 22 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Precision Thruster | 41 | 10 | 9 | 1 |
+| Precision Drive Bay | 126 | 32 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Study Hardpoint | 32 | 6 | 7 | 1 | |
+| Archive Turret Ring | 180 | 44 | 20 | 1 | Signature — shares its sensor suite's tech per §2.11's Weapon Roster |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Faceted Emitter | 36 | 8 | 8 | 1 |
+| Faceted Array | 77 | 18 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Archive Facility Bay | 72 | 16 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Discovery Mast | 27 | 6 | 6 | 1 | The one kind Zenith would over-invest in if shells carried performance stats — they don't, so this stays General-shaped |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Instrument Drive Core | 63 | 28 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Catalogue Mast | 27 | 6 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Archive Hold Frame | 54 | 12 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Scholar Berth | 36 | 16 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Study Fire Control | 32 | 8 | 6 | 1 |
+
+#### Edenian Pact — bio-integrated, defensive-leaning, corrosive
+
+*Hull ×1.15, Mass ×0.90 vs. General — good hull for good mass, the opposite mechanism from Aegis's
+brute armor. "Segmented carapace armor" (`lore.md`) is defense grown, not bolted on; Edenian shells
+are the only roster besides AI Concordance with a hull premium that doesn't cost mass 1:1.*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Sprout Frame | 92 | 23 | 10 | 1 | |
+| Carapace Frame | 173 | 41 | 12 | 1 | |
+| Grove Frame | 1,035 | 198 | 60 | 2 | |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Carapace Plate | 69 | 14 | 6 | 1 |
+| Carapace Segment | 127 | 27 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Symbiont Power Bay | 58 | 14 | 8 | 1 |
+| Symbiont Reactor Bay | 104 | 25 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Living Thruster | 52 | 11 | 9 | 1 |
+| Living Drive Bay | 161 | 36 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Bio Hardpoint | 40 | 7 | 7 | 1 | |
+| Grove Turret Ring | 230 | 50 | 20 | 1 | Signature — high hull, moderate mass, matches "defensive-leaning" |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Living Emitter | 46 | 9 | 8 | 1 |
+| Living Array | 98 | 20 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Grove Facility Bay | 92 | 18 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Root Mast | 35 | 7 | 6 | 1 |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Symbiont Drive Core | 81 | 32 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Vine Mast | 35 | 7 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Carapace Hold Frame | 69 | 14 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Symbiont Berth | 46 | 18 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Bio Fire Control | 40 | 9 | 6 | 1 |
+
+#### The Reapers — brutal, mass-destruction, entropic
+
+*Hull ×1.40, Mass ×1.30 vs. General — the heaviest hull of any faction, heavier even than Kore, though
+Kore still edges them on mass-for-mass toughness (Kore's hull/mass ratio is slightly better; the
+Reapers are simply bigger everywhere). "Matte, skeletal bone-like surfaces" — overwhelming scale
+rather than efficient engineering, matching a faction that "does not engage in standard diplomacy."*
+
+| Shell (Chassis) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Bone Frame | 112 | 33 | 10 | 1 | |
+| Ossuary Frame | 210 | 59 | 12 | 1 | |
+| Charnel Frame | 1,260 | 286 | 60 | 2 | Highest raw hull of any capital-scale Chassis |
+
+| Shell (Armor) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Bone Plate | 84 | 20 | 6 | 1 |
+| Bone Segment | 154 | 39 | 7 | 1 |
+
+| Shell (PowerCell) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Marrow Power Bay | 70 | 20 | 8 | 1 |
+| Marrow Reactor Bay | 126 | 36 | 11 | 1 |
+
+| Shell (Engine) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Sinew Thruster | 63 | 16 | 9 | 1 |
+| Sinew Drive Bay | 196 | 52 | 18 | 1 |
+
+| Shell (Weapon) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Predatory Hardpoint | 49 | 10 | 7 | 1 | |
+| Charnel Turret Ring | 280 | 72 | 20 | 1 | Signature — highest-hull turret ring in the game |
+
+| Shell (Shield) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Warding Emitter | 56 | 13 | 8 | 1 |
+| Warding Array | 119 | 29 | 13 | 1 |
+
+| Shell (Facility) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Charnel Facility Bay | 112 | 26 | 14 | 1 |
+
+| Shell (Sensor) | Hull | Mass | Radius | Slots | Bias |
+|---|---|---|---|---|---|
+| Hunting Mast | 42 | 10 | 6 | 1 | Feeds §5.7's structural-density target selection, not a combat stat |
+
+| Shell (Hyperdrive) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Sinew Drive Core | 98 | 46 | 12 | 1 |
+
+| Shell (Comms) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Signal Mast | 42 | 10 | 6 | 1 |
+
+| Shell (CargoBay) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Bone Hold Frame | 84 | 20 | 12 | 1 |
+
+| Shell (Crew) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Thrall Berth | 56 | 26 | 8 | 1 |
+
+| Shell (FireControl) | Hull | Mass | Radius | Slots |
+|---|---|---|---|---|
+| Predatory Fire Control | 49 | 13 | 6 | 1 |
+
+**Shell Roster complete for all ten factions + General**, all following §2.12's structure exactly:
+same `radius`/`moduleSlots` as General throughout (Voidwalkers excepted, by design), only `hull`/`mass`
+carrying faction identity, at the percentage deltas named in each faction's intro above.
+
+### 2.13 The Preset Ship Roster 📋
+
+*Added 2026-08-11, built entirely from §2.11's modules and §2.12's shells — no new schema. These are
+what `ships.json` grows into: `aegis_vanguard` and `aegis_outpost` already exist and become two of
+Aegis's four below.*
+
+**2–5 ships per faction, total — not per hull class.** A small signature fleet, the same shape
+`ships.json` already has for Aegis and The Forgotten today, just completed and given the same
+treatment across every faction + General.
+
+**Every faction fills the same role-slots, scaled by hardpoint count and by when Facility-kind shells
+enter the build:**
+
+| Role slot | Hardpoints | Facility shells? | Chassis tier |
+|---|---|---|---|
+| **Starter fighter** | 4 – 7 | No | Light/Sentinel Frame |
+| **Combatant** | 10 – 20 | No | Standard/Directorate Frame |
+| **Capital or station** | 20 – 40 | **Yes** — Docking at minimum | Bulwark/Fortress Frame |
+
+A faction's 2–5 ships pick which of these slots to fill (most factions fill all three plus one
+signature wildcard, mirroring the Weapon Roster's 5th-slot pattern); nothing requires filling every
+slot exactly once.
+
+#### General — the faction-neutral baseline
+
+| Ship | Role slot | Built from |
+|---|---|---|
+| Courier | Starter fighter | Light Frame + General Engine/Weapon/PowerCell/Shield shells and modules |
+| Trader | Combatant | Standard Frame, CargoBay shell added, general modules throughout |
+| Outpost | Capital/station | Bulwark Frame + Facility Bay (Docking), general modules |
+
+#### Aegis Directorate — the template faction
+
+| Ship | Role slot | Mounts (shell → module, from §2.12/§2.11) |
+|---|---|---|
+| **Vanguard** *(exists — `aegis_vanguard`)* | Starter fighter | Sentinel Frame core + Directorate Plate armor, Secured Power Bay + a power cell module, Drilled Thruster Mount + an engine module, 2× Standard-Issue Hardpoint + an Aegis Weapon Roster entry, Secured Emitter Housing + an Aegis Shield Roster entry |
+| **Warden** *(new)* | Combatant | Directorate Frame core, 2× Directorate Plate, Secured Reactor Bay, Convoy Drive Bay, 4× Standard-Issue Hardpoint (mixed Aegis Weapon Roster picks), Secured Array Housing, Watch Mast (Sensor), Command Mast (Comms), 2× Barracks Berth (Crew) |
+| **Bastion** *(new)* | Combatant (signature) | As Warden, but one Standard-Issue Hardpoint replaced by **Bastion Turret Ring** carrying the Aegis Weapon Roster's heaviest entry — the faction's showpiece gunship |
+| **Outpost** *(exists — `aegis_outpost`)* | Capital/station | Fortress Frame core, Secured Reactor Bay, Directorate Facility Bay + a Docking module, N× Barracks Berth, Secured Hold Frame + a Cargo Bay module |
+
+**Vanguard and Outpost already exist in `ships.json`** and need updating to reference the new
+per-faction shells above (their current mounts use General's generic `shell_*` ids) rather than being
+rebuilt from scratch. **Warden and Bastion are net-new content.**
+
+#### Meridian Star Corps
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Runner** | Starter fighter | Courier Frame core + Composite Plate, Efficiency Bay + power cell, Cruise Thruster + engine, 2× Standard Hardpoint + Ledger-Line Cannon, Standard Emitter + shield |
+| **Contractor** | Combatant | Corporate Frame core, 2× Composite Plate, Efficiency Reactor, Cruise Drive Bay, 4× Standard Hardpoint (mixed picks incl. Contractor Flak Battery), Standard Array, Market Mast, Broker Mast, 2× Crew Cabin |
+| **Liquidator** | Combatant (signature) | As Contractor, one Standard Hardpoint replaced by **Corporate Turret Ring** carrying **Liquidator Beam** — the client-tier flagship weapon |
+| **Depot** | Capital/station | Flagship Frame core, Efficiency Reactor, Corporate Facility Bay + Trade module, N× Crew Cabin, Freight Frame ×2 + Cargo Bay modules — the largest cargo footprint of any faction's station |
+
+#### Kore Industries
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Drillhand** | Starter fighter | Rig Frame core + Salvage Plate, Drill Power Bay + power cell, Piston Thruster Mount + engine, 2× Repurposed Hardpoint + Drillhead Mass Driver, Hardened Emitter Housing + shield |
+| **Foreman** | Combatant | Foundry Frame core, 2× Salvage Plate, Drill Reactor Bay, Piston Drive Bay, 4× Repurposed Hardpoint (mixed picks incl. Foreman's Scattergun), Hardened Array Housing, Watch Rig, Relay Rig, 2× Bunk Frame |
+| **Bedrock Hauler** | Combatant (signature) | As Foreman, one Repurposed Hardpoint replaced by **Foundry Turret Ring** carrying **Blast-Charge Launcher** — heaviest turret ring of any faction on its heaviest chassis |
+| **Refinery** | Capital/station | Bedrock Frame core, Drill Reactor Bay, Foundry Facility Bay + Manufacturing module, N× Bunk Frame, Bulk Hold Frame ×2 + Cargo Bay modules |
+
+#### The Forgotten
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Scrapper** *(exists — `forgotten_scrapper`)* | Starter fighter | Scrap/Cobbled Frame mix + Scrap Plate, Scrap Power Bay + power cell, Scrap Thruster + engine, 1× Scrap Hardpoint + Scrapgun |
+| **Cobble-Wing** *(new)* | Combatant | Cobbled Frame core, mixed Scrap/Patchwork Armor, Patchwork Reactor, Patchwork Drive Bay, 4× mixed Weapon shells (Patchwork Ripper, Jury-Rig Laser, Overcharged Splicer picks), Patchwork Array, Scrap Mast ×2 (Sensor+Comms), 2× Scrap Berth |
+| **Salvage King** *(new, signature)* | Combatant (signature) | As Cobble-Wing, one weapon shell replaced by **Patchwork Turret Ring** carrying **Overcharged Splicer** — the faction's rare "everything went right" build |
+| **Warren** *(new)* | Capital/station | Patchwork Frame core, Patchwork Reactor, Patchwork Facility Bay + Docking module (the one facility they always get right), N× Scrap Berth, Patchwork Hold Frame + Cargo Bay module |
+
+*`forgotten_scrapper` already exists and needs updating to reference the new Forgotten shells above.*
+
+#### AI Concordance
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Node Unit** | Starter fighter | Node Frame core + Optimized Plate, Efficient Power Node + power cell, Calculated Thruster + engine, 2× Precision Hardpoint + Calculus Autocannon, Optimized Emitter + shield |
+| **Lattice Unit** | Combatant | Lattice Frame core, 2× Optimized Plate, Efficient Reactor Node, Calculated Drive Node, 4× Precision Hardpoint (mixed picks incl. Precision Beam Array), Optimized Array, Analytical Mast, Network Mast, 2× Housing Node |
+| **Recursion Unit** | Combatant (signature) | As Lattice Unit, one Precision Hardpoint replaced by **Array Turret Ring** carrying **Entropy-Minimizing Lance** — the faction's highest power-cost signature |
+| **Archive Node** | Capital/station | Array Frame core, Efficient Reactor Node, Node Facility Bay + Research module, N× Housing Node, Node Hold Frame + Cargo Bay module |
+
+#### Pyre Ascendancy
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Cinder** | Starter fighter | Zealot Frame core + Sacred Plate, Flame Power Bay + power cell, Zealous Thruster + engine, 2× Consecrated Hardpoint + Cinder Cannon, Consecrated Emitter + shield |
+| **Ascendant** | Combatant | Ascendant Frame core, 2× Sacred Plate, Flame Reactor Bay, Crusade Drive Bay, 4× Consecrated Hardpoint (mixed picks incl. Purification Beam), Consecrated Array, Vigil Mast ×2 (Sensor+Comms), 2× Devotee Berth |
+| **Reliquary Blade** | Combatant (signature) | As Ascendant, one Consecrated Hardpoint replaced by **Reliquary Turret Ring** carrying **Sacred Flame Lance** — highest burst damage of any faction's Energy weapon (§2.11), on the frailest capital-scale hull |
+| **Sanctum** | Capital/station | Reliquary Frame core, Flame Reactor Bay, Reliquary Facility Bay + Research module (doctrine study), N× Devotee Berth, Reliquary Hold Frame + Cargo Bay module |
+
+#### Voidwalkers
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Ribbon** | Starter fighter | Rift Frame core + Ribbon Plate, Rift Power Bay + power cell, Ribbon Thruster + engine, 2× Angular Hardpoint + Rift-Edge Driver, Ethereal Emitter + shield |
+| **Segment** | Combatant | Segmented Frame core, 2× Ribbon Plate, Rift Reactor Bay, Ribbon Drive Bay, 4× Angular Hardpoint (mixed picks incl. Umbral Beam), Ethereal Array, Distortion Mast, Echo Mast, 2× Segmented Berth |
+| **Silent Rift** | Combatant (signature) | As Segment, one Angular Hardpoint replaced by **Anomaly Turret Ring** carrying **Silence Caster** — a capital battery with a corvette's radius (§2.12) |
+| **Fleet-City Node** | Capital/station | Anomaly Frame core, Rift Reactor Bay, Anomaly Facility Bay + Docking module, N× Segmented Berth, Rift Hold Frame + Cargo Bay module — the smallest-footprint capital-scale hull of any faction |
+
+#### Zenith Collective
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Facet** | Starter fighter | Facet Frame core + Cut Plate, Instrument Power Bay + power cell, Precision Thruster + engine, 2× Study Hardpoint + Archivist Autocannon, Faceted Emitter + shield |
+| **Lattice Scholar** | Combatant | Lattice Frame core, 2× Cut Plate, Instrument Reactor Bay, Precision Drive Bay, 4× Study Hardpoint (mixed picks incl. Cataloguing Beam Array), Faceted Array, Discovery Mast, Catalogue Mast, 2× Scholar Berth |
+| **Discovery** | Combatant (signature) | As Lattice Scholar, one Study Hardpoint replaced by **Archive Turret Ring** carrying **Discovery Lance** — tuned for prolonged engagement over a specimen (§2.11) |
+| **Archive** | Capital/station | Archive Frame core, Instrument Reactor Bay, Archive Facility Bay + Research module, N× Scholar Berth, Archive Hold Frame + Cargo Bay module |
+
+#### Edenian Pact
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Sprout** | Starter fighter | Sprout Frame core + Carapace Plate, Symbiont Power Bay + power cell, Living Thruster + engine, 2× Bio Hardpoint + Thornbranch Driver, Living Emitter + shield |
+| **Carapace** | Combatant | Carapace Frame core, 2× Carapace Plate, Symbiont Reactor Bay, Living Drive Bay, 4× Bio Hardpoint (mixed picks incl. Bloomspore Caster), Living Array, Root Mast, Vine Mast, 2× Symbiont Berth |
+| **Bloomguard** | Combatant (signature) | As Carapace, one Bio Hardpoint replaced by **Grove Turret Ring** carrying **Blight Lance** — "protecting the garden" (§2.11) |
+| **Grove** | Capital/station | Grove Frame core, Symbiont Reactor Bay, Grove Facility Bay + Engineering module (the Pact repairs by growing, not welding), N× Symbiont Berth, Carapace Hold Frame + Cargo Bay module |
+
+#### The Reapers
+
+| Ship | Role slot | Mounts |
+|---|---|---|
+| **Bone Hunter** | Starter fighter | Bone Frame core + Bone Plate, Marrow Power Bay + power cell, Sinew Thruster + engine, 2× Predatory Hardpoint + Harvest Driver, Warding Emitter + shield |
+| **Ossuary** | Combatant | Ossuary Frame core, 2× Bone Plate, Marrow Reactor Bay, Sinew Drive Bay, 4× Predatory Hardpoint (mixed picks incl. Unmaking Beam), Warding Array, Hunting Mast, Signal Mast, 2× Thrall Berth |
+| **Charnel Reaper** | Combatant (signature) | As Ossuary, one Predatory Hardpoint replaced by **Charnel Turret Ring** carrying **Entropy Lance** — highest-hull turret ring in the game (§2.12), matching the faction's "structural density" targeting (§5.7) |
+| **Charnel Hive** | Capital/station | Charnel Frame core, Marrow Reactor Bay, Charnel Facility Bay (no Docking — the Reapers do not host guests), N× Thrall Berth, Bone Hold Frame + Cargo Bay module |
+
+*Reaper ships are NPC-spawned only (`NpcFactory`/`FactionDecisionEngine`) — §5.7's universal hostility
+means there is no diplomatic path to ever dock at or buy from one, so nothing above assumes a player
+build path the way the other nine factions' rosters do.*
+
+**Preset Ship Roster complete for all ten factions + General** — 43 ships total (4 × 10 factions + 3
+General), following §2.13's shared role-slot structure. `Vanguard`/`Outpost` (Aegis) and
+`forgotten_scrapper` (The Forgotten) are the only three that already exist in `ships.json`, and all
+three need their mounts updated to the new per-faction shells rather than General's generic ones. The
+other 40 are net-new content.
+
 ---
 
 ## 3. Combat & Localized Damage 📋
@@ -4546,10 +5494,24 @@ one mandatory weapon.
 uncapturable, and it muddles §4.1's clean idea of the bay as *your garage*. The real cost is surviving
 long enough to get adjacent to something still shooting.
 
-❓ **Ownership transfer is still open.** Everything above brings a hull to *capturable*; what actually
-changes its `FactionRef`, and on what terms an AI faction may do the same to the player (§6.3 requires
-symmetry), is unspecified. **Disabling is a complete mechanic without it** — a dead-and-drifting hull
-is already a result.
+✅ **Ownership transfer — settled 2026-08-11: boarding-in-place completes it.** Once a hull satisfies
+all three capturability conditions, a Troop Bay-carrying vessel that gets adjacent and **holds
+position there for a duration** (scaled by troop bay capacity vs. the target's hull class) flips the
+target's `FactionRef` when the hold completes — the same exposure-for-duration trade every other
+"stand still and take the risk" action in this design already uses, and it is why the target has to
+already be defenseless (§6.3's symmetry requirement is satisfied for free: an AI faction runs the
+identical check against the player's own uncrewed hull).
+
+**Capturing a hull converts its crew, commander included — which is also what network raiding turns
+out to be.** A sub-commander is a `Crew` module occupying a slot on the vessel exactly like any other
+crew (§4.5); when the hull's `FactionRef` flips, every crew module aboard flips with it, the same way
+a station's facilities come under new management when the station itself changes hands. No separate
+"steal the knowledge" mechanic is needed: capturing a commander's vessel converts the commander, and
+their `KnowledgeNetwork` (§2.5) — which is anchored to that specific commander entity, not to any
+station — simply now belongs to whoever holds the vessel. **This is bribery's wholesale cousin**:
+§2.7's crew bribery converts one crew module at a time for credits; capture converts an entire crew at
+once for combat risk. A faction's own general network (not tied to any one commander) has no such
+anchor and stays permanently un-raidable by design — see §2.5.
 
 ⚠️ **The crew shell does not exist in code.** `ModuleKind` is
 `{Weapon, ShieldGenerator, PowerCell, Engine, Armor, Facility}`, `ShellKind` has no crew value, and
@@ -4598,8 +5560,12 @@ into a genuine race rather than a formality, and it gives The Forgotten (behavio
 concrete reason to be circling a battlefield. Dying deep in Forgotten space should feel materially
 worse than dying next to an allied station.
 
-❓ *Open: the recovery window's duration, whether it is wall-clock or in-game time, and whether the
-wreck is visible to the player on the navigation map (§8) or must be navigated to from memory.*
+✅ **Settled 2026-08-11.** The window is **short and measured in in-game (simulated) time, not
+wall-clock** — the game has no pause per §3.4, so the two only diverge if the player alt-tabs away —
+and the wreck **is marked on the navigation map (§8)** for the duration of the window, giving the
+player an exact heading rather than forcing them to navigate from memory. Marking it costs nothing
+new: `LootSystem`'s derelict-wreck entity is already a `DerelictWreck`, and §8.2's icon model already
+draws map markers by kind.
 
 #### Tier 3 — Hard Game Over 📋
 
@@ -6498,8 +7464,19 @@ is genuinely hard to eliminate; a player who does everything personally is one b
 Tier 3 outcome. This is the intended tradeoff — appointing a commander costs resources and gives away
 direct control, and buys survival of the run.
 
-❓ *Open: how sub-commanders are recruited or created, whether they have individual competence or
-personality traits that affect their autonomous decisions, and whether a rival faction can turn one.*
+✅ **Settled 2026-08-11: a sub-commander is any `Crew` module with a non-zero `command` roll, assigned
+to an unpiloted capital or station's Bridge and marked autonomous.** No separate acquisition track —
+hire Living or manufacture Artificial (§2.7) exactly like any other crew, then assign. **Their rolled
+`operation`/`command` stats (§2.7's quality-band/budget machinery) *are* their competence**; no
+separate personality system is needed, and none is built.
+
+**Loyalty is stable, not a hidden roll — it only moves via crew bribery (§2.7).** A sub-commander does
+not spontaneously defect on a timer or a relation threshold; a rival faction (or the player, against a
+rival's commander) has to actually attempt and win a bribe against that specific crew module, the same
+mechanism that can turn *any* crew module, not only commanders. This is also what makes bribery an
+"affect a faction from the inside" tool as originally proposed: turning a low-ranked crew module is a
+minor nuisance, turning a `command`-heavy one *is* turning a sub-commander, and both are the identical
+roll — there is no separate "coup" mechanic layered on top.
 
 ---
 
@@ -7209,8 +8186,9 @@ the grid-index, schematic side of it.
 | **Intergalactic** | Groups of galaxies | Whole galaxies |
 | **Universal** | Everything | Galaxy groups |
 
-*(See the open question in §9 about whether "groups of galaxies" and "the universe" are literal —
-this table's shape doesn't depend on the answer, only its labels do.)*
+*(§9: decided 2026-08-11 — "groups of galaxies" and "the universe" are literal, reachable places, just
+future-expansion scope beyond the one-galaxy base game. This table's shape didn't depend on the
+answer either way, only the tiers' long-term meaning did.)*
 
 **Every scale shows territory, never individual objects**, per this section's existing rule — a
 regional cluster is still an aggregate blob, just a smaller one than the galactic view. The
@@ -7457,29 +8435,33 @@ open, and should be *read off* the derived curve rather than declared in advance
 **never fires on death**. See §3.3. The threatened mechanic turned out to be Tier 2's recovery run,
 not Tier 3.
 
-**UI/UX specification — ⚠️ the flight screen is now specified; the docked screens are not.**
-§3.9 (status display) and §3.10 (flight HUD) landed 2026-08-09 and cover the surface the player spends
-almost all their time looking at, including the rule that **HUD features are gated on living modules**
-— `BridgeView`'s component-driven pattern extended to flight. What remains unspecified is the **docked
-menu set**: six exist as unreachable code, two (Research, Manufacturing) have no menu at all, and none
-of the nine handles input. That work still waits on `architecture.md` §12.24 step 5's router, per the
-note below.
+**UI/UX specification — ✅ settled 2026-08-10, superseding the two entries below.** §3.9 (status
+display) and §3.10 (flight HUD) landed 2026-08-09 and cover the flight surface. The docked menu set
+— once this section's open item — is now fully specified by `architecture.md` §12.30: the router
+(§12.24 step 5), the shared widget layer, and all six docked screens (Bay, Market/Storage, Repair,
+Engineering, Research, Manufacturing) individually, down to per-screen gating and request shape.
+`StorageMenu`/`ModulesMenu` were reclassified as flight-HUD overlays rather than docked screens in
+the same pass (§12.30 §1). **What remains is not specification, it's construction** — `architecture.md`
+§13.5 groups 4a/4b track building the nine still-unreachable menus against this spec, which is a task-
+list item, not a documentation gap.
 
 **UI/UX specification — the original entry, retained for its reasoning.** The Bridge, component-driven menus, HUD
 theme, Engineering view, and station services are referenced throughout both documents and specified
 nowhere as screens or flows. Much of this game is menus. StarReach2 accumulated roughly 5,000 lines
 across a dozen menu files with no unifying spec, which is why they are the messiest port target in
-`architecture.md` §9. *§8 specifies the navigation map, and `architecture.md` §12.9–§12.12 now give
-Template creation, station services, cargo/hardpoint equip, and construction/refit/grafting the same
-treatment — the remaining unspecified pieces are the HUD theme's full screen inventory and whichever
-of §12.12's `EngineerMenu` question resolves to a genuinely new mechanic.*
+`architecture.md` §9. *§8 specifies the navigation map, `architecture.md` §12.9–§12.12 gave Template
+creation, station services, cargo/hardpoint equip, and construction/refit/grafting the same treatment,
+and §12.30 (above) closed the remaining gap — the full docked-screen inventory, including the
+`EngineerMenu` question, which resolved to Engineering being a real docked screen rather than a new
+mechanic.*
 
-> ⚠️ **The menus exist and none of them handles input** (verified 2026-08-08). All nine are a pure
-> `Build*Request()` plus a stateless `Draw()`, with no selection state, no open/closed state, and
-> no producer placing the request they build. What is missing is not primarily *specification* —
-> it is the input and routing layer underneath, which `architecture.md` §12.24 now sequences. A
-> screens-and-flows document written before that lands would specify interactions nothing can
-> perform.
+> ⚠️ **The menus exist and none of them handles input** (verified 2026-08-08, still true as of
+> §12.30's audit 2026-08-10). All nine are a pure `Build*Request()` plus a stateless `Draw()`, with
+> no selection state, no open/closed state, and no producer placing the request they build. That gap
+> is now a **construction** task — `architecture.md` §13.5 groups 4a (shared widgets) and 4b (router
+> + screens) — not a specification one; a screens-and-flows document written before §12.24's router
+> landed would have specified interactions nothing could perform, but §12.30 is written against the
+> router's actual shape.
 
 **Damage type roster — ✅ settled 2026-08-08.** Two shield types (Kinetic, Energy) and three weapon
 types (Kinetic, Energy, Ion), with weapon *behaviour* on a separate unbounded axis. See §3.1.
@@ -7488,18 +8470,19 @@ types (Kinetic, Energy, Ion), with weapon *behaviour* on a separate unbounded ax
 with occupancy scaling by hull size and a mandatory shadow cue. See §3.7. **Revisit trigger:** the
 escort-fighter, docking, and formation-keeping pass, since those are the systems that would inherit it.
 
-**Is the setting one galaxy or a literal multiverse? — ❓ genuinely open, raised 2026-08-10.** §8.1's
-Level 1 now describes zoom scales up through "groups of galaxies" and "the universe." `lore.md`'s
-Diaspora backstory (§1) is written as one galaxy's hyper-gate network collapsing and reopening — it
-does not currently support multiple galaxies existing as a real, reachable place. Two ways this
-resolves, and they cost differently: **(a) it's literal** — the ten-faction setting is one galaxy
-among many, `lore.md` gains a line establishing that, and "groups of galaxies"/"universal" are real
-places a player could theoretically reach; or **(b) it's the same galaxy, relabeled** — the outer
-zoom tiers are structural (spiral arms, galactic quadrants, the whole known galaxy), not literally
-other galaxies, and only the *labels* in §8.1's table change, not the mechanism. §8.1's zoom-tier
-design doesn't depend on the answer; nothing about aggregation, sensor-gating, or warp-range
-selection changes either way. Only the words "galaxy," "intergalactic," and "universal" in that
-table, and whether `lore.md` needs a new line, hang on this.
+**Is the setting one galaxy or a literal multiverse? — ✅ decided 2026-08-11: both, on a timeline.**
+The ten-faction setting, the entire base game, and everything else in this document take place in
+**one galaxy**, matching `lore.md`'s existing Diaspora backstory exactly (*"transports the player to
+a random location in the same galaxy 177 years later"* — no rewrite needed). **A literal multiverse is
+real and eventually reachable**, but it is future expansion scope, not base-game scope: other galaxies
+genuinely exist, the player can eventually reach them, and §8.1's "Intergalactic"/"Universal" zoom
+tiers are **literal**, not relabeled — they are simply further out than anything the base game's
+content populates. Nothing about §8.1's aggregation, sensor-gating, or warp-range selection changes
+either way, which is why this could stay unresolved as long as it did: the mechanism was never
+blocked on the answer, only the tiers' long-term meaning was. `lore.md` needs no change now — it
+already only describes the one galaxy the base game covers — but **will need a hook seeding the wider
+multiverse's existence** whenever that expansion is actually scoped, rather than inventing the hook
+today ahead of any content that uses it (§2.5's "not required by anything above" pattern).
 
 **Physical (hull-blocking) shields — 🧊 deferred.** §3.1 keeps shields projectile-only so that
 ramming bypasses them. A physical model is a real future feature with an anti-ram identity, but it
@@ -7520,17 +8503,27 @@ and both mass and base price deriving from the recipe. See §2.10. **What remain
 one tool** — `elements.json` and `materials.json` do not exist, and `tools/element_check` is what
 would re-verify the final roster in CI rather than by hand.
 
-**Recovery-run parameters.** §3.3 Tier 2 — the window's duration, wall-clock vs. in-game time, and
-whether the death wreck is marked on the navigation map.
+**Recovery-run parameters — ✅ decided 2026-08-11, in full at §3.3 Tier 2.** Short in-game
+(simulated-time, not wall-clock) window, wreck marked on the navigation map for its duration. See
+§3.3 for the reasoning.
 
-**Sub-commander recruitment and loyalty.** §4.5 — how they are acquired, whether they have
-individual competence or personality, and whether a rival can turn one.
+**Sub-commander recruitment and loyalty — ✅ decided 2026-08-11, in full at §4.5.** Any `Crew` module
+with a non-zero `command` roll, assigned to a Bridge and marked autonomous — no separate acquisition
+track. Competence is the module's rolled stats, not a personality system. Loyalty only moves via
+crew bribery (§2.7), not a spontaneous defection roll.
 
-**Network raiding.** §2.5 — whether a knowledge network has a capturable physical host, letting a
-faction steal designs rather than merely destroy the holder.
+**Network raiding — ✅ decided 2026-08-11, in full at §2.5.** Only sub-commander networks are
+raidable, and it costs no new mechanic — capturing (not destroying) a commander's vessel converts
+their crew, network included, the same way §3.2's capture already reassigns a hull's crew wholesale.
+A faction's general network has no single anchor and stays permanently un-raidable.
 
-**Royalty scale and posthumous payment.** §2.6 — the per-unit rate, and whether a royalty stream
-survives the seller's death.
+**Royalty scale and posthumous payment — ⚠️ partly settled, and this listing was itself stale.**
+§2.6 already states outright: *"royalties do not survive the seller's death"* — no
+inheritance/estate mechanic exists or is planned, consistent with the game's general stance that
+loss has teeth. §9 hadn't been swept after §2.6 answered it, the same drift class §14.1/§14.6 catch
+elsewhere. The **per-unit rate** is genuinely still open — it's a tuning number in the same category
+as the quantity-per-grade multiplier, and §2.6 itself already defers it to `tools/economy_sim`
+rather than a guess.
 
 **Level 3 fog of war — ✅ settled 2026-08-08.** Sensor coverage only, per viewing entity, stored in
 knowledge networks. See §8.3.
@@ -7577,8 +8570,13 @@ cannot be closed by measurement, only by guess. *(Legacy `../StarReach2/tools/si
 ItemGenerationSimulator.cpp` is the nearest prior art: it generated N items per grade and verified a
 90% cap target across all seven grades, which is §2.7's quality-band question rather than this one.)*
 
-**Deconstruction yield.** §2.4 — flat recipe-driven conversion, or facility-level-scaled like
-merging?
+**Deconstruction yield — ✅ was already settled 2026-08-08, and this §9 listing was itself the stale
+artifact.** §2.4's own text at "Facility grade drives all three" says outright: *"Settled 2026-08-08,
+replacing the open question of whether deconstruction yield was flat or scaled"* — followed by a full
+facility-grade → yield-% table (Common 20–45% up through Mythic 80–100%). §9 never removed the
+question after §2.4 answered it, the same class of drift §14.1/§14.6 already caught elsewhere in
+`architecture.md`. Re-confirmed 2026-08-11: facility-level-scaled is the right call, and it's the one
+already built into the design.
 
 ### 9.1 The Performance Budget 📋
 

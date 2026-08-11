@@ -154,10 +154,13 @@ real ordering. Read §12 before §11.3's recipe, not after.
   (`FactionEconomy`), **`core/galaxy/`** (`Discovery`) — the Law 8 galaxy-wide state.
 - ✅ **Unified serialization** (`core/serialization/`: `BlueprintSerialization`, `ByteStream`,
   `SaveFile`) and **save schema migration** (`SaveMigrator`).
-- ✅ **281 tests pass** (690 assertions), including the coverage the previous snapshot listed plus
-  docking/warp/comms/contract/distress/tutorial/mining/loot lifecycle coverage, faction
-  economy/decision-engine coverage, diplomacy/reputation/territory coverage, discovery coverage,
-  and blueprint-serialization/save-migration coverage.
+- ✅ **424 tests pass** (1097 assertions, re-verified 2026-08-11 by an actual build per §14.4's own
+  instruction — the 281/690 figure this line previously carried was stale since 2026-08-02's
+  ResearchSystem PR and had drifted through four documentation passes uncorrected), including the
+  coverage the previous snapshot listed plus docking/warp/comms/contract/distress/tutorial/mining/
+  loot lifecycle coverage, faction economy/decision-engine coverage, diplomacy/reputation/territory
+  coverage, discovery coverage, research coverage, and blueprint-serialization/save-migration
+  coverage.
 
 Not built, and the two categories are **not** the same thing:
 
@@ -8200,17 +8203,19 @@ persistence, cross-system refit, and the world save. **Scope it once**, rather t
 parked hull; the demote/promote half already has three working precedents in `core/galaxy/`
 (`WreckRecord`, `ResearchRecord`, and §12.18's planned `ManufacturingRecord`).
 
-### 13.4 Five decisions this raises that are yours, not mechanical
+### 13.4 Five decisions this raised — all now resolved by the project owner, 2026-08-11
 
-Everything above except these has a correct answer that falls out of the existing design.
+Everything above except these has a correct answer that falls out of the existing design. All five
+recommendations below are now decided, not merely proposed — this table is a build spec for §13.5's
+task list, not an open question anymore.
 
-| # | Question | Recommendation |
+| # | Question | Decision |
 |:---:|---|---|
-| **1** | **Does docking heal for free?** (finding I) A facility-gated repair service and an unconditional 15%/s heal cannot both exist | **Delete the automatic heal.** It predates the facility model and removes the credit sink §2.7 relies on. ⚠️ **Refined 2026-08-10 by §12.30.4:** the recommendation stands, but the **rate** moves to `FacilityStats::ratePerSecond` rather than being deleted with it — otherwise a dead field stays dead and `features.md` §2.7's Repair crew role loses its only named consumer. Deleting the heal also removes **NPC** repair, which re-homes onto `ctx.economy` |
-| **2** | **`MountedModules` or `EquippedModule`?** (finding C) Two representations, three inconsistent readers | **Keep `MountedModules`, delete `EquippedModule`.** A mount holds a list either way, and the factory path must never diverge from what `RefactorSystem` refunds. ⚠️ **Reclassified 2026-08-10 by §12.30.7: this is not a cleanup, it is a dupe-and-destroy fix.** `EquippedModule` is absent on blueprint-mounted hardpoints, so `modules_menu::EquippableMounts` offers **every occupied mount on a fresh ship as an empty slot**. Mounting there overwrites the original's live components; unmounting then **destroys** the original, and scrapping the hardpoint **duplicates** it. Both reachable from one click on a surface that ships in this batch |
-| **3** | **Build the coarse loop, or delete `TickCoarse`?** (findings L, M) §1.1's LOD tiers have three implementations and no driver, and `FactionDecisionEngine` has no home without one | **Delete the three `TickCoarse` functions now**, per §2.4, and reinstate them with the loop. `FactionDecisionEngine` is pure and loses nothing by waiting. Keeping them is the same "scaffolded, never adopted" pattern §0 opens with |
+| **1** | ✅ **DECIDED 2026-08-11 — accepted as recommended.** Does docking heal for free? (finding I) A facility-gated repair service and an unconditional 15%/s heal cannot both exist | **Delete the automatic heal.** It predates the facility model and removes the credit sink §2.7 relies on. The **rate** moves to `FacilityStats::ratePerSecond` rather than being deleted with it — otherwise a dead field stays dead and `features.md` §2.7's Repair crew role loses its only named consumer. Deleting the heal also removes **NPC** repair, which re-homes onto `ctx.economy` |
+| **2** | ✅ **DECIDED 2026-08-11 — accepted as recommended.** `MountedModules` or `EquippedModule`? (finding C) Two representations, three inconsistent readers | **Keep `MountedModules`, delete `EquippedModule`.** A mount holds a list either way, and the factory path must never diverge from what `RefactorSystem` refunds. **This is not a cleanup, it is a dupe-and-destroy fix.** `EquippedModule` is absent on blueprint-mounted hardpoints, so `modules_menu::EquippableMounts` offers **every occupied mount on a fresh ship as an empty slot**. Mounting there overwrites the original's live components; unmounting then **destroys** the original, and scrapping the hardpoint **duplicates** it. Both reachable from one click on a surface that ships in this batch — treat as a priority fix, not routine cleanup |
+| **3** | ✅ **DECIDED 2026-08-11 — accepted as recommended.** Build the coarse loop, or delete `TickCoarse`? (findings L, M) §1.1's LOD tiers have three implementations and no driver, and `FactionDecisionEngine` has no home without one | **Delete the three `TickCoarse` functions now**, per §2.4, and reinstate them with the loop. `FactionDecisionEngine` is pure and loses nothing by waiting. Keeping them is the same "scaffolded, never adopted" pattern §0 opens with |
 | **4** | ✅ **RESOLVED 2026-08-09 — see §12.28.** How do non-rig world bodies render and collide? (finding A) | `WorldBody { radius; BodyKind }` for drawing; **hittability needed no new component at all** — narrowing `FindHit`'s view is the whole fix. Asteroids orbit rather than fall, the belt moves to 1,800–2,800, and a star's `Corona` burns rather than killing at a line. Planets and stars stay non-colliding, deliberately |
-| **5** | **Is `traverseRadians = 0` legal?** (finding W) It currently means "welded forward and unable to fire" | Make it a `Validation` error on a weapon-capable shell. A fixed-forward gun is a real design, but it should be authored as such, not reached by omission |
+| **5** | ✅ **DECIDED 2026-08-11 — accepted as recommended.** Is `traverseRadians = 0` legal? (finding W) It currently means "welded forward and unable to fire" | **Make it a `Validation` error** on a weapon-capable shell. A fixed-forward gun is a real design, but it should be authored as such, not reached by omission |
 
 ### 13.5 The task list
 
@@ -8390,8 +8395,9 @@ actually blocked.**
   file that finding didn't cover). Click-to-warp needs `WarpSystem`'s hyperdrive-range gate, which
   §13.1 already records as entirely unbuilt (no fuel, no module, no charge time) — a prerequisite
   this group doesn't create and shouldn't duplicate.
-- **Depends on `features.md` §9's open scope question** (one galaxy vs. literal multiverse) only
-  for the outermost tiers' labels, not for anything mechanical — startable before that's resolved.
+- ✅ **`features.md` §9's scope question (one galaxy vs. literal multiverse) is decided 2026-08-11**:
+  both — one galaxy for the base game, a literal (not relabeled) multiverse as future expansion scope.
+  Never blocked anything mechanical here, and now the outermost tiers' labels are settled too.
 
 **Group 3 — the five null pointers (§12.24 step 6), independently startable today.**
 Unblocks `DiscoverySystem`, `EngineerSystem`, `ResearchSystem`, `TemplateMarketSystem`, and
@@ -8477,7 +8483,8 @@ pass rather than by wiring:
   function is already exported and already correct, `Draw` just never calls it, covering roughly a
   third of §12.30.7's required surface today.
 
-**Group 5 — decisions from §13.4, then their code.**
+**Group 5 — §13.4's decisions, all now settled 2026-08-11, so this group is buildable as-is rather
+than blocked on a call.**
 Docking heal (1) · module-record unification (2) · `TickCoarse` (3) · world-body model (4, folded
 into group 1) · traverse validation (5).
 
@@ -8563,23 +8570,24 @@ method structurally cannot catch on its own (*"a truthful comment about a missin
 still a missing capability, and a method tuned to find lies will not find it"*). Recorded here so
 `modes/main_menu/` has an explicit line in this document instead of simply never being mentioned.
 
-### 14.4 A stale figure in §0's own "current reality" snapshot
+### 14.4 A stale figure in §0's own "current reality" snapshot — ✅ fixed 2026-08-11
 
 Line 153's **"281 tests pass (690 assertions)"** was written 2026-07-29 (`git blame`), the same
 commit that stamped line 21's *"Current reality (updated 2026-07-29)."* At least ten feature PRs
 merged to `main` since — `#95` Wreck/Recovery, `#97` WarpSystem, `#104` CommanderSystem, `#99`
 CustomizeMenu, `#105` Faction Survival, `#100` NavigationMap, `#98` StationServicesMenu, `#102`
 StorageMenu/ModulesMenu/ModuleEquipSystem, `#103` BuildMenu/ConstructionSystem, `#101`
-TemplateMarketSystem, `#106` ResearchSystem — each adding a test file. A static count today
-(`grep -rc TEST_CASE tests/`) finds **424** occurrences across 72 files, against the 281 this
-document still cites. This branch's own commits (§0's `git log`) never touch `tests/`, so the drift
-predates them — the four documentation passes that produced §§9–13 rewrote the surrounding
-paragraphs repeatedly without revisiting this one number.
+TemplateMarketSystem, `#106` ResearchSystem — each adding a test file. This branch's own commits
+(§0's `git log`) never touch `tests/`, so the drift predates them — the four documentation passes
+that produced §§9–13 rewrote the surrounding paragraphs repeatedly without revisiting this one
+number. **A `grep -rc TEST_CASE tests/` count alone was not trusted as the fix**, per this section's
+own closing instruction below — the binary was rebuilt from a clean `cmake --build` and actually run
+(`out/build/x64-Debug/bin/sr_tests.exe`) on 2026-08-11: **424 tests pass, 1097 assertions**, which
+also cross-checks the grep count (424) exactly. Line 153 now carries the correct figure.
 
 Not a functional defect — the tests themselves are fine. Flagged because this document's entire
 method is *"verified against `src/`, not inferred from a header comment,"* and §0 is the one
-paragraph that method was never re-applied to. **Fix: re-run the count and correct the figure**,
-which needs a build (§13's method doesn't reach this one) rather than another grep.
+paragraph that method was never re-applied to until now.
 
 ### 14.6 A systematic design-coverage sweep, and one confirmed gap
 
@@ -8851,10 +8859,14 @@ flagged without an answer:
 
 ### 15.5 Where these land
 
-Findings 1, 2, 3, 5, 6, 7 are new-issue-shaped — none fit cleanly inside an existing §13.5 group
-without stretching it. 8–10 belong beside their systems' existing entries in group 2 (station
-economy) and group 3 (`ctx.diplomacy`). 11–14 belong beside `architecture.md` §12.20's existing
-per-item-stock work. 15–21 belong in group 4b once each menu's screen lands. 22–26 are one-line
-follow-ups for whichever issue already touches their file. **Not yet folded into §13.5's group
-structure** — that pass is its own next step, the same way §12.32 was threaded into group 3
-separately from being written.
+✅ **Folded into §13.5, 2026-08-10 — this section's earlier claim that the fold-in was still
+pending is now stale and is corrected here.** All twenty-six findings have a citation inside §13.5
+or the design sections it points at: 1 and 5 together in group 2d (the damage-model pass); 2 in
+group 2 and §12.34; 3 in group 2d; 4 in group 2f; 6 and 7 in the addendum under group 5; 8, 9, 15,
+21, and 23 in group 2; 10, 12, and 14 in group 3; 11 and 13 in group 2c; 16, 18, 22, and 24 in
+group 4b; 17, 19, and 20 in group 2f. 25 and 26 were deliberately left off the task list, with the
+reasoning stated where they're discussed above (25 is a documentation gap, not a code one; 26
+confirms an already-accurate 📋). None of the original groupings this section predicted (*"15–21
+belong in group 4b"*, *"11–14 belong beside §12.20"*) survived exactly as guessed — several
+findings ended up in group 2f or 2c instead — which is the expected shape of a prediction made
+before the placements were written, not a discrepancy worth chasing further.
