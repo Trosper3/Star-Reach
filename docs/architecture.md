@@ -178,9 +178,10 @@ Four of §12's open ❓s have since been settled (economic footprint §12.3, wre
 §12.5, sensor-gated fog of war §12.6, and the negotiation roll's three-step shape §12.7), and
 `ResearchSystem` — previously named only as a `KnowledgeNetwork` writer with no home of its own — now
 has the same five-part treatment as everything else, folded into §12.1. All eight items in the §12
-batch are now startable, none blocking. Two ❓s remain, and neither blocks anything: §12.1's network
-raiding and §12.2's sub-commander recruitment/loyalty are both scoped as "build the mechanism, leave
-the roster policy open."
+batch are now startable, none blocking. **The remaining two — §12.1's network raiding and §12.2's
+sub-commander recruitment/loyalty — were also settled, 2026-08-11**, both in `features.md` directly
+(§2.5 and §4.5 respectively) rather than needing further architecture-side design; see those
+subsections above for the corrected text. Nothing in the §12 batch is open anymore.
 
 **A second §12 batch (§12.9–§12.12) covers the docked-station "meso loop" UI** — Template creation,
 station trade/repair/merge, cargo & hardpoint equip, and construction/refit/grafting. Unlike the
@@ -1310,10 +1311,13 @@ moment a JSON stat changes.
 **Tests:** grant/copy/destroy round-trips; a save→load→save cycle preserving contents; destroying a
 network leaves other owners' networks untouched. All headless — `sr_core` links no renderer.
 
-❓ **Open (raised, deliberately not answered here):** whether a network has a capturable physical
-host, so a faction can *steal* designs rather than only destroy the holder. `features.md` §2.5
-raises it. It changes the type — a raidable network needs a location and an owner entity — so it is
-cheaper to decide before this is built than after.
+✅ **Settled 2026-08-11 — `features.md` §2.5.** A network is raidable exactly when it already has a
+location and owner entity: a sub-commander's network is anchored to that commander's own vessel
+(`NetworkOwner`, above), so capturing (not destroying) that vessel converts its crew — commander
+included — and their network comes with them, via the wholesale-crew-conversion §3.2's capture
+already performs. **No new type is needed** — the concern this paragraph raised turned out to be
+already answered by `NetworkOwner`'s existing shape once capture itself was specified. A faction's
+general network has no such anchor and stays permanently un-raidable by design.
 
 #### ResearchSystem — `features.md` §2.4
 
@@ -1373,9 +1377,13 @@ on tier** (§4, §11.3):
 **Tests:** a commander's death releases its network reference without destroying the network; orders
 survive a Tier 1 → 2 demotion and back.
 
-❓ **Open:** recruitment, competence/personality traits, and whether a rival can turn one
-(`features.md` §4.5). None of the three block the component or the system skeleton — build the
-mechanism, leave the roster policy open.
+✅ **Settled 2026-08-11 — `features.md` §4.5.** Recruitment: any `Crew` module with a non-zero
+`command` roll, mounted to a Bridge via the existing equip flow — no separate track, hire Living or
+manufacture Artificial exactly like any other crew. Competence: the module's own rolled
+`operation`/`command` stats, no personality system. Whether a rival can turn one: yes, via crew
+bribery (`features.md` §2.7) — the same roll that can turn any crew module, not a sub-commander-
+specific mechanic. All three of this paragraph's original questions are answered; none needed a new
+component beyond what §12.2 above already specifies.
 
 ### 12.3 Faction Survival — `features.md` §5.1 ✅ Built
 
@@ -1534,29 +1542,39 @@ all of them. Splitting them is what makes each one independently testable:
    manufacture, and be affordable against `core/economy/FactionEconomy` stock. A design that fails
    any of these is rejected outright and stays in the seller's network (§2.5) — nothing here is
    random, so this step is unit-testable as a pure predicate.
-3. **Rate roll — the only step that is actually a roll.** Runs only if step 2 accepted. It can raise
-   or lower the payout; it can never undo an acceptance.
+3. **Rate roll — settled 2026-08-11 as accept/refuse against a rolled ceiling, not a payout
+   multiplier.** Runs only if step 2 accepted. `features.md` §2.6: there is no authored base royalty
+   rate to multiply — the seller proposes a specific percentage of `BaseValue` as part of the pitch,
+   and the buyer either takes it or refuses it outright.
 
    ```cpp
-   float rateBonus =
+   float disposition =
        0.5f * reputation.Score(faction)              // core/diplomacy/Reputation, -100..100
      + 0.4f * relation.Value(faction, sellerFaction)  // core/diplomacy/DiplomacyMatrix, -100..100
      + (archetypeFits ? 20.0f : -10.0f);
-   rateBonus = std::clamp(rateBonus, -100.0f, 100.0f);
-   float payoutMultiplier = 1.0f + rateBonus / 200.0f;  // 0.5x .. 1.5x the base lump sum / royalty rate
+   disposition = std::clamp(disposition, -100.0f, 100.0f);
+   // Maps disposition's -100..100 range onto features.md 2.6's 0-50% acceptance ceiling.
+   float acceptanceCeiling = ((disposition + 100.0f) / 200.0f) * 0.50f;
+   bool accepted = proposedRoyaltyRate <= acceptanceCeiling;  // proposedRoyaltyRate: 0.0-1.0, from the pitch Intent
    ```
 
-**These weights are a placeholder, not a balance pass.** `0.5f`, `0.4f`, `20.0f`, and the
-`payoutMultiplier` curve are provisional in the same sense §6.4 flags its two tuned numbers as the
-*only* tuned numbers in the design — they make `TemplateMarketSystem` buildable and testable now,
-and get tuned later against the headless `tools/economy_sim` (`architecture.md` §3) once there is a
-game to playtest against. Do not treat the specific constants as final; treat the three-step shape
+   Reuses the same three disposition inputs the pre-2026-08-11 `payoutMultiplier` formula computed —
+   this is a re-derivation of an existing score for a new purpose, not a second formula added beside
+   it. **Lump-sum pitches keep the old `payoutMultiplier` shape** (§2.6 only changed how royalty rate
+   negotiation works; a lump-sum offer still has a payout the buyer's disposition can raise or lower,
+   since there is no separate "accept this specific number" step for a one-time payment).
+
+**The disposition weights (`0.5f`, `0.4f`, `20.0f`) are a placeholder, not a balance pass** — they make
+`TemplateMarketSystem` buildable and testable now, in the same sense §6.4 flags its two tuned numbers
+as the *only* tuned numbers in the design, and get tuned later against `tools/economy_sim` once there
+is a game to playtest against. Do not treat the specific constants as final; treat the three-step shape
 as final.
 
-❓ **Still open, and no longer blocking:** the base royalty rate scale itself (what a royalty *unit*
-is worth before `payoutMultiplier` is applied) and whether a royalty stream survives the seller's
-death — `features.md` §9 still lists both as undecided. Step 3's formula multiplies whatever that
-base rate turns out to be; it does not depend on knowing it in advance.
+✅ **Resolved 2026-08-11 — see `features.md` §2.6.** The base royalty rate scale turned out not to be a
+constant to author at all: the seller proposes it per pitch, and `BaseValue` (now real, since
+`tools/economy_sim` exists) is what it's a percentage of. Whether a royalty stream survives the
+seller's death was already settled the same day royalty rate itself was reopened — see the note above
+this step.
 
 ### 12.8 The Constraints That Apply To All Of It
 
@@ -2207,9 +2225,11 @@ stop steering and stop firing while remaining physically present, collidable, an
 - Do **not** tag the hull `Destroyed`. `DamageSystem` marks a rig destroyed only when every hardpoint
   is gone, and an uncrewed hull is explicitly not that. The drift-and-be-captured behaviour depends
   on it staying alive.
-- Capture itself is unspecified (`features.md` §3.2 ❓) and should not be guessed at. Disabling is
-  worth building on its own — a hull that goes dead and adrift when you shoot its cockpit is already
-  a complete, readable mechanic without an ownership transfer behind it.
+- ✅ **Capture is now specified — `features.md` §3.2, settled 2026-08-11: boarding-in-place.** A
+  Troop Bay-carrying vessel holds position adjacent to a capturable hull for a duration; completing
+  the hold flips `FactionRef` and converts the crew aboard, commander included. This paragraph's
+  earlier "unspecified, should not be guessed at" framing is stale — corrected here rather than left
+  to mislead a later reader. Disabling remains a complete mechanic on its own, unchanged.
 
 #### 8 & 9 — Mass, power, and the removal rule
 
@@ -7778,7 +7798,7 @@ Listed in `TickSchedule()` order, so the ordering findings in §13.3 read agains
 | **DiscoverySystem** | ✅ `PlayerControlled` | ✅ `DiscoveryState` | ❌ `NavigationMap` is uncalled | — | ❌ `ctx.discovery` is `nullptr` |
 | **CommanderSystem** | ❌ **`Commander` has zero producers** | ❌ **nothing reads `Commander::orders`** | ❌ | — | ⚠️ dead in both directions until §12.27 |
 | **ResearchSystem** | ❌ **`StationFacility` has zero producers** — no station carries one | ✅ `KnowledgeStore` | ❌ no menu at all | ❌ no Research facility | ❌ `ctx.knowledge` is `nullptr`; `researchTier` never authored |
-| **TemplateMarketSystem** | ❌ `PitchTemplateIntent` has zero producers | ✅ | ⚠️ `CustomizeMenu`, unrouted | — | ❌ `ctx.diplomacy` is `nullptr`, so `PassesGate` returns `false` unconditionally — **a no-op even if an intent arrived** |
+| **TemplateMarketSystem** | ❌ `PitchTemplateIntent` has zero producers | ✅ | ⚠️ no longer `CustomizeMenu` — `features.md` §2.6 (2026-08-11, corrected same day) moves the producer to the Trade facility's sell popup, triggered by selling a Template Chip item. `CustomizeMenu` still only saves the network entry (§12.9, unchanged); the chip is burned by a Manufacturing **Queue** job (§12.30.8), not by `CustomizeMenu` or Draft | — | ❌ `ctx.diplomacy` is `nullptr`, so `PassesGate` returns `false` unconditionally — **a no-op even if an intent arrived** |
 
 **Eight systems are wired end to end today:** `HierarchySystem`, `PowerSystem`, `OrbitSystem`,
 `PhysicsSystem`, `TargetingSystem`, `NpcAiSystem`, `CollisionSystem`, `ProjectileSystem` — plus
@@ -8378,8 +8398,9 @@ settles that there is **no radar**: sensor contacts are one data source rendered
 indicators in combat and as the navigation map out of it. **No `RadarSystem`.**
 
 **Blocked, and worth knowing why:** **§3.2's capture state** cannot be reached until the crew shell
-exists (§13.3 Z), and ownership transfer is still an open design question. Disabling is complete
-without it.
+exists (§13.3 Z). Ownership transfer itself is no longer an open design question — settled 2026-08-11
+as boarding-in-place, corrected above at items 8 & 9's neighbor — but it still can't be *built* until
+the crew shell (item 15/16, this section) lands. Disabling is complete without either.
 
 **Group 2f — multi-scale territory navigation (`features.md` §8.1, §12.35). Splits by what's
 actually blocked.**

@@ -812,12 +812,20 @@ single-Template version §12.7 already uses for a sale.*
 design pays once or accrues per unit. The answer is that the player chooses, and that the choice is
 negotiated.*
 
-**The pitch** — a player may present a Template from their network (§2.5) to any AI faction they are
-on speaking terms with. The faction evaluates the design on its own terms: whether it fits their
-archetype's task weighting (§6.2), whether it beats what they currently manufacture, and whether
-they can afford the materials it demands.
+✅ **Settled 2026-08-11: pitching is physical, not a menu action against the network directly.** The
+network entry (§2.5) stays the permanent record — nothing below removes or risks it — but *pitching*
+a copy of it now requires manufacturing and carrying a **Template Chip**, giving the sale the same
+kind of physical stakes everything else in this design has (lootable, destroyable, occupies cargo).
+See "The Template Chip" below for the full production chain; this changes *how a pitch reaches a
+faction*, not the evaluation itself, which is unchanged:
 
-**Two payment structures, player's choice:**
+**The pitch** — carrying a Template Chip to any vessel or station with a Trade facility and initiating
+a sell interaction on it presents the design to that facility's owning faction, provided the player is
+on speaking terms with them (§5.3 relation gate, unchanged). The faction evaluates the design on its
+own terms: whether it fits their archetype's task weighting (§6.2), whether it beats what they
+currently manufacture, and whether they can afford the materials it demands.
+
+**Two payment structures, player's choice, selected in the sell popup:**
 
 | Structure | Payoff | Reinforces |
 |---|---|---|
@@ -829,21 +837,91 @@ using your design is the clearest possible feedback that the macro simulation is
 changed it. They are also considerably harder to balance, since payout is driven by a Tier 3
 production rate the player never directly observes.
 
-**Negotiation** — the player may push for a better rate. The attempt rolls against the faction's
-disposition toward them (reputation tier, §5.3 relation band, and archetype). Success raises the
-payout; failure can reduce the offer or see the pitch rejected outright. A rejected design is not
-destroyed — it stays in the player's network and can be pitched to a different faction, or to the
-same one after standing improves.
+**Negotiation** — for a royalty pitch the player proposes a specific rate (see the settled note below);
+for a lump sum the disposition roll still adjusts the offer up or down. A rejected pitch does not
+destroy the chip — it stays in the player's cargo and can be carried to a different faction's Trade
+facility, or back to the same one after standing improves.
 
-**Selling is not exclusive.** The same Template can be sold to multiple factions, including factions
-at war with each other. Nothing prevents this and it should not — two rival fleets flying the same
-silhouette because the player armed both is the macro loop working exactly as intended.
+**Selling is not exclusive, but it is no longer free per faction.** The same Template can be pitched
+to multiple factions, including factions at war with each other — nothing prevents this and it should
+not, since two rival fleets flying the same silhouette because the player armed both is the macro loop
+working exactly as intended. **What changed:** each faction needs its own chip, so pitching to five
+factions costs five chips' worth of materials, time, and power (below) rather than being free once the
+design exists. That cost is deliberate — see "The Template Chip."
 
 ✅ **Settled 2026-08-11: royalties do not survive the seller's death.** Under §2.5 the design still
 sits in the buyer's network and keeps being manufactured regardless — that was never in question.
 What was open is where the payment stream goes, and the answer is: nowhere, once the seller is gone.
-Royalty rate scale (the exact number, not the mechanism) is deferred with §9's other undecided
-constants, pending `tools/economy_sim`.
+
+✅ **Settled 2026-08-11: the royalty rate is player-proposed, not authored.** There is no base royalty
+rate constant to tune — the thing `tools/economy_sim` was going to be asked to settle turns out not to
+exist. Instead:
+
+- **The seller names a rate as part of the pitch** — a percentage of `BaseValue` (§2.10, now that
+  `economy_sim` gives that a real number to be a percentage *of*) paid per unit the buyer manufactures.
+- **The buyer accepts or refuses that specific number.** No counter-offer — this stays a single
+  request/response, matching the pitch's existing "rejected, not destroyed" shape (below).
+- **An AI buyer's tolerance is a ceiling rolled once per pitch, 0–50%.** If the proposed rate is at or
+  under the roll, they accept; over it, they refuse and the chip survives in the seller's cargo,
+  re-pitchable elsewhere exactly as an archetype/affordability rejection already is.
+- **The existing Step 3 disposition formula (`architecture.md` §12.7) is what the ceiling rolls
+  against, not a separate multiplier on top of it.** Reputation, relation band, and archetype fit
+  already compute a disposition score for exactly this purpose (§12.7's `rateBonus`/`payoutMultiplier`)
+  — reusing it to place the roll within the 0–50% band, rather than adding a second independent
+  formula, is the reuse this document tries to default to everywhere else. A well-disposed faction
+  rolls toward the top of the range; a cold one rolls toward the bottom. **This is a judgment call
+  made while documenting, not something explicitly specified in the request that settled the rest of
+  this — flag it if the ceiling should be pure uniform noise instead.**
+
+**Player-to-player and player-to-Commander pitches negotiate the identical rate/accept-refuse shape**,
+with no disposition roll needed since two actors negotiate directly (§2.6's "the seller is not always
+the player" subsection below already scopes this).
+
+#### The Template Chip — settled 2026-08-11, closing the pitch UI gap 📋
+
+*Raised while auditing whether this session's new mechanics had an actual UI home — pitching a
+Template had no producer for `PitchTemplateIntent` and no screen anywhere (`architecture.md` §12.7's
+own wiring table already flagged this as `❌ zero producers`). This section is that home, and it turns
+"selling a Template" from a menu action into a manufactured, carried, lootable item — consistent with
+how everything else of value in this design has a physical form.*
+
+**Two jobs, one facility, both Queue jobs — ⚠️ corrected 2026-08-11.** This originally claimed the Burn
+job reused Manufacturing's **Draft** tab. Checking `architecture.md` §12.30.8 against what Draft
+actually does shows that's wrong: **Draft is CustomizeMenu's draft-a-new-ship pipeline, registering a
+`ShipBlueprint` for `ConstructionSystem` to spawn as an entity** — it produces a *registered design*,
+never a cargo item, so it has no shape for "read one existing saved Template and stamp it onto an
+item." **Both Template Chip jobs belong to Queue instead** — Queue is already the item-producing half
+(`ManufacturingJob` → `ManufacturingSystem` → a cargo item), and Burn is a new *job type* within it,
+not a reuse of Draft:
+
+| Job | Consumes | Produces | Reads the network? |
+|---|---|---|---|
+| **1. Blank Disk** | Materials, credits, time — an ordinary recipe-based Queue job | A blank `Data Disk` cargo item | No |
+| **2. Burn Template** | A Blank Disk already in cargo, plus time and Power (§2.8's existing Manufacturing fuel draw — no new resource) | A `Template Chip` tagged with a specific `savedTemplates` id | **Yes — a new `ManufacturingJob` payload variant**, carrying a chosen `savedTemplates` id in place of a recipe, so `ManufacturingSystem` reads the design instead of consuming a materials list |
+
+**Why one facility, not two:** §2.8 already defines Manufacturing as *"knowledge plus materials plus
+time into matter"* — the Blank Disk job is the materials-and-time half, the Burn job is the
+knowledge-and-time(-and-power) half, and together they are exactly that definition rather than a
+second mechanism beside it. **This claim survives the correction above** — only which existing tab
+(Queue, not Draft) hosts the Burn job changes.
+
+**The chip is `CargoHold` cargo, not a network entry.** It has mass, occupies capacity, and is lost if
+the carrying rig is destroyed or looted — the same rules as any other cargo item. **Producing a chip
+does not touch the network entry it was burned from** — the design stays saved permanently (§2.5's
+"networks die with their host" rule is unaffected), so burning a second chip to pitch a different
+faction is always possible, it just costs another Blank Disk and another Burn job.
+
+**Selling happens at the Trade facility, not at Manufacturing.** Interacting to sell cargo at any
+vessel or station with a living Trade facility (§12.30.3's Market screen) behaves normally for
+ordinary items — instant price, no negotiation. **Selling a Template Chip specifically routes to the
+pitch popup instead of the instant-sell path**: lump sum vs. royalty, a proposed rate if royalty, then
+submit. That popup is what finally gives `PitchTemplateIntent` a producer.
+
+**On acceptance**, the chip is consumed and `KnowledgeStore::Copy(sellerNetwork, buyerNetwork,
+templateId)` runs exactly as `architecture.md` §12.7 already specifies — nothing about the transfer
+mechanism changes, only how the player reaches the point of attempting it. **On refusal**, the chip is
+not consumed — it stays in cargo, carryable to a different Trade facility or back to the same one
+later.
 
 #### The seller is not always the player, and neither is the buyer 📋
 
@@ -1104,8 +1182,15 @@ differs by who's attempting it:**
 | **NPC → NPC** | Background: a Tier 3 macro-tick roll, the same shape as `FactionDecisionEngine::RaidDispatchChance` (§6.4), gated by relation band and paid from the acting faction's `FactionEconomy` stock | Resolves silently in the simulation; no player-facing UI required |
 | **Player → Player** | Deferred with multiplayer (`net/`, 🧊) | Needs no separate design — the roll is already keyed by `FactionId`/relation, not by "is this the player," so it falls out for free once multiplayer exists, the same inheritance pattern every other Law-4 mechanic in this design uses |
 
-No new UI surface for the Player→NPC direction beyond a "Bribe" action wherever the target's crew
-roster is already visible (a docked/boarded interaction, not a new screen).
+✅ **UI home settled 2026-08-11: the boarding interaction, shared with capture.** Auditing this
+session's new mechanics found that "wherever the target's crew roster is already visible" pointed at
+nothing — no docked screen anywhere shows a vessel's crew list, own or foreign. The fix reuses §3.2's
+boarding mechanic rather than inventing a screen: **getting adjacent and holding position (the same
+Troop Bay action §3.2's capture uses) opens the target's crew roster**, with a "Bribe" action per
+module. Capturing the whole hull and bribing one module off it are now the same access point at two
+different scales — hold long enough and pass the capture threshold, or bribe a single module for a
+fraction of the cost and risk. **Docking** at a friendly-or-neutral station opens that station's own
+roster the same way, covering non-hostile bribery without a second mechanism.
 
 > 📋 **Also raised and deliberately deferred: crew training/leveling.** Whether a crew module's stats
 > can improve after acquisition (reroll vs. flat increment, a new facility kind to host it, time and
@@ -4139,6 +4224,14 @@ Facility/Sensor/Hyperdrive/Comms/Crew general-only because those modules carry r
 that is expensive to hand-balance ten times over. A shell only carries four numbers and a sprite, so
 that cost does not exist — every kind below gets the same per-faction treatment Weapon or Engine get.
 
+✅ **UI home settled 2026-08-11: shell selection is a per-mount choice, the same interaction module
+selection already uses.** Auditing this session's new mechanics found no picker specified for choosing
+among a kind's 2–3 variants — the fix isn't a new control, it's recognizing `CustomizeMenu`'s existing
+`AddMount` step (`architecture.md` §12.9/§12.30.8) already has to name *a* shell for every mount; today
+that's trivial because each kind has exactly one. With this roster it names one of several, **filtered
+to the design's faction plus the always-available General set** — nothing about the assembly flow
+changes shape, the list a mount's shell picker offers just stops being length one.
+
 **`ShellKind` grows from 7 to 13.** The six new values give every §2.11 module kind a housing of its
 own, the same 1:1 relationship `Weapon`/`Shield`/`Engine` already have with their module kinds — a
 uniform `IsMountable()` table rather than several kinds sharing a generic housing with finer-grained
@@ -4914,6 +5007,18 @@ A faction's 2–5 ships pick which of these slots to fill (most factions fill al
 signature wildcard, mirroring the Weapon Roster's 5th-slot pattern); nothing requires filling every
 slot exactly once.
 
+✅ **UI home settled 2026-08-11: `BuildMenu`'s blueprint list, gated by research — not an open
+catalog.** Auditing this session's new mechanics found `BuildMenu` had no browse/select UI for this
+roster at all (`architecture.md` Finding 16 already names "a blueprint list" as missing content, but
+never connected it to this section). The fix needs no new mechanism: §2.6's "a faction's ship roster
+is preset and research-unlocked, not reverse-engineerable" already specifies how a design becomes
+buildable — research it from scratch at a Research facility, the same `unlockedBlueprints` category
+every module recipe uses (§2.5). **`BuildMenu`'s list is `unlockedBlueprints` filtered to ship-kind
+ids** — General's three start unlocked for everyone; a faction's own four unlock through play, not
+browsing. The Research screen (§12.30.6) gains the corresponding entry point: a list of *known but
+locked* preset designs (which factions' rosters are even visible depends on relation/discovery, not
+specified further here) alongside its existing module/shell research jobs.
+
 #### General — the faction-neutral baseline
 
 | Ship | Role slot | Built from |
@@ -5524,6 +5629,13 @@ target's `FactionRef` when the hold completes — the same exposure-for-duration
 "stand still and take the risk" action in this design already uses, and it is why the target has to
 already be defenseless (§6.3's symmetry requirement is satisfied for free: an AI faction runs the
 identical check against the player's own uncrewed hull).
+
+**The hold gets a HUD element, following §3.10's own rule rather than a new one:** *"a HUD surface
+exists exactly when a living module provides it."* A Troop Bay in range of a valid target surfaces a
+progress bar for the hold; losing the Troop Bay, losing line-of-contact, or the target regaining a
+capability that fails one of the three conditions interrupts it — the same way every other §3.10
+overlay disables rather than disappears. No new HUD rule, just this mechanic's turn to use the
+existing one.
 
 **Capturing a hull converts its crew, commander included — which is also what network raiding turns
 out to be.** A sub-commander is a `Crew` module occupying a slot on the vessel exactly like any other
@@ -7487,11 +7599,19 @@ is genuinely hard to eliminate; a player who does everything personally is one b
 Tier 3 outcome. This is the intended tradeoff — appointing a commander costs resources and gives away
 direct control, and buys survival of the run.
 
-✅ **Settled 2026-08-11: a sub-commander is any `Crew` module with a non-zero `command` roll, assigned
-to an unpiloted capital or station's Bridge and marked autonomous.** No separate acquisition track —
-hire Living or manufacture Artificial (§2.7) exactly like any other crew, then assign. **Their rolled
+✅ **Settled 2026-08-11: a sub-commander is any `Crew` module with a non-zero `command` roll, mounted
+to an unpiloted capital or station's Bridge.** No separate acquisition track — hire Living or
+manufacture Artificial (§2.7) exactly like any other crew, then mount it via the existing equip flow
+(§12.11/§3.10's overlay), the same interaction any other module uses. **Their rolled
 `operation`/`command` stats (§2.7's quality-band/budget machinery) *are* their competence**; no
 separate personality system is needed, and none is built.
+
+⚠️ **"Marked autonomous" (this section's earlier phrasing) is not a real control — resolved 2026-08-11
+while auditing this session's new mechanics for a UI home.** No toggle for it exists or needs to:
+autonomy is emergent, the same way §12.25 already killed the `mobile` movement gate. A vessel the
+player is not personally sitting in has nothing else that could be flying it, so a `command`-rolled
+crew module mounted there is automatically operating on standing orders. The only UI action is the
+mount itself — there is no second step.
 
 **Loyalty is stable, not a hidden roll — it only moves via crew bribery (§2.7).** A sub-commander does
 not spontaneously defect on a timer or a relation threshold; a rival faction (or the player, against a
@@ -8531,22 +8651,23 @@ would re-verify the final roster in CI rather than by hand.
 §3.3 for the reasoning.
 
 **Sub-commander recruitment and loyalty — ✅ decided 2026-08-11, in full at §4.5.** Any `Crew` module
-with a non-zero `command` roll, assigned to a Bridge and marked autonomous — no separate acquisition
-track. Competence is the module's rolled stats, not a personality system. Loyalty only moves via
-crew bribery (§2.7), not a spontaneous defection roll.
+with a non-zero `command` roll, mounted to a Bridge via the existing equip flow — no separate
+acquisition track, and no "mark autonomous" toggle either (autonomy is emergent from not being the
+player's current shell). Competence is the module's rolled stats, not a personality system. Loyalty
+only moves via crew bribery (§2.7), not a spontaneous defection roll.
 
 **Network raiding — ✅ decided 2026-08-11, in full at §2.5.** Only sub-commander networks are
 raidable, and it costs no new mechanic — capturing (not destroying) a commander's vessel converts
 their crew, network included, the same way §3.2's capture already reassigns a hull's crew wholesale.
 A faction's general network has no single anchor and stays permanently un-raidable.
 
-**Royalty scale and posthumous payment — ⚠️ partly settled, and this listing was itself stale.**
-§2.6 already states outright: *"royalties do not survive the seller's death"* — no
-inheritance/estate mechanic exists or is planned, consistent with the game's general stance that
-loss has teeth. §9 hadn't been swept after §2.6 answered it, the same drift class §14.1/§14.6 catch
-elsewhere. The **per-unit rate** is genuinely still open — it's a tuning number in the same category
-as the quantity-per-grade multiplier, and §2.6 itself already defers it to `tools/economy_sim`
-rather than a guess.
+**Royalty scale and posthumous payment — ✅ fully settled 2026-08-11, in full at §2.6.** Royalties do
+not survive the seller's death — no inheritance/estate mechanic exists or is planned, consistent with
+the game's general stance that loss has teeth. The per-unit rate turned out not to be a tuning
+constant at all: **the seller proposes a specific rate per pitch, and the buyer accepts or refuses it
+against a disposition-rolled 0–50% ceiling** — there is nothing left for `tools/economy_sim` to settle
+here, since there's no longer a fixed number to measure. `BaseValue` (real now that the tool exists) is
+what the proposed rate is a percentage of.
 
 **Level 3 fog of war — ✅ settled 2026-08-08.** Sensor coverage only, per viewing entity, stored in
 knowledge networks. See §8.3.
