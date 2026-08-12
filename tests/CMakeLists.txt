@@ -37,6 +37,7 @@ add_executable(sr_tests
     unit/DiscoverySystemTests.cpp
     unit/WreckRecordTests.cpp
     unit/SeedingTests.cpp
+    unit/TopologyTests.cpp
     unit/KnowledgeNetworkTests.cpp
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
