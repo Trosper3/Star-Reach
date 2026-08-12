@@ -97,9 +97,8 @@ void DrawWorldBodies(const entt::registry& registry, float alpha) {
         }
         bodies.push_back(DrawableBody{position, body.radius, body.kind});
     }
-    std::stable_sort(bodies.begin(), bodies.end(), [](const DrawableBody& a, const DrawableBody& b) {
-        return a.kind < b.kind;
-    });
+    std::stable_sort(bodies.begin(), bodies.end(),
+                     [](const DrawableBody& a, const DrawableBody& b) { return a.kind < b.kind; });
 
     for (const DrawableBody& body : bodies) {
         const Color color =

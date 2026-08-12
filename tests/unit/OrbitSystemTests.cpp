@@ -79,8 +79,7 @@ TEST_CASE("OrbitSystem's position is a pure function of tick count, not an accum
     CHECK(first.y == Approx(radius * std::sin(expectedAngle)).margin(0.0001f));
 }
 
-TEST_CASE("OrbitSystem writes PreviousTransform to the pre-move position when present",
-          "[orbit]") {
+TEST_CASE("OrbitSystem writes PreviousTransform to the pre-move position when present", "[orbit]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;

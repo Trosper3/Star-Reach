@@ -10,13 +10,13 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Transform.h"
 
+using sr::BodyKind;
 using sr::CargoHold;
 using sr::CollisionRadius;
 using sr::DeathWreck;
 using sr::DerelictWreck;
 using sr::LootDrop;
 using sr::MaterialDrop;
-using sr::BodyKind;
 using sr::MaterialStack;
 using sr::ModuleId;
 using sr::PlayerControlled;

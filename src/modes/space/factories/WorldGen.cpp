@@ -136,7 +136,8 @@ void SpawnAsteroids(entt::registry& registry, Rng& rng, int count) {
         const float angle = (kTwoPi * static_cast<float>(i)) / static_cast<float>(count);
         const float dist = RandomFloat(rng, kAsteroidBandMin, kAsteroidBandMax);
         const Vec2 position = FromAngle(angle) * dist;
-        const float speedMagnitude = RandomFloat(rng, kAsteroidMinAngularSpeed, kAsteroidMaxAngularSpeed);
+        const float speedMagnitude =
+            RandomFloat(rng, kAsteroidMinAngularSpeed, kAsteroidMaxAngularSpeed);
         const float angularSpeed = RandomInt(rng, 0, 1) == 0 ? speedMagnitude : -speedMagnitude;
         const AsteroidComposition composition = RollComposition(rng);
 

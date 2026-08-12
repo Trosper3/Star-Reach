@@ -105,9 +105,10 @@ TEST_CASE("PopulateSystem seeds a plausible NPC presence with no PlayerControlle
     CHECK(registry.view<PlayerControlled>().empty());
 }
 
-TEST_CASE("PopulateSystem emits a WorldBody of each of Star, Planet and Asteroid, and every "
-          "entity with WorldTransform also carries WorldBody",
-          "[world_gen]") {
+TEST_CASE(
+    "PopulateSystem emits a WorldBody of each of Star, Planet and Asteroid, and every "
+    "entity with WorldTransform also carries WorldBody",
+    "[world_gen]") {
     // The assertion that would have caught architecture.md 12.28 finding A: the sun, every
     // planet and every asteroid satisfied neither WorldRenderer view, so nothing drew them.
     const ContentLibrary content = Content();
@@ -140,8 +141,7 @@ TEST_CASE("PopulateSystem emits a WorldBody of each of Star, Planet and Asteroid
     }
 }
 
-TEST_CASE("PopulateSystem's asteroids carry OrbitBody and HitRadius, not Velocity",
-          "[world_gen]") {
+TEST_CASE("PopulateSystem's asteroids carry OrbitBody and HitRadius, not Velocity", "[world_gen]") {
     const ContentLibrary content = Content();
     SystemWorld world("sol");
 
