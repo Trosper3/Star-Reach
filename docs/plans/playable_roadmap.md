@@ -2590,30 +2590,30 @@ reads.
 
 | Task | Title | Issue | Merged |
 |---|---|:---:|:---:|
-| P0-01 | World bodies, hittability and the star hazard |  |  |
-| P0-02 | The shared widget layer |  |  |
-| P0-03 | Galaxy topology |  |  |
-| P0-04 | The schedule and `Docked` correctness sweep |  |  |
-| P0-05 | The hardpoint lifecycle defect pack |  |  |
-| P0-06 | `MountedModules` is the single mount record |  |  |
-| P0-07 | Delete the `mobile` movement gate |  |  |
-| P0-08 | Rig aggregation: `RecomputeRigTotals` and the Sum/Max rule |  |  |
-| P0-09 | Four new `ModuleKind`s for systems that have no module |  |  |
-| P0-10 | `CargoHold` moves onto the bay |  |  |
-| P0-11 | The repair path defect pack |  |  |
-| P0-12 | The research chain defect pack |  |  |
-| P0-13 | The `Element` / `Material` rename — one pass or none |  |  |
-| P0-14 | Delete `TickCoarse` until it has a driver |  |  |
-| P0-15 | Group 2 leftovers: text, tabs and one-liners |  |  |
-| P0-16 | The schedule is tested |  |  |
-| P1-01 | `OnEnter`: the world and the player |  |  |
-| P1-02 | Player input through the intent queue |  |  |
-| P1-03 | Weapon groups, and no automatic target lock |  |  |
-| P1-04 | Camera, and the two render defects |  |  |
-| P1-05 | A station to dock at |  |  |
-| P1-06 | Death, respawn and the cull |  |  |
-| P1-07 | The system menu and quit to main menu |  |  |
-| P1-08 | M1 verification pass |  |  |
+| P0-01 | World bodies, hittability and the star hazard | #110 |  |
+| P0-02 | The shared widget layer | #111 |  |
+| P0-03 | Galaxy topology | #112 |  |
+| P0-04 | The schedule and `Docked` correctness sweep | #113 |  |
+| P0-05 | The hardpoint lifecycle defect pack | #114 |  |
+| P0-06 | `MountedModules` is the single mount record | #115 |  |
+| P0-07 | Delete the `mobile` movement gate | #116 |  |
+| P0-08 | Rig aggregation: `RecomputeRigTotals` and the Sum/Max rule | #117 |  |
+| P0-09 | Four new `ModuleKind`s for systems that have no module | #118 |  |
+| P0-10 | `CargoHold` moves onto the bay | #119 |  |
+| P0-11 | The repair path defect pack | #120 |  |
+| P0-12 | The research chain defect pack | #121 |  |
+| P0-13 | The `Element` / `Material` rename — one pass or none | #122 |  |
+| P0-14 | Delete `TickCoarse` until it has a driver | #123 |  |
+| P0-15 | Group 2 leftovers: text, tabs and one-liners | #124 |  |
+| P0-16 | The schedule is tested | #125 |  |
+| P1-01 | `OnEnter`: the world and the player | #126 |  |
+| P1-02 | Player input through the intent queue | #127 |  |
+| P1-03 | Weapon groups, and no automatic target lock | #128 |  |
+| P1-04 | Camera, and the two render defects | #129 |  |
+| P1-05 | A station to dock at | #130 |  |
+| P1-06 | Death, respawn and the cull | #131 |  |
+| P1-07 | The system menu and quit to main menu | #132 |  |
+| P1-08 | M1 verification pass | #133 |  |
 | P2-01 | The damage-type effect table, and Ion |  |  |
 | P2-09 | What a kill leaves behind — the wreck path and the reaper |  |  |
 | P2-02 | Docked cascade destruction |  |  |
