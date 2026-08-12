@@ -80,6 +80,95 @@ hardpoint, that feature is misplaced.
 > system, while simulation Tier 3 is the unrendered galactic background. Those are called **Zoom
 > Levels**, never tiers.
 
+### 1.2 The Opening 📋
+
+*Settled 2026-08-11. `lore.md` §1 already describes this opening in prose — a fleet warping in to
+investigate an anomaly, the cataclysm at the tutorial's conclusion, the 177-year displacement, and a
+second optional tutorial costing 50% of what the player gathers during it. **This section is the
+mechanical spec for what `lore.md` already made canon**, and it is the tutorial design
+`architecture.md` §13.5 and the playable roadmap both recorded as entirely missing.*
+
+**The tutorial is the prologue.** It is not an overlay of hint boxes on top of a normal start; it is
+the one moment in the game's history the player is present for, and the controls are taught inside
+it. Both acts are **optional**, and both are declinable without penalty.
+
+#### Act I — The Anomaly
+
+| | |
+|---|---|
+| **Where** | A fixed authored system, not a seeded one. This is the only hand-placed system in the game |
+| **When** | The last day of the Golden Age, immediately before the gate collapse |
+| **The player** | One vessel in a fleet — NPC rigs of the same faction, in formation, with a **fleet commander** among them |
+| **Taught** | **Move · Target · Fire · Equip**, in that order |
+
+The commander hails the player on arrival (§3.10's comms surface) and offers instruction. Accept and
+the four beats run, each completing at its own action site. Decline and nothing else changes — the
+fleet still flies, the objective still stands.
+
+**The objective is the anomaly**, and reaching it is what ends the act. Crossing its trigger radius
+fires the cataclysm: the gate network collapses, the fleet is lost, and the player is thrown
+**177 years forward and to a random system in the same galaxy** — the Diaspora, experienced rather
+than read.
+
+> **The cataclysm is a scripted world event, and it is the only one in the game.** Everything else
+> that happens in Star Reach is simulation output. This is worth stating plainly so that a second
+> scripted event is a deliberate decision by someone who read this line, rather than a precedent
+> quietly established by the first.
+
+**Act I is skippable in one click at the main menu** — *New Game* offers *Play the prologue* or
+*Skip to the frontier*, and skipping starts the game at Act II's arrival with the same result. The
+prologue is optional content, not a gate; a returning player must never be made to fly it again.
+
+#### Act II — The Frontier
+
+The player arrives adrift in an unfamiliar system, 177 years late. A **local station hails within a
+short window** and offers to walk them through what has changed.
+
+| | |
+|---|---|
+| **Taught** | **Gather · Dock and trade · Customize · Build · Warp** |
+| **Cost** | **50% of every Element the player gathers while the tutorial is active** |
+| **Stated up front** | The rate is shown in the offer. Accepting is informed, or it is a trick |
+
+**The tithe is a mechanic, not a script.** While the tutorial is active, the gathering beam (§2.10)
+splits its yield — half into the player's hold, half into the instructing station's. Nothing is
+confiscated afterward and nothing is deducted from a total; the player simply **gathers twice as
+long for what they keep**, and can walk away mid-lesson with everything already banked.
+
+**This is the only tutorial cost worth having.** Time-gating teaches nothing, a credit fee is
+meaningless to a player with no credits, and skipping teaches nothing either. A tithe on the very
+resource the lesson is about scales exactly with how much the player uses the lesson, and it makes
+declining a real choice rather than an obviously correct one.
+
+**A step whose feature does not exist yet is skipped, never blocked.** That is what lets Act II ship
+with three lessons and grow to five as gathering, construction and warping land, without the
+tutorial ever being the thing that cannot be completed.
+
+#### Faction alignment happens here
+
+`lore.md` §4's comm-relay beat lands at the end of Act II: the station uploads the inter-system
+public registry, the player reads all ten faction profiles, and **selects a provisional alignment —
+or wipes the transponder and launches unaligned**. Choosing a faction is a diegetic act inside the
+world, not a menu on a title screen, and the ten profiles are best read when the player has just
+learned the galaxy has ten of them.
+
+> ⚠️ **This retires `lore.md` §4's amnesia framing, and the two cannot both stand.** §4 has the
+> player wake with *total amnesia* in an escape pod and learn the world from scratch; §1 has them
+> fly the prologue and watch the collapse happen. A player who was there remembers it. **§1 wins** —
+> it is the version that makes the prologue worth playing — and §4's surviving contribution is the
+> faction registry beat above. `lore.md` §4 should be rewritten to describe the *arrival*, not an
+> awakening.
+
+#### Rules that apply to both acts
+
+- **Neither act pauses.** §3.4 holds throughout; a tutorial prompt is a HUD surface, and the
+  simulation runs behind it.
+- **No step blocks progress.** Every lesson can be abandoned mid-way, and abandoning is not failure.
+- **The prologue must be re-entrant.** Quitting to the menu and starting a second game runs it again
+  from clean state — the same requirement `architecture.md` §12.29 imposes on world population.
+- **Being new is not being safe.** Act II's arrival system is an ordinary seeded system with
+  ordinary hostiles. The frontier is lawless in the fiction and must be lawless in play.
+
 ---
 
 ## 2. Engineering, Customization & Reverse Engineering 📋
@@ -3086,6 +3175,52 @@ never in the item.
 originally consumed. Refinement loss is permanent, build → deconstruct → build always loses, and
 there is no loop.
 
+#### Gathering — one verb, three sites 📋
+
+*Settled 2026-08-11, closing the gap `architecture.md` §13.5 group 2c recorded as "a gathering module
+kind" with no stats behind it. **This changes how mining works**, and the change is the point.*
+
+**Mining today is shooting a rock with your guns until it dies.** `MiningSystem` acts only on an
+asteroid already tagged `Destroyed`, rolls its composition, and scatters drops. That makes weapons
+the mining tool, makes yield a lottery, and gives gas giants no answer at all — you cannot shoot a
+gas giant.
+
+**Gathering becomes its own verb: a held beam on a `Gathering` module that extracts directly into
+the hold.**
+
+| Stat | Meaning | Aggregation (§12.23) |
+|---|---|---|
+| `extractRate` | Units of Element per second, per beam | **Sum** — two beams gather twice as fast |
+| `extractRange` | World units from the module's hardpoint | **Max** — reach is the best beam you carry |
+| `yieldBonus` | Multiplier on what the source's composition rolls | **Max** — the best refiner aboard governs |
+
+Three sites, one module, one beam:
+
+| Site | Source | Yields |
+|---|---|---|
+| **Mining** | Asteroids | The rock's `AsteroidComposition`, drained rather than rolled at death |
+| **Skimming** | Gas giants (needs §7's planet `type` flag) | Volatiles — hydrogen, helium, the light end of the roster |
+| **Harvesting** | Living and derelict bodies — Edenian biospheres, ruins, wrecks | Organics and salvage, and it is where the Pact's *"mortal insult"* has teeth |
+
+**Sources deplete, they do not die.** A beamed asteroid drains its composition progressively and is
+left inert when empty — no `Destroyed` tag, no drop entities in the common case, and a depletion
+record so it **stays** depleted across a demote/promote cycle (§7.2's boundary rule). This is what
+makes a belt a place the player learns rather than a respawning slot machine.
+
+**Weapons are no longer mining tools.** A source can still be shot apart — it carries `Health` like
+anything else — but **destroying it destroys what was in it.** There is no drop table on the kill
+path and no salvage from the debris. Blowing up the rock you wanted is a mistake with a legible
+consequence, and gathering has exactly one input device instead of two.
+
+*(A reduced gun-yield path was considered and cut: it would have kept every weapon a half-decent
+mining tool, which is the situation this section exists to end, and it would have left the
+`Gathering` module competing against something the player already has mounted.)*
+
+> **Why a beam and not a better drop table.** Gathering is a third of the micro loop and had no
+> input device — no button, no aim, no skill expression, nothing to fit a hardpoint for. A held beam
+> gives it all four, gives §2.9's power allocation something to starve, gives the Gathering module a
+> reason to compete for a mount, and makes §1.2's tutorial tithe expressible as a split at the point
+> of extraction rather than an audit of the player's hold.
 
 ### 2.11 The Module Roster 📋
 
@@ -5793,6 +5928,45 @@ Cadence must be coarse and event-based — on dock, on warp, on a multi-minute t
 never be a trigger. This is a design constraint, not an implementation detail, and it belongs in the
 issue that builds saving rather than being left to whoever picks it up.
 
+#### What a save contains 📋
+
+*Settled 2026-08-11. The save **model** was settled 2026-08-08 (above); its **contents** were never
+enumerated, which `architecture.md` §13.3 Y records as the reason `SaveFile` "could not save a game
+if it were called" — its entire API is four blueprint/knowledge functions.*
+
+**The rule that makes this small: save the galaxy the way the galaxy already demotes.** §1.1 says
+Tier 3 holds no registry and everything the macro simulation needs lives in `core/galaxy/` as plain
+data. **A save is therefore a demotion of the resident system plus the records that already exist**
+— not a bespoke snapshot format, and not a registry serializer.
+
+| Section | Contents | Already exists as |
+|---|---|---|
+| **Header** | Schema version, galaxy seed, elapsed macro ticks, save timestamp | — |
+| **Player** | `ActorId`, faction, credits, `PlayerLocation`, current system coordinate | — |
+| **Player rig** | `RigState` — the delta against a `BlueprintId`, per-mount `ShellInstance` and `MountedModules::items`, damage, `Quality` rolls | §12.31 |
+| **Holds** | Every `CargoHold` the player owns, as `ItemStack`s | §12.19 |
+| **Knowledge** | `KnowledgeStore`, including sensor coverage after §8.3's migration | `SaveKnowledgeStore` ✅ |
+| **Galaxy** | Touched `SystemRecord`s only — never the coordinate space | §12.17 |
+| **Diplomacy** | `DiplomacyMatrix`, `Reputation`, `Territory` | ✅ built |
+| **Economy** | `FactionEconomy`'s per-station item ledger | §12.20 |
+| **Records** | `WreckRecord`, `ResearchRecord`, `ManufacturingRecord`, the depletion record | ✅ / §12.18 |
+| **Parked hulls** | A `RigState` per hull, per station | §12.31 |
+
+**What is deliberately *not* saved, and regenerates instead:** every celestial body, belt and
+deposit (§7.1 derives them from the seed), every NPC not carrying persistent state, every
+projectile, every drop, and the entire resident registry. **If a thing can be re-derived from the
+seed plus a record, saving it is a bug** — it is how a save file starts disagreeing with a content
+edit.
+
+**The player's current system is saved as a record, then re-promoted on load.** Loading is warping
+in: the same promotion path §1.1 already specifies, with no second code path to keep correct.
+
+> **The one thing this enumeration is strict about.** A save must never contain derived state — no
+> stat blocks, no aggregate mass, no computed prices. §12.21 already rules that an instance stores
+> its *budget point and distribution* and recomputes its block from `def + quality`, because storing
+> the derived form lets a content edit and a save disagree forever. That rule applies to the whole
+> file, not just to quality rolls.
+
 ### 3.4 No Pause, No Safe Zones 📋
 
 **The simulation never stops while the player is alive.** Opening the navigation map (§8), the
@@ -8099,6 +8273,68 @@ one existing call.
 founding are mutually exclusive (they probably are), and the reputation cost of defecting. This wants
 its own pass — it touches §2.5, §5.3, §6.5, and asset ownership at once.
 
+### 5.11 Contracts 📋
+
+*Settled 2026-08-11. `ContractSystem` is built, scheduled and tested; `Contract` already holds two
+types, a credit reward, and a locked "one active contract at a time" rule ported from StarReach2.
+**What never existed is an offer** — `Contract.h`'s own comment says so: "there is no separate offer
+representation yet — that belongs to a future contract-board/UI system." This section is that
+design, and it deliberately adds no new contract type.*
+
+**A contract is paid work a faction offers, and it is the game's only source of directed income.**
+Everything else the player earns — salvage, mining, trade, royalties — is self-directed. Contracts
+are the thread that pulls a new pilot outward into somebody else's problem.
+
+#### The two types, and why there is no third yet
+
+| Type | Terms | Fails when |
+|---|---|---|
+| **Bounty** | Destroy N rigs of a named faction, anywhere, while the contract is active | Never — it has no timer, and expires only with the contract |
+| **Escort** | Keep a named vessel alive until its timer runs out | The escort target is destroyed |
+
+Both are already implemented end to end. **Courier is deliberately deferred**: it needs `ItemId`
+(§2.10), a station-identity model, and a destination concept, and it would be the only contract type
+whose failure state is *"you sold the cargo."* It arrives with the item model or not at all.
+
+#### The board
+
+**Home: the Trade facility**, as a section of the Market screen. Not a separate docked tab — a
+contract is a transaction, and putting it beside buying and selling is what makes the Trade
+hardpoint worth defending rather than a shopfront.
+
+| Rule | |
+|---|---|
+| **Offers are per station**, generated on a timer and expiring on one | A station is a place with its own work, not a window onto a global queue |
+| **Reputation gates visibility** | §5.3's band table already grants "contracts offered" at Friendly. Below it, the board is empty and says so — never hidden, per §8.3's *absence must never look like emptiness* |
+| **One active at a time** | Already locked in code. The board shows the rest greyed with the reason |
+| **Accepting is the producer** `AcceptContractRequest` **has never had** | The exact gap §13.1 records |
+
+#### Rewards derive; they are not authored
+
+The same principle as every other price in the game (§2.10): **nobody decides what a bounty pays.**
+
+- **Bounty** — the summed `BaseValue` of the target faction's typical hull at the issuing station's
+  local tier, times kills required, times a **risk multiplier from the relation between the issuer
+  and the target** (a war bounty pays more than a border grievance).
+- **Escort** — the escorted hull's `BaseValue` times a factor of the duration, times the **hostile
+  density of the system**, which is the same structural-density read §5.7 gives the Reapers.
+
+Both fall out of `core/economy/Pricing.h` and the relation matrix. Neither needs a tuning table, and
+both automatically stay correct when the content roster grows.
+
+#### Contracts move relations, and this is where §5.3's writer lands
+
+§5.3 already names `ContractSystem` as a relation writer — *"contract completed / failed → positive
+/ negative to the issuer"* — and `architecture.md` §15.1 finding 14 found no such logic in the file.
+Completing raises standing with the issuer; **a Bounty additionally lowers standing with the target
+faction**, which is the mechanism that lets a player pick a side by taking work rather than by
+declaring one.
+
+> **What a contract must never be: a quest.** No authored objectives, no scripted beats, no named
+> NPCs, no branching text. A contract names a faction, a count and a reward, and the simulation
+> supplies the rest. The moment one needs a writer, it has stopped being a contract and started
+> being content this game does not produce.
+
 ---
 
 ## 6. Simulation Decision Engine 📋
@@ -8226,6 +8462,48 @@ faction). Headship needs both — membership *and* the top rating among that fac
 or a player could loot a Mythic crew module from a boss and become head of a faction they have never
 met.
 
+### 6.6 Expansion and Colonization 📋
+
+*Settled 2026-08-11. `core::ai::EvaluateColonization` is built and tested — surplus stock at or above
+a reference level, plus an unclaimed target, produces a `ColonizeDirective`. **The caller picks the
+target**, and nothing anywhere picks one. `architecture.md` §15.1 finding 25 records the threshold as
+having no design backing at all. This section supplies both.*
+
+**Colonization is how a faction grows without fighting**, and it is what makes §5.1's Three Pillars
+survivable rather than a slow ratchet toward collapse.
+
+#### Candidate selection — adjacency first, doctrine second
+
+A faction evaluates, once per macro tick, **only systems adjacent to territory it already holds**
+(`Topology`'s neighbour query). A faction never colonizes across the map; territory grows at its
+edges or not at all, which is what produces recognizable borders instead of a scatter.
+
+Among adjacent unclaimed systems, the target is chosen by the facet the faction leads on — the
+§6.2 archetype weighting, finally reading something:
+
+| Archetype | Prefers |
+|---|---|
+| **Corporate / Industrial** (Meridian, Kore) | Highest resource yield — belts and dense deposits |
+| **Military / Zealot** (Aegis, Pyre) | Systems adjacent to a rival's territory — a border position |
+| **Anomalous** (Voidwalkers) | Systems containing an anomaly, per `lore.md` §2 |
+| **Scientific** (Zenith, Concordance) | Systems holding a pre-collapse ruin |
+| **Ecological** (Edenian Pact) | Systems with a habitable or garden world |
+
+**A faction with no adjacent unclaimed system does not expand.** It raids, blockades, or stagnates —
+all three already modelled — and that pressure is what §6.4's border skirmishes are *for*.
+
+#### The thresholds
+
+| Condition | Value | Why |
+|---|---|---|
+| **Surplus required** | Reference stock (currently 500), **above** what its existing holdings consume | Already the built rule; the "above consumption" clause is what stops a starving faction colonizing |
+| **Chance per macro tick, threshold met** | **20%** | Slower than §6.3's 45% raid chance, deliberately: expansion should be visible over a session, raiding within one |
+| **Cost on success** | The surplus is spent | Expansion competes with rearmament for the same stock, so a faction cannot do both |
+| **Reapers** | **Never colonize.** §5.7's unmaking has no settlement behaviour | An occupied Reaper system is a contradiction |
+
+> **Every number here is a starting point, not a tuned constant**, and `tools/economy_sim` is where
+> they get settled — the same status §6.3's own thresholds carry. What is *designed* is the
+> adjacency rule and the archetype preference; those are structural and should not be tuned away.
 
 ---
 
