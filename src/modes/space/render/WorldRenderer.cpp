@@ -2,6 +2,7 @@
 
 #include <raylib.h>
 #include <algorithm>
+#include <vector>
 
 #include "modes/space/render/LightingPass.h"
 #include "shared/blueprints/Taxonomy.h"
@@ -52,6 +53,18 @@ Color ColorForProjectile(DamageType type) {
     return type == DamageType::Energy ? SKYBLUE : YELLOW;
 }
 
+Color ColorForBodyKind(BodyKind kind) {
+    switch (kind) {
+        case BodyKind::Star: return GOLD;
+        case BodyKind::Planet: return BLUE;
+        case BodyKind::Wreck: return DARKGRAY;
+        case BodyKind::Drop: return LIME;
+        case BodyKind::Asteroid: return BROWN;
+        case BodyKind::Anomaly: return PURPLE;
+    }
+    return WHITE;
+}
+
 // Scales a placeholder color by LightingPass's per-object brightness (LightingPass.h) -- the
 // closest thing to shading this renderer has until a real sprite/shader pipeline exists.
 // Channels clip at 255 rather than wrapping, which is what reproduces the "washes toward white
@@ -64,10 +77,44 @@ Color ApplyBrightness(Color base, float brightness) {
     return Color{Scale(base.r), Scale(base.g), Scale(base.b), base.a};
 }
 
-// Rig roots: a nose-forward triangle sized by the broad-phase collision radius (Physics.h). The
-// player's rig is cyan so it reads distinctly against NPC opposition without needing a HUD
-// marker yet (shared/ui/ exists now, but modes/space/ui/ -- the thing that would actually draw
-// one -- is still a separate, dependent issue).
+// World bodies: stars, planets, wrecks, drops and asteroids -- one entity, one flat-colored
+// circle each, no hardpoints, no hierarchy. Drawn first, sorted by BodyKind, so DrawWorld's
+// header comment is a single readable statement of the whole back-to-front order. A body with no
+// PreviousTransform (a drop, a wreck: it never moves) draws unblended rather than carrying the
+// component purely to satisfy this loop.
+struct DrawableBody {
+    Vec2 position;
+    float radius;
+    BodyKind kind;
+};
+
+void DrawWorldBodies(const entt::registry& registry, float alpha) {
+    std::vector<DrawableBody> bodies;
+    for (auto [entity, body, xf] : registry.view<WorldBody, WorldTransform>().each()) {
+        Vec2 position = xf.position;
+        if (const auto* prev = registry.try_get<PreviousTransform>(entity)) {
+            position = InterpolatedPosition(xf, *prev, alpha);
+        }
+        bodies.push_back(DrawableBody{position, body.radius, body.kind});
+    }
+    std::stable_sort(bodies.begin(), bodies.end(), [](const DrawableBody& a, const DrawableBody& b) {
+        return a.kind < b.kind;
+    });
+
+    for (const DrawableBody& body : bodies) {
+        const Color color =
+            ApplyBrightness(ColorForBodyKind(body.kind), LightForObject(registry, body.position));
+        DrawCircleV(ToRaylib(body.position), body.radius, color);
+    }
+}
+
+// Rig roots: a nose-forward triangle when the rig has visible thrust, sized by the broad-phase
+// collision radius (Physics.h), and a disc otherwise -- so a station reads as a hulk instead of
+// an arrowhead, and shooting a ship's engines out visibly turns it into one too (features.md
+// section 3.2's stated consequence, rendered, for free). The player's rig is cyan so it reads
+// distinctly against NPC opposition without needing a HUD marker yet (shared/ui/ exists now, but
+// modes/space/ui/ -- the thing that would actually draw one -- is still a separate, dependent
+// issue).
 void DrawShips(const entt::registry& registry, float alpha) {
     for (auto [entity, xf, prev, radius] :
          registry.view<WorldTransform, PreviousTransform, CollisionRadius>(entt::exclude<Destroyed>)
@@ -76,6 +123,11 @@ void DrawShips(const entt::registry& registry, float alpha) {
         const float rotation = InterpolatedRotation(xf, prev, alpha);
         const Color baseColor = registry.all_of<PlayerControlled>(entity) ? SKYBLUE : ORANGE;
         const Color color = ApplyBrightness(baseColor, LightForObject(registry, position));
+
+        if (!HasVisiblePropulsion(registry, entity)) {
+            DrawCircleV(ToRaylib(position), radius.value, color);
+            continue;
+        }
 
         const Vec2 nose = position + Rotated(Vec2{radius.value, 0.0f}, rotation);
         const Vec2 left =
@@ -123,6 +175,11 @@ void DrawProjectiles(const entt::registry& registry, float alpha) {
 
 }  // namespace
 
+bool HasVisiblePropulsion(const entt::registry& registry, entt::entity entity) {
+    const auto* propulsion = registry.try_get<Propulsion>(entity);
+    return propulsion != nullptr && propulsion->thrustNewtons != 0.0f;
+}
+
 void DrawWorld(const SystemWorld& world, const CameraView& camera, float alpha) {
     const Camera2D cam2d{
         Vector2{GetScreenWidth() * 0.5f, GetScreenHeight() * 0.5f},
@@ -134,6 +191,7 @@ void DrawWorld(const SystemWorld& world, const CameraView& camera, float alpha) 
     const entt::registry& registry = world.Registry();
 
     BeginMode2D(cam2d);
+    DrawWorldBodies(registry, alpha);
     DrawShips(registry, alpha);
     DrawHardpoints(registry, alpha);
     DrawProjectiles(registry, alpha);

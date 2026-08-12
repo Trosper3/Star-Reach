@@ -6,11 +6,17 @@
 
 #include "shared/components/Loot.h"
 #include "shared/components/Mining.h"
+#include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 
 namespace sr::space::mining_system {
 namespace {
+
+// A drop's WorldBody radius is purely a draw/pickup-visibility size, not a gameplay collision
+// radius -- FindCollectorInRange (LootSystem.cpp) derives pickup range from the collector, not
+// the drop.
+constexpr float kMaterialDropRadius = 6.0f;
 
 // A pure function of (entity, material index, tick) rather than global RNG state -- Law 2's
 // coarse-tick fast-forward needs every time-dependent decision to be reproducible from the same
@@ -36,6 +42,7 @@ void SpawnMaterialDrop(entt::registry& registry, const Vec2& position,
                        const std::string& materialId) {
     const entt::entity drop = registry.create();
     registry.emplace<WorldTransform>(drop, position, 0.0f);
+    registry.emplace<WorldBody>(drop, kMaterialDropRadius, BodyKind::Drop);
     registry.emplace<MaterialDrop>(drop, materialId, 1, 28.0f);
 }
 

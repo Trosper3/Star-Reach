@@ -11,6 +11,7 @@
 #include "modes/space/systems/DockingSystem.h"
 #include "modes/space/systems/EngineerSystem.h"
 #include "modes/space/systems/FactionEconomySystem.h"
+#include "modes/space/systems/HazardSystem.h"
 #include "modes/space/systems/HierarchySystem.h"
 #include "modes/space/systems/LootSystem.h"
 #include "modes/space/systems/MiningSystem.h"
@@ -41,6 +42,9 @@ namespace sr::space {
 //                        hardpoints repositioned by the SAME tick's hierarchy pass instead
 //                        of lagging one tick behind at the pre-warp position.
 //   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
+//   HazardSystem      -- after HierarchySystem (reads settled hardpoint WorldTransforms), before
+//                        CollisionSystem/ProjectileSystem so a real attacker's PendingDamage
+//                        overwrites the hazard's null-source one when both land the same tick.
 //   ConstructionSystem, ModuleEquipSystem -- before PowerSystem, so a freshly built rig or a
 //                        mount/unmount lands in this same tick's power budget.
 //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
@@ -91,6 +95,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
+        {"HazardSystem", &hazard_system::Tick},
         {"ConstructionSystem", &construction_system::Tick},
         {"ModuleEquipSystem", &module_equip_system::Tick},
         {"PowerSystem", &power_system::Tick},

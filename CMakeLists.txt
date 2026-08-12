@@ -266,6 +266,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/DistressSystem.cpp
     src/modes/space/systems/DockingSystem.cpp
     src/modes/space/systems/FactionEconomySystem.cpp
+    src/modes/space/systems/HazardSystem.cpp
     src/modes/space/systems/HierarchySystem.cpp
     src/modes/space/systems/LootSystem.cpp
     src/modes/space/systems/MiningSystem.cpp

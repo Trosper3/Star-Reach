@@ -11,6 +11,7 @@
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
 #include "shared/math/Vec2.h"
@@ -35,12 +36,17 @@ int RandomInt(Rng& rng, int lo, int hi) {
 constexpr float kSunGravityRange = 2200.0f;
 constexpr float kSunGravityStrength = 260.0f;
 constexpr float kSunLightRange = 6000.0f;
+constexpr float kSunRadius = 350.0f;             // The visible disc.
+constexpr float kCoronaRange = 1200.0f;          // Burning begins -- inside kSunGravityRange.
+constexpr float kCoronaDamagePerSecond = 60.0f;  // At the centre.
 
 void SpawnSun(entt::registry& registry) {
     const entt::entity sun = registry.create();
     registry.emplace<WorldTransform>(sun, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<GravityWell>(sun, kSunGravityRange, kSunGravityStrength);
     registry.emplace<LightSource>(sun, kSunLightRange);
+    registry.emplace<WorldBody>(sun, kSunRadius, BodyKind::Star);
+    registry.emplace<Corona>(sun, kCoronaRange, kCoronaDamagePerSecond);
 }
 
 // -- Planets ----------------------------------------------------------------------------------
@@ -50,6 +56,7 @@ constexpr float kOrbitSpacing = 1400.0f;
 constexpr float kOrbitJitter = 400.0f;
 constexpr float kMinAngularSpeed = 0.015f;
 constexpr float kMaxAngularSpeed = 0.05f;
+constexpr float kPlanetRadius = 80.0f;
 
 // Planet type/zone variety (legacy PlanetTypeRegistry) has no JSON schema in this project yet
 // (Law 10) -- every planet below is mechanically identical aside from its orbit. That is a
@@ -68,18 +75,29 @@ void SpawnPlanets(entt::registry& registry, Rng& rng, int count) {
         orbit.angularSpeed = angularSpeed;
         orbit.phase = phase;
 
+        const Vec2 position = FromAngle(phase) * radius;
+
         const entt::entity planet = registry.create();
         registry.emplace<OrbitBody>(planet, orbit);
-        registry.emplace<WorldTransform>(planet, FromAngle(phase) * radius, 0.0f);
+        registry.emplace<WorldTransform>(planet, position, 0.0f);
+        registry.emplace<PreviousTransform>(planet, position, 0.0f);
+        registry.emplace<WorldBody>(planet, kPlanetRadius, BodyKind::Planet);
     }
 }
 
 // -- Asteroids --------------------------------------------------------------------------------
 
-constexpr float kAsteroidBandMin = 1200.0f;
-constexpr float kAsteroidBandMax = 2200.0f;
+// Moved out from 1200-2200: the point of no return (where kSunGravityRange out-accelerates a
+// fighter) is ~1500, so the old band's inner half sat inside the zone a fighter cannot climb out
+// of under thrust -- harmless only while asteroids were unshootable. This puts the whole belt
+// outside both the corona burn and the point of no return, with a clean gap before the innermost
+// planet at kMinOrbitRadius.
+constexpr float kAsteroidBandMin = 1800.0f;
+constexpr float kAsteroidBandMax = 2800.0f;
 constexpr float kAsteroidHealth = 60.0f;
-constexpr float kAsteroidDriftSpeed = 15.0f;
+constexpr float kAsteroidRadius = 40.0f;
+constexpr float kAsteroidMinAngularSpeed = 0.01f;
+constexpr float kAsteroidMaxAngularSpeed = 0.03f;
 
 struct MaterialPoolEntry {
     const char* id;
@@ -109,19 +127,33 @@ AsteroidComposition RollComposition(Rng& rng) {
     return composition;
 }
 
+// Asteroids orbit like planets rather than drifting under Velocity -- OrbitSystem excludes
+// orbiting bodies from GravityWell, so the belt circles the star indefinitely and
+// deterministically instead of every asteroid inside kSunGravityRange accelerating unbounded into
+// it (an asteroid has neither LinearDamping nor a maxSpeed clamp).
 void SpawnAsteroids(entt::registry& registry, Rng& rng, int count) {
     for (int i = 0; i < count; ++i) {
         const float angle = (kTwoPi * static_cast<float>(i)) / static_cast<float>(count);
         const float dist = RandomFloat(rng, kAsteroidBandMin, kAsteroidBandMax);
         const Vec2 position = FromAngle(angle) * dist;
-        const float driftAngle = RandomFloat(rng, 0.0f, kTwoPi);
+        const float speedMagnitude = RandomFloat(rng, kAsteroidMinAngularSpeed, kAsteroidMaxAngularSpeed);
+        const float angularSpeed = RandomInt(rng, 0, 1) == 0 ? speedMagnitude : -speedMagnitude;
         const AsteroidComposition composition = RollComposition(rng);
+
+        OrbitBody orbit{};
+        orbit.center = entt::null;
+        orbit.radius = dist;
+        orbit.angularSpeed = angularSpeed;
+        orbit.phase = angle;
 
         const entt::entity asteroid = registry.create();
         registry.emplace<Asteroid>(asteroid);
         registry.emplace<Health>(asteroid, kAsteroidHealth, kAsteroidHealth);
         registry.emplace<WorldTransform>(asteroid, position, 0.0f);
-        registry.emplace<Velocity>(asteroid, FromAngle(driftAngle) * kAsteroidDriftSpeed, 0.0f);
+        registry.emplace<PreviousTransform>(asteroid, position, 0.0f);
+        registry.emplace<OrbitBody>(asteroid, orbit);
+        registry.emplace<HitRadius>(asteroid, kAsteroidRadius);
+        registry.emplace<WorldBody>(asteroid, kAsteroidRadius, BodyKind::Asteroid);
         registry.emplace<AsteroidComposition>(asteroid, composition);
     }
 }

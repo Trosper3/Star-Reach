@@ -6,15 +6,18 @@
 #include "modes/space/systems/MiningSystem.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Mining.h"
+#include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 
 using sr::Asteroid;
 using sr::AsteroidComposition;
+using sr::BodyKind;
 using sr::Destroyed;
 using sr::MaterialChance;
 using sr::MaterialDrop;
 using sr::Vec2;
+using sr::WorldBody;
 using sr::WorldTransform;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
@@ -75,10 +78,11 @@ TEST_CASE("MiningSystem always spawns a MaterialDrop for a guaranteed (100%) mat
 
     REQUIRE(CountMaterialDrops(registry) == 1);
     for (auto [drop, material, xf] : registry.view<MaterialDrop, WorldTransform>().each()) {
-        (void)drop;
         CHECK(material.materialId == "iron");
         CHECK(xf.position.x == 120.0f);
         CHECK(xf.position.y == -40.0f);
+        REQUIRE(registry.all_of<WorldBody>(drop));
+        CHECK(registry.get<WorldBody>(drop).kind == BodyKind::Drop);
     }
 }
 

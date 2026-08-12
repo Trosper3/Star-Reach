@@ -15,11 +15,9 @@ namespace sr::space::world_gen {
 // procedurally-placed entity, and Law 2's coarse-tick warp fast-forward can rely on the same
 // reproducibility OrbitBody already assumes.
 //
-// Rendering is explicitly out of scope. WorldRenderer's only generic draw path today keys off
-// {WorldTransform, PreviousTransform, CollisionRadius} and paints a ship triangle
-// (modes/space/render/WorldRenderer.cpp) -- so the bodies this spawns deliberately do NOT carry
-// CollisionRadius, or they would render as ships. A celestial draw path belongs to LightingPass
-// or IconRenderer (issues #43/#44), not this factory.
+// Every body this spawns carries WorldBody (shared/components/Physics.h), which
+// WorldRenderer::DrawWorldBodies draws -- deliberately NOT CollisionRadius, which is what
+// DrawShips keys off, or a sun/planet/asteroid would render as a ship.
 void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, unsigned int seed);
 
 }  // namespace sr::space::world_gen
