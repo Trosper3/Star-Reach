@@ -24,7 +24,7 @@ end. Nine menu files handle no input and are referenced by nothing but their own
 `data/base_game/` holds three JSON files. 424 tests pass — they exercise systems in isolation, which
 is exactly why the wiring gaps survived.
 
-**The work is overwhelmingly wiring and content, not new systems.** Of the 107 tasks below, ten
+**The work is overwhelmingly wiring and content, not new systems.** Of the 108 tasks below, ten
 introduce a new system or store.
 
 ### How to use it
@@ -34,7 +34,7 @@ introduce a new system or store.
   `architecture.md` §11.3).
 - **`Depends on:` names tasks in this file.** Before starting, confirm the dependency has *merged to
   `main`* — `architecture.md` §11.9's rule, and it applies here unchanged.
-- **⚡ = startable today**, nothing blocking — **and it means it**: 21 of the 107 tasks carry it, and
+- **⚡ = startable today**, nothing blocking — **and it means it**: 21 of the 108 tasks carry it, and
   no task carrying it declares a dependency (audited 2026-08-11, when six did). Enough parallel work
   is always available, and the mark can be trusted when picking the next thing up.
 - Branch prefix follows the issue label: `feature/`, `fix/`, `docs/`, `chore/`.
@@ -53,7 +53,7 @@ For whoever converts this file into a GitHub tracker:
    spec into the issue** — the issue points at the spec, it does not replace it, and the specs are
    revised more often than this file is.
 3. **Maintain the id → issue-number map** — the table at the bottom of this file, pre-populated with
-   all 107 ids and awaiting only the numbers. Fill in each row as you file, and tick **Merged** only
+   all 108 ids and awaiting only the numbers. Fill in each row as you file, and tick **Merged** only
    when the PR lands on `main`. Without it, §11.9's rule (*confirm the dependency has actually merged
    to `main`*) has nothing to check against, and dependencies degrade into prose.
 4. **Label** from the task's `Label:` line, which also picks the branch prefix (`feature/`, `fix/`,
@@ -90,14 +90,14 @@ gh label create chore   --repo Trosper3/Star-Reach --color FBCA04 \
 ⚠️ **Do not delete the stock labels they overlap** (`bug`, `documentation`, `enhancement`). Deleting
 a label strips it from every issue already carrying it, and the history predates this file.
 
-**③ File in phase order, in batches — not all 107 at once.** The order in this file *is* dependency
+**③ File in phase order, in batches — not all 108 at once.** The order in this file *is* dependency
 order, so `Depends on: #NN` can always name an issue that already exists, with the three exceptions
 in the table below.
 
 | Batch | Tasks | Why stop there |
 |---|:---:|---|
-| **First** | **Phase 0 + Phase 1** | **23 issues** — everything needed to reach M1, containing most of the ⚡ set, and a tracker a person can still read end to end |
-| Then | One phase at a time | Phase 0 will teach you things that revise later task text. Filing 107 up front freezes wording this file's own note says gets revised more often than the roadmap does |
+| **First** | **Phase 0 + Phase 1** | **24 issues** — everything needed to reach M1, containing most of the ⚡ set, and a tracker a person can still read end to end |
+| Then | One phase at a time | Phase 0 will teach you things that revise later task text. Filing 108 up front freezes wording this file's own note says gets revised more often than the roadmap does |
 
 **The three forward dependencies**, which name a task filed in a *later* batch. File the issue with
 the dependency written as the **id**, then backfill the `#NN` when the target exists:
@@ -158,7 +158,7 @@ tracks; the phase numbers are a recommended order, not a lock.
 
 | Phase | Goal | Exit criteria | Tasks |
 |:---:|---|---|:---:|
-| **0** | Headless foundations | The world is drawable and shootable; the widget layer exists; the audit's one-line defects are gone. All verifiable by `sr_tests` with no window | 15 |
+| **0** | Headless foundations | The world is drawable and shootable; the widget layer exists; the audit's one-line defects are gone, **and the schedule that runs every system is under test**. All verifiable by `sr_tests` with no window | 16 |
 | **1** | The micro loop | Start Game → a visible system with a player, a station, NPCs → fly, shoot, dock, respawn, quit to menu, start again cleanly | 8 |
 | **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 11 |
 | **3** | Faction state | Relations exist at runtime, are seeded, are read by combat/docking/pricing, and are written by gameplay | 5 |
@@ -182,7 +182,7 @@ that does not exist. `architecture.md` §12.28 and §13.5 group 4a both argue th
 
 **Exit criteria:** a populated `SystemWorld` renders every body it contains and every body can be
 damaged; `shared/ui/` has one row widget instead of four; §13's one-line findings are closed; the
-test suite still passes.
+schedule that invokes every system is itself under test (P0-16); the test suite still passes.
 
 ---
 
@@ -518,6 +518,43 @@ test suite still passes.
   error**, not a silently unusable gun.
 - **Tests:** `AvailableTabs` returns all six kinds when all six live; a weapon mount with no authored
   traverse fails validation naming the file and key.
+
+---
+
+### P0-16 · The schedule is tested 🔗
+**Docs:** `architecture.md` §0 · §2.4 · §13 (the audit this closes the recurrence of)
+**Depends on:** P0-04 — **Label:** `chore`
+
+> **Why this is a task at all.** `SystemSchedule.cpp` names all 30 systems today and is correct —
+> verified 2026-08-11 by diffing `systems/*.h` against the table. **Nothing tests that.** No test
+> file references `SystemSchedule` at all: every system test builds its own `SystemContext` and calls
+> `xxx_system::Tick` directly, so a test passes identically whether or not the schedule runs it.
+> Delete a line from the table and the entire suite still goes green.
+>
+> That is the legacy failure exactly — §0's headline finding was systems that existed, compiled, were
+> unit-tested, and **were never invoked**. It is closed here by construction rather than by vigilance,
+> because vigilance is what already failed once.
+
+- **Home:** `tests/unit/SystemScheduleTests.cpp` (**new**), `tests/CMakeLists.txt` (explicit source
+  list — add the file *and* reconfigure).
+- **Systems:** none. This is a test-only task; it changes no game behaviour.
+- **Tests:**
+  - **Membership** — every system in the schedule appears exactly once, and the count matches the
+    number of `*System.h` under `modes/space/systems/` (excluding `System.h` and `SystemSchedule.h`).
+    Prefer asserting against a list the test owns over re-deriving from the filesystem: a test that
+    reads the directory can never fail, because it re-derives the very thing it is checking.
+  - **Order** — the constraints P0-04 establishes, as relations rather than absolute indices, so an
+    insertion elsewhere does not spuriously fail: `HierarchySystem` after `PhysicsSystem` and before
+    `DockingSystem`; `WeaponSystem` before `ProjectileSystem` before `CollisionSystem` before
+    `DamageSystem`. **This is why the task depends on P0-04** — encoding the order first would pin
+    the bug P0-04 exists to fix.
+  - **The check must be able to fail:** removing an entry fails membership, and swapping two ordered
+    entries fails order. Confirm both by hand once, per P11-01's rule that *a check that has never
+    failed is not known to work.*
+- **Relationship to T-03.** T-03 is the general CI check for components with no reader or writer;
+  this is the specific, cheap unit test for the one wiring surface every system passes through.
+  T-03 supersedes nothing here — it runs at a different layer and on a different trigger, and this
+  one is ~20 lines available in Phase 0 rather than whenever the tooling batch lands.
 
 ---
 
@@ -2385,6 +2422,9 @@ paths below are the obvious parallel to `tools/economy_sim` rather than a name a
 - **Done when / Tests:** the check flags a planted write-only component; the allowlist is non-empty
   at merge time and every entry names the task that removes it; structural enforcement over
   documentation is §0's whole thesis, so this lands as CI, not as a doc.
+- **Note:** **P0-16 is the narrow version of this**, shipped in Phase 0 rather than waiting for the
+  tooling batch — it tests the schedule specifically, where this covers every component. Neither
+  replaces the other: a system can be correctly scheduled and still read a component nothing writes.
 
 ### T-05 · The combat balance pass 🔗
 **Docs:** `features.md` §9.1 · Appendix B item 3 · `architecture.md` §6.3's tuning note
@@ -2516,7 +2556,7 @@ was in the core loops.*
 
 | Phase | Tasks | New systems/stores | Mostly |
 |:---:|:---:|:---:|---|
-| 0 | 15 | 2 (`HazardSystem`, widget layer) | Fixes and one-liners |
+| 0 | 16 | 2 (`HazardSystem`, widget layer) | Fixes, one-liners, and one test |
 | 1 | 8 | 2 (`PlayerInputSystem`, `SystemMenu`) | Wiring built code |
 | 2 | 11 | 0 | Changing built systems |
 | 3 | 5 | 0 | Pointers and predicates |
@@ -2529,7 +2569,7 @@ was in the core loops.*
 | 10 | 6 | 1 (`RigState`) | Serialization |
 | 11 | 9 | 1 (`AudioSystem`) | Authoring, plus audio and assets |
 | QA | 5 | 0 | Tools and gates |
-| **Total** | **107** | **10** | |
+| **Total** | **108** | **10** | |
 
 **Ten new systems or stores across the whole roadmap.** Everything else is a caller, a producer, a
 predicate, a component on a factory, or a JSON file — which is exactly what §13's audit predicted:
@@ -2565,6 +2605,7 @@ reads.
 | P0-13 | The `Element` / `Material` rename — one pass or none |  |  |
 | P0-14 | Delete `TickCoarse` until it has a driver |  |  |
 | P0-15 | Group 2 leftovers: text, tabs and one-liners |  |  |
+| P0-16 | The schedule is tested |  |  |
 | P1-01 | `OnEnter`: the world and the player |  |  |
 | P1-02 | Player input through the intent queue |  |  |
 | P1-03 | Weapon groups, and no automatic target lock |  |  |
