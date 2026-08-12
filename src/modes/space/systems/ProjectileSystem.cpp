@@ -27,14 +27,20 @@ float DistanceToSegment(const Vec2& point, const Vec2& from, const Vec2& to) {
     return Distance(point, from + segment * t);
 }
 
-// Nearest-in-iteration-order hardpoint whose hit radius the segment [from, to] crosses, skipping
-// the shooter's own rig (Combat.h: Projectile::shooter "used to skip self-hits") and hardpoints
-// already destroyed this tick. entt::null if the path is clear.
+// Nearest-in-iteration-order thing a shot can hit -- a hardpoint OR an asteroid, uniformly,
+// whose hit radius the segment [from, to] crosses -- skipping the shooter's own rig (Combat.h:
+// Projectile::shooter "used to skip self-hits") and anything already destroyed this tick.
+// entt::null if the path is clear.
+//
+// ParentRig is looked up in the body rather than named in the view: it is only there to find the
+// shooter's own rig, and narrowing the view to it would silently exclude every entity with
+// HitRadius but no ParentRig -- asteroids, chiefly, which is exactly what made them unshootable.
 entt::entity FindHit(const entt::registry& registry, const Projectile& projectile, const Vec2& from,
                      const Vec2& to) {
-    for (auto [hardpoint, hitRadius, hpXf, parent] :
-         registry.view<HitRadius, WorldTransform, ParentRig>().each()) {
-        if (parent.root == projectile.shooter || registry.all_of<Destroyed>(hardpoint)) {
+    for (auto [hardpoint, hitRadius, hpXf] : registry.view<HitRadius, WorldTransform>().each()) {
+        const auto* parent = registry.try_get<ParentRig>(hardpoint);
+        if ((parent != nullptr && parent->root == projectile.shooter) ||
+            registry.all_of<Destroyed>(hardpoint)) {
             continue;
         }
         if (DistanceToSegment(hpXf.position, from, to) <= hitRadius.value) {

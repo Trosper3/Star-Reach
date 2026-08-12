@@ -148,6 +148,29 @@ TEST_CASE("ProjectileSystem detects a hit along its swept path, not just at its 
     CHECK(registry.all_of<PendingDamage>(hardpoint));
 }
 
+TEST_CASE("ProjectileSystem hits an asteroid, which carries HitRadius but no ParentRig",
+          "[projectile]") {
+    // Regression test for the narrowed FindHit view (architecture.md 12.28 finding B): before the
+    // narrowing, ParentRig lived in the view itself, which silently excluded any HitRadius entity
+    // that had no ParentRig at all -- asteroids, chiefly -- making them unshootable.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity asteroid = registry.create();
+    registry.emplace<WorldTransform>(asteroid, Vec2{50.0f, 0.0f}, 0.0f);
+    registry.emplace<HitRadius>(asteroid, 10.0f);
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{3000.0f, 0.0f}, 25.0f,
+                                             DamageType::Kinetic, entt::null, 1000.0f);
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    CHECK_FALSE(registry.valid(shot));
+    REQUIRE(registry.all_of<PendingDamage>(asteroid));
+    CHECK(registry.get<PendingDamage>(asteroid).amount == Approx(25.0f));
+}
+
 TEST_CASE("ProjectileSystem accumulates damage from two hits on the same hardpoint in one tick",
           "[projectile]") {
     SystemWorld world("sol");

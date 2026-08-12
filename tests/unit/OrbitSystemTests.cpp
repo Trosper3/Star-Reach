@@ -16,6 +16,7 @@
 using Catch::Approx;
 using sr::GravityWell;
 using sr::OrbitBody;
+using sr::PreviousTransform;
 using sr::Vec2;
 using sr::Velocity;
 using sr::WorldTransform;
@@ -76,6 +77,43 @@ TEST_CASE("OrbitSystem's position is a pure function of tick count, not an accum
     const float radius = 10.0f;
     CHECK(first.x == Approx(radius * std::cos(expectedAngle)).margin(0.0001f));
     CHECK(first.y == Approx(radius * std::sin(expectedAngle)).margin(0.0001f));
+}
+
+TEST_CASE("OrbitSystem writes PreviousTransform to the pre-move position when present", "[orbit]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity planet = registry.create();
+    registry.emplace<OrbitBody>(planet, entt::null, 100.0f, 1.0f, 0.0f);
+    registry.emplace<WorldTransform>(planet, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<PreviousTransform>(planet, Vec2{100.0f, 0.0f}, 0.0f);
+
+    orbit_system::Tick(MakeContext(world, intents, content, 1.0f, 1));
+
+    const auto& prev = registry.get<PreviousTransform>(planet);
+    CHECK(prev.position.x == Approx(100.0f));
+    CHECK(prev.position.y == Approx(0.0f).margin(0.0001f));
+    const auto& current = registry.get<WorldTransform>(planet);
+    CHECK(current.position.y != Approx(prev.position.y).margin(0.0001f));
+}
+
+TEST_CASE("OrbitSystem does not add PreviousTransform to a body that lacks one", "[orbit]") {
+    // A drop or wreck (WorldRenderer.h) deliberately carries no PreviousTransform to satisfy this
+    // loop; OrbitSystem must not force-emplace one onto an orbiting body that omits it either.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity planet = registry.create();
+    registry.emplace<OrbitBody>(planet, entt::null, 100.0f, 1.0f, 0.0f);
+    registry.emplace<WorldTransform>(planet, Vec2{100.0f, 0.0f}, 0.0f);
+
+    orbit_system::Tick(MakeContext(world, intents, content, 1.0f, 0));
+
+    CHECK_FALSE(registry.all_of<PreviousTransform>(planet));
 }
 
 TEST_CASE("OrbitSystem resolves a moon's position relative to its orbiting center", "[orbit]") {

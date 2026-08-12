@@ -33,6 +33,9 @@ void Tick(const SystemContext& ctx) {
     const float elapsed = static_cast<float>(ctx.tick) * ctx.dt;
 
     for (auto [entity, orbit, transform] : registry.view<OrbitBody, WorldTransform>().each()) {
+        if (auto* prev = registry.try_get<PreviousTransform>(entity)) {
+            *prev = PreviousTransform{transform.position, transform.rotation};
+        }
         transform.position = ResolvePosition(registry, entity, elapsed);
     }
 

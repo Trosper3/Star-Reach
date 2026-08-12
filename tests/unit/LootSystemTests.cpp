@@ -10,6 +10,7 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Transform.h"
 
+using sr::BodyKind;
 using sr::CargoHold;
 using sr::CollisionRadius;
 using sr::DeathWreck;
@@ -21,6 +22,7 @@ using sr::ModuleId;
 using sr::PlayerControlled;
 using sr::Vec2;
 using sr::Wallet;
+using sr::WorldBody;
 using sr::WorldTransform;
 using sr::core::galaxy::WreckLedger;
 using sr::core::galaxy::WreckRecord;
@@ -226,6 +228,8 @@ TEST_CASE("CollapseDeathWreck/PromoteDeathWreck round-trip a DeathWreck's conten
 
     REQUIRE(registry.valid(promoted));
     CHECK(registry.get<WorldTransform>(promoted).position == Vec2{42.0f, -7.0f});
+    REQUIRE(registry.all_of<WorldBody>(promoted));
+    CHECK(registry.get<WorldBody>(promoted).kind == BodyKind::Wreck);
     const DeathWreck& promotedWreck = registry.get<DeathWreck>(promoted);
     REQUIRE(promotedWreck.modules.size() == 1);
     CHECK(promotedWreck.modules.front() == ModuleId("pulse_cannon_i"));

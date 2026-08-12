@@ -20,8 +20,10 @@ add_executable(sr_tests
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
     unit/CollisionSystemTests.cpp
+    unit/HazardSystemTests.cpp
     unit/HierarchySystemTests.cpp
     unit/OrbitSystemTests.cpp
+    unit/WorldRendererTests.cpp
     unit/PartySystemTests.cpp
     unit/PhysicsSystemTests.cpp
     unit/PowerSystemTests.cpp

@@ -11,6 +11,11 @@
 namespace sr::space::loot_system {
 namespace {
 
+// A wreck's WorldBody radius is purely a draw size -- pickup range for a DeathWreck derives from
+// the collector, the same as MaterialDrop (MiningSystem.cpp); only DerelictWreck's own
+// radiusUnits widens the pickup check itself.
+constexpr float kDeathWreckRadius = 20.0f;
+
 void AddModule(entt::registry& registry, entt::entity collector, const ModuleId& moduleId) {
     registry.get_or_emplace<CargoHold>(collector).modules.push_back(moduleId);
 }
@@ -153,6 +158,7 @@ core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::ent
 entt::entity PromoteDeathWreck(entt::registry& registry, const core::galaxy::WreckRecord& record) {
     const entt::entity entity = registry.create();
     registry.emplace<WorldTransform>(entity, record.position, 0.0f);
+    registry.emplace<WorldBody>(entity, kDeathWreckRadius, BodyKind::Wreck);
     registry.emplace<DeathWreck>(entity, record.modules, record.materials, record.lifetimeSeconds);
     return entity;
 }
