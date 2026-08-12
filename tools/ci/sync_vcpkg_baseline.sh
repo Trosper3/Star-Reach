@@ -8,9 +8,10 @@
 # but the image is routinely weeks behind upstream, and our baseline is pinned (see the raylib note
 # in vcpkg.json, which is why we have a baseline and an override at all).
 #
-# Two separate things break when the pinned baseline is newer than the image's vcpkg, and they have
-# to be fixed together. A fetch alone is NOT enough -- that was tried first and only cleared the
-# first of these:
+# THREE separate things break when the image and the pinned baseline disagree, and they have to be
+# fixed together. Notes 1 and 2 are the image's vcpkg being OLDER than the baseline; note 3 is the
+# mirror case, the image's binary being NEWER, and it was found the hard way ten days later. A fetch
+# alone is NOT enough -- that was tried first and only cleared the first of these:
 #
 #   1. The baseline is read out of git:
 #
@@ -76,5 +77,37 @@ git -C "$root" cat-file -e "${baseline}^{commit}" 2>/dev/null \
 
 # --force because the image occasionally leaves the tree dirty, and detached HEAD is expected here.
 git -C "$root" -c advice.detachedHead=false checkout --force "$baseline"
+
+# 3. The checkout rewinds the SCRIPTS TREE but not vcpkg.exe, which the runner image ships as a
+#    prebuilt binary sitting outside git entirely. So the tree moves to the baseline and the binary
+#    does not, and when the image's binary is NEWER than the baseline's scripts, vcpkg rejects its
+#    own tool data:
+#
+#        scripts/vcpkg-tools.json: error: $ (a tool data file):
+#        document schema version 1 is not supported by this version of vcpkg
+#
+#    That failure is upstream of everything else. Unable to read its tool data, vcpkg cannot locate
+#    the `git` it needs, so the baseline read in note 1 fails too -- reporting "failed to `git show`
+#    versions/baseline.json ... may be fixed by fetching commits with `git fetch`" and pointing
+#    squarely at a fetch problem that is already fixed. Then comes the same misleading CMake cascade
+#    noted above. Observed 2026-08-12 on BOTH windows-latest (C:\vcpkg) and ubuntu-latest
+#    (/usr/local/share/vcpkg), ten days after the last green run. macos-latest passed the same run,
+#    so the images cross this boundary independently and a green leg proves nothing about the others.
+#
+#    Bootstrapping downloads the tool version pinned by scripts/vcpkg-tool-metadata.txt AT THIS
+#    COMMIT, so the binary and the scripts agree by construction rather than by luck. This is why
+#    the fix is a bootstrap and not a baseline bump: bumping chases the images, and the images move
+#    on their schedule, not ours.
+#
+#    Run on all three legs. Two of them were already failing when this was written and the third
+#    was not, which is the argument for treating the mismatch as a property of the mechanism rather
+#    than of any one image: macos-latest is not immune, it is merely behind.
+echo "Bootstrapping vcpkg at $baseline so the binary matches the checked-out scripts..."
+if [ "${OS:-}" = "Windows_NT" ] && [ -f "$root/bootstrap-vcpkg.bat" ]; then
+    # Git Bash: the .bat needs cmd. `//c` -- doubled -- stops MSYS rewriting the flag as a path.
+    (cd "$root" && cmd //c "bootstrap-vcpkg.bat -disableMetrics")
+else
+    "$root/bootstrap-vcpkg.sh" -disableMetrics
+fi
 
 echo "$root is now at $(git -C "$root" rev-parse HEAD)."
