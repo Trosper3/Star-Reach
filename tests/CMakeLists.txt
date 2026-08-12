@@ -5,6 +5,7 @@ add_executable(sr_tests
     unit/MathTests.cpp
     unit/TextureCacheTests.cpp
     unit/HudThemeTests.cpp
+    unit/WidgetsTests.cpp
     unit/IconRendererTests.cpp
     unit/LightingPassTests.cpp
     unit/CockpitHudTests.cpp

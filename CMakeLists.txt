@@ -208,15 +208,25 @@ target_include_directories(sr_engine SYSTEM PRIVATE
     $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-# --- sr_shared_ui : the HUD theme -------------------------------------------------------------
+# --- sr_shared_ui : the HUD theme and the shared widget layer ----------------------------------
 # The one exception to shared/'s "no raylib, no engine/" rule (section 2.1's note; section 2.3's
-# layer table). Header-only, like every previous incarnation of this file -- there is no state
-# to own, only palette constants and draw-time math. An INTERFACE library still needs a real
-# consumer to be exercised by the build; tests/unit/HudThemeTests.cpp is that consumer until
-# modes/space/ui/ (a separate, dependent issue) becomes the real one.
-add_library(sr_shared_ui INTERFACE)
-target_sources(sr_shared_ui INTERFACE src/shared/ui/HudTheme.h)
-target_link_libraries(sr_shared_ui INTERFACE sr_options sr_shared sr_engine)
+# layer table). STATIC, not INTERFACE, since architecture.md 12.30 -- hit-testing has a .cpp now,
+# not just palette constants and draw-time math.
+add_library(sr_shared_ui STATIC
+    src/shared/ui/HudTheme.h
+    src/shared/ui/UiInput.h
+    src/shared/ui/Row.h
+    src/shared/ui/Widgets.h
+    src/shared/ui/Widgets.cpp
+)
+target_link_libraries(sr_shared_ui PUBLIC sr_options sr_shared sr_engine)
+target_precompile_headers(sr_shared_ui PRIVATE <raylib.h>)
+
+# SYSTEM: see sr_shared's identical declaration above for why this is explicit rather than relied
+# on as a default.
+target_include_directories(sr_shared_ui SYSTEM PRIVATE
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 # --- sr_menu : the main menu mode -------------------------------------------------------------
 add_library(sr_menu STATIC
@@ -248,7 +258,6 @@ add_library(sr_space STATIC
     src/modes/space/ui/BuildMenu.cpp
     src/modes/space/ui/EngineerMenu.cpp
     src/modes/space/ui/RefactorMenu.cpp
-    src/modes/space/ui/InventoryGrid.cpp
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
     src/modes/space/ui/StationServicesMenu.cpp

@@ -1,7 +1,6 @@
 #include "modes/space/ui/StorageMenu.h"
 
-#include "modes/space/ui/InventoryGrid.h"
-#include "shared/ui/HudTheme.h"
+#include "shared/ui/Widgets.h"
 
 namespace sr::space::ui::storage_menu {
 
@@ -18,12 +17,15 @@ std::vector<std::string> Rows(const CargoHold& cargo) {
 }
 
 void Draw(const Rectangle& bounds, const CargoHold& cargo) {
-    sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
-    const std::vector<std::string> rows = Rows(cargo);
-    for (std::size_t i = 0; i < rows.size(); ++i) {
-        inventory_grid::DrawSlotRow(bounds, rows[i], static_cast<int>(i));
+    std::vector<sr::ui::Row> rows;
+    for (const std::string& label : Rows(cargo)) {
+        sr::ui::Row row;
+        row.label = label;
+        rows.push_back(row);
     }
+    sr::ui::DrawListView(content, rows, 0.0f, "NO ITEMS IN HOLD");
 }
 
 }  // namespace sr::space::ui::storage_menu

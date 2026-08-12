@@ -1,12 +1,9 @@
 #include "modes/space/ui/RefactorMenu.h"
 
 #include "shared/components/Rig.h"
-#include "shared/ui/HudTheme.h"
+#include "shared/ui/Widgets.h"
 
 namespace sr::space::ui::refactor_menu {
-namespace {
-constexpr float kRowHeight = 20.0f;
-}  // namespace
 
 std::vector<entt::entity> DeletableHardpoints(const entt::registry& registry,
                                               entt::entity rigRoot) {
@@ -42,14 +39,18 @@ DeleteHardpointRequest BuildDeleteRequest(entt::entity hardpoint) {
 }
 
 void Draw(const Rectangle& bounds, const entt::registry& registry, entt::entity rigRoot) {
-    sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
     const std::vector<entt::entity> deletable = DeletableHardpoints(registry, rigRoot);
-    for (std::size_t i = 0; i < deletable.size(); ++i) {
-        const int y =
-            static_cast<int>(bounds.y) + static_cast<int>(kRowHeight) * static_cast<int>(i);
-        DrawText("hardpoint", static_cast<int>(bounds.x) + 8, y, 12, sr::ui::kLabelDim);
+    std::vector<sr::ui::Row> rows;
+    rows.reserve(deletable.size());
+    for (const entt::entity hardpoint : deletable) {
+        (void)hardpoint;
+        sr::ui::Row row;
+        row.label = "hardpoint";
+        rows.push_back(row);
     }
+    sr::ui::DrawListView(content, rows, 0.0f, "NO DELETABLE HARDPOINTS");
 }
 
 }  // namespace sr::space::ui::refactor_menu

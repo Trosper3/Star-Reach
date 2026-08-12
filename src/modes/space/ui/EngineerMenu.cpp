@@ -1,6 +1,9 @@
 #include "modes/space/ui/EngineerMenu.h"
 
+#include <vector>
+
 #include "shared/ui/HudTheme.h"
+#include "shared/ui/Widgets.h"
 
 namespace sr::space::ui::engineer_menu {
 
@@ -12,14 +15,18 @@ MergeModulesRequest BuildMergeRequest(const ModuleId& primary, const ModuleId& s
 }
 
 void Draw(const Rectangle& bounds, const ModuleId& primary, const ModuleId& secondary) {
-    sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
-    DrawText(primary.str().c_str(), static_cast<int>(bounds.x) + 8, static_cast<int>(bounds.y) + 8,
-             12, sr::ui::kLabelDim);
-    DrawText(secondary.str().c_str(), static_cast<int>(bounds.x) + 8,
-             static_cast<int>(bounds.y) + 28, 12, sr::ui::kLabelDim);
-    DrawText("MERGE", static_cast<int>(bounds.x) + 8, static_cast<int>(bounds.y) + 48, 14,
-             sr::ui::kStatusGood);
+    const std::vector<sr::ui::Row> rows = {
+        sr::ui::Row{primary.str(), "", {}, {}, -1.0f},
+        sr::ui::Row{secondary.str(), "", {}, {}, -1.0f},
+    };
+    sr::ui::DrawListView(content, rows, 0.0f, "NOTHING TO MERGE");
+
+    DrawText(
+        "MERGE", static_cast<int>(content.x) + 8,
+        static_cast<int>(content.y + static_cast<float>(rows.size()) * sr::ui::kListRowHeight) + 8,
+        14, sr::ui::kStatusGood);
 }
 
 }  // namespace sr::space::ui::engineer_menu

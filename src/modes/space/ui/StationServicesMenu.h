@@ -15,10 +15,8 @@
 // same DockRequest idiom AvionicsMenu already uses, and never calls
 // modes/space/systems/StationServicesSystem itself.
 //
-// This branch was cut before modes/space/ui/InventoryGrid.h (architecture.md 12.11's promotion
-// note) existed on main, so Draw below has its own minimal row rendering rather than depending
-// on a file this branch cannot see yet. Whichever of #88/#89 merges second should fold this
-// into InventoryGrid instead of leaving two copies -- the promotion note's own point.
+// Draw renders through shared/ui/Widgets.h's PanelFrame + ListView (architecture.md 12.30) --
+// the shared widget layer this file's row rendering was one of the four hand-rolled clones of.
 namespace sr::space::ui::station_services_menu {
 
 // Module ids in `stationStock` the requester can afford against `walletCredits`, at a flat

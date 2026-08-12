@@ -1,11 +1,8 @@
 #include "modes/space/ui/StationServicesMenu.h"
 
-#include "shared/ui/HudTheme.h"
+#include "shared/ui/Widgets.h"
 
 namespace sr::space::ui::station_services_menu {
-namespace {
-constexpr float kRowHeight = 20.0f;
-}  // namespace
 
 std::vector<ModuleId> AffordableModules(const std::vector<ModuleId>& stationStock,
                                         int walletCredits, int pricePerModule) {
@@ -39,14 +36,16 @@ RepairRequest BuildRepairRequest(float fraction, int costForFullRepair) {
 }
 
 void Draw(const Rectangle& bounds, const std::vector<ModuleId>& stationStock) {
-    sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
-    for (std::size_t i = 0; i < stationStock.size(); ++i) {
-        const int y =
-            static_cast<int>(bounds.y) + static_cast<int>(kRowHeight) * static_cast<int>(i);
-        DrawText(stationStock[i].str().c_str(), static_cast<int>(bounds.x) + 8, y, 12,
-                 sr::ui::kLabelDim);
+    std::vector<sr::ui::Row> rows;
+    rows.reserve(stationStock.size());
+    for (const ModuleId& module : stationStock) {
+        sr::ui::Row row;
+        row.label = module.str();
+        rows.push_back(row);
     }
+    sr::ui::DrawListView(content, rows, 0.0f, "NO STOCK AVAILABLE");
 }
 
 }  // namespace sr::space::ui::station_services_menu
