@@ -7,6 +7,7 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/OrbitSystem.h"
+#include "modes/space/systems/PhysicsSystem.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Transform.h"
@@ -14,15 +15,20 @@
 #include "shared/math/Vec2.h"
 
 using Catch::Approx;
+using sr::BodyMass;
 using sr::GravityWell;
+using sr::Length;
+using sr::LinearDamping;
 using sr::OrbitBody;
 using sr::PreviousTransform;
+using sr::Propulsion;
 using sr::Vec2;
 using sr::Velocity;
 using sr::WorldTransform;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace orbit_system = sr::space::orbit_system;
+namespace physics_system = sr::space::physics_system;
 
 namespace {
 
@@ -182,6 +188,44 @@ TEST_CASE("OrbitSystem leaves a ship's velocity untouched outside a gravity well
     const auto& velocity = registry.get<Velocity>(ship);
     CHECK(velocity.linear.x == Approx(0.0f).margin(0.0001f));
     CHECK(velocity.linear.y == Approx(0.0f).margin(0.0001f));
+}
+
+TEST_CASE(
+    "A station-like rig (zero Propulsion, LinearDamping) does not accelerate without bound "
+    "inside a gravity well",
+    "[orbit]") {
+    // Regression test for architecture.md 13.3 finding J / 12.25's fix: RigFactory used to give a
+    // mobile: false rig Velocity and BodyMass but no LinearDamping, so OrbitSystem's gravity pull
+    // (this test) accumulated every tick with nothing to bleed it off once PhysicsSystem (not
+    // exercised by OrbitSystem alone, so run both here) integrated it -- unbounded acceleration,
+    // not the drag architecture.md 12.24 step 4 assumed. Every root now always gets both
+    // (RigFactory.cpp), zeroed Propulsion included, which is what this test constructs by hand.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity sun = registry.create();
+    registry.emplace<WorldTransform>(sun, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<GravityWell>(sun, 2200.0f, 260.0f);  // WorldGen's real sun constants.
+
+    const entt::entity station = registry.create();
+    registry.emplace<WorldTransform>(station, Vec2{1500.0f, 0.0f}, 0.0f);
+    registry.emplace<Velocity>(station);
+    registry.emplace<BodyMass>(station, 500.0f);
+    registry.emplace<Propulsion>(station);                  // Zero thrust -- no engine hardpoints.
+    registry.emplace<LinearDamping>(station, 0.35f, 2.5f);  // RigFactory's default, now universal.
+
+    const SystemContext ctx = MakeContext(world, intents, content, 1.0f / 60.0f, 0);
+    for (int tick = 0; tick < 3000; ++tick) {  // 50 simulated seconds.
+        orbit_system::Tick(ctx);
+        physics_system::Tick(ctx);
+    }
+
+    // Without LinearDamping, gravity alone would have driven this well past four figures over 50
+    // seconds at this well strength -- bounded here means damping is actually doing its job.
+    const float speed = Length(registry.get<Velocity>(station).linear);
+    CHECK(speed < 300.0f);
 }
 
 TEST_CASE("OrbitSystem does not apply gravity-well pull to a body whose position is orbit-driven",

@@ -36,6 +36,13 @@ factory::SpawnParams VanguardAt(float x, float y) {
     return params;
 }
 
+factory::SpawnParams OutpostAt(float x, float y) {
+    factory::SpawnParams params;
+    params.blueprint = sr::BlueprintId("aegis_outpost");
+    params.position = {x, y};
+    return params;
+}
+
 }  // namespace
 
 TEST_CASE("A blueprint becomes a parent entity plus one child per mount", "[factory]") {
@@ -104,6 +111,29 @@ TEST_CASE("Thrust aggregates onto the rig, not onto the engine hardpoint", "[fac
     const auto thruster =
         factory::FindHardpoint(registry, result.root, sr::MountId("thruster_main"));
     CHECK_FALSE(registry.all_of<sr::Propulsion>(thruster));
+}
+
+TEST_CASE(
+    "A mobile: false blueprint still gets Propulsion and LinearDamping, aggregating to zero "
+    "thrust",
+    "[factory]") {
+    // Regression test for architecture.md 12.25: RigFactory used to emplace no Propulsion (and
+    // no LinearDamping) at all for a mobile: false blueprint, rather than a zeroed one --
+    // "capability is emergent" means every root gets both, and a station's aggregate stays zero
+    // because nothing in its mount list is an engine, not because a blueprint flag excluded it.
+    // aegis_outpost is this content set's only mobile: false blueprint and has no engine mount,
+    // so this also doubles as the finding-J regression: LinearDamping is what stops it
+    // accelerating without bound near the sun (see OrbitSystemTests.cpp for that scenario).
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    const auto result = factory::Spawn(world, content, OutpostAt(0.0f, 0.0f));
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    REQUIRE(registry.all_of<sr::Propulsion>(result.root));
+    CHECK(registry.get<sr::Propulsion>(result.root).thrustNewtons == Approx(0.0f));
+    REQUIRE(registry.all_of<sr::LinearDamping>(result.root));
+    CHECK(registry.get<sr::LinearDamping>(result.root).perSecond == Approx(0.35f));
 }
 
 TEST_CASE("Rig mass is the sum of every shell and module", "[factory]") {

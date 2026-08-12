@@ -26,9 +26,13 @@ struct ShipBlueprint {
     // Empty for a player Template. Set for authored faction content.
     FactionId faction;
 
-    // Stations are exempt from the engine requirement (features.md validation rule 5) and are
-    // never handed to PhysicsSystem. One flag, checked in one place, instead of a parallel
-    // StationBlueprint type -- see Law 4 on what parallel types cost.
+    // Which factory a blueprint is meant for (StationFactory::Spawn rejects mobile: true) and
+    // whether Validation requires at least one engine shell (validation rule 5). Does NOT decide
+    // whether RigFactory gives the rig Propulsion/PhysicsSystem handling -- every rig gets both,
+    // and a rig with no living engine hardpoints simply aggregates to zero thrust and does not
+    // move (architecture.md 12.25: capability is emergent, not authored). One flag, checked in
+    // one place, instead of a parallel StationBlueprint type -- see Law 4 on what parallel types
+    // cost.
     bool mobile = true;
 
     // Total rig mass may not exceed this (validation rule 4). It is the ceiling half of the

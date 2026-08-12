@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
@@ -10,10 +11,12 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 
+using Catch::Approx;
 using sr::DockingBay;
 using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionRef;
+using sr::LinearDamping;
 using sr::Propulsion;
 using sr::Rig;
 using sr::core::ContentLibrary;
@@ -69,15 +72,25 @@ TEST_CASE("StationFactory attaches DockingBay to the mount carrying a docking mo
     CHECK(registry.get<FacilityRef>(dock).kind == FacilityKind::Docking);
 }
 
-TEST_CASE("StationFactory spawns a rig with no Propulsion, matching mobile: false",
-          "[station_factory]") {
+TEST_CASE(
+    "StationFactory's mobile: false rig still gets Propulsion and LinearDamping, aggregating to "
+    "zero thrust",
+    "[station_factory]") {
+    // Regression test for architecture.md 12.25: capability is emergent, not authored -- every
+    // root gets both components, and a station with no engine hardpoints simply aggregates to
+    // zero thrust rather than having the components withheld by its blueprint's mobile flag.
+    // Also closes finding J: a bare Velocity/BodyMass with no LinearDamping at all is what let a
+    // station inside kSunGravityRange accelerate without bound.
     const ContentLibrary content = Content();
     SystemWorld world("sol");
 
     const auto result = station_factory::Spawn(world, content, OutpostAt(0.0f, 0.0f));
     REQUIRE(result.ok());
 
-    CHECK_FALSE(world.Registry().all_of<Propulsion>(result.root));
+    const entt::registry& registry = world.Registry();
+    REQUIRE(registry.all_of<Propulsion>(result.root));
+    CHECK(registry.get<Propulsion>(result.root).thrustNewtons == Approx(0.0f));
+    REQUIRE(registry.all_of<LinearDamping>(result.root));
 }
 
 TEST_CASE("StationFactory refuses a mobile blueprint", "[station_factory]") {
