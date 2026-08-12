@@ -30,6 +30,10 @@ void ProcessMountRequests(const SystemContext& ctx) {
             !MountBelongsToRig(registry, mount, self)) {
             continue;
         }
+        // architecture.md 12.30.7's Destroyed sweep: a dead hardpoint cannot receive a module.
+        if (registry.all_of<Destroyed>(mount)) {
+            continue;
+        }
         if (registry.all_of<EquippedModule>(mount)) {
             continue;  // Already occupied -- unmount first.
         }
@@ -47,7 +51,14 @@ void ProcessMountRequests(const SystemContext& ctx) {
             continue;
         }
 
-        rig_attachment::AttachModuleComponents(registry, mount, *module, 0.0f);
+        // The mount's real authored arc (Rig.h), not a hardcoded 0.0f -- a runtime-mounted
+        // weapon with a zero-width FiringArc could never satisfy AimAt's withinArc test
+        // (architecture.md 13.3 finding D). A mount with no MountTraverse (should not happen for
+        // a factory-built hardpoint) is treated as welded forward, the same as an authored 0.0f.
+        const auto* traverse = registry.try_get<MountTraverse>(mount);
+        const float traverseRadians = traverse != nullptr ? traverse->radians : 0.0f;
+
+        rig_attachment::AttachModuleComponents(registry, mount, *module, traverseRadians);
         registry.emplace<EquippedModule>(mount, request.module);
         cargo->modules.erase(held);
     }

@@ -5,7 +5,6 @@
 
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
-#include "shared/components/Loot.h"
 #include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
 
@@ -62,32 +61,36 @@ void ProcessDeleteRequests(const SystemContext& ctx) {
         consumed.push_back(self);
 
         const entt::entity hardpoint = request.hardpoint;
-        CargoHold* cargo = registry.try_get<CargoHold>(self);
+        Rig* rig = registry.try_get<Rig>(self);
         const ParentRig* parent =
             registry.valid(hardpoint) ? registry.try_get<ParentRig>(hardpoint) : nullptr;
-        if (cargo == nullptr || parent == nullptr || parent->root != self ||
+        if (rig == nullptr || parent == nullptr || parent->root != self ||
             !DockedAtEngineeringFacility(registry, self)) {
             continue;
+        }
+        if (rig->children.size() <= 1) {
+            continue;  // At least one hardpoint must remain (architecture.md 13.3 finding V).
         }
         if (HasDependentChild(registry, self, hardpoint)) {
             continue;
         }
 
-        const MountedModules* mounted = registry.try_get<MountedModules>(hardpoint);
-        const std::size_t returning = mounted != nullptr ? mounted->ids.size() : 0;
-        if (!CargoHoldHasRoomFor(*cargo, static_cast<int>(returning))) {
-            continue;
-        }
-
-        if (mounted != nullptr) {
-            for (const ModuleId& id : mounted->ids) {
-                cargo->modules.push_back(id);
+        // features.md 2.2's settled reversal (architecture.md 15.2 finding 8): a hardpoint that
+        // still holds modules refuses deletion instead of refunding them to cargo -- unmount
+        // first, then delete. A Destroyed hardpoint is the one exception: it refunds nothing
+        // either way, destroyed or not, so the modules-check does not apply to it (architecture.md
+        // 12.30.5 -- losing a hardpoint in combat costs the shell, not just nothing). With no
+        // refund path left, there is no cargo-room check to route through CargoHoldHasRoomFor's
+        // count-not-mass bug (architecture.md 15.2 finding 9) either.
+        if (!registry.all_of<Destroyed>(hardpoint)) {
+            const MountedModules* mounted = registry.try_get<MountedModules>(hardpoint);
+            if (mounted != nullptr && !mounted->ids.empty()) {
+                continue;
             }
         }
 
-        Rig& rig = registry.get<Rig>(self);
-        rig.children.erase(std::remove(rig.children.begin(), rig.children.end(), hardpoint),
-                           rig.children.end());
+        rig->children.erase(std::remove(rig->children.begin(), rig->children.end(), hardpoint),
+                            rig->children.end());
         registry.destroy(hardpoint);
     }
 
