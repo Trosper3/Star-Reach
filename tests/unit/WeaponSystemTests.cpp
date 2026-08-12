@@ -20,6 +20,7 @@ using sr::Docked;
 using sr::FireIntent;
 using sr::FiringArc;
 using sr::PowerBudget;
+using sr::PowerShed;
 using sr::Projectile;
 using sr::Rig;
 using sr::Target;
@@ -204,5 +205,27 @@ TEST_CASE("WeaponSystem skips a destroyed weapon hardpoint entirely", "[weapon]"
     weapon_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.storage<Projectile>().size() == 0);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.3f));
+}
+
+TEST_CASE("A shed hardpoint does not fire", "[weapon]") {
+    // Regression test for architecture.md 13.3 finding F: PowerSystem's severe-overdraw branch
+    // tags a browned-out hardpoint PowerShed, but nothing read it -- WeaponSystem fired it at
+    // full rate regardless, so load-shedding never actually cost a hardpoint (features.md 2.9).
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    Weapon weapon = ReadyWeapon();
+    weapon.cooldown = 0.3f;
+    const auto [root, hardpoint] = MakeArmedRig(registry, weapon);
+    registry.emplace<PowerShed>(hardpoint);
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.storage<Projectile>().size() == 0);
+    // Cooldown does not tick down either -- a shed hardpoint is offline, not merely slow.
     CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.3f));
 }

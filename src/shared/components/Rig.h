@@ -59,4 +59,13 @@ struct MountedModules {
     std::vector<ModuleId> ids;
 };
 
+// The mount's authored traverse limit, copied from MountBlueprint::traverseRadians at
+// instantiation (RigFactory::CreateHardpoint) -- the same value RigFactory itself passes to
+// AttachModuleComponents at build time. ModuleEquipSystem reads this so a live-refitted weapon
+// gets the mount's real arc instead of a hardcoded 0.0f, which produced a FiringArc with zero
+// width that could never satisfy AimAt's withinArc test (architecture.md 13.3 finding D).
+struct MountTraverse {
+    float radians = 0.0f;
+};
+
 }  // namespace sr

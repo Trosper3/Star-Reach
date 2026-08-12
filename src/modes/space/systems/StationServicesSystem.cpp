@@ -100,6 +100,11 @@ void ProcessRepairRequests(entt::registry& registry) {
         wallet->credits -= spend;
 
         for (const entt::entity hardpoint : rig->children) {
+            // architecture.md 12.30.7's Destroyed sweep: repair must not heal a permanently dead
+            // hardpoint -- features.md 3.9's colour-is-condition schematic would draw it green.
+            if (registry.all_of<Destroyed>(hardpoint)) {
+                continue;
+            }
             Health* health = registry.try_get<Health>(hardpoint);
             if (health == nullptr) {
                 continue;

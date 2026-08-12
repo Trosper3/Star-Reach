@@ -9,6 +9,7 @@
 
 using sr::BuyItemRequest;
 using sr::CargoHold;
+using sr::Destroyed;
 using sr::Docked;
 using sr::Health;
 using sr::RepairRequest;
@@ -163,6 +164,32 @@ TEST_CASE("Repair spend scales with the requested fraction and heals proportiona
     CHECK_FALSE(registry.all_of<RepairRequest>(rig));
     CHECK(registry.get<Wallet>(rig).credits == 50);
     CHECK(registry.get<Health>(hardpoint).current == 75.0f);  // 50 + 0.5 * 50 missing
+}
+
+TEST_CASE("Repair does not heal a Destroyed hardpoint", "[station-services]") {
+    // architecture.md 12.30.7's Destroyed sweep: a permanently dead hardpoint stays dead --
+    // features.md 3.9's colour-is-condition schematic would otherwise draw it green after this.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = MakeStation(registry, {});
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(hardpoint);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Health>(hardpoint).current == 0.0f);
+    // The credits still spend -- the request named a fraction of the whole rig, and the point of
+    // this test is the destroyed hardpoint's own health, not the wallet math.
 }
 
 TEST_CASE("Repair refuses when the wallet cannot afford the scaled spend", "[station-services]") {

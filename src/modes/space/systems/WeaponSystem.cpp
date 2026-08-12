@@ -60,9 +60,15 @@ float PelletDirection(float baseDirection, float spreadRadians, int index, int c
     return baseDirection + spreadRadians * t;
 }
 
+// `arc.currentOffset` is the mount's actual physical bearing this tick (relative to mountXf's own
+// rotation) -- AimAt integrates it toward the target but gates firing on it, so using it here
+// too is what makes "where the shot goes" match "whether the mount may fire." Recomputing a
+// fresh, perfect bearing to aimPoint instead (the previous behaviour) discarded currentOffset
+// after AimAt had already spent a tick's worth of traverse computing it (architecture.md 13.3
+// finding E).
 void SpawnProjectiles(entt::registry& registry, entt::entity shooter, const Weapon& weapon,
-                      const WorldTransform& mountXf, const Vec2& aimPoint) {
-    const float baseDirection = ToAngle(aimPoint - mountXf.position);
+                      const WorldTransform& mountXf, const FiringArc& arc) {
+    const float baseDirection = mountXf.rotation + arc.currentOffset;
     const int count = std::max(weapon.projectilesPerShot, 1);
 
     for (int i = 0; i < count; ++i) {
@@ -93,8 +99,11 @@ void Tick(const SystemContext& ctx) {
             auto* weapon = registry.try_get<Weapon>(hardpoint);
             auto* arc = registry.try_get<FiringArc>(hardpoint);
             const auto* mountXf = registry.try_get<WorldTransform>(hardpoint);
+            // PowerShed (architecture.md 13.3 finding F): a browned-out mount goes offline
+            // entirely rather than just cooling down slower -- features.md 2.9's load-shedding
+            // is meant to cost hardpoints, not merely fire rate.
             if (weapon == nullptr || arc == nullptr || mountXf == nullptr ||
-                registry.all_of<Destroyed>(hardpoint)) {
+                registry.any_of<Destroyed, PowerShed>(hardpoint)) {
                 continue;
             }
 
@@ -109,7 +118,7 @@ void Tick(const SystemContext& ctx) {
             const bool inRange = DistanceSquared(mountXf->position, *aimPoint) <= rangeSq;
 
             if (wantsToFire && onTarget && inRange && weapon->cooldown <= 0.0f) {
-                SpawnProjectiles(registry, root, *weapon, *mountXf, *aimPoint);
+                SpawnProjectiles(registry, root, *weapon, *mountXf, *arc);
                 weapon->cooldown = weapon->fireIntervalSeconds;
             }
         }

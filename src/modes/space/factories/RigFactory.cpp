@@ -56,6 +56,7 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
     registry.emplace<ParentRig>(hardpoint, root);
     registry.emplace<ShellRole>(hardpoint, shell.kind);
     registry.emplace<HitRadius>(hardpoint, shell.radius);
+    registry.emplace<MountTraverse>(hardpoint, mount.traverseRadians);
     registry.emplace<LocalTransform>(hardpoint, mount.localOffset, mount.localRotation);
 
     // Seeded so the first frame renders correctly even before HierarchySystem runs.
