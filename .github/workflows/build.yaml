@@ -74,33 +74,8 @@ jobs:
     name: clang-tidy
     needs: [enforce]
     runs-on: ubuntu-latest
-    env:
-      # vcpkg's ASSET cache -- the downloaded source tarballs (catch2, entt, raylib, ...) --
-      # distinct from the BUILT-BINARY cache below (actions/cache on vcpkg/archives). Observed
-      # 2026-08-12: catch2's tarball download from github.com's archive endpoint 503's or drops
-      # the connection intermittently, and vcpkg's own instant internal retry (3 attempts, no
-      # backoff) doesn't give a CDN blip time to clear. The binary cache can't help here either --
-      # it has nothing to restore until a build gets past this download at least once.
-      #
-      # x-gha stores assets in the GitHub Actions cache backend, keyed by content hash, shared
-      # across every branch and job. Once any run successfully downloads a given tarball, every
-      # future run reuses it regardless of whether github.com's archive endpoint is having a bad
-      # day -- turning a recurring flake into a one-time cost. Requires the
-      # ACTIONS_CACHE_URL/ACTIONS_RUNTIME_TOKEN step below; vcpkg-tool reads them from the
-      # environment, there is no other configuration surface for it.
-      X_VCPKG_ASSET_SOURCES: "x-gha,readwrite"
     steps:
       - uses: actions/checkout@v4
-
-      # See this job's X_VCPKG_ASSET_SOURCES comment above for why this exists. GitHub does not
-      # expose these as ordinary step outputs -- github-script's core.exportVariable is the
-      # documented way to surface them to subsequent steps' environment.
-      - name: Export vcpkg asset-cache credentials
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install raylib's X11/GL build dependencies
         run: |
@@ -132,8 +107,22 @@ jobs:
       # clang-tidy reads compile flags (include paths, defines) from compile_commands.json --
       # this is a real configure, not a lint-only step, because there is no other way to give it
       # vcpkg's EnTT/raylib/nlohmann_json include paths correctly.
+      #
+      # Retry-wrapped: this is the step that runs `vcpkg install`, and a port's source tarball
+      # (catch2's, observed 2026-08-12) intermittently 503's or drops the connection downloading
+      # from github.com's archive endpoint. vcpkg already retries internally, 3 attempts with no
+      # delay -- too fast to let a CDN blip clear. A real wait between attempts here does what the
+      # instant retry can't. (A GitHub Actions-backed asset cache -- x-gha -- was tried first and
+      # rejected: X_VCPKG_ASSET_SOURCES on this pinned vcpkg-tool version only accepts
+      # 'x-azurl'/'x-script'/'x-block-origin'/'clear', none of which this repo has infrastructure
+      # for.)
       - name: Configure (generates compile_commands.json)
-        run: cmake --preset release
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: cmake --preset release
 
       - name: Run clang-tidy
         run: |
@@ -160,21 +149,8 @@ jobs:
           - { name: "Linux / GCC", os: ubuntu-latest }
           - { name: "macOS / Clang", os: macos-latest }
 
-    # vcpkg's asset (source tarball) cache -- see the clang-tidy job's X_VCPKG_ASSET_SOURCES
-    # comment for why this exists. Same env var, same GitHub Actions cache backend, shared across
-    # every job and platform in this workflow.
-    env:
-      X_VCPKG_ASSET_SOURCES: "x-gha,readwrite"
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Export vcpkg asset-cache credentials
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install raylib's X11/GL build dependencies
         if: runner.os == 'Linux'
@@ -226,8 +202,15 @@ jobs:
         shell: bash
         run: bash tools/ci/sync_vcpkg_baseline.sh
 
+      # Retry-wrapped: see the clang-tidy job's identical step for why (this is the step that
+      # runs `vcpkg install`, and a port's source tarball download intermittently 503's).
       - name: Configure
-        run: cmake --preset release
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: cmake --preset release
 
       - name: Build
         run: cmake --build --preset release
@@ -242,19 +225,8 @@ jobs:
     name: AddressSanitizer
     needs: [enforce]
     runs-on: ubuntu-latest
-    # vcpkg's asset (source tarball) cache -- see the clang-tidy job's X_VCPKG_ASSET_SOURCES
-    # comment for why this exists.
-    env:
-      X_VCPKG_ASSET_SOURCES: "x-gha,readwrite"
     steps:
       - uses: actions/checkout@v4
-
-      - name: Export vcpkg asset-cache credentials
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install raylib's X11/GL build dependencies
         run: |
@@ -279,8 +251,15 @@ jobs:
       - name: Sync vcpkg to the pinned baseline
         run: bash tools/ci/sync_vcpkg_baseline.sh
 
+      # Retry-wrapped: see the clang-tidy job's identical step for why (this is the step that
+      # runs `vcpkg install`, and a port's source tarball download intermittently 503's).
       - name: Configure
-        run: cmake --preset asan
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: cmake --preset asan
 
       - name: Build
         run: cmake --build --preset asan
