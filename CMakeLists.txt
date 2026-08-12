@@ -159,6 +159,7 @@ add_library(sr_core STATIC
     src/core/galaxy/Discovery.cpp
     src/core/galaxy/ResearchRecord.cpp
     src/core/galaxy/Seeding.cpp
+    src/core/galaxy/Topology.cpp
     src/core/galaxy/WreckRecord.cpp
     src/core/knowledge/KnowledgeNetwork.cpp
     src/core/registries/JsonReader.cpp
