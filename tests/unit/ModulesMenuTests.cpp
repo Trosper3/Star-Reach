@@ -3,19 +3,20 @@
 #include "modes/space/ui/ModulesMenu.h"
 #include "shared/components/Rig.h"
 
-using sr::EquippedModule;
+using sr::MountedModules;
 using sr::Rig;
 using sr::ShellRole;
 namespace modules_menu = sr::space::ui::modules_menu;
 
-TEST_CASE("EquippableMounts lists only mounts without an EquippedModule", "[modules-menu]") {
+TEST_CASE("EquippableMounts lists only mounts whose MountedModules is empty or absent",
+          "[modules-menu]") {
     entt::registry registry;
     const entt::entity root = registry.create();
     const entt::entity empty = registry.create();
     registry.emplace<ShellRole>(empty, sr::ShellKind::Weapon);
     const entt::entity full = registry.create();
     registry.emplace<ShellRole>(full, sr::ShellKind::Weapon);
-    registry.emplace<EquippedModule>(full, sr::ModuleId("pulse_cannon_i"));
+    registry.emplace<MountedModules>(full, MountedModules{{sr::ModuleId("pulse_cannon_i")}});
     registry.emplace<Rig>(root, std::vector<entt::entity>{empty, full});
 
     const auto mounts = modules_menu::EquippableMounts(registry, root);
@@ -23,19 +24,56 @@ TEST_CASE("EquippableMounts lists only mounts without an EquippedModule", "[modu
     CHECK(mounts.front() == empty);
 }
 
-TEST_CASE("EquippedMounts lists only mounts with an EquippedModule", "[modules-menu]") {
+TEST_CASE(
+    "EquippableMounts treats a hardpoint with an empty (but present) MountedModules as available",
+    "[modules-menu]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity emptyButPresent = registry.create();
+    registry.emplace<ShellRole>(emptyButPresent, sr::ShellKind::Weapon);
+    registry.emplace<MountedModules>(emptyButPresent);  // RigFactory always emplaces this.
+    registry.emplace<Rig>(root, std::vector<entt::entity>{emptyButPresent});
+
+    const auto mounts = modules_menu::EquippableMounts(registry, root);
+    REQUIRE(mounts.size() == 1);
+    CHECK(mounts.front() == emptyButPresent);
+}
+
+TEST_CASE("EquippedMounts lists only mounts with a non-empty MountedModules", "[modules-menu]") {
     entt::registry registry;
     const entt::entity root = registry.create();
     const entt::entity empty = registry.create();
     registry.emplace<ShellRole>(empty, sr::ShellKind::Weapon);
     const entt::entity full = registry.create();
     registry.emplace<ShellRole>(full, sr::ShellKind::Weapon);
-    registry.emplace<EquippedModule>(full, sr::ModuleId("pulse_cannon_i"));
+    registry.emplace<MountedModules>(full, MountedModules{{sr::ModuleId("pulse_cannon_i")}});
     registry.emplace<Rig>(root, std::vector<entt::entity>{empty, full});
 
     const auto mounts = modules_menu::EquippedMounts(registry, root);
     REQUIRE(mounts.size() == 1);
     CHECK(mounts.front() == full);
+}
+
+TEST_CASE(
+    "EquippedMounts reads a blueprint-mounted hardpoint as occupied, not just a runtime-mounted "
+    "one",
+    "[modules-menu]") {
+    // Regression test for architecture.md 13.3 finding C / 13.4 decision 2: before this,
+    // EquippableMounts/EquippedMounts checked EquippedModule alone, which RigFactory never
+    // writes -- every blueprint-mounted hardpoint on a fresh ship read as an empty slot. Mounting
+    // there silently destroyed the original module; scrapping the hardpoint duplicated it.
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity factoryMount = registry.create();
+    registry.emplace<ShellRole>(factoryMount, sr::ShellKind::Weapon);
+    // RigFactory::CreateHardpoint's own write path -- never touches EquippedModule.
+    registry.emplace<MountedModules>(factoryMount, MountedModules{{sr::ModuleId("gun_nose")}});
+    registry.emplace<Rig>(root, std::vector<entt::entity>{factoryMount});
+
+    CHECK(modules_menu::EquippableMounts(registry, root).empty());
+    const auto equipped = modules_menu::EquippedMounts(registry, root);
+    REQUIRE(equipped.size() == 1);
+    CHECK(equipped.front() == factoryMount);
 }
 
 TEST_CASE("EquippableMounts/EquippedMounts are empty for a rig with no Rig component",

@@ -34,7 +34,11 @@ void ProcessMountRequests(const SystemContext& ctx) {
         if (registry.all_of<Destroyed>(mount)) {
             continue;
         }
-        if (registry.all_of<EquippedModule>(mount)) {
+        // MountedModules is the single record of a mount's contents (architecture.md 13.3
+        // finding C, 13.4 decision 2) -- RigFactory writes it at spawn too, so this is "occupied"
+        // for a blueprint-mounted hardpoint and a runtime-mounted one alike.
+        MountedModules& mounted = registry.get_or_emplace<MountedModules>(mount);
+        if (!mounted.ids.empty()) {
             continue;  // Already occupied -- unmount first.
         }
         const ShellRole* shellRole = registry.try_get<ShellRole>(mount);
@@ -59,7 +63,7 @@ void ProcessMountRequests(const SystemContext& ctx) {
         const float traverseRadians = traverse != nullptr ? traverse->radians : 0.0f;
 
         rig_attachment::AttachModuleComponents(registry, mount, *module, traverseRadians);
-        registry.emplace<EquippedModule>(mount, request.module);
+        mounted.ids.push_back(request.module);
         cargo->modules.erase(held);
     }
 
@@ -81,17 +85,22 @@ void ProcessUnmountRequests(const SystemContext& ctx) {
             !MountBelongsToRig(registry, mount, self)) {
             continue;
         }
-        const EquippedModule* equipped = registry.try_get<EquippedModule>(mount);
-        if (equipped == nullptr) {
+        MountedModules* mounted = registry.try_get<MountedModules>(mount);
+        if (mounted == nullptr || mounted->ids.empty()) {
             continue;
         }
 
-        const ModuleDef* module = ctx.content.FindModule(equipped->id);
+        // The most recently mounted id -- in practice the only one, for any mount ModuleEquipSystem
+        // itself put something into. A mount already carrying more than one (RigFactory's
+        // multi-module armour case) is not something UnmountModuleRequest can address individually
+        // (architecture.md 12.30.5: "no new component" -- unmount takes a mount, not a module id).
+        const ModuleId moduleId = mounted->ids.back();
+        const ModuleDef* module = ctx.content.FindModule(moduleId);
         if (module != nullptr) {
             rig_attachment::DetachModuleComponents(registry, mount, module->kind);
         }
-        cargo->modules.push_back(equipped->id);
-        registry.remove<EquippedModule>(mount);
+        cargo->modules.push_back(moduleId);
+        mounted->ids.pop_back();
     }
 
     for (const entt::entity self : consumed) {

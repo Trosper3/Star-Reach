@@ -14,11 +14,12 @@
 // modes/space/systems/ModuleEquipSystem itself.
 namespace sr::space::ui::modules_menu {
 
-// Every hardpoint on `rigRoot` that can receive a drop: carries ShellRole, does not already
-// carry EquippedModule. Pure -- no raylib -- so unit-testable.
+// Every hardpoint on `rigRoot` that can receive a drop: carries ShellRole, and its MountedModules
+// (shared/components/Rig.h) -- the single record of a mount's contents, architecture.md 13.4
+// decision 2 -- is empty or absent. Pure -- no raylib -- so unit-testable.
 std::vector<entt::entity> EquippableMounts(const entt::registry& registry, entt::entity rigRoot);
 
-// Every hardpoint on `rigRoot` that currently has an EquippedModule -- what Draw lists with an
+// Every hardpoint on `rigRoot` whose MountedModules is non-empty -- what Draw lists with an
 // unmount affordance.
 std::vector<entt::entity> EquippedMounts(const entt::registry& registry, entt::entity rigRoot);
 
