@@ -9,6 +9,25 @@ on:
   pull_request:
     branches: ["main"]
 
+  # A weekly build of an UNCHANGED main, which sounds redundant and is not. Our toolchain is not
+  # pinned end to end: the runner images ship vcpkg, CMake and compilers that move on GitHub's
+  # schedule, so main rots while sitting still and CI only notices on the next push.
+  #
+  # On 2026-08-12 that gap was ten days, and the bill arrived on a 19k-line PR: the windows-latest
+  # image's vcpkg binary had outrun our pinned baseline's tool-data schema (see
+  # tools/ci/sync_vcpkg_baseline.sh note 3). Nothing in the PR caused it, but the PR is where it
+  # surfaced, which is the expensive place to debug it -- a large diff is the first suspect even
+  # when it is innocent.
+  #
+  # Running against an unchanged tree makes the diagnosis free: nothing changed on our side, so a
+  # new failure is the environment, full stop. Monday 06:00 UTC so the week starts with a known
+  # state. Cost is one matrix run a week; the alternative is paying for it inside a PR instead.
+  schedule:
+    - cron: "0 6 * * 1"
+
+  # Lets the same drift check be run on demand from the Actions tab without an empty commit.
+  workflow_dispatch:
+
 jobs:
   # -------------------------------------------------------------------------------------------
   # The structural checks run FIRST and independently of any compiler.
