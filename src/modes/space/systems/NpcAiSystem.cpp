@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Targeting.h"
@@ -31,8 +32,12 @@ constexpr float kHeadingToleranceRadians = 0.3f;
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
 
+    // exclude<Docked>: DockingSystem zeroes a docked rig's Velocity/ThrustInput once, on dock --
+    // without this, NpcAiSystem would rewrite ThrustInput and re-emplace FireIntent every tick
+    // after, and a docked NPC would thrust out of the bay and keep firing (architecture.md 13.3
+    // finding H).
     for (auto [self, target, xf, thrust] :
-         registry.view<Target, WorldTransform, ThrustInput>(entt::exclude<PlayerControlled>)
+         registry.view<Target, WorldTransform, ThrustInput>(entt::exclude<PlayerControlled, Docked>)
              .each()) {
         // Reset every tick: a rig that lost its target coasts and stops asking to fire, rather
         // than holding whatever throttle and FireIntent it last had.

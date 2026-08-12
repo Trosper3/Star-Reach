@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -321,9 +322,11 @@ void Tick(const SystemContext& ctx) {
 
     std::vector<entt::entity> roots;
     SpatialGrid grid;
+    // exclude<Docked>: features.md 3.4's "a docked vessel is not a target" -- the exclusion half
+    // architecture.md 12.34 specifies (the other half is DamageSystem's cascade destruction).
     const auto candidates =
         registry.view<Rig, WorldTransform, CollisionRadius, BodyMass, Velocity, RamCooldown>(
-            entt::exclude<Destroyed>);
+            entt::exclude<Destroyed, Docked>);
     for (const entt::entity root : candidates) {
         grid.Insert(static_cast<int>(roots.size()), registry.get<WorldTransform>(root).position);
         roots.push_back(root);

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -29,18 +30,23 @@ float DistanceToSegment(const Vec2& point, const Vec2& from, const Vec2& to) {
 
 // Nearest-in-iteration-order thing a shot can hit -- a hardpoint OR an asteroid, uniformly,
 // whose hit radius the segment [from, to] crosses -- skipping the shooter's own rig (Combat.h:
-// Projectile::shooter "used to skip self-hits") and anything already destroyed this tick.
-// entt::null if the path is clear.
+// Projectile::shooter "used to skip self-hits"), anything already destroyed this tick, and a
+// docked rig's hardpoints (features.md 3.4's "a docked vessel is not a target," the exclusion
+// half architecture.md 12.34 specifies). entt::null if the path is clear.
 //
 // ParentRig is looked up in the body rather than named in the view: it is only there to find the
-// shooter's own rig, and narrowing the view to it would silently exclude every entity with
-// HitRadius but no ParentRig -- asteroids, chiefly, which is exactly what made them unshootable.
+// shooter's own rig and the docked state of the rig a hardpoint belongs to, and narrowing the
+// view to it would silently exclude every entity with HitRadius but no ParentRig -- asteroids,
+// chiefly, which is exactly what made them unshootable. Docked itself is not view-level
+// exclude<Docked> either, for the same reason: it lives on the rig root, and this view is over
+// hardpoints, which never carry it.
 entt::entity FindHit(const entt::registry& registry, const Projectile& projectile, const Vec2& from,
                      const Vec2& to) {
     for (auto [hardpoint, hitRadius, hpXf] : registry.view<HitRadius, WorldTransform>().each()) {
         const auto* parent = registry.try_get<ParentRig>(hardpoint);
+        const bool parentDocked = parent != nullptr && registry.all_of<Docked>(parent->root);
         if ((parent != nullptr && parent->root == projectile.shooter) ||
-            registry.all_of<Destroyed>(hardpoint)) {
+            registry.all_of<Destroyed>(hardpoint) || parentDocked) {
             continue;
         }
         if (DistanceToSegment(hpXf.position, from, to) <= hitRadius.value) {
