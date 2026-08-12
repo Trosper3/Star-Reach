@@ -101,8 +101,17 @@ jobs:
       - name: Point VCPKG_ROOT at the runner's vcpkg
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
+      # Retry-wrapped: this step also bootstraps the vcpkg tool binary itself (downloading
+      # vcpkg-glibc/vcpkg.exe from a GitHub release), which is just as subject to the CDN
+      # flakiness the Configure step below is wrapped against -- observed 2026-08-12 on both
+      # Linux (vcpkg-glibc, curl 503) and Windows (vcpkg.exe, WinHttp "invalid response").
       - name: Sync vcpkg to the pinned baseline
-        run: bash tools/ci/sync_vcpkg_baseline.sh
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: bash tools/ci/sync_vcpkg_baseline.sh
 
       # clang-tidy reads compile flags (include paths, defines) from compile_commands.json --
       # this is a real configure, not a lint-only step, because there is no other way to give it
@@ -198,9 +207,15 @@ jobs:
         shell: bash
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
+      # Retry-wrapped: see the clang-tidy job's identical step for why (this also bootstraps the
+      # vcpkg tool binary itself, hit by the same download flakiness as Configure below).
       - name: Sync vcpkg to the pinned baseline
-        shell: bash
-        run: bash tools/ci/sync_vcpkg_baseline.sh
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: bash tools/ci/sync_vcpkg_baseline.sh
 
       # Retry-wrapped: see the clang-tidy job's identical step for why (this is the step that
       # runs `vcpkg install`, and a port's source tarball download intermittently 503's).
@@ -248,8 +263,15 @@ jobs:
       - name: Point VCPKG_ROOT at the runner's vcpkg
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
+      # Retry-wrapped: see the clang-tidy job's identical step for why (this also bootstraps the
+      # vcpkg tool binary itself, hit by the same download flakiness as Configure below).
       - name: Sync vcpkg to the pinned baseline
-        run: bash tools/ci/sync_vcpkg_baseline.sh
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 45
+          command: bash tools/ci/sync_vcpkg_baseline.sh
 
       # Retry-wrapped: see the clang-tidy job's identical step for why (this is the step that
       # runs `vcpkg install`, and a port's source tarball download intermittently 503's).
