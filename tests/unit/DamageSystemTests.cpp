@@ -14,6 +14,7 @@
 using Catch::Approx;
 using sr::DamageType;
 using sr::Destroyed;
+using sr::EnginePropulsion;
 using sr::Health;
 using sr::PendingDamage;
 using sr::Propulsion;
@@ -180,6 +181,7 @@ TEST_CASE("DamageSystem zeroes a rig's propulsion once its last living engine ha
     const entt::entity engine = registry.create();
     registry.emplace<Health>(engine, 0.0f, 45.0f);
     registry.emplace<ShellRole>(engine, ShellKind::Engine);
+    registry.emplace<EnginePropulsion>(engine, 5000.0f, 3.0f, 400.0f);
     registry.emplace<Destroyed>(engine);
 
     registry.get<Rig>(root).children = {armor, engine};
@@ -193,7 +195,7 @@ TEST_CASE("DamageSystem zeroes a rig's propulsion once its last living engine ha
     CHECK(propulsion.maxSpeed == Approx(0.0f));
 }
 
-TEST_CASE("DamageSystem leaves propulsion untouched while an engine hardpoint is still alive",
+TEST_CASE("DamageSystem's per-tick recompute reproduces a living engine's propulsion unchanged",
           "[damage]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -207,9 +209,46 @@ TEST_CASE("DamageSystem leaves propulsion untouched while an engine hardpoint is
     const entt::entity engine = registry.create();
     registry.emplace<Health>(engine, 45.0f, 45.0f);
     registry.emplace<ShellRole>(engine, ShellKind::Engine);
+    registry.emplace<EnginePropulsion>(engine, 5000.0f, 3.0f, 400.0f);
     registry.get<Rig>(root).children.push_back(engine);
 
     damage_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(5000.0f));
+}
+
+TEST_CASE(
+    "DamageSystem costs propulsion proportionally when one of two engines dies, not zeroing "
+    "until the last",
+    "[damage]") {
+    // architecture.md 12.23's Sum/Max rule: two engines of equal thrust means half survives when
+    // one dies, not the old HasLivingEngine all-or-nothing zeroing.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Propulsion>(root);
+
+    const entt::entity engineA = registry.create();
+    registry.emplace<Health>(engineA, 45.0f, 45.0f);
+    registry.emplace<ShellRole>(engineA, ShellKind::Engine);
+    registry.emplace<EnginePropulsion>(engineA, 2500.0f, 1.5f, 400.0f);
+
+    const entt::entity engineB = registry.create();
+    registry.emplace<Health>(engineB, 0.0f, 45.0f);
+    registry.emplace<ShellRole>(engineB, ShellKind::Engine);
+    registry.emplace<EnginePropulsion>(engineB, 2500.0f, 1.5f, 400.0f);
+    registry.emplace<Destroyed>(engineB);
+
+    registry.get<Rig>(root).children = {engineA, engineB};
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    const auto& propulsion = registry.get<Propulsion>(root);
+    CHECK(propulsion.thrustNewtons == Approx(2500.0f));
+    CHECK(propulsion.turnTorque == Approx(1.5f));
+    CHECK(propulsion.maxSpeed == Approx(400.0f));
 }

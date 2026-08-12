@@ -65,6 +65,7 @@ void ProcessMountRequests(const SystemContext& ctx) {
         rig_attachment::AttachModuleComponents(registry, mount, *module, traverseRadians);
         mounted.ids.push_back(request.module);
         cargo->modules.erase(held);
+        rig_attachment::RecomputeRigTotals(registry, self);
     }
 
     for (const entt::entity self : consumed) {
@@ -97,10 +98,11 @@ void ProcessUnmountRequests(const SystemContext& ctx) {
         const ModuleId moduleId = mounted->ids.back();
         const ModuleDef* module = ctx.content.FindModule(moduleId);
         if (module != nullptr) {
-            rig_attachment::DetachModuleComponents(registry, mount, module->kind);
+            rig_attachment::DetachModuleComponents(registry, mount, *module);
         }
         cargo->modules.push_back(moduleId);
         mounted->ids.pop_back();
+        rig_attachment::RecomputeRigTotals(registry, self);
     }
 
     for (const entt::entity self : consumed) {

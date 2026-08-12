@@ -12,10 +12,10 @@
 // factories/ (section 2.3). Pure, given a mount entity and a resolved ModuleDef -- neither side
 // includes the other.
 //
-// What this does NOT do: fold mass or Propulsion into a rig-wide total. RigFactory accumulates
-// those across every mount of a fresh build; a live single-mount equip/unequip is a different
-// aggregation shape (recomputing one hardpoint's contribution against a rig that already has a
-// settled BodyMass/Propulsion). That stays each caller's own job.
+// Attach/Detach keep HardpointMass and EnginePropulsion (Rig.h) current on the hardpoint itself;
+// RecomputeRigTotals below folds those cached per-hardpoint values into the rig-wide
+// BodyMass/Propulsion, which is why it needs no ContentLibrary of its own (shared/ may not
+// include core/, section 2.3) -- everything it reads was already written at mount time.
 namespace sr::rig_attachment {
 
 // A module's contribution to the rig-wide Propulsion total, if any (Law 4 -- thrust is a
@@ -33,9 +33,19 @@ struct PropulsionContribution {
 PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::entity hardpoint,
                                               const ModuleDef& module, float mountTraverseRadians);
 
-// The exact inverse: removes every role component AttachModuleComponents may have added for a
-// module of this kind. RigFactory never needs this -- a freshly built rig is never partially
-// un-built -- but ModuleEquipSystem's unmount path does.
-void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint, ModuleKind kind);
+// The exact inverse: removes every role component AttachModuleComponents may have added for
+// `module`, and subtracts its mass back out of HardpointMass. RigFactory never needs this -- a
+// freshly built rig is never partially un-built -- but ModuleEquipSystem's unmount path does.
+// Takes the full ModuleDef, not just its kind, because mass-subtraction needs module.mass.
+void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
+                            const ModuleDef& module);
+
+// Recomputes rigRoot's BodyMass and Propulsion from scratch, summing HardpointMass and
+// EnginePropulsion (thrustNewtons/turnTorque summed, maxSpeed maxed) across every hardpoint in
+// its Rig::children that is not Destroyed -- architecture.md 12.23's Sum/Max rule. A no-op if
+// rigRoot has no Rig. Callers: ModuleEquipSystem after every mount/unmount, and DamageSystem
+// every tick a hardpoint may have just died, so losing an engine costs thrust proportionally
+// instead of zeroing it only when the last one dies.
+void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot);
 
 }  // namespace sr::rig_attachment
