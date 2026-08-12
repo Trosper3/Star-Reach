@@ -68,7 +68,7 @@ TEST_CASE("Dropping quantityPerGrade toward 1.0 tames the curve, per features.md
     const double ratioAtTwoX = sr::economy_sim::ModuleBaseValue(Grade::Mythic, twoX) /
                                sr::economy_sim::ModuleBaseValue(Grade::Common, twoX);
     const double ratioAtOneX = sr::economy_sim::ModuleBaseValue(Grade::Mythic, oneX) /
-                                sr::economy_sim::ModuleBaseValue(Grade::Common, oneX);
+                               sr::economy_sim::ModuleBaseValue(Grade::Common, oneX);
 
     REQUIRE(ratioAtOneX < ratioAtTwoX);
     // features.md 2.4's hard constraint: cost must still outpace the ~x6 combat-value ceiling
@@ -79,7 +79,7 @@ TEST_CASE("Dropping quantityPerGrade toward 1.0 tames the curve, per features.md
 TEST_CASE("ManufacturingTimeSeconds matches features.md 2.8's already-settled table exactly",
           "[economy_sim]") {
     REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Common, false) == 5.0);
-    REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Mythic, false) == 320.0);   // 5m20s
+    REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Mythic, false) == 320.0);  // 5m20s
     REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Common, true) == 10.0);
-    REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Mythic, true) == 640.0);    // 10m40s
+    REQUIRE(sr::economy_sim::ManufacturingTimeSeconds(Grade::Mythic, true) == 640.0);  // 10m40s
 }
