@@ -13,6 +13,7 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
 using Catch::Approx;
@@ -134,6 +135,22 @@ TEST_CASE(
     CHECK(registry.get<sr::Propulsion>(result.root).thrustNewtons == Approx(0.0f));
     REQUIRE(registry.all_of<sr::LinearDamping>(result.root));
     CHECK(registry.get<sr::LinearDamping>(result.root).perSecond == Approx(0.35f));
+}
+
+TEST_CASE("A rig with no sensor module has zero sensor range, not the old hardcoded 2000",
+          "[factory]") {
+    // Regression test for architecture.md 12.23: RigFactory used to emplace SensorRange hardcoded
+    // at 2000.0f on every root regardless of content -- a hardcoded producer with nothing
+    // authored behind it, the same shape as FiringArc::turnRatePerSecond's old kPi. aegis_vanguard
+    // mounts no Sensor module, so its SensorRange is now emergent, not authored: zero.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    const auto result = factory::Spawn(world, content, VanguardAt(0.0f, 0.0f));
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    REQUIRE(registry.all_of<sr::SensorRange>(result.root));
+    CHECK(registry.get<sr::SensorRange>(result.root).units == Approx(0.0f));
 }
 
 TEST_CASE("Rig mass is the sum of every shell and module", "[factory]") {

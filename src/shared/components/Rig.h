@@ -88,4 +88,21 @@ struct EnginePropulsion {
     float maxSpeed = 0.0f;
 };
 
+// This hardpoint's own contribution to the rig's SensorRange, present only while it carries a
+// Sensor-kind module. RecomputeRigTotals maxes this across living hardpoints (architecture.md
+// 12.23) -- two sensor arrays do not see twice as far, the same reasoning as EnginePropulsion's
+// maxSpeed.
+struct HardpointSensorRange {
+    float value = 0.0f;
+};
+
+// Present on a hardpoint mounting a FireControl module: the module's authored automated-tracking
+// rate. shared/rig/ModuleAttachment's Attach/Detach pair applies it directly to the co-mounted
+// Weapon's FiringArc::turnRatePerSecond, regardless of which of the two modules a mount's
+// authored list names first (architecture.md 12.23). Purely per-hardpoint, never rig-aggregated
+// -- a FireControl module only ever helps the turret it shares a mount with.
+struct FireControl {
+    float turnRatePerSecond = 0.0f;
+};
+
 }  // namespace sr

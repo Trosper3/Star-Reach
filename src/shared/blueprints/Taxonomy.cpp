@@ -23,13 +23,17 @@ constexpr std::array<std::pair<std::string_view, ShellKind>, 7> kShellKinds{{
     {"facility", ShellKind::Facility},
 }};
 
-constexpr std::array<std::pair<std::string_view, ModuleKind>, 6> kModuleKinds{{
+constexpr std::array<std::pair<std::string_view, ModuleKind>, 10> kModuleKinds{{
     {"weapon", ModuleKind::Weapon},
     {"shield_generator", ModuleKind::ShieldGenerator},
     {"power_cell", ModuleKind::PowerCell},
     {"engine", ModuleKind::Engine},
     {"armor", ModuleKind::Armor},
     {"facility", ModuleKind::Facility},
+    {"sensor", ModuleKind::Sensor},
+    {"cargo_bay", ModuleKind::CargoBay},
+    {"fire_control", ModuleKind::FireControl},
+    {"hyperdrive", ModuleKind::Hyperdrive},
 }};
 
 constexpr std::array<std::pair<std::string_view, FacilityKind>, 6> kFacilityKinds{{
@@ -83,6 +87,10 @@ std::string_view ToString(ModuleKind value) {
         case ModuleKind::Engine: return "engine";
         case ModuleKind::Armor: return "armor";
         case ModuleKind::Facility: return "facility";
+        case ModuleKind::Sensor: return "sensor";
+        case ModuleKind::CargoBay: return "cargo_bay";
+        case ModuleKind::FireControl: return "fire_control";
+        case ModuleKind::Hyperdrive: return "hyperdrive";
     }
     return "armor";
 }
@@ -118,7 +126,16 @@ bool IsMountable(ModuleKind module, ShellKind shell) {
         case ModuleKind::ShieldGenerator: return shell == ShellKind::Shield;
         case ModuleKind::PowerCell: return shell == ShellKind::PowerCell;
         case ModuleKind::Engine: return shell == ShellKind::Engine;
-        case ModuleKind::Facility: return shell == ShellKind::Facility;
+        // Sensor/CargoBay/Hyperdrive share the same non-combat housing ModuleKind::Facility
+        // already uses -- a facility bay can be an antenna, a cargo pod, or a warp core just as
+        // easily as a repair bay, and all four shed power in the same priority band.
+        case ModuleKind::Facility:
+        case ModuleKind::Sensor:
+        case ModuleKind::CargoBay:
+        case ModuleKind::Hyperdrive: return shell == ShellKind::Facility;
+        // FireControl shares the Weapon shell it augments -- a 2-slot turret mount carries both
+        // (architecture.md 12.23); do not merge this into ModuleKind::Weapon itself.
+        case ModuleKind::FireControl: return shell == ShellKind::Weapon;
         // Armor plating is the one module that is structurally universal -- it adds hull and
         // mass to whatever it is bolted to, which is what makes the mass budget a real trade.
         case ModuleKind::Armor: return true;

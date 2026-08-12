@@ -40,6 +40,14 @@ enum class ModuleKind : std::uint8_t {
     Engine,
     Armor,
     Facility,
+    // architecture.md 12.23's four new kinds: each is a built system with no module feeding it.
+    // Do not add ModuleKind::Auxiliary as a catch-all -- grouping is a display category on
+    // ModuleDef for the menus, never a type; a single kind cannot tell ModuleAttachment's switch
+    // which components to attach.
+    Sensor,       // Max-aggregates SensorRange (DiscoverySystem's read side already exists).
+    CargoBay,     // slotCount x slotCapacity, total derived -- P0-10 wires CargoHold onto it.
+    FireControl,  // Drives the co-mounted Weapon's FiringArc::turnRatePerSecond.
+    Hyperdrive,   // WarpSystem's fuel/jump gate lands in P9-06; this just makes the kind exist.
 };
 
 // Which capability a Facility shell provides once powered. features.md section 4 --

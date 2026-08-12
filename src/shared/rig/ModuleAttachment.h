@@ -12,10 +12,11 @@
 // factories/ (section 2.3). Pure, given a mount entity and a resolved ModuleDef -- neither side
 // includes the other.
 //
-// Attach/Detach keep HardpointMass and EnginePropulsion (Rig.h) current on the hardpoint itself;
-// RecomputeRigTotals below folds those cached per-hardpoint values into the rig-wide
-// BodyMass/Propulsion, which is why it needs no ContentLibrary of its own (shared/ may not
-// include core/, section 2.3) -- everything it reads was already written at mount time.
+// Attach/Detach keep HardpointMass, EnginePropulsion and HardpointSensorRange (Rig.h) current on
+// the hardpoint itself; RecomputeRigTotals below folds those cached per-hardpoint values into the
+// rig-wide BodyMass/Propulsion/SensorRange, which is why it needs no ContentLibrary of its own
+// (shared/ may not include core/, section 2.3) -- everything it reads was already written at
+// mount time.
 namespace sr::rig_attachment {
 
 // A module's contribution to the rig-wide Propulsion total, if any (Law 4 -- thrust is a
@@ -40,12 +41,13 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
 void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
                             const ModuleDef& module);
 
-// Recomputes rigRoot's BodyMass and Propulsion from scratch, summing HardpointMass and
-// EnginePropulsion (thrustNewtons/turnTorque summed, maxSpeed maxed) across every hardpoint in
-// its Rig::children that is not Destroyed -- architecture.md 12.23's Sum/Max rule. A no-op if
-// rigRoot has no Rig. Callers: ModuleEquipSystem after every mount/unmount, and DamageSystem
-// every tick a hardpoint may have just died, so losing an engine costs thrust proportionally
-// instead of zeroing it only when the last one dies.
+// Recomputes rigRoot's BodyMass, Propulsion and SensorRange from scratch, summing HardpointMass
+// (Sum), EnginePropulsion (thrustNewtons/turnTorque summed, maxSpeed maxed) and
+// HardpointSensorRange (Max) across every hardpoint in its Rig::children that is not Destroyed --
+// architecture.md 12.23's Sum/Max rule. A no-op if rigRoot has no Rig. Callers: ModuleEquipSystem
+// after every mount/unmount, and DamageSystem every tick a hardpoint may have just died, so
+// losing an engine costs thrust proportionally instead of zeroing it only when the last one dies,
+// and losing a sensor hardpoint shrinks detection range rather than leaving it stale.
 void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot);
 
 }  // namespace sr::rig_attachment

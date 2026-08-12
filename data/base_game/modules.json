@@ -82,6 +82,40 @@
         "kind": "docking",
         "capacity": 4
       }
+    },
+    {
+      "id": "sensor_array_i",
+      "displayName": "Sensor Array I",
+      "kind": "sensor",
+      "mass": 12.0,
+      "powerDraw": 15.0,
+      "sensor": {
+        "range": 2000.0
+      }
+    },
+    {
+      "id": "cargo_bay_i",
+      "displayName": "Cargo Bay I",
+      "kind": "cargo_bay",
+      "mass": 15.0,
+      "powerDraw": 5.0
+    },
+    {
+      "id": "fire_control_i",
+      "displayName": "Fire Control I",
+      "kind": "fire_control",
+      "mass": 8.0,
+      "powerDraw": 12.0,
+      "fireControl": {
+        "turnRatePerSecond": 4.0
+      }
+    },
+    {
+      "id": "hyperdrive_i",
+      "displayName": "Hyperdrive I",
+      "kind": "hyperdrive",
+      "mass": 30.0,
+      "powerDraw": 25.0
     }
   ]
 }
