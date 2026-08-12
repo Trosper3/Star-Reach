@@ -151,12 +151,20 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     registry.emplace<Targetable>(root);
     registry.emplace<SensorRange>(root, 2000.0f);
 
-    // Stations get no Propulsion at all, rather than a zeroed one. PhysicsSystem's view then
-    // excludes them structurally instead of by a branch on a `mobile` flag.
-    if (blueprint->mobile) {
-        registry.emplace<Propulsion>(root, aggregate.propulsion);
-        registry.emplace<LinearDamping>(root, 0.35f, 2.5f);
-    }
+    // Always emplaced, on every root -- a rig moves because it has living engines, not because a
+    // blueprint flag says it may (architecture.md 12.25). A station's aggregate.propulsion stays
+    // zero (nothing in its mount list contributed to it), and PhysicsSystem already treats zero
+    // thrust as "does not move" -- so exclusion becomes numerical, the same answer every other
+    // rig-level attribute gives, instead of a vessel-type branch (Law 4). LinearDamping applying
+    // to every root is what stops a station inside kSunGravityRange accelerating without bound
+    // (architecture.md 13.3 finding J): before this, only a mobile rig had anything to bleed off
+    // the velocity OrbitSystem's gravity loop adds every tick.
+    //
+    // `mobile` survives with a narrower job: StationFactory::Spawn still rejects `mobile: true`,
+    // and Validation still requires a mobile blueprint to author at least one engine shell. It no
+    // longer decides whether physics applies.
+    registry.emplace<Propulsion>(root, aggregate.propulsion);
+    registry.emplace<LinearDamping>(root, 0.35f, 2.5f);
 
     return {root, world.Track(root)};
 }
