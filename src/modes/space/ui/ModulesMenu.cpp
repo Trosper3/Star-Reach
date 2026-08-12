@@ -1,8 +1,7 @@
 #include "modes/space/ui/ModulesMenu.h"
 
-#include "modes/space/ui/InventoryGrid.h"
 #include "shared/components/Rig.h"
-#include "shared/ui/HudTheme.h"
+#include "shared/ui/Widgets.h"
 
 namespace sr::space::ui::modules_menu {
 namespace {
@@ -55,13 +54,15 @@ UnmountModuleRequest BuildUnmountRequest(entt::entity mount) {
 }
 
 void Draw(const Rectangle& bounds, const entt::registry& registry, entt::entity rigRoot) {
-    sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
-    const std::vector<entt::entity> equipped = EquippedMounts(registry, rigRoot);
-    for (std::size_t i = 0; i < equipped.size(); ++i) {
-        const ModuleId& id = registry.get<EquippedModule>(equipped[i]).id;
-        inventory_grid::DrawSlotRow(bounds, id.str(), static_cast<int>(i));
+    std::vector<sr::ui::Row> rows;
+    for (const entt::entity mount : EquippedMounts(registry, rigRoot)) {
+        sr::ui::Row row;
+        row.label = registry.get<EquippedModule>(mount).id.str();
+        rows.push_back(row);
     }
+    sr::ui::DrawListView(content, rows, 0.0f, "NO MODULES EQUIPPED");
 }
 
 }  // namespace sr::space::ui::modules_menu
