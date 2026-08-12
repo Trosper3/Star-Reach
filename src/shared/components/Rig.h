@@ -68,4 +68,24 @@ struct MountTraverse {
     float radians = 0.0f;
 };
 
+// This hardpoint's own contribution to the rig's total BodyMass: the shell's mass, seeded by
+// RigFactory::CreateHardpoint, plus whatever module is currently mounted on top (kept current by
+// shared/rig/ModuleAttachment's Attach/Detach pair). RecomputeRigTotals sums this across every
+// living hardpoint (architecture.md 12.23's Sum rule) -- the same "baked-in shell, live module"
+// split HitRadius already establishes for per-hardpoint radius.
+struct HardpointMass {
+    float value = 0.0f;
+};
+
+// This hardpoint's own contribution to the rig's aggregate Propulsion, present only while it
+// carries an Engine-kind module (shared/rig/ModuleAttachment.h's Attach/Detach pair owns this
+// component's lifetime). RecomputeRigTotals sums thrustNewtons/turnTorque and maxes maxSpeed
+// across living hardpoints carrying one -- architecture.md 12.23's Sum/Max rule -- which is what
+// makes losing one of several engines cost thrust proportionally instead of all at once.
+struct EnginePropulsion {
+    float thrustNewtons = 0.0f;
+    float turnTorque = 0.0f;
+    float maxSpeed = 0.0f;
+};
+
 }  // namespace sr

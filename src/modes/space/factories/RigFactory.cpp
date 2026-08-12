@@ -68,6 +68,11 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
     aggregate.mass += shell.mass;
     aggregate.extent = std::max(aggregate.extent, Length(mount.localOffset) + shell.radius);
 
+    // Seeded with the shell's own mass so AttachModule's HardpointMass::get_or_emplace (via
+    // AttachModuleComponents) adds each mounted module's mass on top of it, not in place of it --
+    // the same split RecomputeRigTotals later reads back for a live refit or a hardpoint's death.
+    registry.emplace<HardpointMass>(hardpoint, shell.mass);
+
     MountedModules mounted;
     for (const ModuleId& moduleId : mount.modules) {
         const ModuleDef* module = content.FindModule(moduleId);
