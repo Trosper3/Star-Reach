@@ -4,19 +4,27 @@
 
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/systems/ModuleEquipSystem.h"
+#include "modes/space/systems/RefactorSystem.h"
 #include "modes/space/systems/WeaponSystem.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Equip.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Power.h"
+#include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
 using sr::CargoHold;
+using sr::DeleteHardpointRequest;
 using sr::Destroyed;
-using sr::EquippedModule;
+using sr::Docked;
+using sr::FacilityKind;
+using sr::FacilityRef;
 using sr::FireIntent;
+using sr::MountedModules;
 using sr::MountModuleRequest;
 using sr::MountTraverse;
 using sr::ParentRig;
@@ -31,6 +39,7 @@ using sr::core::ContentLibrary;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace module_equip_system = sr::space::module_equip_system;
+namespace refactor_system = sr::space::refactor_system;
 namespace weapon_system = sr::space::weapon_system;
 
 namespace {
@@ -72,8 +81,8 @@ TEST_CASE("ModuleEquipSystem mounts a real cargo module onto a compatible empty 
 
     CHECK_FALSE(registry.all_of<MountModuleRequest>(root));
     CHECK(registry.get<CargoHold>(root).modules.empty());
-    REQUIRE(registry.all_of<EquippedModule>(mount));
-    CHECK(registry.get<EquippedModule>(mount).id == sr::ModuleId("pulse_cannon_i"));
+    REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
+    CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("pulse_cannon_i"));
     REQUIRE(registry.all_of<sr::Weapon>(mount));
     CHECK(registry.get<sr::Weapon>(mount).damage == 15.0f);
     REQUIRE(registry.all_of<sr::PowerLoad>(mount));
@@ -201,7 +210,8 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto a Destroyed hardpoint", "[mod
 
     module_equip_system::Tick(SystemContext{world, intents, content, 1.0f / 60.0f, 0});
 
-    CHECK_FALSE(registry.all_of<EquippedModule>(mount));
+    // Destroyed refuses before MountedModules is even touched -- get_or_emplace never runs.
+    CHECK_FALSE(registry.all_of<MountedModules>(mount));
     CHECK(registry.get<CargoHold>(root).modules.size() == 1);
 }
 
@@ -224,12 +234,12 @@ TEST_CASE("Mount then unmount round-trips a real module back into CargoHold, com
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
     module_equip_system::Tick(MakeContext(world, intents, content));
-    REQUIRE(registry.all_of<EquippedModule>(mount));
+    REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
 
     registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
     module_equip_system::Tick(MakeContext(world, intents, content));
 
-    CHECK_FALSE(registry.all_of<EquippedModule>(mount));
+    CHECK(registry.get<MountedModules>(mount).ids.empty());
     CHECK_FALSE(registry.any_of<sr::Weapon, sr::FiringArc, sr::PowerLoad>(mount));
     REQUIRE(registry.get<CargoHold>(root).modules.size() == 1);
     CHECK(registry.get<CargoHold>(root).modules.front() == sr::ModuleId("pulse_cannon_i"));
@@ -256,6 +266,60 @@ TEST_CASE("ModuleEquipSystem refuses a module whose kind does not match the moun
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
-    CHECK_FALSE(registry.all_of<EquippedModule>(weaponMount));
+    CHECK(registry.get<MountedModules>(weaponMount).ids.empty());
     CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+}
+
+TEST_CASE("A runtime-mounted module is never refunded twice across unmount and scrap",
+          "[module-equip][integration]") {
+    // Regression test for architecture.md 13.3 finding C's second consequence: with two
+    // unreconciled records, scrapping a hardpoint refunded MountedModules (the factory original)
+    // regardless of what ModuleEquipSystem's own unmount had already handed back through
+    // EquippedModule -- the player could receive the same module twice. With MountedModules the
+    // sole record (and RefactorSystem's finding-8 reversal from P0-05: refuse rather than
+    // refund), the two operations cannot both pay out the same module.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    const SystemContext ctx{world, intents, content, 1.0f / 60.0f, 0};
+
+    const entt::entity engineeringHardpoint = registry.create();
+    registry.emplace<FacilityRef>(engineeringHardpoint, FacilityKind::Engineering, 1);
+    const entt::entity station = registry.create();
+    registry.emplace<Rig>(station, std::vector<entt::entity>{engineeringHardpoint});
+
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    const entt::entity otherMount = registry.create();  // Keeps `mount` from being "last."
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ParentRig>(otherMount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, otherMount});
+    registry.emplace<Docked>(root, station, entt::null);
+
+    CargoHold cargo;
+    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
+    registry.emplace<CargoHold>(root, cargo);
+    registry.emplace<MountModuleRequest>(root,
+                                         MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
+    module_equip_system::Tick(ctx);
+    REQUIRE(registry.get<CargoHold>(root).modules.empty());
+
+    // Scrapping while still mounted is refused outright (P0-05) -- not a refund at all.
+    registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{mount});
+    refactor_system::Tick(ctx);
+    REQUIRE(registry.valid(mount));
+    CHECK(registry.get<CargoHold>(root).modules.empty());
+
+    // Unmount first: the one and only refund.
+    registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
+    module_equip_system::Tick(ctx);
+    REQUIRE(registry.get<CargoHold>(root).modules.size() == 1);
+
+    // Now scrapping succeeds -- MountedModules is empty, so there is nothing left to refund.
+    registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{mount});
+    refactor_system::Tick(ctx);
+    CHECK_FALSE(registry.valid(mount));
+    CHECK(registry.get<CargoHold>(root).modules.size() == 1);  // Still exactly one copy.
 }

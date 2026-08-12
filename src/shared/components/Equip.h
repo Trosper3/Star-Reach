@@ -23,15 +23,4 @@ struct UnmountModuleRequest {
     entt::entity mount = entt::null;
 };
 
-// On a hardpoint: which ModuleId ModuleEquipSystem currently has mounted there, so an unmount
-// knows what to hand back to CargoHold and shared/rig/ModuleAttachment.h's
-// DetachModuleComponents knows which role components to remove. Only present on a hardpoint
-// while ModuleEquipSystem is the one that put a module there -- a rig's original,
-// RigFactory-instantiated loadout is not retroactively tagged (architecture.md 12.11 scopes
-// runtime equip to storage-sourced modules onto a rig already built, not to re-deriving the
-// blueprint's own mounts).
-struct EquippedModule {
-    ModuleId id;
-};
-
 }  // namespace sr

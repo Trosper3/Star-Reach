@@ -14,9 +14,11 @@ namespace sr::space::module_equip_system {
 // but modes/space/systems/ must not include factories/, section 2.3).
 //
 // Refused (request cleared, nothing else happens) when: the mount does not belong to the
-// requester's own Rig; the module's ModuleKind is not IsMountable() on the mount's ShellRole
-// (mirrors Validation.h's ModuleCompatibility rule, applied live); the module is not in the
-// requester's CargoHold; or (mount) the mount already carries an EquippedModule -- unmount first.
+// requester's own Rig; the mount is Destroyed; the module's ModuleKind is not IsMountable() on
+// the mount's ShellRole (mirrors Validation.h's ModuleCompatibility rule, applied live); the
+// module is not in the requester's CargoHold; or (mount) MountedModules (shared/components/Rig.h
+// -- the single record of a mount's contents, architecture.md 13.4 decision 2) is already
+// non-empty -- unmount first.
 //
 // Scoped out: rig-wide BodyMass/Propulsion are not recomputed on mount/unmount. RigFactory's own
 // engine-death handling is already documented as all-or-nothing rather than proportional
