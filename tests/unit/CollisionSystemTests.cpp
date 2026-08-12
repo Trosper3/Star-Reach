@@ -5,6 +5,7 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/CollisionSystem.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -14,6 +15,7 @@ using Catch::Approx;
 using sr::BodyMass;
 using sr::CollisionRadius;
 using sr::Destroyed;
+using sr::Docked;
 using sr::Health;
 using sr::HitRadius;
 using sr::ParentRig;
@@ -133,6 +135,33 @@ TEST_CASE("CollisionSystem does not queue ramming damage while RamCooldown is st
     const entt::entity hardpointB = registry.get<Rig>(b).children.front();
     CHECK_FALSE(registry.all_of<PendingDamage>(hardpointA));
     CHECK_FALSE(registry.all_of<PendingDamage>(hardpointB));
+}
+
+TEST_CASE("CollisionSystem does not resolve a ram aimed at a Docked rig", "[collision]") {
+    // Regression test for architecture.md 12.34's exclusion half (features.md 3.4: "a docked
+    // vessel is not a target"). An incoming rig passes through rather than ramming it.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity docked =
+        MakeRig(registry, Vec2{-30.0f, 0.0f}, Vec2{5.0f, 0.0f}, 1000.0f, 50.0f);
+    registry.emplace<Docked>(docked);
+    const entt::entity incoming =
+        MakeRig(registry, Vec2{30.0f, 0.0f}, Vec2{-5.0f, 0.0f}, 1000.0f, 50.0f);
+
+    collision_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<WorldTransform>(docked).position.x == Approx(-30.0f));
+    CHECK(registry.get<Velocity>(docked).linear.x == Approx(5.0f));
+    CHECK(registry.get<WorldTransform>(incoming).position.x == Approx(30.0f));
+    CHECK(registry.get<Velocity>(incoming).linear.x == Approx(-5.0f));
+
+    const entt::entity dockedHardpoint = registry.get<Rig>(docked).children.front();
+    const entt::entity incomingHardpoint = registry.get<Rig>(incoming).children.front();
+    CHECK_FALSE(registry.all_of<PendingDamage>(dockedHardpoint));
+    CHECK_FALSE(registry.all_of<PendingDamage>(incomingHardpoint));
 }
 
 TEST_CASE("CollisionSystem does not collide a rig whose only hardpoint is destroyed",

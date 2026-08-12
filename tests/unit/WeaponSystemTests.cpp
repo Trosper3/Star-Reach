@@ -6,6 +6,7 @@
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/WeaponSystem.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
@@ -15,6 +16,7 @@
 using Catch::Approx;
 using sr::DamageType;
 using sr::Destroyed;
+using sr::Docked;
 using sr::FireIntent;
 using sr::FiringArc;
 using sr::PowerBudget;
@@ -85,6 +87,25 @@ TEST_CASE("WeaponSystem fires a ready, aimed, in-range weapon with FireIntent se
 
     CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.5f));
     CHECK_FALSE(registry.all_of<FireIntent>(root));
+}
+
+TEST_CASE("WeaponSystem does not fire a Docked rig's weapons, even with FireIntent set",
+          "[weapon]") {
+    // Regression test for architecture.md 13.3 finding H / 12.34's exclusion half: a docked rig
+    // -- player or NPC -- must not fire, symmetrical with a docked rig not being a valid target.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const auto [root, hardpoint] = MakeArmedRig(registry, ReadyWeapon());
+    registry.emplace<FireIntent>(root);
+    registry.emplace<Docked>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.storage<Projectile>().size() == 0);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.0f));
 }
 
 TEST_CASE("WeaponSystem does not fire without FireIntent", "[weapon]") {

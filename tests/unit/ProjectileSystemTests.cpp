@@ -6,6 +6,7 @@
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/ProjectileSystem.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -13,6 +14,7 @@
 
 using Catch::Approx;
 using sr::DamageType;
+using sr::Docked;
 using sr::HitRadius;
 using sr::ParentRig;
 using sr::PendingDamage;
@@ -108,6 +110,27 @@ TEST_CASE("ProjectileSystem hits a hostile hardpoint in its path, queues damage,
     CHECK(pending.amount == Approx(25.0f));
     CHECK(pending.type == DamageType::Energy);
     CHECK(pending.source == shooterRig);
+}
+
+TEST_CASE("ProjectileSystem does not hit a hardpoint belonging to a Docked rig", "[projectile]") {
+    // Regression test for architecture.md 12.34's exclusion half (features.md 3.4: "a docked
+    // vessel is not a target"). A direct hit aimed at a docked rig's hardpoint must pass through.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity shooterRig = registry.create();
+    const entt::entity targetRig = registry.create();
+    registry.emplace<Docked>(targetRig);
+    const entt::entity hardpoint = MakeHardpoint(registry, targetRig, Vec2{50.0f, 0.0f}, 10.0f);
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{3000.0f, 0.0f}, 25.0f,
+                                             DamageType::Energy, shooterRig, 1000.0f);
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    CHECK(registry.valid(shot));
+    CHECK_FALSE(registry.all_of<PendingDamage>(hardpoint));
 }
 
 TEST_CASE("ProjectileSystem does not hit a hardpoint on the shooter's own rig", "[projectile]") {

@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "shared/components/Combat.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
@@ -80,7 +81,9 @@ void SpawnProjectiles(entt::registry& registry, entt::entity shooter, const Weap
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
 
-    for (auto [root, rig, target] : registry.view<Rig, Target>().each()) {
+    // exclude<Docked>: a docked rig -- player or NPC -- does not fire (architecture.md 13.3
+    // finding H, features.md 3.4's "a docked vessel cannot be shot" made symmetrical).
+    for (auto [root, rig, target] : registry.view<Rig, Target>(entt::exclude<Docked>).each()) {
         const bool wantsToFire = registry.all_of<FireIntent>(root);
         const float satisfaction = RigSatisfaction(registry, root);
         const std::optional<Vec2> aimPoint =

@@ -38,13 +38,9 @@ namespace sr::space {
 // add the entry in the SAME commit as the system file -- a system with no schedule entry is
 // a dead abstraction (architecture.md section 2.4) and will be deleted at review.
 //
-//   WarpSystem        -- before HierarchySystem, so a rig teleported this tick has its
-//                        hardpoints repositioned by the SAME tick's hierarchy pass instead
-//                        of lagging one tick behind at the pre-warp position.
-//   HierarchySystem   -- must be first of the rest; everything below reads WorldTransform
-//   HazardSystem      -- after HierarchySystem (reads settled hardpoint WorldTransforms), before
-//                        CollisionSystem/ProjectileSystem so a real attacker's PendingDamage
-//                        overwrites the hazard's null-source one when both land the same tick.
+//   WarpSystem        -- runs first: a rig teleported this tick is repositioned before anything
+//                        below reasons about position, including HierarchySystem and
+//                        PhysicsSystem later in this same tick.
 //   ConstructionSystem, ModuleEquipSystem -- before PowerSystem, so a freshly built rig or a
 //                        mount/unmount lands in this same tick's power budget.
 //   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
@@ -53,18 +49,42 @@ namespace sr::space {
 //                        anything below reasons about position or distance this tick
 //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
 //                        wells before PhysicsSystem integrates it, same as thrust
-//   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction
-//   DockingSystem     -- after PhysicsSystem so a freshly-Docked rig's Velocity/ThrustInput
-//                        are zeroed before TargetingSystem/NpcAiSystem see it this same
-//                        tick; removes Targetable the instant docking completes.
+//   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction; moves every rig root to
+//                        this tick's position.
+//   HierarchySystem   -- after PhysicsSystem, not before. A hardpoint's WorldTransform is
+//                        derived from its root's, and the root only reaches this tick's pose at
+//                        PhysicsSystem -- running Hierarchy earlier (its position until this
+//                        fix) left every hardpoint one tick stale for every downstream reader:
+//                        collision hulls, hit tests, weapon aim (architecture.md 13.3 finding
+//                        G). Before DockingSystem, so DockingSystem's range check reads each
+//                        hardpoint's settled-this-tick position.
+//   HazardSystem      -- after HierarchySystem (reads settled hardpoint WorldTransforms), before
+//                        CollisionSystem/ProjectileSystem so a real attacker's PendingDamage
+//                        overwrites the hazard's null-source one when both land the same tick.
+//   DockingSystem     -- after PhysicsSystem/HierarchySystem so a freshly-Docked rig's
+//                        Velocity/ThrustInput are zeroed, and its hardpoints already sit at
+//                        their settled-this-tick position, before TargetingSystem/NpcAiSystem
+//                        see it this same tick; removes Targetable the instant docking
+//                        completes.
 //   EngineerSystem, RefactorSystem -- after DockingSystem; both gate on Docked.
 //   StationServicesSystem -- after DockingSystem, so a freshly docked rig can trade this tick.
 //   TargetingSystem
-//   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick
-//   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands
+//   NpcAiSystem       -- reads Target, writes FireIntent read by WeaponSystem this same tick.
+//                        exclude<Docked> (architecture.md 13.3 finding H): a docked NPC must not
+//                        thrust or ask to fire -- DockingSystem's Velocity/ThrustInput zeroing
+//                        runs once, on dock, and an unexcluded NpcAiSystem would rewrite both
+//                        every tick after.
+//   WeaponSystem      -- gated by PowerSystem's budget once PowerSystem lands. exclude<Docked>
+//                        for the same reason as NpcAiSystem: a docked rig, player or NPC, does
+//                        not fire.
 //   CollisionSystem   -- reads this tick's settled WorldTransform/Velocity; queues ramming
-//                        PendingDamage the same as ProjectileSystem
-//   ProjectileSystem
+//                        PendingDamage the same as ProjectileSystem. exclude<Docked> on its
+//                        ramming-candidate view: features.md 3.4's "a docked vessel is not a
+//                        target," the exclusion half architecture.md 12.34 specifies.
+//   ProjectileSystem  -- FindHit skips a hardpoint whose ParentRig carries Docked -- the same
+//                        rule as CollisionSystem's exclusion (12.34), but not a view-level
+//                        entt::exclude<Docked>: the tag lives on the rig root, and FindHit's
+//                        view is over hardpoints, which never carry it.
 //   PartySystem       -- after NpcAiSystem so formation ThrustInput sticks; before
 //                        DamageSystem so PendingDamage is still readable for retaliation
 //   DamageSystem      -- must be last of the combat systems; destruction is the tick's
@@ -94,14 +114,14 @@ namespace sr::space {
 const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
         {"WarpSystem", &warp_system::Tick},
-        {"HierarchySystem", &hierarchy_system::Tick},
-        {"HazardSystem", &hazard_system::Tick},
         {"ConstructionSystem", &construction_system::Tick},
         {"ModuleEquipSystem", &module_equip_system::Tick},
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
+        {"HierarchySystem", &hierarchy_system::Tick},
+        {"HazardSystem", &hazard_system::Tick},
         {"DockingSystem", &docking_system::Tick},
         {"EngineerSystem", &engineer_system::Tick},
         {"RefactorSystem", &refactor_system::Tick},
