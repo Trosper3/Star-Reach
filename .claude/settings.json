@@ -1,0 +1,58 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/gate_grep_find.py",
+            "statusMessage": "Checking for bare grep/find..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/mark_cpp_stale.py 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/clear_stale_on_test.py 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/warn_stale_on_stop.py 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "A subagent just finished a task in this session. Read the actual diff it produced (git diff / git status, and the files it touched) and any build or test output directly -- do not rely on the subagent's own summary of what it did. Report concisely: does the diff and test output match what was claimed? Flag any mismatch. If everything checks out, say so briefly.",
+            "timeout": 120,
+            "statusMessage": "Reviewing subagent's actual diff..."
+          }
+        ]
+      }
+    ]
+  }
+}

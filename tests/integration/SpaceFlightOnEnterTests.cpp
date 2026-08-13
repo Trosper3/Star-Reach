@@ -1,0 +1,101 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include <filesystem>
+
+#include "core/economy/FactionEconomy.h"
+#include "core/galaxy/WreckRecord.h"
+#include "core/registries/ContentLibrary.h"
+#include "modes/space/SpaceFlight.h"
+#include "shared/components/Identity.h"
+#include "shared/components/Loot.h"
+#include "shared/components/Orbit.h"
+#include "shared/components/Rig.h"
+#include "shared/rig/CargoView.h"
+
+using sr::GravityWell;
+using sr::PlayerLocation;
+using sr::Rig;
+using sr::Wallet;
+using sr::core::ContentLibrary;
+using sr::core::economy::FactionEconomy;
+using sr::core::galaxy::WreckLedger;
+using sr::space::SpaceFlight;
+
+namespace {
+
+ContentLibrary Content() {
+    ContentLibrary library;
+    const auto report = library.LoadFromDirectory(std::filesystem::path(SR_DATA_DIR));
+    REQUIRE(report.ok());
+    return library;
+}
+
+entt::entity FindPlayer(entt::registry& registry) {
+    entt::entity player = entt::null;
+    for (const entt::entity entity : registry.view<PlayerLocation>()) {
+        player = entity;
+    }
+    return player;
+}
+
+}  // namespace
+
+TEST_CASE("OnEnter populates one sun, one player and the expected NPC count",
+          "[spaceflight][onenter]") {
+    // No station yet -- WorldGen doesn't spawn one (P1-05, a separate issue). Once it does, this
+    // should gain a GravityWell-sibling assertion for exactly one station.
+    const ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    SpaceFlight game(content, economy, wreckLedger);
+
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    CHECK(std::distance(registry.view<GravityWell>().begin(), registry.view<GravityWell>().end()) ==
+          1);
+    CHECK(std::distance(registry.view<PlayerLocation>().begin(),
+                        registry.view<PlayerLocation>().end()) == 1);
+
+    const auto npcs = registry.view<Rig>(entt::exclude<PlayerLocation>);
+    const auto npcCount = std::distance(npcs.begin(), npcs.end());
+    CHECK(npcCount >= 3);
+    CHECK(npcCount <= 5);
+}
+
+TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spaceflight][onenter]") {
+    // Regression test for architecture.md 12.29's re-entrancy requirement: returning to the main
+    // menu and starting a second game calls OnEnter twice in the same process. Without a world_
+    // reset before populating, the second call populates on top of the first -- two suns, two
+    // players.
+    const ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    SpaceFlight game(content, economy, wreckLedger);
+
+    game.OnEnter();
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    CHECK(std::distance(registry.view<GravityWell>().begin(), registry.view<GravityWell>().end()) ==
+          1);
+    CHECK(std::distance(registry.view<PlayerLocation>().begin(),
+                        registry.view<PlayerLocation>().end()) == 1);
+    CHECK(std::distance(registry.view<Wallet>().begin(), registry.view<Wallet>().end()) == 1);
+}
+
+TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflight][onenter]") {
+    const ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    SpaceFlight game(content, economy, wreckLedger);
+
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    const entt::entity player = FindPlayer(registry);
+    REQUIRE((player != entt::null));
+
+    CHECK(registry.all_of<Wallet>(player));
+    CHECK(sr::cargo_view::Capacity(registry, player) > 0.0f);
+}
