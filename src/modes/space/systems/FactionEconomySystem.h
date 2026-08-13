@@ -25,11 +25,11 @@ namespace sr::space::faction_economy_system {
 // tools/ci/check_layers.py, so no system (this one included) can do it. That needs an
 // orchestrator-level intent once StationFactory (#41) exists.
 //
-// Tier 2-3: TickCoarse is exposed per the LOD contract (features.md section 1.1), but is
-// currently identical to Tick -- there is no registry-local state here to skip at the coarser
-// tier, since the ledger this system reads and writes lives in core/economy/, not in this
-// registry.
+// Tier 2-3: a coarse-tier entry point is expected per the LOD contract (features.md section
+// 1.1), but has no driver yet (architecture.md 13.3 finding M) -- Tick is the only entry point
+// until P9-01 reinstates TickCoarse alongside the coarse loop. It would be identical to Tick
+// regardless -- there is no registry-local state here to skip at the coarser tier, since the
+// ledger this system reads and writes lives in core/economy/, not in this registry.
 void Tick(const SystemContext& ctx);
-void TickCoarse(const SystemContext& ctx);
 
 }  // namespace sr::space::faction_economy_system

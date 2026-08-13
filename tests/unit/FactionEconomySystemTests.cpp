@@ -95,19 +95,3 @@ TEST_CASE("FactionEconomySystem does nothing when the context has no economy poi
 
     CHECK(registry.all_of<DepositRequest>(self));  // Left alone, not silently dropped.
 }
-
-TEST_CASE("FactionEconomySystem::TickCoarse behaves the same as Tick", "[faction-economy]") {
-    SystemWorld world("sol");
-    entt::registry& registry = world.Registry();
-    sr::core::IntentQueue intents;
-    sr::core::ContentLibrary content;
-    FactionEconomy economy;
-
-    const entt::entity self = registry.create();
-    registry.emplace<DepositRequest>(self, FactionId("aegis"), 75);
-
-    faction_economy_system::TickCoarse(MakeContext(world, intents, content, economy));
-
-    CHECK(economy.Stock(FactionId("aegis")) == 75);
-    CHECK_FALSE(registry.all_of<DepositRequest>(self));
-}

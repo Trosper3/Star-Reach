@@ -44,8 +44,4 @@ void Tick(const SystemContext& ctx) {
     Resolve(ctx);
 }
 
-void TickCoarse(const SystemContext& ctx) {
-    Resolve(ctx);
-}
-
 }  // namespace sr::space::commander_system

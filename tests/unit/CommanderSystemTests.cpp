@@ -79,20 +79,6 @@ TEST_CASE("CommanderSystem does not crash on a commander with no Rig", "[command
     CHECK(registry.get<Commander>(root).orders == CommanderOrders::Defend);
 }
 
-TEST_CASE("CommanderSystem::TickCoarse resolves standing orders the same way Tick does",
-          "[commander-system]") {
-    SystemWorld world("sol");
-    entt::registry& registry = world.Registry();
-    sr::core::IntentQueue intents;
-    sr::core::ContentLibrary content;
-
-    const entt::entity root = MakeCommanderRig(registry, CommanderOrders::Defend, 10.0f, 100.0f);
-
-    commander_system::TickCoarse(MakeContext(world, intents, content));
-
-    CHECK(registry.get<Commander>(root).orders == CommanderOrders::Retreat);
-}
-
 TEST_CASE("A commander's death releases its network reference without destroying the network",
           "[commander-system]") {
     SystemWorld world("sol");
