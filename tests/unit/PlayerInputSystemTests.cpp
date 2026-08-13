@@ -88,9 +88,10 @@ TEST_CASE("PlayerInputSystem drops an intent naming an unresolvable ActorId", "[
     CHECK(registry.get<ThrustInput>(actor).turn == Approx(0.0f));
 }
 
-TEST_CASE("A docked player cannot thrust: DockingSystem zeroes what PlayerInputSystem wrote "
-          "this same tick",
-          "[player_input]") {
+TEST_CASE(
+    "A docked player cannot thrust: DockingSystem zeroes what PlayerInputSystem wrote "
+    "this same tick",
+    "[player_input]") {
     // Regression for the schedule constraint that would silently break: PlayerInputSystem runs
     // before DockingSystem, so a still-Docked rig's ThrustInput ends the tick at zero regardless
     // of a held throttle intent.
@@ -113,9 +114,10 @@ TEST_CASE("A docked player cannot thrust: DockingSystem zeroes what PlayerInputS
     CHECK(registry.get<ThrustInput>(ship).forward == Approx(0.0f));
 }
 
-TEST_CASE("FireIntent from a FireWeaponsIntent reaches WeaponSystem in the same tick it was "
-          "pushed",
-          "[player_input]") {
+TEST_CASE(
+    "FireIntent from a FireWeaponsIntent reaches WeaponSystem in the same tick it was "
+    "pushed",
+    "[player_input]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;

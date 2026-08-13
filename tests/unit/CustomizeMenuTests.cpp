@@ -127,8 +127,8 @@ TEST_CASE("CanSave is true for a well-formed draft and false for an empty one",
 TEST_CASE("BuildSaveRequest carries the actor, network, and blueprint through",
           "[customize-menu]") {
     const sr::ShipBlueprint draft = MakeValidDraft();
-    const sr::core::SaveTemplateIntent intent = customize_menu::BuildSaveRequest(
-        sr::ActorId{7}, sr::KnowledgeNetworkId("net"), draft);
+    const sr::core::SaveTemplateIntent intent =
+        customize_menu::BuildSaveRequest(sr::ActorId{7}, sr::KnowledgeNetworkId("net"), draft);
 
     CHECK(intent.actor.value == 7);
     CHECK(intent.targetNetwork == sr::KnowledgeNetworkId("net"));
