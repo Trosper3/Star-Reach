@@ -4,6 +4,7 @@
 #include "shared/components/Combat.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Targeting.h"
 
 namespace sr::space::player_input_system {
 namespace {
@@ -44,6 +45,25 @@ void Tick(const SystemContext& ctx) {
         }
         registry.emplace_or_replace<FireIntent>(entity);
     });
+
+    ctx.intents.ForEach<core::AimIntent>([&](const core::AimIntent& intent) {
+        const entt::entity entity = Resolve(registry, intent.actor);
+        if (entity == entt::null) {
+            return;
+        }
+        registry.emplace_or_replace<AimPoint>(entity, AimPoint{intent.worldPosition});
+    });
+
+    ctx.intents.ForEach<core::ToggleWeaponGroupIntent>(
+        [&](const core::ToggleWeaponGroupIntent& intent) {
+            const entt::entity entity = Resolve(registry, intent.actor);
+            if (entity == entt::null) {
+                return;
+            }
+            if (auto* groups = registry.try_get<EnabledWeaponGroups>(entity)) {
+                groups->mask ^= static_cast<std::uint16_t>(1u << intent.groupIndex);
+            }
+        });
 }
 
 }  // namespace sr::space::player_input_system

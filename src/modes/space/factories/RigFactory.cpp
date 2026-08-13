@@ -1,9 +1,11 @@
 #include "modes/space/factories/RigFactory.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <unordered_map>
 
 #include "shared/blueprints/Validation.h"
+#include "shared/components/Combat.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -22,7 +24,14 @@ struct RigAggregate {
     float extent = 0.0f;
     float sensorRange = 0.0f;
     Propulsion propulsion;
+
+    // Weapon groups (features.md 3.6): each distinct weapon ModuleId takes the next free index
+    // as it is first encountered, so a freshly built ship arrives pre-grouped with no player
+    // action. Capped at the ten groups the input map exposes (keys 1-0).
+    std::unordered_map<ModuleId, std::uint8_t> weaponGroupByModule;
 };
+
+constexpr std::uint8_t kMaxWeaponGroup = 9;
 
 // Folds one module's mass and (if any) Propulsion contribution into `aggregate`, after
 // shared/rig/ModuleAttachment.h's AttachModuleComponents has already written the module's role
@@ -35,6 +44,16 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
 
     const rig_attachment::PropulsionContribution propulsion =
         rig_attachment::AttachModuleComponents(registry, hardpoint, module, mount.traverseRadians);
+
+    if (registry.all_of<Weapon>(hardpoint)) {
+        auto [entry, inserted] = aggregate.weaponGroupByModule.try_emplace(
+            module.id, static_cast<std::uint8_t>(aggregate.weaponGroupByModule.size()));
+        if (inserted && entry->second > kMaxWeaponGroup) {
+            entry->second = kMaxWeaponGroup;
+        }
+        registry.emplace<WeaponGroup>(hardpoint, entry->second);
+    }
+
     if (propulsion.present) {
         // Thrust is a property of the RIG, not of the hardpoint, because acceleration is.
         // PhysicsSystem reads one Propulsion on the root; DamageSystem recomputes it when an
@@ -161,6 +180,9 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     registry.emplace<PowerBudget>(root);
     registry.emplace<Target>(root);
     registry.emplace<Targetable>(root);
+    // All ten weapon groups start enabled -- a freshly built ship fires everything until the
+    // player deliberately silences one (features.md 3.6).
+    registry.emplace<EnabledWeaponGroups>(root);
     // Max-aggregated from mounted Sensor modules (architecture.md 12.23), zero for a rig with
     // none -- no longer a hardcoded stand-in value.
     registry.emplace<SensorRange>(root, aggregate.sensorRange);

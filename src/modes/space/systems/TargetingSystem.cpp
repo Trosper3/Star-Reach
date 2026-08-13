@@ -85,8 +85,13 @@ entt::entity SelectAimPoint(const entt::registry& registry, entt::entity rig,
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
 
+    // exclude<PlayerControlled>: features.md 3.2 forbids the player an automatic lock -- the
+    // player aims manually via AimPoint (WeaponSystem), so this system must never acquire or
+    // hold a Target for them, the same predicate NpcAiSystem already uses for the same reason.
     for (auto [seeker, target, xf, faction, sensor] :
-         registry.view<Target, WorldTransform, FactionRef, SensorRange>().each()) {
+         registry
+             .view<Target, WorldTransform, FactionRef, SensorRange>(entt::exclude<PlayerControlled>)
+             .each()) {
         if (!IsValidTarget(registry, target.rig, faction)) {
             target.rig = entt::null;
             target.hardpoint = entt::null;

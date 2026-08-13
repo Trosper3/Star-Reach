@@ -13,6 +13,7 @@
 using sr::Destroyed;
 using sr::FactionId;
 using sr::FactionRef;
+using sr::PlayerControlled;
 using sr::Rig;
 using sr::SensorRange;
 using sr::Target;
@@ -184,4 +185,27 @@ TEST_CASE("TargetingSystem leaves a seeker with no hostile candidates untargeted
 
     CHECK_NOTHROW(targeting_system::Tick(MakeContext(world, intents, content)));
     CHECK((registry.get<Target>(seeker).rig == entt::null));
+}
+
+TEST_CASE("TargetingSystem never acquires a target for a PlayerControlled seeker", "[targeting]") {
+    // Regression for features.md 3.2 / architecture.md 12.24 step 2's bug: the player is a seeker
+    // by every other component on this view, so without this exclusion they get the automatic
+    // lock the design explicitly forbids.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity player = registry.create();
+    registry.emplace<PlayerControlled>(player);
+    registry.emplace<WorldTransform>(player, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<FactionRef>(player, FactionId{"blue"});
+    registry.emplace<SensorRange>(player, 100.0f);
+    registry.emplace<Target>(player);
+
+    MakeRig(registry, Vec2{10.0f, 0.0f}, FactionId{"red"});  // Well within sensor range.
+
+    targeting_system::Tick(MakeContext(world, intents, content));
+
+    CHECK((registry.get<Target>(player).rig == entt::null));
 }

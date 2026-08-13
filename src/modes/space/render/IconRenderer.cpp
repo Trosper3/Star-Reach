@@ -20,20 +20,10 @@ constexpr float kMapMarkerLabelOffset = 10.0f;
 
 }  // namespace
 
-std::optional<Vec2> TargetWorldPosition(const entt::registry& registry, float alpha) {
-    for (auto [entity, target] : registry.view<PlayerControlled, Target>().each()) {
+std::optional<Vec2> AimPointWorldPosition(const entt::registry& registry) {
+    for (auto [entity, aim] : registry.view<PlayerControlled, AimPoint>().each()) {
         (void)entity;
-        const entt::entity rig = target.rig;
-        if (rig == entt::null || !registry.valid(rig)) {
-            return std::nullopt;
-        }
-        if (!registry.all_of<WorldTransform, PreviousTransform>(rig) ||
-            registry.all_of<Destroyed>(rig)) {
-            return std::nullopt;
-        }
-        const auto& xf = registry.get<WorldTransform>(rig);
-        const auto& prev = registry.get<PreviousTransform>(rig);
-        return Lerp(prev.position, xf.position, alpha);
+        return aim.world;
     }
     return std::nullopt;
 }
@@ -49,8 +39,19 @@ Vec2 WorldToScreen(const Vec2& worldPosition, const CameraView& camera) {
     return Vec2{screen.x, screen.y};
 }
 
-void DrawTargetReticle(const entt::registry& registry, const CameraView& camera, float alpha) {
-    const std::optional<Vec2> worldPos = TargetWorldPosition(registry, alpha);
+Vec2 ScreenToWorld(const Vec2& screenPosition, const CameraView& camera) {
+    const Camera2D cam2d{
+        Vector2{GetScreenWidth() * 0.5f, GetScreenHeight() * 0.5f},
+        Vector2{camera.target.x, camera.target.y},
+        0.0f,
+        camera.zoom,
+    };
+    const Vector2 world = GetScreenToWorld2D(Vector2{screenPosition.x, screenPosition.y}, cam2d);
+    return Vec2{world.x, world.y};
+}
+
+void DrawAimReticle(const entt::registry& registry, const CameraView& camera) {
+    const std::optional<Vec2> worldPos = AimPointWorldPosition(registry);
     if (!worldPos.has_value()) {
         return;
     }

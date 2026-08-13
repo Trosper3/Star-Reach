@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <entt/entity/entity.hpp>
 
 #include "shared/blueprints/Ids.h"
@@ -36,6 +38,21 @@ struct FiringArc {
 
 // Set by input or AI; consumed by WeaponSystem. Cleared every tick.
 struct FireIntent {};
+
+// Which of the rig's ten toggleable weapon groups this hardpoint belongs to (features.md 3.6).
+// Assigned at spawn: each distinct weapon ModuleId on the rig takes the next free index, so a
+// freshly built ship arrives sensibly pre-grouped with no player action.
+struct WeaponGroup {
+    std::uint8_t index = 0;
+};
+
+// Per rig, which of its ten weapon groups currently respond to a fire command -- bit i gates
+// WeaponGroup{i}. Session state, not saved (features.md 3.6): a destroyed hardpoint simply stops
+// contributing, so no group bookkeeping is needed when one dies. All ten groups start enabled so
+// a freshly built ship fires everything until the player deliberately silences one.
+struct EnabledWeaponGroups {
+    std::uint16_t mask = 0x03FFu;
+};
 
 // A live projectile. Its own entity, not a hardpoint -- it has no ParentRig and no rig root.
 struct Projectile {

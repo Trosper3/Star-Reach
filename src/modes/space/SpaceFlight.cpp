@@ -44,7 +44,8 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
     ui::avionics_menu::Update(world_.Registry());
-    ui::flight_controls::Poll(intents_, kLocalPlayerActorId);
+    ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
+                              render::CameraView{cameraTarget_, cameraZoom_});
 
     clock_.Advance(realDeltaSeconds);
 
@@ -168,7 +169,7 @@ void SpaceFlight::Draw() const {
     // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world space
     // to screen space itself, so its reticle stays a fixed pixel size under zoom instead of
     // scaling with the world like WorldRenderer's sprites do.
-    render::DrawTargetReticle(world_.Registry(), camera, alpha);
+    render::DrawAimReticle(world_.Registry(), camera);
     render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, InterpolationAlpha());
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
