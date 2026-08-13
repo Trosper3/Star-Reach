@@ -19,11 +19,11 @@ using sr::CargoHold;
 using sr::CollisionRadius;
 using sr::DeathWreck;
 using sr::DerelictWreck;
+using sr::ElementDrop;
+using sr::ElementStack;
 using sr::ItemKind;
 using sr::ItemStack;
 using sr::LootDrop;
-using sr::MaterialDrop;
-using sr::MaterialStack;
 using sr::ModuleId;
 using sr::ParentRig;
 using sr::PlayerControlled;
@@ -144,7 +144,7 @@ TEST_CASE(
     registry.emplace<CargoHold>(
         destroyedBay,
         std::vector<ItemStack>{ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 14.0f},
-                               ItemStack{ItemKind::Material, "Fe", 3, 2.0f}},
+                               ItemStack{ItemKind::Element, "Fe", 3, 2.0f}},
         4, 250.0f);
     registry.emplace<WorldTransform>(destroyedBay, Vec2{50.0f, 0.0f}, 0.0f);
     registry.emplace<sr::Destroyed>(destroyedBay);
@@ -152,7 +152,7 @@ TEST_CASE(
     const entt::entity survivingBay = registry.create();
     registry.emplace<sr::ParentRig>(survivingBay, root);
     registry.emplace<CargoHold>(
-        survivingBay, std::vector<ItemStack>{ItemStack{ItemKind::Material, "carbon", 1, 1.0f}}, 4,
+        survivingBay, std::vector<ItemStack>{ItemStack{ItemKind::Element, "carbon", 1, 1.0f}}, 4,
         250.0f);
 
     registry.emplace<Rig>(root, std::vector<entt::entity>{destroyedBay, survivingBay});
@@ -164,14 +164,14 @@ TEST_CASE(
     CHECK(registry.get<CargoHold>(survivingBay).stacks.front().id == "carbon");
 
     CHECK(registry.storage<LootDrop>().size() == 1);
-    CHECK(registry.storage<MaterialDrop>().size() == 1);
+    CHECK(registry.storage<ElementDrop>().size() == 1);
     for (const entt::entity drop : registry.view<LootDrop>()) {
         CHECK(registry.get<LootDrop>(drop).moduleId == ModuleId("pulse_cannon_i"));
         CHECK(registry.get<WorldTransform>(drop).position == Vec2{50.0f, 0.0f});
     }
-    for (const entt::entity drop : registry.view<MaterialDrop>()) {
-        CHECK(registry.get<MaterialDrop>(drop).materialId == "Fe");
-        CHECK(registry.get<MaterialDrop>(drop).quantity == 3);
+    for (const entt::entity drop : registry.view<ElementDrop>()) {
+        CHECK(registry.get<ElementDrop>(drop).elementId == "Fe");
+        CHECK(registry.get<ElementDrop>(drop).quantity == 3);
     }
 }
 
@@ -190,7 +190,7 @@ TEST_CASE("LootSystem despawns a LootDrop once its lifetime expires unclaimed", 
     CHECK_FALSE(registry.valid(drop));
 }
 
-TEST_CASE("LootSystem merges repeated MaterialDrop pickups of the same material into one stack",
+TEST_CASE("LootSystem merges repeated ElementDrop pickups of the same element into one stack",
           "[loot]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -198,11 +198,11 @@ TEST_CASE("LootSystem merges repeated MaterialDrop pickups of the same material 
     sr::core::ContentLibrary content;
 
     const entt::entity collector = MakeCollector(registry, Vec2{0.0f, 0.0f}, 50.0f);
-    cargo_view::Deposit(registry, collector, ItemStack{ItemKind::Material, "Fe", 3, 2.0f});
+    cargo_view::Deposit(registry, collector, ItemStack{ItemKind::Element, "Fe", 3, 2.0f});
 
     const entt::entity drop = registry.create();
     registry.emplace<WorldTransform>(drop, Vec2{10.0f, 0.0f}, 0.0f);
-    registry.emplace<MaterialDrop>(drop, "Fe", 2, 28.0f);
+    registry.emplace<ElementDrop>(drop, "Fe", 2, 28.0f);
 
     loot_system::Tick(MakeContext(world, intents, content));
 
@@ -264,7 +264,7 @@ TEST_CASE("LootSystem grants a DeathWreck's manifest to a collector in range and
     registry.emplace<WorldTransform>(wreck, Vec2{20.0f, 0.0f}, 0.0f);
     DeathWreck deathWreck;
     deathWreck.modules.push_back(ModuleId("pulse_cannon_i"));
-    deathWreck.materials.push_back(MaterialStack{"Fe", 3});
+    deathWreck.elements.push_back(ElementStack{"Fe", 3});
     deathWreck.lifetimeSeconds = 120.0f;
     registry.emplace<DeathWreck>(wreck, deathWreck);
 
@@ -276,11 +276,11 @@ TEST_CASE("LootSystem grants a DeathWreck's manifest to a collector in range and
     const bool hasModule = std::any_of(cargo.begin(), cargo.end(), [](const ItemStack& stack) {
         return stack.kind == ItemKind::Module && stack.id == "pulse_cannon_i";
     });
-    const bool hasMaterial = std::any_of(cargo.begin(), cargo.end(), [](const ItemStack& stack) {
-        return stack.kind == ItemKind::Material && stack.id == "Fe" && stack.quantity == 3;
+    const bool hasElement = std::any_of(cargo.begin(), cargo.end(), [](const ItemStack& stack) {
+        return stack.kind == ItemKind::Element && stack.id == "Fe" && stack.quantity == 3;
     });
     CHECK(hasModule);
-    CHECK(hasMaterial);
+    CHECK(hasElement);
 }
 
 TEST_CASE("LootSystem despawns a DeathWreck once its recovery window expires unclaimed",
@@ -292,8 +292,7 @@ TEST_CASE("LootSystem despawns a DeathWreck once its recovery window expires unc
 
     const entt::entity wreck = registry.create();
     registry.emplace<WorldTransform>(wreck, Vec2{9000.0f, 0.0f}, 0.0f);
-    registry.emplace<DeathWreck>(wreck, std::vector<ModuleId>{}, std::vector<MaterialStack>{},
-                                 0.5f);
+    registry.emplace<DeathWreck>(wreck, std::vector<ModuleId>{}, std::vector<ElementStack>{}, 0.5f);
 
     loot_system::Tick(MakeContext(world, intents, content, 1.0f));
 
@@ -309,7 +308,7 @@ TEST_CASE("CollapseDeathWreck/PromoteDeathWreck round-trip a DeathWreck's conten
     registry.emplace<WorldTransform>(original, Vec2{42.0f, -7.0f}, 0.0f);
     DeathWreck deathWreck;
     deathWreck.modules.push_back(ModuleId("pulse_cannon_i"));
-    deathWreck.materials.push_back(MaterialStack{"Fe", 3});
+    deathWreck.elements.push_back(ElementStack{"Fe", 3});
     deathWreck.lifetimeSeconds = 90.0f;
     registry.emplace<DeathWreck>(original, deathWreck);
 
@@ -327,9 +326,9 @@ TEST_CASE("CollapseDeathWreck/PromoteDeathWreck round-trip a DeathWreck's conten
     const DeathWreck& promotedWreck = registry.get<DeathWreck>(promoted);
     REQUIRE(promotedWreck.modules.size() == 1);
     CHECK(promotedWreck.modules.front() == ModuleId("pulse_cannon_i"));
-    REQUIRE(promotedWreck.materials.size() == 1);
-    CHECK(promotedWreck.materials.front().materialId == "Fe");
-    CHECK(promotedWreck.materials.front().quantity == 3);
+    REQUIRE(promotedWreck.elements.size() == 1);
+    CHECK(promotedWreck.elements.front().elementId == "Fe");
+    CHECK(promotedWreck.elements.front().quantity == 3);
     CHECK(promotedWreck.lifetimeSeconds == 90.0f);
 }
 
@@ -340,7 +339,7 @@ TEST_CASE("A demoted DeathWreck's expiry keeps counting down in its WreckRecord 
 
     const entt::entity original = registry.create();
     registry.emplace<WorldTransform>(original, Vec2{0.0f, 0.0f}, 0.0f);
-    registry.emplace<DeathWreck>(original, std::vector<ModuleId>{}, std::vector<MaterialStack>{},
+    registry.emplace<DeathWreck>(original, std::vector<ModuleId>{}, std::vector<ElementStack>{},
                                  5.0f);
 
     WreckLedger ledger;
@@ -366,7 +365,7 @@ TEST_CASE("Recovering a promoted DeathWreck grants its manifest and clears its W
     registry.emplace<WorldTransform>(original, Vec2{20.0f, 0.0f}, 0.0f);
     DeathWreck deathWreck;
     deathWreck.modules.push_back(ModuleId("pulse_cannon_i"));
-    deathWreck.materials.push_back(MaterialStack{"Fe", 3});
+    deathWreck.elements.push_back(ElementStack{"Fe", 3});
     registry.emplace<DeathWreck>(original, deathWreck);
 
     WreckLedger ledger;

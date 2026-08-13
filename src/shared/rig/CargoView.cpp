@@ -74,14 +74,14 @@ struct NewSlot {
 bool TopUpMatchingStacks(entt::registry& registry, const std::vector<entt::entity>& bays,
                          const ItemStack& stack, int& remaining, std::vector<TopUp>& topUps) {
     bool sawMatchingStack = false;
-    if (stack.kind != ItemKind::Material) {
+    if (stack.kind != ItemKind::Element) {
         return sawMatchingStack;
     }
     for (const entt::entity hardpoint : bays) {
         CargoHold& cargo = registry.get<CargoHold>(hardpoint);
         for (std::size_t i = 0; i < cargo.stacks.size() && remaining > 0; ++i) {
             const ItemStack& existing = cargo.stacks[i];
-            if (existing.kind != ItemKind::Material || existing.id != stack.id) {
+            if (existing.kind != ItemKind::Element || existing.id != stack.id) {
                 continue;
             }
             sawMatchingStack = true;

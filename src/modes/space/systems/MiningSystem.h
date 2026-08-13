@@ -10,14 +10,14 @@ namespace sr::space::mining_system {
 // (DamageSystem.cpp) is generic over any entity carrying both components, not just rig
 // hardpoints, and its Rig-specific third loop never touches an Asteroid because asteroids do
 // not carry one. This system's own job starts where DamageSystem's ends: an Asteroid tagged
-// Destroyed this tick rolls its AsteroidComposition for material salvage -- one MaterialDrop
-// entity per material that hits (shared/components/Loot.h, the same component LootSystem
-// already collects) -- then the asteroid entity itself is destroyed. Spawning that MaterialDrop
+// Destroyed this tick rolls its AsteroidComposition for element salvage -- one ElementDrop
+// entity per element that hits (shared/components/Loot.h, the same component LootSystem
+// already collects) -- then the asteroid entity itself is destroyed. Spawning that ElementDrop
 // directly, the same way WeaponSystem spawns a Projectile directly, is not a Law 5 violation:
 // Law 5 reserves factories for composite/blueprint objects, and a single-component drop is
 // neither.
 //
-// Station mining ticks (auto-collecting a material into a station's storage on a timer) are NOT
+// Station mining ticks (auto-collecting an element into a station's storage on a timer) are NOT
 // implemented here. Legacy StarReach2's version reads a "mining_station" facility def and an
 // "aux_material_probe" module that have no equivalent in data/base_game/ yet, and there is no
 // StationFactory (issue #41) to instantiate one against for a test to exercise against. Wiring

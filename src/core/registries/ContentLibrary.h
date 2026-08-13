@@ -7,7 +7,7 @@
 
 #include "core/registries/JsonReader.h"
 #include "shared/blueprints/DefLibrary.h"
-#include "shared/blueprints/MaterialDef.h"
+#include "shared/blueprints/ElementDef.h"
 #include "shared/blueprints/ShipBlueprint.h"
 
 namespace sr::core {
@@ -18,7 +18,7 @@ namespace sr::core {
 // depending on sr_core. That inversion is what keeps the layer graph acyclic.
 class ContentLibrary final : public DefLibrary {
 public:
-    // Loads shells.json, modules.json, and ships.json from `directory`.
+    // Loads shells.json, modules.json, elements.json, and ships.json from `directory`.
     //
     // Never throws and never partially aborts: a malformed entry is reported and skipped, and
     // the rest of the set still loads. Callers check the report and decide whether to run. That
@@ -37,9 +37,9 @@ public:
 
     const ShipBlueprint* FindShip(const BlueprintId& id) const;
 
-    // Not part of DefLibrary -- blueprint validation never resolves a material id, only
+    // Not part of DefLibrary -- blueprint validation never resolves an element id, only
     // CargoView-adjacent systems do, and they already have a concrete ContentLibrary in hand.
-    const MaterialDef* FindMaterial(const MaterialId& id) const;
+    const ElementDef* FindElement(const ElementId& id) const;
 
     // Registers a module built at runtime rather than loaded from JSON -- architecture.md 12.12's
     // EngineerMenu, which merges two owned modules into a new one. The merged ModuleDef is
@@ -60,7 +60,7 @@ public:
     size_t ShellCount() const { return shells_.size(); }
     size_t ModuleCount() const { return modules_.size(); }
     size_t ShipCount() const { return ships_.size(); }
-    size_t MaterialCount() const { return materials_.size(); }
+    size_t ElementCount() const { return elements_.size(); }
 
     std::vector<BlueprintId> ShipIds() const;
 
@@ -74,7 +74,7 @@ private:
     std::unordered_map<std::string, ModuleDef> modules_;
     std::unordered_map<std::string, ShipBlueprint> ships_;
     std::unordered_map<std::string, ModuleDef> craftedModules_;
-    std::unordered_map<std::string, MaterialDef> materials_;
+    std::unordered_map<std::string, ElementDef> elements_;
 };
 
 }  // namespace sr::core

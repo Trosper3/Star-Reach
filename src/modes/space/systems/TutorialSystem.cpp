@@ -41,14 +41,14 @@ void TickPerRigSteps(entt::registry& registry) {
                 }
                 break;
             }
-            case TutorialStep::CollectMaterial: {
+            case TutorialStep::CollectElement: {
                 // Merged across every living cargo bay, not a single root-level CargoHold --
                 // P0-10 moved the hold onto the bay (architecture.md 12.23).
                 const std::vector<ItemStack> merged = cargo_view::Merged(registry, self);
-                const bool hasMaterial = std::any_of(
+                const bool hasElement = std::any_of(
                     merged.begin(), merged.end(),
-                    [](const ItemStack& stack) { return stack.kind == ItemKind::Material; });
-                if (hasMaterial) {
+                    [](const ItemStack& stack) { return stack.kind == ItemKind::Element; });
+                if (hasElement) {
                     Advance(tutorial);
                 }
                 break;

@@ -14,19 +14,19 @@ namespace sr {
 // hardpoint's, so it does not roll salvage for a turret that just died.
 struct Asteroid {};
 
-// One material's independent chance to appear as salvage when the asteroid carrying it depletes.
+// One element's independent chance to appear as salvage when the asteroid carrying it depletes.
 // Percent is a standalone roll per entry, not a distribution across entries -- a rich asteroid
-// can plausibly yield two or three different materials from one kill, same as legacy
+// can plausibly yield two or three different elements from one kill, same as legacy
 // StarReach2's MaterialChance.
-struct MaterialChance {
-    std::string materialId;
+struct ElementChance {
+    std::string elementId;
     int percent = 0;  // 1-100
 };
 
 // Rolled once at spawn time (WorldGen, not yet built -- issue #40) and consumed exactly once,
 // the tick MiningSystem sees this entity tagged Destroyed.
 struct AsteroidComposition {
-    std::vector<MaterialChance> materials;
+    std::vector<ElementChance> elements;
 };
 
 }  // namespace sr

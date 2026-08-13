@@ -19,17 +19,17 @@ struct LootDrop {
     float lifetimeSeconds = 28.0f;
 };
 
-// A collectible raw-material/salvage stack. No MaterialId registry exists yet, so this carries
+// A collectible raw-element/salvage stack. No ElementId registry exists yet, so this carries
 // a plain string the way legacy StarReach2 did before one landed -- promote to a strong id type
-// (Ids.h) in the same commit a materials content pipeline actually appears.
-struct MaterialDrop {
-    std::string materialId;
+// (Ids.h) in the same commit an elements content pipeline actually appears.
+struct ElementDrop {
+    std::string elementId;
     int quantity = 1;
     float lifetimeSeconds = 28.0f;
 };
 
 // Left behind by a destroyed capital ship or station (features.md Epic 11.1) -- routine fighter
-// kills do not drop these. Unlike LootDrop/MaterialDrop this never ages out: it is a rare,
+// kills do not drop these. Unlike LootDrop/ElementDrop this never ages out: it is a rare,
 // deliberate salvage target the player is expected to eventually reach, not battlefield clutter.
 struct DerelictWreck {
     int creditsReward = 0;
@@ -40,10 +40,10 @@ struct DerelictWreck {
     float radiusUnits = 45.0f;
 };
 
-// One stack of a collected material, merged by id so repeated pickups of the same material do
+// One stack of a collected element, merged by id so repeated pickups of the same element do
 // not grow the list.
-struct MaterialStack {
-    std::string materialId;
+struct ElementStack {
+    std::string elementId;
     int quantity = 0;
 };
 
@@ -54,7 +54,7 @@ struct MaterialStack {
 // taken once at death, not a live rig with hardpoints to walk.
 struct DeathWreck {
     std::vector<ModuleId> modules;
-    std::vector<MaterialStack> materials;
+    std::vector<ElementStack> elements;
 
     // features.md section 9 leaves the recovery window's exact duration (and wall-clock vs.
     // in-game time) open; three minutes is a generous placeholder, not a tuned value.
@@ -64,14 +64,14 @@ struct DeathWreck {
 // What kind of thing a stack holds. Unified rather than two parallel vectors (the pre-P0-10
 // CargoHold's `modules`/`materials` split) so CargoView's placement/refusal logic has one code
 // path, not two (Law 4).
-enum class ItemKind : std::uint8_t { Module, Material };
+enum class ItemKind : std::uint8_t { Module, Element };
 
 // One stack of cargo, occupying exactly one slot in whichever CargoHold holds it.
 //
-// `id` is a ModuleId::str() for ItemKind::Module or a materialId for ItemKind::Material -- a
+// `id` is a ModuleId::str() for ItemKind::Module or an elementId for ItemKind::Element -- a
 // plain string rather than a variant of the two strong id types, since every consumer (CargoView,
 // StorageMenu) only ever needs to compare/display it, never resolve it back through content.
-// `unitMass` is resolved by the depositing system (ContentLibrary::FindModule/FindMaterial) at
+// `unitMass` is resolved by the depositing system (ContentLibrary::FindModule/FindElement) at
 // deposit time and cached here, not looked up inside shared/rig/CargoView.h -- shared/ may not
 // include core/ (architecture.md section 2.3), the same denormalize-at-the-boundary pattern
 // HardpointMass/EnginePropulsion (Rig.h) already establish for rig aggregation.
@@ -79,10 +79,10 @@ enum class ItemKind : std::uint8_t { Module, Material };
 // ItemKind::Module stacks never merge -- `quantity` is always 1, matching the pre-P0-10 behavior
 // where every collected module was its own `cargo.modules` entry, and matching LootDrop's own
 // one-module-per-entity shape (it has no quantity field to spill a merged stack back out through).
-// Only ItemKind::Material stacks accumulate quantity, mirroring MaterialStack's existing
+// Only ItemKind::Element stacks accumulate quantity, mirroring ElementStack's existing
 // merge-by-id rule.
 struct ItemStack {
-    ItemKind kind = ItemKind::Material;
+    ItemKind kind = ItemKind::Element;
     std::string id;
     int quantity = 0;
     float unitMass = 0.0f;

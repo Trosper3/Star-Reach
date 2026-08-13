@@ -4,7 +4,7 @@
 
 namespace sr::space::station_services_system {
 
-// Buy/sell modules & materials, hull repair (architecture.md 12.10), Tier 1. The ordinary-
+// Buy/sell modules & elements, hull repair (architecture.md 12.10), Tier 1. The ordinary-
 // commerce case StationServicesMenu covers: docking anywhere, including a station the requester
 // does not own -- distinct from BridgeView, which is the command surface for a station the
 // player owns.

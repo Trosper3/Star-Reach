@@ -40,7 +40,7 @@ enum class DepositResult : std::uint8_t { Deposited, HoldFull, NoFreeSlot };
 
 // The one write path for adding cargo. Whole or nothing (architecture.md 12.30.3): if the full
 // `stack.quantity` cannot be placed, nothing is written and the reason is reported. Tops up an
-// existing matching stack with room first (Material only -- a Module stack never merges, see
+// existing matching stack with room first (Element only -- a Module stack never merges, see
 // ItemStack's comment), then places into free slots emptiest-bay-first (tie-broken by MountId,
 // never Rig::children order), splitting across slots and bays as needed.
 DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, const ItemStack& stack);

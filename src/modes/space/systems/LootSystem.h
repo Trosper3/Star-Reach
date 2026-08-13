@@ -9,15 +9,15 @@
 
 namespace sr::space::loot_system {
 
-// Drops, material salvage, derelict wrecks, death wrecks, pickup radius, and (since P0-10) the
+// Drops, element salvage, derelict wrecks, death wrecks, pickup radius, and (since P0-10) the
 // producer half of the cargo-bay model (architecture.md section 4, architecture.md 12.23).
 //
 // Like SpawnSystem, this system never assembles a *rig* from nothing -- Law 5 keeps blueprint
-// assembly out of systems/. A bare drop entity (LootDrop/MaterialDrop) is not a rig -- one
+// assembly out of systems/. A bare drop entity (LootDrop/ElementDrop) is not a rig -- one
 // transform, one drop component, no hardpoints -- so spawning one here is not the RigFactory-only
-// path Law 5 protects; MiningSystem already sets this precedent for MaterialDrop.
+// path Law 5 protects; MiningSystem already sets this precedent for ElementDrop.
 //
-//   - Lifetime: a LootDrop/MaterialDrop/DeathWreck's lifetimeSeconds counts down every tick; at
+//   - Lifetime: a LootDrop/ElementDrop/DeathWreck's lifetimeSeconds counts down every tick; at
 //     zero it despawns unclaimed. DerelictWreck carries no lifetime and never expires on its own
 //     -- it is a rare, deliberate salvage target (features.md Epic 11.1), not routine clutter.
 //   - Pickup: any PlayerControlled entity whose WorldTransform comes within its own
@@ -27,18 +27,18 @@ namespace sr::space::loot_system {
 //     lifetime, the same as if no collector were in range at all. Pickup range is deliberately
 //     never a hardcoded constant -- it derives from the collector's own CollisionRadius, the
 //     same ship-scaling work the architecture issue calls out.
-//   - LootDrop/MaterialDrop/DeathWreck pickups go through shared/rig/CargoView.h's Deposit, onto
+//   - LootDrop/ElementDrop/DeathWreck pickups go through shared/rig/CargoView.h's Deposit, onto
 //     whichever of the collector's living cargo bays has room; DerelictWreck salvage lands in its
 //     Wallet. A collector with no CargoBay hardpoint collects no items (it still has no CargoHold
 //     anywhere to deposit into) but still banks DerelictWreck credits.
 //   - The producer half: a cargo-bay hardpoint tagged Destroyed spills exactly its own stacks as
-//     recoverable LootDrop/MaterialDrop entities and empties, rather than its contents simply
+//     recoverable LootDrop/ElementDrop entities and empties, rather than its contents simply
 //     vanishing with it (architecture.md 12.23's "shoot the bay, lose what was in it" -- as
 //     recoverable salvage, not as nothing). ModuleEquipSystem's unmount path calls
 //     SpillCargoHold directly for the same reason before it detaches a loaded bay.
 void Tick(const SystemContext& ctx);
 
-// Spawns a LootDrop (ItemKind::Module) or MaterialDrop (ItemKind::Material) at `hardpoint`'s
+// Spawns a LootDrop (ItemKind::Module) or ElementDrop (ItemKind::Element) at `hardpoint`'s
 // WorldTransform for every stack currently in its CargoHold, then empties it. A no-op if
 // `hardpoint` carries no CargoHold or an empty one. Exposed (not file-local) because
 // ModuleEquipSystem's unmount path needs the identical spill behavior Tick's own Destroyed sweep
