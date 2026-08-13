@@ -136,7 +136,7 @@ TEST_CASE("Rule 5 -- stations are exempt from the engine requirement", "[validat
     sr::ShipBlueprint bp = MakeValidShip();
     bp.rig.mounts.erase(bp.rig.mounts.begin() + 2);  // Remove the thruster.
 
-    SECTION("a mobile craft still needs one") {
+    SECTION("a mobile vessel still needs one") {
         bp.mobile = true;
         CHECK(sr::Validate(bp, library).HasRule(sr::ValidationRule::Propulsion));
     }

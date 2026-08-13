@@ -94,7 +94,7 @@ namespace sr::space {
 //                        reads the same this-tick Destroyed tag MiningSystem is about to
 //                        consume by destroying the entity outright.
 //   MiningSystem      -- after DamageSystem so it sees this tick's Destroyed asteroids, and
-//                        before LootSystem so a MaterialDrop it spawns this tick is already
+//                        before LootSystem so an ElementDrop it spawns this tick is already
 //                        visible to LootSystem's expiry/pickup pass the same tick.
 //   ContractSystem    -- after DamageSystem for the same reason as MiningSystem: it credits
 //                        Bounty kills off this tick's Destroyed rig roots. Independent of

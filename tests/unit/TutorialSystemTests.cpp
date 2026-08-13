@@ -125,7 +125,7 @@ TEST_CASE("TutorialSystem advances DestroyAsteroid when any asteroid is destroye
 
     tutorial_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<Tutorial>(rig).step == TutorialStep::CollectMaterial);
+    CHECK(registry.get<Tutorial>(rig).step == TutorialStep::CollectElement);
 }
 
 TEST_CASE("TutorialSystem does not advance DestroyAsteroid without a destroyed asteroid",
@@ -142,19 +142,19 @@ TEST_CASE("TutorialSystem does not advance DestroyAsteroid without a destroyed a
     CHECK(registry.get<Tutorial>(rig).step == TutorialStep::DestroyAsteroid);
 }
 
-TEST_CASE("TutorialSystem advances CollectMaterial once the rig's CargoHold has a material",
+TEST_CASE("TutorialSystem advances CollectElement once the rig's CargoHold has an element",
           "[tutorial]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
 
-    const entt::entity rig = MakeRig(registry, Vec2{0.0f, 0.0f}, TutorialStep::CollectMaterial);
+    const entt::entity rig = MakeRig(registry, Vec2{0.0f, 0.0f}, TutorialStep::CollectElement);
     const entt::entity bay = registry.create();
     registry.emplace<ParentRig>(bay, rig);
     registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, 10, 1000.0f);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{bay});
-    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Material, "Fe", 1, 2.0f});
+    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Element, "Fe", 1, 2.0f});
 
     tutorial_system::Tick(MakeContext(world, intents, content));
 

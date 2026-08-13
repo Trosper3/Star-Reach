@@ -13,7 +13,7 @@ std::vector<std::string> Rows(const std::vector<ItemStack>& stacks) {
         }
     }
     for (const ItemStack& stack : stacks) {
-        if (stack.kind == ItemKind::Material) {
+        if (stack.kind == ItemKind::Element) {
             rows.push_back(stack.id + " x" + std::to_string(stack.quantity));
         }
     }

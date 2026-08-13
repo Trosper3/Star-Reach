@@ -99,7 +99,7 @@ constexpr float kAsteroidRadius = 40.0f;
 constexpr float kAsteroidMinAngularSpeed = 0.01f;
 constexpr float kAsteroidMaxAngularSpeed = 0.03f;
 
-struct MaterialPoolEntry {
+struct ElementPoolEntry {
     const char* id;
     int minPercent;
     int maxPercent;
@@ -108,21 +108,21 @@ struct MaterialPoolEntry {
 // A trimmed, factory-internal tuning table -- the same category as MiningSystem's own hash-based
 // salvage roll, not authored player-facing content (Law 10 governs ship/module/shell definitions
 // in data/base_game/, not procedural-generation weighting like this).
-constexpr MaterialPoolEntry kMaterialPool[] = {
+constexpr ElementPoolEntry kElementPool[] = {
     {"iron", 40, 80},
     {"carbon", 35, 70},
     {"silica", 30, 65},
     {"titanium", 20, 45},
 };
-constexpr int kMaterialPoolSize = 4;
+constexpr int kElementPoolSize = 4;
 
 AsteroidComposition RollComposition(Rng& rng) {
     AsteroidComposition composition;
-    const int materialCount = RandomInt(rng, 1, 2);
-    for (int i = 0; i < materialCount; ++i) {
-        const MaterialPoolEntry& entry = kMaterialPool[RandomInt(rng, 0, kMaterialPoolSize - 1)];
-        composition.materials.push_back(
-            MaterialChance{entry.id, RandomInt(rng, entry.minPercent, entry.maxPercent)});
+    const int elementCount = RandomInt(rng, 1, 2);
+    for (int i = 0; i < elementCount; ++i) {
+        const ElementPoolEntry& entry = kElementPool[RandomInt(rng, 0, kElementPoolSize - 1)];
+        composition.elements.push_back(
+            ElementChance{entry.id, RandomInt(rng, entry.minPercent, entry.maxPercent)});
     }
     return composition;
 }

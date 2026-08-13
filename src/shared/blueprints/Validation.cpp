@@ -197,7 +197,7 @@ void CheckRequiredShells(const ShipBlueprint& bp, const DefLibrary& library,
     // Stations are exempt -- features.md validation rule 5.
     if (bp.mobile && !HasEquippedShell(bp, library, ShellKind::Engine)) {
         Add(result, ValidationRule::Propulsion,
-            "A mobile craft needs at least one engine shell with a module attached.");
+            "A mobile vessel needs at least one engine shell with a module attached.");
     }
 }
 

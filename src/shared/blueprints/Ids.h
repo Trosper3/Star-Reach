@@ -38,18 +38,18 @@ struct BlueprintIdTag {};
 struct FactionIdTag {};
 struct MountIdTag {};
 struct KnowledgeNetworkIdTag {};
-struct MaterialIdTag {};
+struct ElementIdTag {};
 
 using ModuleId = StringId<ModuleIdTag>;
 using ShellId = StringId<ShellIdTag>;
 using BlueprintId = StringId<BlueprintIdTag>;
 using FactionId = StringId<FactionIdTag>;
 
-// Content-registry lookup key for a MaterialDef (shared/blueprints/MaterialDef.h). Deliberately
-// not used for MaterialStack/MaterialDrop/MaterialChance's existing `std::string materialId`
+// Content-registry lookup key for an ElementDef (shared/blueprints/ElementDef.h). Deliberately
+// not used for ElementStack/ElementDrop/ElementChance's existing `std::string elementId`
 // fields -- those stay plain strings, per Loot.h's own comment, until something forces that wider
 // rename. CargoView resolves a deposit's mass through this id before it ever reaches shared/rig/.
-using MaterialId = StringId<MaterialIdTag>;
+using ElementId = StringId<ElementIdTag>;
 
 // Mount ids are unique only within one blueprint, which is what lets a Template be relocated
 // or re-parented without a global rename.

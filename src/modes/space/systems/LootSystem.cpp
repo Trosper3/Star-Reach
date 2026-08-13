@@ -14,11 +14,11 @@ namespace sr::space::loot_system {
 namespace {
 
 // A wreck's WorldBody radius is purely a draw size -- pickup range for a DeathWreck derives from
-// the collector, the same as MaterialDrop (MiningSystem.cpp); only DerelictWreck's own
+// the collector, the same as ElementDrop (MiningSystem.cpp); only DerelictWreck's own
 // radiusUnits widens the pickup check itself.
 constexpr float kDeathWreckRadius = 20.0f;
 
-// Matches MiningSystem.cpp's kMaterialDropRadius -- a spilled stack is the same kind of loose
+// Matches MiningSystem.cpp's kElementDropRadius -- a spilled stack is the same kind of loose
 // battlefield object a mined asteroid produces, just from a different source.
 constexpr float kSpilledDropRadius = 6.0f;
 
@@ -33,14 +33,14 @@ bool AddModule(entt::registry& registry, entt::entity collector, const ModuleId&
     return result == cargo_view::DepositResult::Deposited;
 }
 
-// Deposits `quantity` of `materialId` into the collector's cargo bays, topping up an existing
+// Deposits `quantity` of `elementId` into the collector's cargo bays, topping up an existing
 // stack first. False (and nothing written) if the full quantity has no room anywhere.
-bool AddMaterial(entt::registry& registry, entt::entity collector, const std::string& materialId,
-                 int quantity, const core::ContentLibrary& content) {
-    const MaterialDef* material = content.FindMaterial(MaterialId(materialId));
-    const float mass = material != nullptr ? material->mass : 0.0f;
+bool AddElement(entt::registry& registry, entt::entity collector, const std::string& elementId,
+                int quantity, const core::ContentLibrary& content) {
+    const ElementDef* element = content.FindElement(ElementId(elementId));
+    const float mass = element != nullptr ? element->mass : 0.0f;
     const auto result = cargo_view::Deposit(
-        registry, collector, ItemStack{ItemKind::Material, materialId, quantity, mass});
+        registry, collector, ItemStack{ItemKind::Element, elementId, quantity, mass});
     return result == cargo_view::DepositResult::Deposited;
 }
 
@@ -83,17 +83,17 @@ void TickLootDrops(entt::registry& registry, const core::ContentLibrary& content
     }
 }
 
-void TickMaterialDrops(entt::registry& registry, const core::ContentLibrary& content, float dt) {
+void TickElementDrops(entt::registry& registry, const core::ContentLibrary& content, float dt) {
     std::vector<entt::entity> toDestroy;
-    for (auto [drop, material, xf] : registry.view<MaterialDrop, WorldTransform>().each()) {
+    for (auto [drop, element, xf] : registry.view<ElementDrop, WorldTransform>().each()) {
         entt::entity collector = entt::null;
         if (FindCollectorInRange(registry, xf.position, 0.0f, collector) &&
-            AddMaterial(registry, collector, material.materialId, material.quantity, content)) {
+            AddElement(registry, collector, element.elementId, element.quantity, content)) {
             toDestroy.push_back(drop);
             continue;
         }
-        material.lifetimeSeconds -= dt;
-        if (material.lifetimeSeconds <= 0.0f) {
+        element.lifetimeSeconds -= dt;
+        if (element.lifetimeSeconds <= 0.0f) {
             toDestroy.push_back(drop);
         }
     }
@@ -128,8 +128,8 @@ void TickDeathWrecks(entt::registry& registry, const core::ContentLibrary& conte
             for (const ModuleId& moduleId : deathWreck.modules) {
                 AddModule(registry, collector, moduleId, content);
             }
-            for (const MaterialStack& stack : deathWreck.materials) {
-                AddMaterial(registry, collector, stack.materialId, stack.quantity, content);
+            for (const ElementStack& stack : deathWreck.elements) {
+                AddElement(registry, collector, stack.elementId, stack.quantity, content);
             }
             toDestroy.push_back(wreck);
             continue;
@@ -158,7 +158,7 @@ void SpillDestroyedBays(entt::registry& registry) {
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
     TickLootDrops(registry, ctx.content, ctx.dt);
-    TickMaterialDrops(registry, ctx.content, ctx.dt);
+    TickElementDrops(registry, ctx.content, ctx.dt);
     TickDerelictWrecks(registry);
     TickDeathWrecks(registry, ctx.content, ctx.dt);
     SpillDestroyedBays(registry);
@@ -179,7 +179,7 @@ void SpillCargoHold(entt::registry& registry, entt::entity hardpoint) {
         if (stack.kind == ItemKind::Module) {
             registry.emplace<LootDrop>(drop, ModuleId(stack.id));
         } else {
-            registry.emplace<MaterialDrop>(drop, stack.id, stack.quantity);
+            registry.emplace<ElementDrop>(drop, stack.id, stack.quantity);
         }
     }
     cargo->stacks.clear();
@@ -194,7 +194,7 @@ core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::ent
     record.systemId = systemId;
     record.position = xf.position;
     record.modules = wreck.modules;
-    record.materials = wreck.materials;
+    record.elements = wreck.elements;
     record.lifetimeSeconds = wreck.lifetimeSeconds;
 
     registry.destroy(entity);
@@ -205,7 +205,7 @@ entt::entity PromoteDeathWreck(entt::registry& registry, const core::galaxy::Wre
     const entt::entity entity = registry.create();
     registry.emplace<WorldTransform>(entity, record.position, 0.0f);
     registry.emplace<WorldBody>(entity, kDeathWreckRadius, BodyKind::Wreck);
-    registry.emplace<DeathWreck>(entity, record.modules, record.materials, record.lifetimeSeconds);
+    registry.emplace<DeathWreck>(entity, record.modules, record.elements, record.lifetimeSeconds);
     return entity;
 }
 

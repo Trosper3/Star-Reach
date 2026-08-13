@@ -15,7 +15,7 @@
 using sr::BlueprintId;
 using sr::BlueprintRef;
 using sr::DeathWreck;
-using sr::MaterialStack;
+using sr::ElementStack;
 using sr::ModuleId;
 using sr::PlayerControlled;
 using sr::SystemWarpRequest;
@@ -102,7 +102,7 @@ TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[space
     game.World().Registry().emplace<WorldTransform>(wreck, Vec2{500.0f, 500.0f}, 0.0f);
     DeathWreck deathWreck;
     deathWreck.modules.push_back(ModuleId("pulse_cannon_i"));
-    deathWreck.materials.push_back(MaterialStack{"Fe", 3});
+    deathWreck.elements.push_back(ElementStack{"Fe", 3});
     game.World().Registry().emplace<DeathWreck>(wreck, deathWreck);
 
     game.World().Registry().emplace<SystemWarpRequest>(player, "kepler", Vec2{0.0f, 0.0f}, 0.0f);
@@ -128,7 +128,7 @@ TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player r
     game.World().Registry().emplace<WorldTransform>(wreck, Vec2{500.0f, 500.0f}, 0.0f);
     DeathWreck deathWreck;
     deathWreck.modules.push_back(ModuleId("pulse_cannon_i"));
-    deathWreck.materials.push_back(MaterialStack{"Fe", 3});
+    deathWreck.elements.push_back(ElementStack{"Fe", 3});
     game.World().Registry().emplace<DeathWreck>(wreck, deathWreck);
 
     // Leave "sol" for "kepler" -- the wreck demotes into the ledger under "sol".
@@ -152,6 +152,6 @@ TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player r
     const DeathWreck& promotedWreck = registry.get<DeathWreck>(promoted);
     REQUIRE(promotedWreck.modules.size() == 1);
     CHECK(promotedWreck.modules.front() == ModuleId("pulse_cannon_i"));
-    REQUIRE(promotedWreck.materials.size() == 1);
-    CHECK(promotedWreck.materials.front().materialId == "Fe");
+    REQUIRE(promotedWreck.elements.size() == 1);
+    CHECK(promotedWreck.elements.front().elementId == "Fe");
 }

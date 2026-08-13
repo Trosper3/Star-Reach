@@ -82,10 +82,10 @@ TEST_CASE("PopulateSystem seeds exactly eight asteroids with rolled composition"
 
     for (auto [entity, composition] : registry.view<AsteroidComposition>().each()) {
         (void)entity;
-        CHECK_FALSE(composition.materials.empty());
-        for (const auto& material : composition.materials) {
-            CHECK(material.percent >= 1);
-            CHECK(material.percent <= 100);
+        CHECK_FALSE(composition.elements.empty());
+        for (const auto& element : composition.elements) {
+            CHECK(element.percent >= 1);
+            CHECK(element.percent <= 100);
         }
     }
 }

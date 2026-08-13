@@ -113,12 +113,12 @@ ModuleDef ParseModuleDef(const JsonReader& reader) {
     return def;
 }
 
-MaterialDef ParseMaterialDef(const JsonReader& reader) {
-    MaterialDef def;
+ElementDef ParseElementDef(const JsonReader& reader) {
+    ElementDef def;
 
     std::string id;
     reader.Require("id", id);
-    def.id = MaterialId(id);
+    def.id = ElementId(id);
 
     reader.Require("displayName", def.displayName);
     reader.Optional("mass", def.mass);

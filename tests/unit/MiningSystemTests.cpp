@@ -14,8 +14,8 @@ using sr::Asteroid;
 using sr::AsteroidComposition;
 using sr::BodyKind;
 using sr::Destroyed;
-using sr::MaterialChance;
-using sr::MaterialDrop;
+using sr::ElementChance;
+using sr::ElementDrop;
 using sr::Vec2;
 using sr::WorldBody;
 using sr::WorldTransform;
@@ -31,20 +31,20 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 }
 
 entt::entity MakeDepletedAsteroid(entt::registry& registry, const Vec2& position,
-                                  std::vector<MaterialChance> materials) {
+                                  std::vector<ElementChance> elements) {
     const entt::entity asteroid = registry.create();
     registry.emplace<WorldTransform>(asteroid, position, 0.0f);
     registry.emplace<Asteroid>(asteroid);
-    registry.emplace<AsteroidComposition>(asteroid, std::move(materials));
+    registry.emplace<AsteroidComposition>(asteroid, std::move(elements));
     registry.emplace<Destroyed>(asteroid);
     return asteroid;
 }
 
-int CountMaterialDrops(entt::registry& registry) {
+int CountElementDrops(entt::registry& registry) {
     int count = 0;
-    for (auto [drop, material] : registry.view<MaterialDrop>().each()) {
+    for (auto [drop, element] : registry.view<ElementDrop>().each()) {
         (void)drop;
-        (void)material;
+        (void)element;
         ++count;
     }
     return count;
@@ -65,8 +65,7 @@ TEST_CASE("MiningSystem destroys a depleted asteroid", "[mining]") {
     CHECK_FALSE(registry.valid(asteroid));
 }
 
-TEST_CASE("MiningSystem always spawns a MaterialDrop for a guaranteed (100%) material",
-          "[mining]") {
+TEST_CASE("MiningSystem always spawns an ElementDrop for a guaranteed (100%) element", "[mining]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -76,9 +75,9 @@ TEST_CASE("MiningSystem always spawns a MaterialDrop for a guaranteed (100%) mat
 
     mining_system::Tick(MakeContext(world, intents, content));
 
-    REQUIRE(CountMaterialDrops(registry) == 1);
-    for (auto [drop, material, xf] : registry.view<MaterialDrop, WorldTransform>().each()) {
-        CHECK(material.materialId == "iron");
+    REQUIRE(CountElementDrops(registry) == 1);
+    for (auto [drop, element, xf] : registry.view<ElementDrop, WorldTransform>().each()) {
+        CHECK(element.elementId == "iron");
         CHECK(xf.position.x == 120.0f);
         CHECK(xf.position.y == -40.0f);
         REQUIRE(registry.all_of<WorldBody>(drop));
@@ -86,7 +85,7 @@ TEST_CASE("MiningSystem always spawns a MaterialDrop for a guaranteed (100%) mat
     }
 }
 
-TEST_CASE("MiningSystem never spawns a MaterialDrop for an impossible (0%) material", "[mining]") {
+TEST_CASE("MiningSystem never spawns an ElementDrop for an impossible (0%) element", "[mining]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -96,10 +95,10 @@ TEST_CASE("MiningSystem never spawns a MaterialDrop for an impossible (0%) mater
 
     mining_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(CountMaterialDrops(registry) == 0);
+    CHECK(CountElementDrops(registry) == 0);
 }
 
-TEST_CASE("MiningSystem can roll multiple independent materials from one asteroid", "[mining]") {
+TEST_CASE("MiningSystem can roll multiple independent elements from one asteroid", "[mining]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -109,7 +108,7 @@ TEST_CASE("MiningSystem can roll multiple independent materials from one asteroi
 
     mining_system::Tick(MakeContext(world, intents, content));
 
-    REQUIRE(CountMaterialDrops(registry) == 2);
+    REQUIRE(CountElementDrops(registry) == 2);
 }
 
 TEST_CASE("MiningSystem leaves an asteroid alone until it is tagged Destroyed", "[mining]") {
@@ -121,12 +120,12 @@ TEST_CASE("MiningSystem leaves an asteroid alone until it is tagged Destroyed", 
     const entt::entity asteroid = registry.create();
     registry.emplace<WorldTransform>(asteroid, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<Asteroid>(asteroid);
-    registry.emplace<AsteroidComposition>(asteroid, std::vector<MaterialChance>{{"iron", 100}});
+    registry.emplace<AsteroidComposition>(asteroid, std::vector<ElementChance>{{"iron", 100}});
 
     mining_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.valid(asteroid));
-    CHECK(CountMaterialDrops(registry) == 0);
+    CHECK(CountElementDrops(registry) == 0);
 }
 
 TEST_CASE("MiningSystem does not roll salvage for a destroyed rig hardpoint", "[mining]") {
@@ -142,5 +141,5 @@ TEST_CASE("MiningSystem does not roll salvage for a destroyed rig hardpoint", "[
     mining_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.valid(hardpoint));
-    CHECK(CountMaterialDrops(registry) == 0);
+    CHECK(CountElementDrops(registry) == 0);
 }

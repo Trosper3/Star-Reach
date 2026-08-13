@@ -13,7 +13,7 @@ enum class TutorialStep : unsigned char {
     Move,
     Target,
     DestroyAsteroid,
-    CollectMaterial,
+    CollectElement,
     Dock,
     Sell,
     EquipModule,

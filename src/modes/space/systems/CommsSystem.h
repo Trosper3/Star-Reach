@@ -14,7 +14,7 @@ namespace sr::space::comms_system {
 //     requester's own SensorRange (Targeting.h), and a "no response" line otherwise. Both
 //     outcomes consume the request the same tick.
 //   - Dialogue lines: a small canned response pool, picked by a deterministic hash of
-//     (requester, tick) rather than RNG state -- the same reasoning MiningSystem's material roll
+//     (requester, tick) rather than RNG state -- the same reasoning MiningSystem's element roll
 //     already documents for keeping Law 2's fast-forward replayable.
 //
 // NOT implemented here: the contract-board/distress-hail flows legacy layered onto hailing

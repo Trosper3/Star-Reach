@@ -25,7 +25,7 @@ constexpr std::array<const char*, 3> kHailResponses = {
 
 // A pure function of (entity, tick) rather than global RNG state -- Law 2's coarse-tick
 // fast-forward needs every time-dependent decision to be reproducible from the same inputs, the
-// same reasoning MiningSystem's material roll already documents.
+// same reasoning MiningSystem's element roll already documents.
 std::uint32_t Hash32(std::uint32_t seed) {
     std::uint32_t hash = 2166136261u;
     for (int byte = 0; byte < 4; ++byte) {

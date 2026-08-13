@@ -26,7 +26,7 @@ TEST_CASE("The shipped content set loads without errors", "[content]") {
     CHECK(library.ShellCount() > 0);
     CHECK(library.ModuleCount() > 0);
     CHECK(library.ShipCount() > 0);
-    CHECK(library.MaterialCount() > 0);
+    CHECK(library.ElementCount() > 0);
 }
 
 TEST_CASE("Every shipped blueprint is instantiable", "[content]") {

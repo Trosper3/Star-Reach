@@ -19,7 +19,7 @@ struct WreckRecord {
     std::string systemId;
     Vec2 position;
     std::vector<ModuleId> modules;
-    std::vector<MaterialStack> materials;
+    std::vector<ElementStack> elements;
 
     // Seconds of recovery window left, frozen at whatever it was the instant the system demoted
     // -- nothing simulates a Tier 2/3 system yet (features.md section 1.1), so there is no clock

@@ -13,7 +13,7 @@
 // anything and never walks a Rig itself.
 namespace sr::space::ui::storage_menu {
 
-// One row of text per cargo entry -- modules first, then materials with their quantity, matching
+// One row of text per cargo entry -- modules first, then elements with their quantity, matching
 // the pre-P0-10 CargoHold's own display order regardless of which bay a stack lives in or the
 // order cargo_view::Merged happens to return them in. Pure -- no raylib -- so unit-testable.
 std::vector<std::string> Rows(const std::vector<ItemStack>& stacks);

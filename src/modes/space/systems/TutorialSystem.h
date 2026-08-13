@@ -17,7 +17,7 @@ namespace sr::space::tutorial_system {
 //     StarReach2, which advanced on any asteroid destruction, not specifically the tutorial
 //     rig's own kill. Must run before MiningSystem, which destroys the entity outright the same
 //     tick DamageSystem tags it.
-//   - CollectMaterial: the rig's CargoHold (shared/components/Loot.h) has at least one material
+//   - CollectElement: the rig's CargoHold (shared/components/Loot.h) has at least one element
 //     stack.
 //   - Dock: the rig is tagged Docked (shared/components/Docking.h).
 //

@@ -52,7 +52,7 @@ TEST_CASE("Deposit fills an empty bay and TotalMass reflects it", "[cargo-view]"
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
 
     const auto result =
-        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 10, 2.0f});
+        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 10, 2.0f});
 
     CHECK(result == cargo_view::DepositResult::Deposited);
     CHECK(cargo_view::TotalMass(registry, root) == Approx(20.0f));
@@ -60,16 +60,16 @@ TEST_CASE("Deposit fills an empty bay and TotalMass reflects it", "[cargo-view]"
     CHECK(registry.get<CargoHold>(bay).stacks.front().quantity == 10);
 }
 
-TEST_CASE("Deposit tops up an existing matching Material stack before opening a new slot",
+TEST_CASE("Deposit tops up an existing matching Element stack before opening a new slot",
           "[cargo-view]") {
     entt::registry registry;
     const entt::entity root = registry.create();
     const entt::entity bay = MakeBay(registry, root, "bay", 4, 250.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
-    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 3, 2.0f});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 3, 2.0f});
 
     const auto result =
-        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 2, 2.0f});
+        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 2, 2.0f});
 
     CHECK(result == cargo_view::DepositResult::Deposited);
     const CargoHold& cargo = registry.get<CargoHold>(bay);
@@ -99,7 +99,7 @@ TEST_CASE("A deposit that fits in no single bay but fits across two succeeds", "
 
     // 15 units at 1.0 mass each = 15 mass, but no single 10-capacity slot can hold it whole.
     const auto result =
-        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "carbon", 15, 1.0f});
+        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "carbon", 15, 1.0f});
 
     CHECK(result == cargo_view::DepositResult::Deposited);
     CHECK(cargo_view::TotalMass(registry, root) == Approx(15.0f));
@@ -115,10 +115,10 @@ TEST_CASE(
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
     // Bay already has an "iron" stack filling the one slot -- no free slot, but a matching stack
     // exists (with no room left).
-    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 5, 2.0f});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 5, 2.0f});
 
     const auto result =
-        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 1, 2.0f});
+        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 1, 2.0f});
 
     CHECK(result == cargo_view::DepositResult::HoldFull);
     // Refused whole -- nothing partially applied.
@@ -133,10 +133,10 @@ TEST_CASE("Deposit refuses NoFreeSlot for a brand-new item type when no slot is 
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
     // The one slot is occupied by a different item entirely -- "mass to spare" on that slot
     // (only 5 of 100 used) does not help a new item type with nowhere to start.
-    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 1, 5.0f});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 1, 5.0f});
 
     const auto result =
-        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "carbon", 1, 1.0f});
+        cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "carbon", 1, 1.0f});
 
     CHECK(result == cargo_view::DepositResult::NoFreeSlot);
 }
@@ -154,7 +154,7 @@ TEST_CASE(
     const entt::entity bayA = MakeBay(registry, root, "bay_a", 2, 100.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{bayZ, bayA});
 
-    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Material, "iron", 1, 1.0f});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Element, "iron", 1, 1.0f});
 
     CHECK(registry.get<CargoHold>(bayA).stacks.size() == 1);
     CHECK(registry.get<CargoHold>(bayZ).stacks.empty());
@@ -166,10 +166,10 @@ TEST_CASE("Withdraw drains the fullest matching slot first", "[cargo-view]") {
     const entt::entity bayA = MakeBay(registry, root, "bay_a", 2, 100.0f);
     const entt::entity bayB = MakeBay(registry, root, "bay_b", 2, 100.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{bayA, bayB});
-    registry.get<CargoHold>(bayA).stacks.push_back(ItemStack{ItemKind::Material, "iron", 3, 1.0f});
-    registry.get<CargoHold>(bayB).stacks.push_back(ItemStack{ItemKind::Material, "iron", 8, 1.0f});
+    registry.get<CargoHold>(bayA).stacks.push_back(ItemStack{ItemKind::Element, "iron", 3, 1.0f});
+    registry.get<CargoHold>(bayB).stacks.push_back(ItemStack{ItemKind::Element, "iron", 8, 1.0f});
 
-    const bool ok = cargo_view::Withdraw(registry, root, ItemKind::Material, "iron", 5);
+    const bool ok = cargo_view::Withdraw(registry, root, ItemKind::Element, "iron", 5);
 
     CHECK(ok);
     // bayB (fuller, 8) drains first: 8 - 5 = 3 remaining there; bayA's 3 untouched.
@@ -183,9 +183,9 @@ TEST_CASE("Withdraw refuses whole and writes nothing when the rig does not hold 
     const entt::entity root = registry.create();
     const entt::entity bay = MakeBay(registry, root, "bay", 2, 100.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
-    registry.get<CargoHold>(bay).stacks.push_back(ItemStack{ItemKind::Material, "iron", 3, 1.0f});
+    registry.get<CargoHold>(bay).stacks.push_back(ItemStack{ItemKind::Element, "iron", 3, 1.0f});
 
-    const bool ok = cargo_view::Withdraw(registry, root, ItemKind::Material, "iron", 10);
+    const bool ok = cargo_view::Withdraw(registry, root, ItemKind::Element, "iron", 10);
 
     CHECK_FALSE(ok);
     CHECK(registry.get<CargoHold>(bay).stacks.front().quantity == 3);  // Untouched.
@@ -196,9 +196,9 @@ TEST_CASE("Withdraw removes a stack entirely once it empties", "[cargo-view]") {
     const entt::entity root = registry.create();
     const entt::entity bay = MakeBay(registry, root, "bay", 2, 100.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
-    registry.get<CargoHold>(bay).stacks.push_back(ItemStack{ItemKind::Material, "iron", 3, 1.0f});
+    registry.get<CargoHold>(bay).stacks.push_back(ItemStack{ItemKind::Element, "iron", 3, 1.0f});
 
-    CHECK(cargo_view::Withdraw(registry, root, ItemKind::Material, "iron", 3));
+    CHECK(cargo_view::Withdraw(registry, root, ItemKind::Element, "iron", 3));
 
     CHECK(registry.get<CargoHold>(bay).stacks.empty());
 }
@@ -213,9 +213,9 @@ TEST_CASE("A Destroyed bay's capacity and contents drop out, and the other bay i
     const entt::entity destroyedBay = MakeBay(registry, root, "bay_b", 2, 100.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{survivingBay, destroyedBay});
     registry.get<CargoHold>(survivingBay)
-        .stacks.push_back(ItemStack{ItemKind::Material, "iron", 5, 1.0f});
+        .stacks.push_back(ItemStack{ItemKind::Element, "iron", 5, 1.0f});
     registry.get<CargoHold>(destroyedBay)
-        .stacks.push_back(ItemStack{ItemKind::Material, "titanium", 5, 3.0f});
+        .stacks.push_back(ItemStack{ItemKind::Element, "titanium", 5, 3.0f});
 
     CHECK(cargo_view::Capacity(registry, root) == Approx(400.0f));  // Both bays, still alive.
 
