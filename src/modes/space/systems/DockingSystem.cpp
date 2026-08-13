@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "shared/components/Docking.h"
-#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -19,10 +18,6 @@ namespace {
 // Distance from a docking-bay hardpoint at which a rig is considered "arrived" -- ported
 // verbatim from legacy StarReach2's DockRepair.h kDockRadius.
 constexpr float kDockRangeUnits = 50.0f;
-
-// Fraction of a hardpoint's max hull restored per second while docked -- ported verbatim from
-// legacy StarReach2's DockRepair.h kDockHealPerSecond (~6.7s to fully heal).
-constexpr float kDockHealPerSecond = 0.15f;
 
 // Nearest DockingBay hardpoint belonging to a different, same-faction rig, within range.
 // entt::null if nothing qualifies.
@@ -78,20 +73,15 @@ void UpdatePromptsAndRequests(entt::registry& registry) {
     }
 }
 
-void HealAndImmobilize(entt::registry& registry, float dt) {
+// architecture.md 13.3 finding I / 13.4 decision 1: docking no longer heals for free -- that
+// belonged to StationServicesSystem's facility-gated, paid Repair path (P0-11), and running both
+// made the paid path unsellable. This function keeps every other part of "being docked": staying
+// put, and clearing on an UndockRequest.
+void ImmobilizeDocked(entt::registry& registry) {
     std::vector<entt::entity> toUndock;
 
-    for (auto [self, docked, rig] : registry.view<Docked, Rig>().each()) {
+    for (auto [self, docked] : registry.view<Docked>().each()) {
         (void)docked;
-        for (const entt::entity child : rig.children) {
-            if (registry.all_of<Destroyed>(child)) {
-                continue;  // Destruction is permanent (Health.h) -- docking never revives one.
-            }
-            if (auto* health = registry.try_get<Health>(child)) {
-                health->current =
-                    std::min(health->max, health->current + kDockHealPerSecond * health->max * dt);
-            }
-        }
 
         if (auto* velocity = registry.try_get<Velocity>(self)) {
             *velocity = Velocity{};
@@ -117,7 +107,7 @@ void HealAndImmobilize(entt::registry& registry, float dt) {
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
     UpdatePromptsAndRequests(registry);
-    HealAndImmobilize(registry, ctx.dt);
+    ImmobilizeDocked(registry);
 }
 
 }  // namespace sr::space::docking_system

@@ -22,8 +22,13 @@ namespace sr::space::station_services_system {
 // Sell: the exact inverse -- refused if the requester's CargoHold does not hold `module`.
 // Credits Wallet, moves the module from the requester's CargoHold to the station's.
 //
-// Repair: spend = round(fraction * costForFullRepair); refused if Wallet can't afford it.
-// Restores `fraction` of each hardpoint's missing hull across the requester's own Rig.
+// Repair: refused unless the docked station has a living FacilityKind::Repair hardpoint
+// (architecture.md 13.3 finding I -- deleted DockingSystem's unconditional free heal, so this is
+// now the only gate). The requested `fraction` is capped by how much the facility's authored
+// FacilityStats::ratePerSecond can deliver this tick; spend = round(cappedFraction *
+// costForFullRepair), so a capped tick is never billed for hull it did not restore. Restores the
+// (possibly capped) fraction of each living hardpoint's missing hull across the requester's own
+// Rig -- a Destroyed hardpoint is never healed.
 //
 // MergeModuleRequest is not implemented here -- see shared/components/StationServices.h's
 // comment on why.

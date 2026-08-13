@@ -13,7 +13,6 @@
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
-using sr::Destroyed;
 using sr::Docked;
 using sr::DockingBay;
 using sr::DockPrompt;
@@ -153,8 +152,10 @@ TEST_CASE("DockingSystem drops a DockRequest naming a bay that is not in range",
     CHECK_FALSE(registry.all_of<DockRequest>(ship));
 }
 
-TEST_CASE("DockingSystem heals a docked rig's living hardpoints but not a destroyed one",
-          "[docking]") {
+TEST_CASE(
+    "DockingSystem does not heal a docked rig -- that moved to the paid, facility-gated "
+    "Repair path (StationServicesSystem, architecture.md 13.3 finding I)",
+    "[docking]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -173,17 +174,11 @@ TEST_CASE("DockingSystem heals a docked rig's living hardpoints but not a destro
     const entt::entity living = registry.create();
     registry.emplace<Health>(living, 50.0f, 100.0f);
     rig.children.push_back(living);
-    const entt::entity dead = registry.create();
-    registry.emplace<Health>(dead, 0.0f, 100.0f);
-    registry.emplace<Destroyed>(dead);
-    rig.children.push_back(dead);
     registry.emplace<Rig>(ship, rig);
 
-    // 1 second at 0.15 max/s -- exactly the ~6.7s-to-full formula ported from legacy.
     docking_system::Tick(MakeContext(world, intents, content, 1.0f));
 
-    CHECK(registry.get<Health>(living).current == Catch::Approx(65.0f));
-    CHECK(registry.get<Health>(dead).current == Catch::Approx(0.0f));
+    CHECK(registry.get<Health>(living).current == Catch::Approx(50.0f));
 }
 
 TEST_CASE("DockingSystem zeroes a docked rig's Velocity and ThrustInput", "[docking]") {
