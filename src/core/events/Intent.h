@@ -45,6 +45,24 @@ struct SetTargetIntent {
     MountId targetMount;
 };
 
+// Where the actor's cursor currently points, in world space. Pushed every frame regardless of
+// mouse movement -- the same idiom as SetThrottleIntent -- so a stationary cursor keeps aiming
+// there rather than the aim point going stale. Feeds AimPoint (shared/components/Targeting.h),
+// which WeaponSystem prefers over Target: the player aims manually, there is no target lock
+// (features.md 3.2, architecture.md 12.24 step 2's bug).
+struct AimIntent {
+    ActorId actor;
+    Vec2 worldPosition;
+};
+
+// Flip one of the actor's rig's ten weapon groups on/off (features.md 3.6). Pushed once per key
+// press, never held -- FlightControls uses IsKeyPressed, not IsKeyDown, so this toggles rather
+// than chatters while the key stays down.
+struct ToggleWeaponGroupIntent {
+    ActorId actor;
+    std::uint8_t groupIndex = 0;
+};
+
 // Instantiate a blueprint. The macro-loop payoff of Law 3: this is a request to build *data*,
 // which is why a faction can manufacture a player's Template indefinitely.
 struct SpawnBlueprintIntent {
@@ -96,7 +114,8 @@ struct SaveTemplateIntent {
     ShipBlueprint blueprint;
 };
 
-using Intent = std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent,
-                            SpawnBlueprintIntent, PitchTemplateIntent, SaveTemplateIntent>;
+using Intent = std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent, AimIntent,
+                            ToggleWeaponGroupIntent, SpawnBlueprintIntent, PitchTemplateIntent,
+                            SaveTemplateIntent>;
 
 }  // namespace sr::core

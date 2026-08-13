@@ -221,6 +221,40 @@ TEST_CASE("The rig is trackable by stable network id", "[factory]") {
     CHECK((world.Resolve(result.networkId) == result.root));
 }
 
+TEST_CASE("Weapon hardpoints sharing a ModuleId share a weapon group", "[factory]") {
+    // aegis_vanguard's two wing mounts both carry pulse_cannon_i (features.md 3.6: "each distinct
+    // weapon ModuleId takes the next free group").
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    const auto result = factory::Spawn(world, content, VanguardAt(0.0f, 0.0f));
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    const auto port = factory::FindHardpoint(registry, result.root, sr::MountId("wing_port"));
+    const auto starboard =
+        factory::FindHardpoint(registry, result.root, sr::MountId("wing_starboard"));
+
+    REQUIRE(registry.all_of<sr::WeaponGroup>(port));
+    REQUIRE(registry.all_of<sr::WeaponGroup>(starboard));
+    CHECK(registry.get<sr::WeaponGroup>(port).index ==
+          registry.get<sr::WeaponGroup>(starboard).index);
+
+    // Non-weapon hardpoints never get a group at all.
+    const auto core = factory::FindHardpoint(registry, result.root, sr::MountId("core"));
+    CHECK_FALSE(registry.all_of<sr::WeaponGroup>(core));
+}
+
+TEST_CASE("A freshly spawned rig has every weapon group enabled", "[factory]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    const auto result = factory::Spawn(world, content, VanguardAt(0.0f, 0.0f));
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    REQUIRE(registry.all_of<sr::EnabledWeaponGroups>(result.root));
+    CHECK(registry.get<sr::EnabledWeaponGroups>(result.root).mask == 0x03FFu);
+}
+
 TEST_CASE("Two spawns from one blueprint are independent rigs", "[factory]") {
     const ContentLibrary content = Content();
     SystemWorld world("sol");

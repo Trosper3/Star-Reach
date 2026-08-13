@@ -13,11 +13,14 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
 
 using Catch::Approx;
 using sr::ActorId;
 using sr::ActorRef;
+using sr::AimPoint;
 using sr::Docked;
+using sr::EnabledWeaponGroups;
 using sr::FireIntent;
 using sr::Rig;
 using sr::ThrustInput;
@@ -134,4 +137,53 @@ TEST_CASE(
     // there this same tick, not delayed a tick behind the intent that produced it.
     weapon_system::Tick(ctx);
     CHECK_FALSE(registry.all_of<FireIntent>(actor));
+}
+
+TEST_CASE("PlayerInputSystem writes AimPoint from an AimIntent", "[player_input]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity actor = MakeActor(registry, ActorId{1});
+    intents.Push(sr::core::AimIntent{ActorId{1}, sr::Vec2{40.0f, -15.0f}});
+
+    player_input_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<AimPoint>(actor));
+    CHECK(registry.get<AimPoint>(actor).world.x == Approx(40.0f));
+    CHECK(registry.get<AimPoint>(actor).world.y == Approx(-15.0f));
+}
+
+TEST_CASE("PlayerInputSystem drops an AimIntent naming an unresolvable ActorId", "[player_input]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    MakeActor(registry, ActorId{1});
+    intents.Push(sr::core::AimIntent{ActorId{99}, sr::Vec2{40.0f, -15.0f}});
+
+    CHECK_NOTHROW(player_input_system::Tick(MakeContext(world, intents, content)));
+}
+
+TEST_CASE("PlayerInputSystem flips one bit of EnabledWeaponGroups per ToggleWeaponGroupIntent",
+          "[player_input]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity actor = MakeActor(registry, ActorId{1});
+    registry.emplace<EnabledWeaponGroups>(actor);  // Default: all ten groups on.
+    intents.Push(sr::core::ToggleWeaponGroupIntent{ActorId{1}, 2});
+
+    player_input_system::Tick(MakeContext(world, intents, content));
+    CHECK((registry.get<EnabledWeaponGroups>(actor).mask & (1u << 2)) == 0);
+
+    // Toggling again flips it back on.
+    intents.Clear();
+    intents.Push(sr::core::ToggleWeaponGroupIntent{ActorId{1}, 2});
+    player_input_system::Tick(MakeContext(world, intents, content));
+    CHECK((registry.get<EnabledWeaponGroups>(actor).mask & (1u << 2)) != 0);
 }

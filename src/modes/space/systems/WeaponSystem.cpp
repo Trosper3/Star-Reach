@@ -19,15 +19,30 @@ namespace {
 
 constexpr float kAimToleranceRadians = 0.03f;
 
-// The world position a hardpoint should aim at: TargetingSystem's selected hardpoint if it is
-// still alive, else the rig root it belongs to. Nullopt if the rig has no target this tick.
-std::optional<Vec2> AimPointPosition(const entt::registry& registry, const Target& target) {
+// The world position a rig's hardpoints should aim at. Prefers AimPoint when the rig root carries
+// one -- the player's cursor (features.md 3.2: no target lock) -- and falls back to
+// TargetingSystem's selected hardpoint (or the rig root it belongs to) otherwise. Nullopt if
+// neither is available this tick. One function with one branch, so a player and an NPC rig aim
+// through the identical rest of this file.
+std::optional<Vec2> AimPointPosition(const entt::registry& registry, entt::entity root,
+                                     const Target& target) {
+    if (const auto* aim = registry.try_get<AimPoint>(root)) {
+        return aim->world;
+    }
     const entt::entity point = target.hardpoint != entt::null ? target.hardpoint : target.rig;
     if (point == entt::null || !registry.valid(point)) {
         return std::nullopt;
     }
     const auto* xf = registry.try_get<WorldTransform>(point);
     return xf != nullptr ? std::optional<Vec2>(xf->position) : std::nullopt;
+}
+
+// True if `hardpoint`'s weapon group is enabled under `mask`, or if it carries no WeaponGroup at
+// all -- a runtime-mounted weapon with no group assigned yet fails open rather than going
+// permanently silent (features.md 3.6).
+bool GroupEnabled(const entt::registry& registry, entt::entity hardpoint, std::uint16_t mask) {
+    const auto* group = registry.try_get<WeaponGroup>(hardpoint);
+    return group == nullptr || (mask & (1u << group->index)) != 0;
 }
 
 float RigSatisfaction(const entt::registry& registry, entt::entity rigRoot) {
@@ -92,8 +107,9 @@ void Tick(const SystemContext& ctx) {
     for (auto [root, rig, target] : registry.view<Rig, Target>(entt::exclude<Docked>).each()) {
         const bool wantsToFire = registry.all_of<FireIntent>(root);
         const float satisfaction = RigSatisfaction(registry, root);
-        const std::optional<Vec2> aimPoint =
-            target.rig != entt::null ? AimPointPosition(registry, target) : std::nullopt;
+        const std::optional<Vec2> aimPoint = AimPointPosition(registry, root, target);
+        const auto* enabledGroups = registry.try_get<EnabledWeaponGroups>(root);
+        const std::uint16_t groupMask = enabledGroups != nullptr ? enabledGroups->mask : 0xFFFFu;
 
         for (const entt::entity hardpoint : rig.children) {
             auto* weapon = registry.try_get<Weapon>(hardpoint);
@@ -117,7 +133,10 @@ void Tick(const SystemContext& ctx) {
             const float rangeSq = weapon->rangeUnits * weapon->rangeUnits;
             const bool inRange = DistanceSquared(mountXf->position, *aimPoint) <= rangeSq;
 
-            if (wantsToFire && onTarget && inRange && weapon->cooldown <= 0.0f) {
+            // Weapon groups (features.md 3.6): a disabled group holds fire, but keeps tracking
+            // and cooling down -- it is silenced, not offline like a PowerShed mount above.
+            if (wantsToFire && onTarget && inRange && weapon->cooldown <= 0.0f &&
+                GroupEnabled(registry, hardpoint, groupMask)) {
                 SpawnProjectiles(registry, root, *weapon, *mountXf, *arc);
                 weapon->cooldown = weapon->fireIntervalSeconds;
             }

@@ -14,9 +14,11 @@
 #include "shared/math/Angle.h"
 
 using Catch::Approx;
+using sr::AimPoint;
 using sr::DamageType;
 using sr::Destroyed;
 using sr::Docked;
+using sr::EnabledWeaponGroups;
 using sr::FireIntent;
 using sr::FiringArc;
 using sr::PowerBudget;
@@ -26,6 +28,7 @@ using sr::Rig;
 using sr::Target;
 using sr::Vec2;
 using sr::Weapon;
+using sr::WeaponGroup;
 using sr::WorldTransform;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
@@ -228,4 +231,98 @@ TEST_CASE("A shed hardpoint does not fire", "[weapon]") {
     CHECK(registry.storage<Projectile>().size() == 0);
     // Cooldown does not tick down either -- a shed hardpoint is offline, not merely slow.
     CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.3f));
+}
+
+TEST_CASE("WeaponSystem fires at AimPoint rather than at Target when the rig has one", "[weapon]") {
+    // Regression for features.md 3.2 / architecture.md 12.24 step 2: the player aims manually --
+    // a shot must go where the cursor is, not where TargetingSystem's acquisition would have
+    // aimed a seeker.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    // Target still names a hardpoint far off-axis (90 degrees, well outside the arc below); the
+    // shot should ignore it entirely and hit the AimPoint straight ahead instead.
+    const auto [root, hardpoint] = MakeArmedRig(registry, ReadyWeapon());
+    registry.get<FiringArc>(hardpoint).halfWidthRadians = 0.1f;
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.storage<Projectile>().size() == 1);
+}
+
+TEST_CASE("WeaponSystem fires at AimPoint even with no Target acquired at all", "[weapon]") {
+    // Regression for the second half of the same bug: "a player with no hostile in sensor range
+    // could not fire at all, because WeaponSystem skips any rig whose Target is null."
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);  // Default-constructed: rig == entt::null.
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, ReadyWeapon());
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.storage<Projectile>().size() == 1);
+}
+
+TEST_CASE("WeaponSystem only fires hardpoints whose weapon group is enabled", "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const auto [root, groupZeroHardpoint] = MakeArmedRig(registry, ReadyWeapon());
+    registry.emplace<WeaponGroup>(groupZeroHardpoint, std::uint8_t{0});
+
+    const entt::entity groupOneHardpoint = registry.create();
+    registry.emplace<WorldTransform>(groupOneHardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(groupOneHardpoint, ReadyWeapon());
+    registry.emplace<FiringArc>(groupOneHardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.emplace<WeaponGroup>(groupOneHardpoint, std::uint8_t{1});
+    registry.get<Rig>(root).children.push_back(groupOneHardpoint);
+
+    // Only group 1 enabled -- group 0's mount must hold fire even though it is otherwise ready.
+    registry.emplace<EnabledWeaponGroups>(root, std::uint16_t{0b10});
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.storage<Projectile>().size() == 1);
+    const entt::entity shot = registry.view<Projectile>().front();
+    CHECK(registry.get<Weapon>(groupZeroHardpoint).cooldown == Approx(0.0f));
+    CHECK(registry.get<Weapon>(groupOneHardpoint).cooldown == Approx(0.5f));
+    (void)shot;
+}
+
+TEST_CASE("A hardpoint with no WeaponGroup fires regardless of the rig's enabled mask",
+          "[weapon]") {
+    // Fail-open: a runtime-mounted weapon that has not been assigned a group yet (out of this
+    // issue's scope -- ModuleEquipSystem does not assign one) must not go permanently silent.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const auto [root, hardpoint] = MakeArmedRig(registry, ReadyWeapon());
+    registry.emplace<EnabledWeaponGroups>(root, std::uint16_t{0});  // Every defined group off.
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.storage<Projectile>().size() == 1);
 }
