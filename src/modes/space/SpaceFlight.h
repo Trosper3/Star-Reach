@@ -62,6 +62,11 @@ private:
     // (pre-existing gap, out of this class's scope) -- this is the one hardcoded starting point.
     static constexpr const char* kStartingBlueprint = "aegis_vanguard";
 
+    // The local human player's stable actor id (architecture.md 12.24 step 2). Single-player has
+    // exactly one non-zero actor -- 0 is reserved for "no actor" (shared/blueprints/Ids.h), so 1
+    // is it, here and at every FlightControls::Poll call site.
+    static constexpr ActorId kLocalPlayerActorId{1};
+
     // Populates `world_` (already reset to `targetSystemId` by the caller) via
     // `world_gen::PopulateSystem`, then spawns the player's rig via `rig_factory::Spawn` and
     // emplaces `Wallet` + `PlayerLocation` on it -- the shared body `OnEnter` and `WarpToSystem`

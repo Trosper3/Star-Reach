@@ -9,7 +9,9 @@
 namespace sr::space::ui::avionics_menu {
 namespace {
 
-constexpr int kDockKey = KEY_E;
+// architecture.md 12.24 step 2: moved off KEY_E now that E is strafe-right (features.md 3.6) --
+// the two would otherwise fight over one key every time the player docks while moving.
+constexpr int kDockKey = KEY_R;
 constexpr float kPromptFontSize = 20.0f;
 constexpr float kPromptMarginBottom = 56.0f;  // Sits just above CockpitHud's hull bar.
 
@@ -33,9 +35,9 @@ void Draw(const entt::registry& registry) {
     for (auto [entity] : registry.view<PlayerControlled>().each()) {
         const char* label = nullptr;
         if (registry.all_of<DockPrompt>(entity)) {
-            label = "[E] DOCK";
+            label = "[R] DOCK";
         } else if (registry.all_of<Docked>(entity)) {
-            label = "[E] UNDOCK";
+            label = "[R] UNDOCK";
         }
         if (label == nullptr) {
             return;

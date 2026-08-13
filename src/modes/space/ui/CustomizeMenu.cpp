@@ -34,8 +34,7 @@ bool CanSave(const ShipBlueprint& draft, const DefLibrary& library) {
     return Validate(draft, library).ok();
 }
 
-core::SaveTemplateIntent BuildSaveRequest(core::ActorId actor,
-                                          const KnowledgeNetworkId& targetNetwork,
+core::SaveTemplateIntent BuildSaveRequest(ActorId actor, const KnowledgeNetworkId& targetNetwork,
                                           const ShipBlueprint& draft) {
     core::SaveTemplateIntent intent;
     intent.actor = actor;

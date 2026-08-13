@@ -42,8 +42,7 @@ bool CanSave(const ShipBlueprint& draft, const DefLibrary& library);
 // check CanSave -- callers should, so the UI can report which rule failed before ever building
 // this; ConsumeSaveTemplateRequests below re-checks regardless (defense in depth against a stale
 // or modified client).
-core::SaveTemplateIntent BuildSaveRequest(core::ActorId actor,
-                                          const KnowledgeNetworkId& targetNetwork,
+core::SaveTemplateIntent BuildSaveRequest(ActorId actor, const KnowledgeNetworkId& targetNetwork,
                                           const ShipBlueprint& draft);
 
 // The consumer architecture.md 12.9 names: "a store call, not a tick, so no new system owns it."

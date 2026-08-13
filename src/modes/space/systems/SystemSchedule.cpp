@@ -20,6 +20,7 @@
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/PartySystem.h"
 #include "modes/space/systems/PhysicsSystem.h"
+#include "modes/space/systems/PlayerInputSystem.h"
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/RefactorSystem.h"
@@ -49,6 +50,16 @@ namespace sr::space {
 //                        anything below reasons about position or distance this tick
 //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
 //                        wells before PhysicsSystem integrates it, same as thrust
+//   PlayerInputSystem -- writes the player's ThrustInput/FireIntent from this tick's
+//                        SetThrottleIntent/FireWeaponsIntent (architecture.md 12.24 step 2).
+//                        Before PhysicsSystem (integrates ThrustInput), WeaponSystem (drains
+//                        FireIntent) and DockingSystem (zeroes ThrustInput for a Docked rig --
+//                        the constraint that would silently break: a docked player would fly
+//                        away). architecture.md 12.24 step 2 also says "immediately after
+//                        HierarchySystem," written before P0-04 (13.3 finding G) moved
+//                        HierarchySystem after PhysicsSystem; that ordering is now impossible
+//                        to satisfy alongside "before PhysicsSystem," so this follows the
+//                        reasoned constraint over the stale restated position.
 //   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction; moves every rig root to
 //                        this tick's position.
 //   HierarchySystem   -- after PhysicsSystem, not before. A hardpoint's WorldTransform is
@@ -119,6 +130,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"PowerSystem", &power_system::Tick},
         {"SpawnSystem", &spawn_system::Tick},
         {"OrbitSystem", &orbit_system::Tick},
+        {"PlayerInputSystem", &player_input_system::Tick},
         {"PhysicsSystem", &physics_system::Tick},
         {"HierarchySystem", &hierarchy_system::Tick},
         {"HazardSystem", &hazard_system::Tick},

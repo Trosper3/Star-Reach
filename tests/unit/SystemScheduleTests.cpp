@@ -14,38 +14,23 @@ namespace {
 // directory it is checking can never fail (the issue's own membership rule). Count must match
 // the number of *System.h files under modes/space/systems/, excluding System.h and
 // SystemSchedule.h itself.
-constexpr std::array<std::string_view, 31> kExpectedSystems{
-    "WarpSystem",
-    "ConstructionSystem",
-    "ModuleEquipSystem",
-    "PowerSystem",
-    "SpawnSystem",
-    "OrbitSystem",
-    "PhysicsSystem",
-    "HierarchySystem",
-    "HazardSystem",
-    "DockingSystem",
-    "EngineerSystem",
-    "RefactorSystem",
-    "StationServicesSystem",
-    "TargetingSystem",
-    "NpcAiSystem",
-    "WeaponSystem",
-    "CollisionSystem",
-    "ProjectileSystem",
-    "PartySystem",
-    "DamageSystem",
-    "TutorialSystem",
-    "MiningSystem",
-    "ContractSystem",
-    "DistressSystem",
-    "LootSystem",
-    "CommsSystem",
-    "FactionEconomySystem",
-    "DiscoverySystem",
-    "CommanderSystem",
-    "ResearchSystem",
-    "TemplateMarketSystem",
+constexpr std::array<std::string_view, 32> kExpectedSystems{
+    "WarpSystem",        "ConstructionSystem",
+    "ModuleEquipSystem", "PowerSystem",
+    "SpawnSystem",       "OrbitSystem",
+    "PlayerInputSystem", "PhysicsSystem",
+    "HierarchySystem",   "HazardSystem",
+    "DockingSystem",     "EngineerSystem",
+    "RefactorSystem",    "StationServicesSystem",
+    "TargetingSystem",   "NpcAiSystem",
+    "WeaponSystem",      "CollisionSystem",
+    "ProjectileSystem",  "PartySystem",
+    "DamageSystem",      "TutorialSystem",
+    "MiningSystem",      "ContractSystem",
+    "DistressSystem",    "LootSystem",
+    "CommsSystem",       "FactionEconomySystem",
+    "DiscoverySystem",   "CommanderSystem",
+    "ResearchSystem",    "TemplateMarketSystem",
 };
 
 std::size_t IndexOf(std::string_view name) {
@@ -93,4 +78,15 @@ TEST_CASE("WeaponSystem runs before ProjectileSystem and CollisionSystem", "[sch
 TEST_CASE("ProjectileSystem and CollisionSystem run before DamageSystem", "[schedule]") {
     CHECK(IndexOf("ProjectileSystem") < IndexOf("DamageSystem"));
     CHECK(IndexOf("CollisionSystem") < IndexOf("DamageSystem"));
+}
+
+// architecture.md 12.24 step 2: PlayerInputSystem writes the ThrustInput PhysicsSystem
+// integrates and the FireIntent WeaponSystem drains this same tick, and must run before
+// DockingSystem zeroes ThrustInput for a Docked rig -- the constraint that would silently
+// break (a docked player would fly away) if this ran after it instead.
+TEST_CASE("PlayerInputSystem runs before PhysicsSystem, WeaponSystem, and DockingSystem",
+          "[schedule]") {
+    CHECK(IndexOf("PlayerInputSystem") < IndexOf("PhysicsSystem"));
+    CHECK(IndexOf("PlayerInputSystem") < IndexOf("WeaponSystem"));
+    CHECK(IndexOf("PlayerInputSystem") < IndexOf("DockingSystem"));
 }

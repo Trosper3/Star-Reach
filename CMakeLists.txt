@@ -255,6 +255,7 @@ add_library(sr_space STATIC
     src/modes/space/render/LightingPass.cpp
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/ui/AvionicsMenu.cpp
+    src/modes/space/ui/FlightControls.cpp
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
     src/modes/space/ui/BuildMenu.cpp
@@ -286,6 +287,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/OrbitSystem.cpp
     src/modes/space/systems/PartySystem.cpp
     src/modes/space/systems/PhysicsSystem.cpp
+    src/modes/space/systems/PlayerInputSystem.cpp
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp
     src/modes/space/systems/ResearchSystem.cpp

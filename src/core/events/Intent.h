@@ -18,11 +18,9 @@
 // coordinates a system needs to re-resolve the target in its own registry.
 namespace sr::core {
 
-// A player or NPC actor, stable across the wire. Index 0 is reserved for "no actor".
-struct ActorId {
-    std::uint32_t value = 0;
-    friend bool operator==(ActorId, ActorId) = default;
-};
+// ActorId lives in shared/blueprints/Ids.h (shared/ may not include core/, architecture.md 2.3,
+// and ActorRef in shared/components/Identity.h needs the type). Ordinary nested-namespace lookup
+// resolves the unqualified `ActorId` below to `sr::ActorId`.
 
 // Throttle and steering for this tick, each in [-1, 1].
 struct SetThrottleIntent {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compare>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -61,6 +62,17 @@ using MountId = StringId<MountIdTag>;
 // different concept, a per-registry entity-addressing id. Different namespace, so it would still
 // compile, but the two are unrelated enough that sharing a name would mislead more than it saves.
 using KnowledgeNetworkId = StringId<KnowledgeNetworkIdTag>;
+
+// A player or NPC actor, stable across the wire (core/events/Intent.h -- every core::Intent
+// addresses one). Index 0 is reserved for "no actor". Declared here rather than in Intent.h,
+// where it originated, because `shared/` may not include `core/` (architecture.md 2.3) and
+// `ActorRef` (shared/components/Identity.h) needs the type -- an identifier, not an event, so
+// this is its correct home, not Intent.h's. `sr::core` sees it via ordinary nested-namespace
+// lookup; nothing there needs to spell it `core::ActorId`.
+struct ActorId {
+    std::uint32_t value = 0;
+    friend bool operator==(ActorId, ActorId) = default;
+};
 
 }  // namespace sr
 

@@ -20,7 +20,7 @@ namespace sr::space::ui::avionics_menu {
 // neither state applies.
 void Update(entt::registry& registry);
 
-// "[E] DOCK" / "[E] UNDOCK" prompt text, screen-space, above CockpitHud's hull bar. No-op when
+// "[R] DOCK" / "[R] UNDOCK" prompt text, screen-space, above CockpitHud's hull bar. No-op when
 // neither DockPrompt nor Docked applies to the player.
 void Draw(const entt::registry& registry);
 

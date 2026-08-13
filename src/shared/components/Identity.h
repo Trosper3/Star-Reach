@@ -51,4 +51,12 @@ struct PlayerLocation {
     entt::entity shell = entt::null;
 };
 
+// The stable actor this entity belongs to (core/events/Intent.h). Every core::Intent addresses
+// an ActorId; this is what resolves one to an entity. Written by RigFactory's caller at spawn,
+// never by a system. Single-player has exactly one non-zero actor -- the type is what matters,
+// not the count.
+struct ActorRef {
+    ActorId id;
+};
+
 }  // namespace sr
