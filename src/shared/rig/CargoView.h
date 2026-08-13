@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
 #include <string>
@@ -35,7 +36,7 @@ float TotalMass(const entt::registry& registry, entt::entity rigRoot);
 //                  for this deposit's full quantity.
 //   NoFreeSlot  -- no free slot exists anywhere AND no existing stack of this item exists either,
 //                  so a brand-new item type has nowhere at all to start.
-enum class DepositResult { Deposited, HoldFull, NoFreeSlot };
+enum class DepositResult : std::uint8_t { Deposited, HoldFull, NoFreeSlot };
 
 // The one write path for adding cargo. Whole or nothing (architecture.md 12.30.3): if the full
 // `stack.quantity` cannot be placed, nothing is written and the reason is reported. Tops up an
