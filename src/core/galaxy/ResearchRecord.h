@@ -17,7 +17,7 @@ struct ResearchRecord {
     std::string systemId;
     ModuleId item;
     float progress = 0.0f;
-    float cost = 0.0f;
+    float durationSeconds = 0.0f;
     KnowledgeNetworkId targetNetwork;
 };
 
