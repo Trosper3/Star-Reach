@@ -128,7 +128,7 @@ TEST_CASE("BuildSaveRequest carries the actor, network, and blueprint through",
           "[customize-menu]") {
     const sr::ShipBlueprint draft = MakeValidDraft();
     const sr::core::SaveTemplateIntent intent = customize_menu::BuildSaveRequest(
-        sr::core::ActorId{7}, sr::KnowledgeNetworkId("net"), draft);
+        sr::ActorId{7}, sr::KnowledgeNetworkId("net"), draft);
 
     CHECK(intent.actor.value == 7);
     CHECK(intent.targetNetwork == sr::KnowledgeNetworkId("net"));
@@ -144,7 +144,7 @@ TEST_CASE("ConsumeSaveTemplateRequests grants a valid draft into its target netw
         knowledge.Create(sr::core::knowledge::NetworkOwnerKind::Player);
 
     sr::core::IntentQueue intents;
-    intents.Push(customize_menu::BuildSaveRequest(sr::core::ActorId{1}, network, MakeValidDraft()));
+    intents.Push(customize_menu::BuildSaveRequest(sr::ActorId{1}, network, MakeValidDraft()));
 
     customize_menu::ConsumeSaveTemplateRequests(intents, knowledge, library);
 
@@ -162,7 +162,7 @@ TEST_CASE("ConsumeSaveTemplateRequests never grants an invalid draft", "[customi
     invalid.id = sr::BlueprintId("broken_design");
 
     sr::core::IntentQueue intents;
-    intents.Push(customize_menu::BuildSaveRequest(sr::core::ActorId{1}, network, invalid));
+    intents.Push(customize_menu::BuildSaveRequest(sr::ActorId{1}, network, invalid));
 
     customize_menu::ConsumeSaveTemplateRequests(intents, knowledge, library);
 

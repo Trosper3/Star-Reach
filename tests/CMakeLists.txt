@@ -28,6 +28,7 @@ add_executable(sr_tests
     unit/WorldRendererTests.cpp
     unit/PartySystemTests.cpp
     unit/PhysicsSystemTests.cpp
+    unit/PlayerInputSystemTests.cpp
     unit/PowerSystemTests.cpp
     unit/TargetingSystemTests.cpp
     unit/WeaponSystemTests.cpp

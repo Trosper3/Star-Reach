@@ -13,6 +13,7 @@
 #include "modes/space/ui/AvionicsMenu.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
+#include "modes/space/ui/FlightControls.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Warp.h"
@@ -43,6 +44,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
     ui::avionics_menu::Update(world_.Registry());
+    ui::flight_controls::Poll(intents_, kLocalPlayerActorId);
 
     clock_.Advance(realDeltaSeconds);
 
@@ -106,6 +108,9 @@ void SpaceFlight::SpawnPlayerInto(const std::string& targetSystemId, const Bluep
     // disagree about where the player is. Self-referential for a fighter: there is no separate
     // cockpit hardpoint entity yet, so the rig root is its own "shell".
     arriving.emplace<PlayerLocation>(spawned.root, PlayerLocation{spawned.root});
+    // ActorRef (architecture.md 12.24 step 2): resolves core::Intent's ActorId back to this
+    // entity for PlayerInputSystem. Written here, at spawn, never by a system.
+    arriving.emplace<ActorRef>(spawned.root, ActorRef{kLocalPlayerActorId});
 }
 
 void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition,

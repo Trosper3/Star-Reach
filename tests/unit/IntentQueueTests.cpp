@@ -3,6 +3,7 @@
 #include "core/events/IntentQueue.h"
 
 using namespace sr::core;
+using sr::ActorId;
 
 TEST_CASE("Intents are drained by type", "[intent]") {
     IntentQueue queue;
