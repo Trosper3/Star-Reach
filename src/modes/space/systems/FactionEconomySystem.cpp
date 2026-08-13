@@ -45,8 +45,4 @@ void Tick(const SystemContext& ctx) {
     RunTick(ctx);
 }
 
-void TickCoarse(const SystemContext& ctx) {
-    RunTick(ctx);
-}
-
 }  // namespace sr::space::faction_economy_system

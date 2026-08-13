@@ -69,19 +69,3 @@ TEST_CASE("DiscoverySystem does nothing when the context has no discovery pointe
     const SystemContext ctx{world, intents, content, 1.0f / 60.0f, 0};  // discovery defaults null.
     discovery_system::Tick(ctx);                                        // Must not crash.
 }
-
-TEST_CASE("DiscoverySystem::TickCoarse behaves the same as Tick", "[discovery-system]") {
-    SystemWorld world("kepler");
-    entt::registry& registry = world.Registry();
-    sr::core::IntentQueue intents;
-    sr::core::ContentLibrary content;
-    DiscoveryState discovery;
-
-    const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
-    registry.emplace<FactionRef>(player, FactionId("aegis"));
-
-    discovery_system::TickCoarse(MakeContext(world, intents, content, discovery));
-
-    CHECK(discovery.IsDiscovered(FactionId("aegis"), "kepler"));
-}
