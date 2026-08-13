@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -49,9 +50,8 @@ struct MaterialStack {
 // The player's cargo, dropped as a recoverable wreck at their death location (features.md
 // section 3.3 Tier 2) rather than deleted outright. Distinct from DerelictWreck: this carries
 // the manifest the player actually lost and always has a recovery window. Blueprint-form
-// manifest (Law 3), the same shape as CargoHold below, so it copies verbatim into
-// core/galaxy/WreckRecord when its system demotes (architecture.md section 12.5) and back when
-// it promotes.
+// manifest (Law 3); this predates the bay model and stays its own flat shape -- it is a snapshot
+// taken once at death, not a live rig with hardpoints to walk.
 struct DeathWreck {
     std::vector<ModuleId> modules;
     std::vector<MaterialStack> materials;
@@ -61,30 +61,45 @@ struct DeathWreck {
     float lifetimeSeconds = 180.0f;
 };
 
-// Collected-but-not-yet-equipped modules and materials, in blueprint form (Law 3) -- entity
-// handles never enter this, only the ids/quantities a save or a future StorageMenu UI would
-// read. Not yet wired to core/economy/ or any StorageMenu (both unbuilt); this is simply where
-// LootSystem puts what it collects until a consumer reads it.
-struct CargoHold {
-    std::vector<ModuleId> modules;
-    std::vector<MaterialStack> materials;
+// What kind of thing a stack holds. Unified rather than two parallel vectors (the pre-P0-10
+// CargoHold's `modules`/`materials` split) so CargoView's placement/refusal logic has one code
+// path, not two (Law 4).
+enum class ItemKind : std::uint8_t { Module, Material };
 
-    // Total module+material entry limit. 0 means unlimited -- every CargoHold predating this
-    // field (and most test fixtures) still behaves exactly as before. RefactorSystem
-    // (architecture.md 12.12) is the first real gate on it: a hardpoint deletion that would
-    // push the count over capacity is refused rather than dropping modules on the floor.
-    int capacity = 0;
+// One stack of cargo, occupying exactly one slot in whichever CargoHold holds it.
+//
+// `id` is a ModuleId::str() for ItemKind::Module or a materialId for ItemKind::Material -- a
+// plain string rather than a variant of the two strong id types, since every consumer (CargoView,
+// StorageMenu) only ever needs to compare/display it, never resolve it back through content.
+// `unitMass` is resolved by the depositing system (ContentLibrary::FindModule/FindMaterial) at
+// deposit time and cached here, not looked up inside shared/rig/CargoView.h -- shared/ may not
+// include core/ (architecture.md section 2.3), the same denormalize-at-the-boundary pattern
+// HardpointMass/EnginePropulsion (Rig.h) already establish for rig aggregation.
+//
+// ItemKind::Module stacks never merge -- `quantity` is always 1, matching the pre-P0-10 behavior
+// where every collected module was its own `cargo.modules` entry, and matching LootDrop's own
+// one-module-per-entity shape (it has no quantity field to spill a merged stack back out through).
+// Only ItemKind::Material stacks accumulate quantity, mirroring MaterialStack's existing
+// merge-by-id rule.
+struct ItemStack {
+    ItemKind kind = ItemKind::Material;
+    std::string id;
+    int quantity = 0;
+    float unitMass = 0.0f;
 };
 
-// Free functions, not members -- components are plain-old-data (Law 1); behavior belongs in a
-// system, even a one-line query every caller would otherwise duplicate.
-inline int CargoHoldEntryCount(const CargoHold& cargo) {
-    return static_cast<int>(cargo.modules.size() + cargo.materials.size());
-}
-
-inline bool CargoHoldHasRoomFor(const CargoHold& cargo, int additionalEntries) {
-    return cargo.capacity <= 0 || CargoHoldEntryCount(cargo) + additionalEntries <= cargo.capacity;
-}
+// One cargo bay's contents. Lives on the cargo-bay hardpoint that carries it (architecture.md
+// 12.23 "The hold lives on the bay"), not on the rig root -- a rig with no CargoBay module simply
+// has no CargoHold anywhere, and destroying one bay loses exactly that bay's stacks. `slotCount`
+// and `slotCapacity` are copied from the mounted module's instance at attach time (the same
+// pattern FacilityRef copies `kind` from ModuleDef::facility), not looked up again later.
+// shared/rig/CargoView.h is the one write path -- nothing else should push_back/erase `stacks`
+// directly, the same one-write-path rule DockedFacility and ModuleAttachment already follow.
+struct CargoHold {
+    std::vector<ItemStack> stacks;
+    int slotCount = 0;
+    float slotCapacity = 0.0f;  // Mass ceiling per slot, not a total -- see CargoView.h.
+};
 
 // Salvage credits collected from DerelictWreck. Session-local wallet, not the galaxy-wide
 // faction stock Law 2 reserves for core/ -- this is one collector's own total.

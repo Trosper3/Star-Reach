@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/registries/JsonReader.h"
+#include "shared/blueprints/MaterialDef.h"
 #include "shared/blueprints/ModuleDef.h"
 #include "shared/blueprints/ShellDef.h"
 #include "shared/blueprints/ShipBlueprint.h"
@@ -17,5 +18,6 @@ namespace sr::core {
 ModuleDef ParseModuleDef(const JsonReader& reader);
 ShellDef ParseShellDef(const JsonReader& reader);
 ShipBlueprint ParseShipBlueprint(const JsonReader& reader);
+MaterialDef ParseMaterialDef(const JsonReader& reader);
 
 }  // namespace sr::core

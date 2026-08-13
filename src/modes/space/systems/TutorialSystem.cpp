@@ -1,5 +1,7 @@
 #include "modes/space/systems/TutorialSystem.h"
 
+#include <algorithm>
+
 #include "shared/components/Docking.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Mining.h"
@@ -7,6 +9,7 @@
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Tutorial.h"
+#include "shared/rig/CargoView.h"
 
 namespace sr::space::tutorial_system {
 namespace {
@@ -39,8 +42,13 @@ void TickPerRigSteps(entt::registry& registry) {
                 break;
             }
             case TutorialStep::CollectMaterial: {
-                const auto* cargo = registry.try_get<CargoHold>(self);
-                if (cargo != nullptr && !cargo->materials.empty()) {
+                // Merged across every living cargo bay, not a single root-level CargoHold --
+                // P0-10 moved the hold onto the bay (architecture.md 12.23).
+                const std::vector<ItemStack> merged = cargo_view::Merged(registry, self);
+                const bool hasMaterial = std::any_of(
+                    merged.begin(), merged.end(),
+                    [](const ItemStack& stack) { return stack.kind == ItemKind::Material; });
+                if (hasMaterial) {
                     Advance(tutorial);
                 }
                 break;

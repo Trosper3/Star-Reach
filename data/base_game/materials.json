@@ -1,0 +1,24 @@
+{
+  "materials": [
+    {
+      "id": "iron",
+      "displayName": "Iron",
+      "mass": 2.0
+    },
+    {
+      "id": "carbon",
+      "displayName": "Carbon",
+      "mass": 1.0
+    },
+    {
+      "id": "silica",
+      "displayName": "Silica",
+      "mass": 1.5
+    },
+    {
+      "id": "titanium",
+      "displayName": "Titanium",
+      "mass": 3.0
+    }
+  ]
+}

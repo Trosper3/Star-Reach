@@ -58,10 +58,11 @@ public:
 private:
     // Tears down `world_` and stands up `targetSystemId`'s in its place: demotes every DeathWreck
     // left behind into wreckLedger_ (#80), re-spawns the player from their BlueprintRef/FactionRef
-    // with CargoHold/Wallet carried over, and promotes any wrecks the destination is owed back
-    // into entities. Hardpoint damage/refits are NOT preserved -- there is no live-rig-to-
-    // blueprint snapshot capability in this codebase yet (a separate, larger piece of work); the
-    // player's rig comes back in its pristine, freshly-spawned state every time.
+    // with Wallet carried over, and promotes any wrecks the destination is owed back into
+    // entities. Neither cargo (CargoHold now lives per cargo-bay hardpoint, architecture.md
+    // 12.23) nor hardpoint damage/refits are preserved -- there is no live-rig-to-blueprint
+    // snapshot capability in this codebase yet (P12.31's RigState, a separate, larger piece of
+    // work); the player's rig comes back in its pristine, freshly-spawned state every time.
     void WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition, float spawnRotation);
 
     SystemWorld world_;

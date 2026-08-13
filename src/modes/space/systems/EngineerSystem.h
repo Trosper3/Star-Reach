@@ -13,8 +13,9 @@ namespace sr::space::engineer_system {
 // Refused (request cleared, nothing else happens) when: the requester is not Docked; the docked
 // station has no living (non-Destroyed) FacilityKind::Engineering hardpoint; `primary`/
 // `secondary` do not both resolve via ctx.content, are not the same ModuleKind, or are not both
-// present in the requester's own CargoHold; or ctx.craftedModules is null (no store to register
-// the result into).
+// present (as two distinct stacks, via shared/rig/CargoView.h) across the requester's own cargo
+// bays; or ctx.craftedModules is null (no store to register the result into). If the merged
+// result has nowhere to go, both originals are restored rather than lost.
 //
 // On success: registers a new ModuleDef via ctx.craftedModules->RegisterCraftedModule --
 // core/registries/ContentLibrary.h's comment on that method explains why this is player-

@@ -60,6 +60,11 @@ struct FireControlStats {
     float turnRatePerSecond = 0.0f;
 };
 
+struct CargoBayStats {
+    int slotCount = 0;          // How many distinct stacks this bay can hold. Variety.
+    float slotCapacity = 0.0f;  // Mass ceiling per slot. Bulk. Total is derived, never authored.
+};
+
 // The authored definition of a module: the functional half of the Shell -> Component -> Module
 // model (Law 4). Loaded from data/base_game/modules.json and never constructed as a C++
 // literal outside registries and tests -- see Law 10 and tools/ci/check_content_pipeline.py.
@@ -83,6 +88,7 @@ struct ModuleDef {
     FacilityStats facility;
     SensorStats sensor;
     FireControlStats fireControl;
+    CargoBayStats cargoBay;
 };
 
 }  // namespace sr

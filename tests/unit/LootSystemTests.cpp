@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+
 #include "core/events/IntentQueue.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/registries/ContentLibrary.h"
@@ -8,18 +10,24 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
+#include "shared/rig/CargoView.h"
 
 using sr::BodyKind;
 using sr::CargoHold;
 using sr::CollisionRadius;
 using sr::DeathWreck;
 using sr::DerelictWreck;
+using sr::ItemKind;
+using sr::ItemStack;
 using sr::LootDrop;
 using sr::MaterialDrop;
 using sr::MaterialStack;
 using sr::ModuleId;
+using sr::ParentRig;
 using sr::PlayerControlled;
+using sr::Rig;
 using sr::Vec2;
 using sr::Wallet;
 using sr::WorldBody;
@@ -29,6 +37,7 @@ using sr::core::galaxy::WreckRecord;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace loot_system = sr::space::loot_system;
+namespace cargo_view = sr::cargo_view;
 
 namespace {
 
@@ -37,11 +46,20 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
     return SystemContext{world, intents, content, dt, 0};
 }
 
-entt::entity MakeCollector(entt::registry& registry, const Vec2& position, float radius) {
+// A collector needs a living cargo-bay hardpoint to receive anything at all (architecture.md
+// 12.23) -- a bare PlayerControlled entity with no Rig has nowhere to deposit into.
+entt::entity MakeCollector(entt::registry& registry, const Vec2& position, float radius,
+                           int slotCount = 10, float slotCapacity = 1000.0f) {
     const entt::entity collector = registry.create();
     registry.emplace<WorldTransform>(collector, position, 0.0f);
     registry.emplace<CollisionRadius>(collector, radius);
     registry.emplace<PlayerControlled>(collector);
+
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, collector);
+    registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, slotCount, slotCapacity);
+    registry.emplace<Rig>(collector, std::vector<entt::entity>{bay});
+
     return collector;
 }
 
@@ -61,10 +79,10 @@ TEST_CASE("LootSystem collects a LootDrop within the collector's pickup radius",
     loot_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.valid(drop));
-    REQUIRE(registry.all_of<CargoHold>(collector));
-    const CargoHold& cargo = registry.get<CargoHold>(collector);
-    REQUIRE(cargo.modules.size() == 1);
-    CHECK(cargo.modules.front() == ModuleId("pulse_cannon_i"));
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, collector);
+    REQUIRE(cargo.size() == 1);
+    CHECK(cargo.front().kind == ItemKind::Module);
+    CHECK(cargo.front().id == "pulse_cannon_i");
 }
 
 TEST_CASE("LootSystem leaves a LootDrop alone when no collector is in range", "[loot]") {
@@ -82,6 +100,79 @@ TEST_CASE("LootSystem leaves a LootDrop alone when no collector is in range", "[
 
     CHECK(registry.valid(drop));
     CHECK(registry.get<LootDrop>(drop).lifetimeSeconds < 28.0f);
+}
+
+TEST_CASE("LootSystem leaves a LootDrop alone when the collector has no cargo bay", "[loot]") {
+    // Regression coverage for architecture.md 12.23: a collector with no CargoBay hardpoint has
+    // nowhere to deposit into, so pickup must be refused rather than silently discarding the
+    // drop or crashing on a missing CargoHold.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity collector = registry.create();
+    registry.emplace<WorldTransform>(collector, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<CollisionRadius>(collector, 50.0f);
+    registry.emplace<PlayerControlled>(collector);
+
+    const entt::entity drop = registry.create();
+    registry.emplace<WorldTransform>(drop, Vec2{20.0f, 0.0f}, 0.0f);
+    registry.emplace<LootDrop>(drop, ModuleId("pulse_cannon_i"), 28.0f);
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.valid(drop));
+    CHECK(registry.get<LootDrop>(drop).lifetimeSeconds < 28.0f);
+}
+
+TEST_CASE(
+    "LootSystem spills exactly a Destroyed cargo bay's own stacks as recoverable drops, and "
+    "other bays are untouched",
+    "[loot]") {
+    // architecture.md 12.23: "shoot the bay, lose what was in it" -- as recoverable salvage, not
+    // as nothing. DamageSystem only tags Destroyed and never destroys the hardpoint entity, so
+    // the component is still here for LootSystem to read the same tick.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    const entt::entity destroyedBay = registry.create();
+    registry.emplace<sr::ParentRig>(destroyedBay, root);
+    registry.emplace<CargoHold>(
+        destroyedBay,
+        std::vector<ItemStack>{ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 14.0f},
+                               ItemStack{ItemKind::Material, "Fe", 3, 2.0f}},
+        4, 250.0f);
+    registry.emplace<WorldTransform>(destroyedBay, Vec2{50.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::Destroyed>(destroyedBay);
+
+    const entt::entity survivingBay = registry.create();
+    registry.emplace<sr::ParentRig>(survivingBay, root);
+    registry.emplace<CargoHold>(
+        survivingBay, std::vector<ItemStack>{ItemStack{ItemKind::Material, "carbon", 1, 1.0f}}, 4,
+        250.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{destroyedBay, survivingBay});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<CargoHold>(destroyedBay).stacks.empty());
+    REQUIRE(registry.get<CargoHold>(survivingBay).stacks.size() == 1);
+    CHECK(registry.get<CargoHold>(survivingBay).stacks.front().id == "carbon");
+
+    CHECK(registry.storage<LootDrop>().size() == 1);
+    CHECK(registry.storage<MaterialDrop>().size() == 1);
+    for (const entt::entity drop : registry.view<LootDrop>()) {
+        CHECK(registry.get<LootDrop>(drop).moduleId == ModuleId("pulse_cannon_i"));
+        CHECK(registry.get<WorldTransform>(drop).position == Vec2{50.0f, 0.0f});
+    }
+    for (const entt::entity drop : registry.view<MaterialDrop>()) {
+        CHECK(registry.get<MaterialDrop>(drop).materialId == "Fe");
+        CHECK(registry.get<MaterialDrop>(drop).quantity == 3);
+    }
 }
 
 TEST_CASE("LootSystem despawns a LootDrop once its lifetime expires unclaimed", "[loot]") {
@@ -107,7 +198,7 @@ TEST_CASE("LootSystem merges repeated MaterialDrop pickups of the same material 
     sr::core::ContentLibrary content;
 
     const entt::entity collector = MakeCollector(registry, Vec2{0.0f, 0.0f}, 50.0f);
-    registry.emplace<CargoHold>(collector).materials.push_back({"Fe", 3});
+    cargo_view::Deposit(registry, collector, ItemStack{ItemKind::Material, "Fe", 3, 2.0f});
 
     const entt::entity drop = registry.create();
     registry.emplace<WorldTransform>(drop, Vec2{10.0f, 0.0f}, 0.0f);
@@ -116,10 +207,10 @@ TEST_CASE("LootSystem merges repeated MaterialDrop pickups of the same material 
     loot_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.valid(drop));
-    const CargoHold& cargo = registry.get<CargoHold>(collector);
-    REQUIRE(cargo.materials.size() == 1);
-    CHECK(cargo.materials.front().materialId == "Fe");
-    CHECK(cargo.materials.front().quantity == 5);
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, collector);
+    REQUIRE(cargo.size() == 1);
+    CHECK(cargo.front().id == "Fe");
+    CHECK(cargo.front().quantity == 5);
 }
 
 TEST_CASE("LootSystem credits a collector's Wallet on DerelictWreck salvage and destroys it",
@@ -180,13 +271,16 @@ TEST_CASE("LootSystem grants a DeathWreck's manifest to a collector in range and
     loot_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.valid(wreck));
-    REQUIRE(registry.all_of<CargoHold>(collector));
-    const CargoHold& cargo = registry.get<CargoHold>(collector);
-    REQUIRE(cargo.modules.size() == 1);
-    CHECK(cargo.modules.front() == ModuleId("pulse_cannon_i"));
-    REQUIRE(cargo.materials.size() == 1);
-    CHECK(cargo.materials.front().materialId == "Fe");
-    CHECK(cargo.materials.front().quantity == 3);
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, collector);
+    REQUIRE(cargo.size() == 2);
+    const bool hasModule = std::any_of(cargo.begin(), cargo.end(), [](const ItemStack& stack) {
+        return stack.kind == ItemKind::Module && stack.id == "pulse_cannon_i";
+    });
+    const bool hasMaterial = std::any_of(cargo.begin(), cargo.end(), [](const ItemStack& stack) {
+        return stack.kind == ItemKind::Material && stack.id == "Fe" && stack.quantity == 3;
+    });
+    CHECK(hasModule);
+    CHECK(hasMaterial);
 }
 
 TEST_CASE("LootSystem despawns a DeathWreck once its recovery window expires unclaimed",
@@ -289,11 +383,7 @@ TEST_CASE("Recovering a promoted DeathWreck grants its manifest and clears its W
     const entt::entity collector = MakeCollector(registry, Vec2{0.0f, 0.0f}, 50.0f);
     loot_system::Tick(MakeContext(world, intents, content));
 
-    REQUIRE(registry.all_of<CargoHold>(collector));
-    const CargoHold& cargo = registry.get<CargoHold>(collector);
-    REQUIRE(cargo.modules.size() == 1);
-    CHECK(cargo.modules.front() == ModuleId("pulse_cannon_i"));
-    REQUIRE(cargo.materials.size() == 1);
-    CHECK(cargo.materials.front().materialId == "Fe");
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, collector);
+    REQUIRE(cargo.size() == 2);
     CHECK(ledger.Find(id) == nullptr);
 }

@@ -1,6 +1,5 @@
 #include "modes/space/systems/EngineerSystem.h"
 
-#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -9,6 +8,7 @@
 #include "shared/components/Facility.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/CargoView.h"
 
 namespace sr::space::engineer_system {
 namespace {
@@ -103,8 +103,7 @@ void ProcessMergeRequests(const SystemContext& ctx) {
         consumed.push_back(self);
 
         const std::optional<int> level = DockedEngineeringLevel(registry, self);
-        CargoHold* cargo = registry.try_get<CargoHold>(self);
-        if (!level.has_value() || cargo == nullptr || ctx.craftedModules == nullptr) {
+        if (!level.has_value() || ctx.craftedModules == nullptr) {
             continue;
         }
 
@@ -114,25 +113,22 @@ void ProcessMergeRequests(const SystemContext& ctx) {
             continue;
         }
 
-        // Located by index, not iterator: primary == secondary is legal (merging two owned
-        // copies of the identical module) and must require two distinct elements, not the same
-        // one found twice.
-        const auto primaryIt =
-            std::find(cargo->modules.begin(), cargo->modules.end(), request.primary);
-        if (primaryIt == cargo->modules.end()) {
+        const std::string primaryId = request.primary.str();
+        const std::string secondaryId = request.secondary.str();
+
+        // Two separate quantity-1 withdrawals, always -- a Module stack never merges (quantity
+        // is always 1, ItemStack's comment), so each call independently re-scans the CURRENT
+        // state of the hold. When primaryId == secondaryId (merging two owned copies of the
+        // identical module), the first call consumes one of the two stacks and the second call
+        // must find a DIFFERENT one still present -- which is exactly "must require two distinct
+        // elements, not the same one found twice," with no special-casing needed.
+        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, primaryId, 1)) {
             continue;
         }
-        const std::size_t primaryIndex =
-            static_cast<std::size_t>(primaryIt - cargo->modules.begin());
-
-        std::size_t secondaryIndex = cargo->modules.size();
-        for (std::size_t i = 0; i < cargo->modules.size(); ++i) {
-            if (i != primaryIndex && cargo->modules[i] == request.secondary) {
-                secondaryIndex = i;
-                break;
-            }
-        }
-        if (secondaryIndex == cargo->modules.size()) {
+        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, secondaryId, 1)) {
+            // Put the primary back -- it was never really "spent."
+            cargo_view::Deposit(registry, self,
+                                ItemStack{ItemKind::Module, primaryId, 1, primary->mass});
             continue;
         }
 
@@ -145,12 +141,16 @@ void ProcessMergeRequests(const SystemContext& ctx) {
         merged = MergeModules(*primary, *secondary, *level);
         ctx.craftedModules->RegisterCraftedModule(merged);
 
-        // Erase the higher index first so the lower index stays valid.
-        cargo->modules.erase(cargo->modules.begin() +
-                             static_cast<std::ptrdiff_t>(std::max(primaryIndex, secondaryIndex)));
-        cargo->modules.erase(cargo->modules.begin() +
-                             static_cast<std::ptrdiff_t>(std::min(primaryIndex, secondaryIndex)));
-        cargo->modules.push_back(merged.id);
+        const auto depositResult = cargo_view::Deposit(
+            registry, self, ItemStack{ItemKind::Module, merged.id.str(), 1, merged.mass});
+        if (depositResult != cargo_view::DepositResult::Deposited) {
+            // No room for the merged result -- put both originals back rather than lose them.
+            // The crafted module registration stands; it is harmless if never actually granted.
+            cargo_view::Deposit(registry, self,
+                                ItemStack{ItemKind::Module, primaryId, 1, primary->mass});
+            cargo_view::Deposit(registry, self,
+                                ItemStack{ItemKind::Module, secondaryId, 1, secondary->mass});
+        }
     }
 
     for (const entt::entity self : consumed) {

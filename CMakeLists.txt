@@ -125,6 +125,7 @@ endif()
 add_library(sr_shared STATIC
     src/shared/blueprints/Taxonomy.cpp
     src/shared/blueprints/Validation.cpp
+    src/shared/rig/CargoView.cpp
     src/shared/rig/ModuleAttachment.cpp
 )
 target_link_libraries(sr_shared PUBLIC sr_options EnTT::EnTT)

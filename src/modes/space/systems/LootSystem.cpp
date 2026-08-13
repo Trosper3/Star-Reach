@@ -6,7 +6,9 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
+#include "shared/rig/CargoView.h"
 
 namespace sr::space::loot_system {
 namespace {
@@ -16,20 +18,30 @@ namespace {
 // radiusUnits widens the pickup check itself.
 constexpr float kDeathWreckRadius = 20.0f;
 
-void AddModule(entt::registry& registry, entt::entity collector, const ModuleId& moduleId) {
-    registry.get_or_emplace<CargoHold>(collector).modules.push_back(moduleId);
+// Matches MiningSystem.cpp's kMaterialDropRadius -- a spilled stack is the same kind of loose
+// battlefield object a mined asteroid produces, just from a different source.
+constexpr float kSpilledDropRadius = 6.0f;
+
+// Deposits one unit of `moduleId` into the collector's cargo bays. False (and nothing written)
+// if no bay has room -- the caller leaves the drop in place rather than discarding it.
+bool AddModule(entt::registry& registry, entt::entity collector, const ModuleId& moduleId,
+               const core::ContentLibrary& content) {
+    const ModuleDef* module = content.FindModule(moduleId);
+    const float mass = module != nullptr ? module->mass : 0.0f;
+    const auto result = cargo_view::Deposit(registry, collector,
+                                            ItemStack{ItemKind::Module, moduleId.str(), 1, mass});
+    return result == cargo_view::DepositResult::Deposited;
 }
 
-void AddMaterial(entt::registry& registry, entt::entity collector, const std::string& materialId,
-                 int quantity) {
-    CargoHold& cargo = registry.get_or_emplace<CargoHold>(collector);
-    for (MaterialStack& stack : cargo.materials) {
-        if (stack.materialId == materialId) {
-            stack.quantity += quantity;
-            return;
-        }
-    }
-    cargo.materials.push_back(MaterialStack{materialId, quantity});
+// Deposits `quantity` of `materialId` into the collector's cargo bays, topping up an existing
+// stack first. False (and nothing written) if the full quantity has no room anywhere.
+bool AddMaterial(entt::registry& registry, entt::entity collector, const std::string& materialId,
+                 int quantity, const core::ContentLibrary& content) {
+    const MaterialDef* material = content.FindMaterial(MaterialId(materialId));
+    const float mass = material != nullptr ? material->mass : 0.0f;
+    const auto result = cargo_view::Deposit(
+        registry, collector, ItemStack{ItemKind::Material, materialId, quantity, mass});
+    return result == cargo_view::DepositResult::Deposited;
 }
 
 void AddCredits(entt::registry& registry, entt::entity collector, int credits) {
@@ -52,12 +64,12 @@ bool FindCollectorInRange(entt::registry& registry, const Vec2& position, float 
     return false;
 }
 
-void TickLootDrops(entt::registry& registry, float dt) {
+void TickLootDrops(entt::registry& registry, const core::ContentLibrary& content, float dt) {
     std::vector<entt::entity> toDestroy;
     for (auto [drop, loot, xf] : registry.view<LootDrop, WorldTransform>().each()) {
         entt::entity collector = entt::null;
-        if (FindCollectorInRange(registry, xf.position, 0.0f, collector)) {
-            AddModule(registry, collector, loot.moduleId);
+        if (FindCollectorInRange(registry, xf.position, 0.0f, collector) &&
+            AddModule(registry, collector, loot.moduleId, content)) {
             toDestroy.push_back(drop);
             continue;
         }
@@ -71,12 +83,12 @@ void TickLootDrops(entt::registry& registry, float dt) {
     }
 }
 
-void TickMaterialDrops(entt::registry& registry, float dt) {
+void TickMaterialDrops(entt::registry& registry, const core::ContentLibrary& content, float dt) {
     std::vector<entt::entity> toDestroy;
     for (auto [drop, material, xf] : registry.view<MaterialDrop, WorldTransform>().each()) {
         entt::entity collector = entt::null;
-        if (FindCollectorInRange(registry, xf.position, 0.0f, collector)) {
-            AddMaterial(registry, collector, material.materialId, material.quantity);
+        if (FindCollectorInRange(registry, xf.position, 0.0f, collector) &&
+            AddMaterial(registry, collector, material.materialId, material.quantity, content)) {
             toDestroy.push_back(drop);
             continue;
         }
@@ -105,16 +117,19 @@ void TickDerelictWrecks(entt::registry& registry) {
     }
 }
 
-void TickDeathWrecks(entt::registry& registry, float dt) {
+void TickDeathWrecks(entt::registry& registry, const core::ContentLibrary& content, float dt) {
     std::vector<entt::entity> toDestroy;
     for (auto [wreck, deathWreck, xf] : registry.view<DeathWreck, WorldTransform>().each()) {
         entt::entity collector = entt::null;
         if (FindCollectorInRange(registry, xf.position, 0.0f, collector)) {
+            // Best-effort: a wreck's manifest is a one-shot snapshot, not a live hold, so an item
+            // that finds no room is simply lost rather than requeued -- the wreck is destroyed
+            // unconditionally below either way, the same as before P0-10.
             for (const ModuleId& moduleId : deathWreck.modules) {
-                AddModule(registry, collector, moduleId);
+                AddModule(registry, collector, moduleId, content);
             }
             for (const MaterialStack& stack : deathWreck.materials) {
-                AddMaterial(registry, collector, stack.materialId, stack.quantity);
+                AddMaterial(registry, collector, stack.materialId, stack.quantity, content);
             }
             toDestroy.push_back(wreck);
             continue;
@@ -129,14 +144,45 @@ void TickDeathWrecks(entt::registry& registry, float dt) {
     }
 }
 
+// The producer half: every cargo-bay hardpoint tagged Destroyed this tick spills exactly its own
+// stacks. DamageSystem only tags Destroyed and never destroys the hardpoint entity, so the
+// component is still here to read on the following tick -- no new lifetime rule needed.
+void SpillDestroyedBays(entt::registry& registry) {
+    for (const entt::entity hardpoint : registry.view<CargoHold, Destroyed>()) {
+        SpillCargoHold(registry, hardpoint);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
-    TickLootDrops(registry, ctx.dt);
-    TickMaterialDrops(registry, ctx.dt);
+    TickLootDrops(registry, ctx.content, ctx.dt);
+    TickMaterialDrops(registry, ctx.content, ctx.dt);
     TickDerelictWrecks(registry);
-    TickDeathWrecks(registry, ctx.dt);
+    TickDeathWrecks(registry, ctx.content, ctx.dt);
+    SpillDestroyedBays(registry);
+}
+
+void SpillCargoHold(entt::registry& registry, entt::entity hardpoint) {
+    CargoHold* cargo = registry.try_get<CargoHold>(hardpoint);
+    if (cargo == nullptr || cargo->stacks.empty()) {
+        return;
+    }
+    const auto* xf = registry.try_get<WorldTransform>(hardpoint);
+    const Vec2 position = xf != nullptr ? xf->position : Vec2{};
+
+    for (const ItemStack& stack : cargo->stacks) {
+        const entt::entity drop = registry.create();
+        registry.emplace<WorldTransform>(drop, position, 0.0f);
+        registry.emplace<WorldBody>(drop, kSpilledDropRadius, BodyKind::Drop);
+        if (stack.kind == ItemKind::Module) {
+            registry.emplace<LootDrop>(drop, ModuleId(stack.id));
+        } else {
+            registry.emplace<MaterialDrop>(drop, stack.id, stack.quantity);
+        }
+    }
+    cargo->stacks.clear();
 }
 
 core::galaxy::WreckRecord CollapseDeathWreck(entt::registry& registry, entt::entity entity,

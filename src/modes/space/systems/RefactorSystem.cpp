@@ -80,8 +80,8 @@ void ProcessDeleteRequests(const SystemContext& ctx) {
         // first, then delete. A Destroyed hardpoint is the one exception: it refunds nothing
         // either way, destroyed or not, so the modules-check does not apply to it (architecture.md
         // 12.30.5 -- losing a hardpoint in combat costs the shell, not just nothing). With no
-        // refund path left, there is no cargo-room check to route through CargoHoldHasRoomFor's
-        // count-not-mass bug (architecture.md 15.2 finding 9) either.
+        // refund path left, there is no cargo-room check to make at all (architecture.md 15.2
+        // finding 9's count-not-mass bug was in that removed path).
         if (!registry.all_of<Destroyed>(hardpoint)) {
             const MountedModules* mounted = registry.try_get<MountedModules>(hardpoint);
             if (mounted != nullptr && !mounted->ids.empty()) {

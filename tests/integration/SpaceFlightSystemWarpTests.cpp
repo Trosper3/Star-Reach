@@ -14,7 +14,6 @@
 
 using sr::BlueprintId;
 using sr::BlueprintRef;
-using sr::CargoHold;
 using sr::DeathWreck;
 using sr::MaterialStack;
 using sr::ModuleId;
@@ -60,8 +59,12 @@ entt::entity FindPlayer(entt::registry& registry) {
 
 }  // namespace
 
-TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and cargo",
+TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and Wallet",
           "[spaceflight][warp]") {
+    // Cargo is deliberately NOT asserted here -- architecture.md 12.23 moved CargoHold onto
+    // per-bay hardpoints, which RigFactory::Spawn always rebuilds empty from the blueprint, and
+    // aegis_vanguard authors no CargoBay module yet regardless. Carrying cargo across a warp is a
+    // documented, accepted gap pending P12.31's RigState (SpaceFlight.h's own comment).
     const ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
@@ -69,7 +72,6 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
     game.OnEnter();
 
     const entt::entity original = SpawnPlayer(game, content);
-    game.World().Registry().emplace<CargoHold>(original).materials.push_back({"Fe", 5});
     game.World().Registry().emplace<Wallet>(original, 250);
     game.World().Registry().emplace<SystemWarpRequest>(original, "kepler", Vec2{10.0f, 0.0f}, 0.0f);
 
@@ -82,12 +84,6 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
     REQUIRE((arrived != entt::null));
     CHECK(registry.get<BlueprintRef>(arrived).id == BlueprintId("aegis_vanguard"));
     CHECK(registry.get<WorldTransform>(arrived).position == Vec2{10.0f, 0.0f});
-
-    REQUIRE(registry.all_of<CargoHold>(arrived));
-    const CargoHold& cargo = registry.get<CargoHold>(arrived);
-    REQUIRE(cargo.materials.size() == 1);
-    CHECK(cargo.materials.front().materialId == "Fe");
-    CHECK(cargo.materials.front().quantity == 5);
 
     REQUIRE(registry.all_of<Wallet>(arrived));
     CHECK(registry.get<Wallet>(arrived).credits == 250);

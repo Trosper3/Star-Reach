@@ -7,6 +7,7 @@
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
+#include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
@@ -16,6 +17,7 @@
 
 using Catch::Approx;
 using sr::BodyMass;
+using sr::CargoHold;
 using sr::Destroyed;
 using sr::EnginePropulsion;
 using sr::FireControl;
@@ -91,6 +93,41 @@ TEST_CASE("AttachModuleComponents caches a Sensor module's range as HardpointSen
 
     REQUIRE(registry.all_of<HardpointSensorRange>(hardpoint));
     CHECK(registry.get<HardpointSensorRange>(hardpoint).value == Approx(2000.0f));
+}
+
+TEST_CASE(
+    "AttachModuleComponents writes an empty CargoHold sized from the module's cargoBay "
+    "stats",
+    "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef cargoBay;
+    cargoBay.kind = ModuleKind::CargoBay;
+    cargoBay.cargoBay.slotCount = 4;
+    cargoBay.cargoBay.slotCapacity = 250.0f;
+
+    AttachModuleComponents(registry, hardpoint, cargoBay, 0.0f);
+
+    REQUIRE(registry.all_of<CargoHold>(hardpoint));
+    const CargoHold& cargo = registry.get<CargoHold>(hardpoint);
+    CHECK(cargo.stacks.empty());
+    CHECK(cargo.slotCount == 4);
+    CHECK(cargo.slotCapacity == Approx(250.0f));
+}
+
+TEST_CASE("DetachModuleComponents removes CargoHold for a cargo-bay module", "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef cargoBay;
+    cargoBay.kind = ModuleKind::CargoBay;
+    cargoBay.cargoBay.slotCount = 4;
+    cargoBay.cargoBay.slotCapacity = 250.0f;
+    AttachModuleComponents(registry, hardpoint, cargoBay, 0.0f);
+    REQUIRE(registry.all_of<CargoHold>(hardpoint));
+
+    DetachModuleComponents(registry, hardpoint, cargoBay);
+
+    CHECK_FALSE(registry.all_of<CargoHold>(hardpoint));
 }
 
 TEST_CASE(

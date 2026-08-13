@@ -3,11 +3,9 @@
 #include "modes/space/systems/RefactorSystem.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
-#include "shared/components/Loot.h"
 #include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
 
-using sr::CargoHold;
 using sr::DeleteHardpointRequest;
 using sr::Destroyed;
 using sr::Docked;
@@ -59,15 +57,13 @@ TEST_CASE(
     registry.emplace<ParentRig>(otherHardpoint, root);
     registry.emplace<Rig>(root, std::vector<entt::entity>{hardpoint, otherHardpoint});
     registry.emplace<Docked>(root, station, entt::null);
-    registry.emplace<CargoHold>(root);
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{hardpoint});
 
     refactor_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.all_of<DeleteHardpointRequest>(root));
     CHECK(registry.valid(hardpoint));
-    CHECK(registry.get<Rig>(root).children.size() == 2);
-    CHECK(registry.get<CargoHold>(root).modules.empty());  // Refused, not refunded.
+    CHECK(registry.get<Rig>(root).children.size() == 2);  // Refused, not refunded.
 }
 
 TEST_CASE("Deleting an empty hardpoint (no modules held) succeeds and removes it from the rig",
@@ -140,14 +136,12 @@ TEST_CASE("Scrapping a Destroyed hardpoint refunds nothing, even if it still lis
     registry.emplace<ParentRig>(otherHardpoint, root);
     registry.emplace<Rig>(root, std::vector<entt::entity>{hardpoint, otherHardpoint});
     registry.emplace<Docked>(root, station, entt::null);
-    registry.emplace<CargoHold>(root);
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{hardpoint});
 
     refactor_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.valid(hardpoint));
     CHECK(registry.get<Rig>(root).children.size() == 1);
-    CHECK(registry.get<CargoHold>(root).modules.empty());
 }
 
 TEST_CASE("Deletion is refused for a hardpoint another hardpoint is structurally attached to",
@@ -167,7 +161,6 @@ TEST_CASE("Deletion is refused for a hardpoint another hardpoint is structurally
     registry.emplace<ParentRig>(childHardpoint, root);
     registry.emplace<Rig>(root, std::vector<entt::entity>{parentHardpoint, childHardpoint});
     registry.emplace<Docked>(root, station, entt::null);
-    registry.emplace<CargoHold>(root);
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{parentHardpoint});
 
     refactor_system::Tick(MakeContext(world, intents, content));
@@ -190,7 +183,6 @@ TEST_CASE("Deletion is refused when the hardpoint does not belong to the request
 
     const entt::entity root = registry.create();
     registry.emplace<Docked>(root, station, entt::null);
-    registry.emplace<CargoHold>(root);
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{hardpoint});
 
     refactor_system::Tick(MakeContext(world, intents, content));

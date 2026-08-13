@@ -10,18 +10,23 @@
 #include "shared/components/Facility.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/CargoView.h"
 
 using Catch::Approx;
 using sr::CargoHold;
 using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
+using sr::ItemKind;
+using sr::ItemStack;
 using sr::MergeModulesRequest;
+using sr::ParentRig;
 using sr::Rig;
 using sr::core::ContentLibrary;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace engineer_system = sr::space::engineer_system;
+namespace cargo_view = sr::cargo_view;
 
 namespace {
 
@@ -49,6 +54,28 @@ entt::entity MakeEngineeringStation(entt::registry& registry, int level) {
     return station;
 }
 
+// CargoHold lives per cargo-bay hardpoint now (architecture.md 12.23) -- `owner` needs a living
+// Rig with a bay hardpoint before anything can be stocked into it.
+entt::entity GiveCargoBay(entt::registry& registry, entt::entity owner) {
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, owner);
+    registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, 10, 1000.0f);
+    registry.emplace<Rig>(owner, std::vector<entt::entity>{bay});
+    return bay;
+}
+
+// Deposits each module id as its own stack (Module stacks never merge, ItemStack's comment) --
+// stocking the same id twice creates two distinct owned copies, matching CargoHold's pre-P0-10
+// `modules.push_back` behavior.
+void StockModules(entt::registry& registry, entt::entity owner, const ContentLibrary& content,
+                  const std::vector<sr::ModuleId>& moduleIds) {
+    for (const sr::ModuleId& moduleId : moduleIds) {
+        const sr::ModuleDef* module = content.FindModule(moduleId);
+        const float mass = module != nullptr ? module->mass : 0.0f;
+        cargo_view::Deposit(registry, owner, ItemStack{ItemKind::Module, moduleId.str(), 1, mass});
+    }
+}
+
 }  // namespace
 
 TEST_CASE(
@@ -63,10 +90,9 @@ TEST_CASE(
     const entt::entity station = MakeEngineeringStation(registry, 3);
     const entt::entity requester = registry.create();
     registry.emplace<Docked>(requester, station, entt::null);
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    cargo.modules.push_back(sr::ModuleId("autocannon_i"));
-    registry.emplace<CargoHold>(requester, cargo);
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content,
+                 {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
     registry.emplace<MergeModulesRequest>(
         requester,
         MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
@@ -80,8 +106,9 @@ TEST_CASE(
     engineer_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.all_of<MergeModulesRequest>(requester));
-    CHECK(registry.get<CargoHold>(requester).modules.size() == 1);
-    const sr::ModuleId mergedId = registry.get<CargoHold>(requester).modules.front();
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, requester);
+    REQUIRE(cargo.size() == 1);
+    const sr::ModuleId mergedId(cargo.front().id);
     const sr::ModuleDef* merged = content.FindModule(mergedId);
     REQUIRE(merged != nullptr);
     CHECK(merged->kind == sr::ModuleKind::Weapon);
@@ -95,17 +122,16 @@ TEST_CASE("Merging is refused when the requester is not Docked", "[engineer]") {
     sr::core::IntentQueue intents;
 
     const entt::entity requester = registry.create();
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    cargo.modules.push_back(sr::ModuleId("autocannon_i"));
-    registry.emplace<CargoHold>(requester, cargo);
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content,
+                 {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
     registry.emplace<MergeModulesRequest>(
         requester,
         MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
 
     engineer_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<CargoHold>(requester).modules.size() == 2);
+    CHECK(cargo_view::Merged(registry, requester).size() == 2);
 }
 
 TEST_CASE("Merging is refused when the docked station has no Engineering facility", "[engineer]") {
@@ -117,17 +143,16 @@ TEST_CASE("Merging is refused when the docked station has no Engineering facilit
     const entt::entity station = registry.create();  // no Rig, no facility
     const entt::entity requester = registry.create();
     registry.emplace<Docked>(requester, station, entt::null);
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    cargo.modules.push_back(sr::ModuleId("autocannon_i"));
-    registry.emplace<CargoHold>(requester, cargo);
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content,
+                 {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
     registry.emplace<MergeModulesRequest>(
         requester,
         MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
 
     engineer_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<CargoHold>(requester).modules.size() == 2);
+    CHECK(cargo_view::Merged(registry, requester).size() == 2);
 }
 
 TEST_CASE("Merging is refused when the two modules are not the same ModuleKind", "[engineer]") {
@@ -139,17 +164,17 @@ TEST_CASE("Merging is refused when the two modules are not the same ModuleKind",
     const entt::entity station = MakeEngineeringStation(registry, 3);
     const entt::entity requester = registry.create();
     registry.emplace<Docked>(requester, station, entt::null);
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));  // weapon
-    cargo.modules.push_back(sr::ModuleId("deflector_i"));     // shield_generator
-    registry.emplace<CargoHold>(requester, cargo);
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content,
+                 {sr::ModuleId("pulse_cannon_i"),  // weapon
+                  sr::ModuleId("deflector_i")});   // shield_generator
     registry.emplace<MergeModulesRequest>(
         requester,
         MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("deflector_i")});
 
     engineer_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<CargoHold>(requester).modules.size() == 2);
+    CHECK(cargo_view::Merged(registry, requester).size() == 2);
 }
 
 TEST_CASE("Merging the same module id with itself requires two distinct owned copies",
@@ -164,29 +189,27 @@ TEST_CASE("Merging the same module id with itself requires two distinct owned co
     registry.emplace<Docked>(requester, station, entt::null);
 
     SECTION("only one copy owned -- refused") {
-        CargoHold cargo;
-        cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-        registry.emplace<CargoHold>(requester, cargo);
+        GiveCargoBay(registry, requester);
+        StockModules(registry, requester, content, {sr::ModuleId("pulse_cannon_i")});
         registry.emplace<MergeModulesRequest>(
             requester,
             MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("pulse_cannon_i")});
 
         engineer_system::Tick(MakeContext(world, intents, content));
 
-        CHECK(registry.get<CargoHold>(requester).modules.size() == 1);
+        CHECK(cargo_view::Merged(registry, requester).size() == 1);
     }
 
     SECTION("two copies owned -- succeeds, both consumed") {
-        CargoHold cargo;
-        cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-        cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-        registry.emplace<CargoHold>(requester, cargo);
+        GiveCargoBay(registry, requester);
+        StockModules(registry, requester, content,
+                     {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("pulse_cannon_i")});
         registry.emplace<MergeModulesRequest>(
             requester,
             MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("pulse_cannon_i")});
 
         engineer_system::Tick(MakeContext(world, intents, content));
 
-        CHECK(registry.get<CargoHold>(requester).modules.size() == 1);
+        CHECK(cargo_view::Merged(registry, requester).size() == 1);
     }
 }

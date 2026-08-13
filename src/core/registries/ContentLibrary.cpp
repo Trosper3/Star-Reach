@@ -69,9 +69,11 @@ LoadReport ContentLibrary::LoadFromDirectory(const std::filesystem::path& direct
     shells_.clear();
     modules_.clear();
     ships_.clear();
+    materials_.clear();
 
     LoadArrayFile(directory / "shells.json", "shells", ParseShellDef, shells_, report);
     LoadArrayFile(directory / "modules.json", "modules", ParseModuleDef, modules_, report);
+    LoadArrayFile(directory / "materials.json", "materials", ParseMaterialDef, materials_, report);
     LoadArrayFile(directory / "ships.json", "ships", ParseShipBlueprint, ships_, report);
     return report;
 }
@@ -93,6 +95,11 @@ const ModuleDef* ContentLibrary::FindModule(const ModuleId& id) const {
 void ContentLibrary::RegisterCraftedModule(ModuleDef module) {
     const std::string id = module.id.str();
     craftedModules_[id] = std::move(module);
+}
+
+const MaterialDef* ContentLibrary::FindMaterial(const MaterialId& id) const {
+    const auto it = materials_.find(id.str());
+    return it == materials_.end() ? nullptr : &it->second;
 }
 
 const ShipBlueprint* ContentLibrary::FindShip(const BlueprintId& id) const {

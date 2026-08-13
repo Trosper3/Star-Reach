@@ -4,23 +4,27 @@
 
 namespace sr::space::ui::storage_menu {
 
-std::vector<std::string> Rows(const CargoHold& cargo) {
+std::vector<std::string> Rows(const std::vector<ItemStack>& stacks) {
     std::vector<std::string> rows;
-    rows.reserve(cargo.modules.size() + cargo.materials.size());
-    for (const ModuleId& module : cargo.modules) {
-        rows.push_back(module.str());
+    rows.reserve(stacks.size());
+    for (const ItemStack& stack : stacks) {
+        if (stack.kind == ItemKind::Module) {
+            rows.push_back(stack.id);
+        }
     }
-    for (const MaterialStack& stack : cargo.materials) {
-        rows.push_back(stack.materialId + " x" + std::to_string(stack.quantity));
+    for (const ItemStack& stack : stacks) {
+        if (stack.kind == ItemKind::Material) {
+            rows.push_back(stack.id + " x" + std::to_string(stack.quantity));
+        }
     }
     return rows;
 }
 
-void Draw(const Rectangle& bounds, const CargoHold& cargo) {
+void Draw(const Rectangle& bounds, const std::vector<ItemStack>& stacks) {
     const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 
     std::vector<sr::ui::Row> rows;
-    for (const std::string& label : Rows(cargo)) {
+    for (const std::string& label : Rows(stacks)) {
         sr::ui::Row row;
         row.label = label;
         rows.push_back(row);
