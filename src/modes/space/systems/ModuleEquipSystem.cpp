@@ -1,12 +1,13 @@
 #include "modes/space/systems/ModuleEquipSystem.h"
 
-#include <algorithm>
 #include <vector>
 
+#include "modes/space/systems/LootSystem.h"
 #include "shared/blueprints/Taxonomy.h"
 #include "shared/components/Equip.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/CargoView.h"
 #include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::module_equip_system {
@@ -24,10 +25,8 @@ void ProcessMountRequests(const SystemContext& ctx) {
     for (auto [self, request] : registry.view<MountModuleRequest>().each()) {
         consumed.push_back(self);
 
-        CargoHold* cargo = registry.try_get<CargoHold>(self);
         const entt::entity mount = request.mount;
-        if (cargo == nullptr || !registry.valid(mount) ||
-            !MountBelongsToRig(registry, mount, self)) {
+        if (!registry.valid(mount) || !MountBelongsToRig(registry, mount, self)) {
             continue;
         }
         // architecture.md 12.30.7's Destroyed sweep: a dead hardpoint cannot receive a module.
@@ -50,9 +49,8 @@ void ProcessMountRequests(const SystemContext& ctx) {
             continue;
         }
 
-        const auto held = std::find(cargo->modules.begin(), cargo->modules.end(), request.module);
-        if (held == cargo->modules.end()) {
-            continue;
+        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, request.module.str(), 1)) {
+            continue;  // Not held anywhere in the requester's own cargo bays.
         }
 
         // The mount's real authored arc (Rig.h), not a hardcoded 0.0f -- a runtime-mounted
@@ -64,7 +62,6 @@ void ProcessMountRequests(const SystemContext& ctx) {
 
         rig_attachment::AttachModuleComponents(registry, mount, *module, traverseRadians);
         mounted.ids.push_back(request.module);
-        cargo->modules.erase(held);
         rig_attachment::RecomputeRigTotals(registry, self);
     }
 
@@ -80,10 +77,8 @@ void ProcessUnmountRequests(const SystemContext& ctx) {
     for (auto [self, request] : registry.view<UnmountModuleRequest>().each()) {
         consumed.push_back(self);
 
-        CargoHold* cargo = registry.try_get<CargoHold>(self);
         const entt::entity mount = request.mount;
-        if (cargo == nullptr || !registry.valid(mount) ||
-            !MountBelongsToRig(registry, mount, self)) {
+        if (!registry.valid(mount) || !MountBelongsToRig(registry, mount, self)) {
             continue;
         }
         MountedModules* mounted = registry.try_get<MountedModules>(mount);
@@ -97,10 +92,28 @@ void ProcessUnmountRequests(const SystemContext& ctx) {
         // (architecture.md 12.30.5: "no new component" -- unmount takes a mount, not a module id).
         const ModuleId moduleId = mounted->ids.back();
         const ModuleDef* module = ctx.content.FindModule(moduleId);
-        if (module != nullptr) {
-            rig_attachment::DetachModuleComponents(registry, mount, *module);
+        if (module == nullptr) {
+            continue;
         }
-        cargo->modules.push_back(moduleId);
+
+        // Refused, not silently discarded, if there is nowhere to put it back -- the same
+        // "refuse rather than lose player state" rule RefactorSystem's scrap path already
+        // follows. Nothing below runs; the mount stays exactly as it was.
+        const ItemStack refund{ItemKind::Module, moduleId.str(), 1, module->mass};
+        if (cargo_view::Deposit(registry, self, refund) != cargo_view::DepositResult::Deposited) {
+            continue;
+        }
+
+        // A cargo bay being unmounted takes the same path as one being destroyed: its own
+        // contents spill as recoverable drops rather than vanishing with it (architecture.md
+        // 12.23). Runs after the refund above, so the rare case of unmounting a rig's only bay
+        // (which briefly re-deposits the bay module into itself) spills it right back out as a
+        // drop instead of losing it silently.
+        if (module->kind == ModuleKind::CargoBay) {
+            loot_system::SpillCargoHold(registry, mount);
+        }
+
+        rig_attachment::DetachModuleComponents(registry, mount, *module);
         mounted->ids.pop_back();
         rig_attachment::RecomputeRigTotals(registry, self);
     }

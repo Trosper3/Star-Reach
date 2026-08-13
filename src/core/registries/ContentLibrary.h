@@ -7,6 +7,7 @@
 
 #include "core/registries/JsonReader.h"
 #include "shared/blueprints/DefLibrary.h"
+#include "shared/blueprints/MaterialDef.h"
 #include "shared/blueprints/ShipBlueprint.h"
 
 namespace sr::core {
@@ -36,6 +37,10 @@ public:
 
     const ShipBlueprint* FindShip(const BlueprintId& id) const;
 
+    // Not part of DefLibrary -- blueprint validation never resolves a material id, only
+    // CargoView-adjacent systems do, and they already have a concrete ContentLibrary in hand.
+    const MaterialDef* FindMaterial(const MaterialId& id) const;
+
     // Registers a module built at runtime rather than loaded from JSON -- architecture.md 12.12's
     // EngineerMenu, which merges two owned modules into a new one. The merged ModuleDef is
     // player-generated content, not authored content, the same distinction CustomizeMenu's
@@ -55,6 +60,7 @@ public:
     size_t ShellCount() const { return shells_.size(); }
     size_t ModuleCount() const { return modules_.size(); }
     size_t ShipCount() const { return ships_.size(); }
+    size_t MaterialCount() const { return materials_.size(); }
 
     std::vector<BlueprintId> ShipIds() const;
 
@@ -68,6 +74,7 @@ private:
     std::unordered_map<std::string, ModuleDef> modules_;
     std::unordered_map<std::string, ShipBlueprint> ships_;
     std::unordered_map<std::string, ModuleDef> craftedModules_;
+    std::unordered_map<std::string, MaterialDef> materials_;
 };
 
 }  // namespace sr::core

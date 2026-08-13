@@ -46,6 +46,7 @@ add_executable(sr_tests
     unit/ResearchSystemTests.cpp
     unit/TemplateMarketSystemTests.cpp
     unit/ModuleAttachmentTests.cpp
+    unit/CargoViewTests.cpp
     unit/ModuleEquipSystemTests.cpp
     unit/StorageMenuTests.cpp
     unit/ModulesMenuTests.cpp
@@ -56,7 +57,6 @@ add_executable(sr_tests
     unit/RefactorSystemTests.cpp
     unit/EngineerMenuTests.cpp
     unit/RefactorMenuTests.cpp
-    unit/StationServicesSystemTests.cpp
     unit/StationServicesMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
@@ -76,6 +76,7 @@ add_executable(sr_tests
     integration/ModuleEquipSystemTests.cpp
     integration/NpcFactoryTests.cpp
     integration/StationFactoryTests.cpp
+    integration/StationServicesSystemTests.cpp
     integration/WorldGenTests.cpp
     integration/SpaceFlightSystemWarpTests.cpp
     unit/EconomyModelTests.cpp

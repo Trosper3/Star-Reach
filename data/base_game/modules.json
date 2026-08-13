@@ -98,7 +98,11 @@
       "displayName": "Cargo Bay I",
       "kind": "cargo_bay",
       "mass": 15.0,
-      "powerDraw": 5.0
+      "powerDraw": 5.0,
+      "cargoBay": {
+        "slotCount": 4,
+        "slotCapacity": 250.0
+      }
     },
     {
       "id": "fire_control_i",

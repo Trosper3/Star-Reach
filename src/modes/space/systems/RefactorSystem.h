@@ -14,14 +14,11 @@ namespace sr::space::refactor_system {
 // Refused (request cleared, nothing else happens) when: the requester is not Docked at a station
 // with a living FacilityKind::Engineering hardpoint; the named hardpoint does not belong to the
 // requester's own Rig; another hardpoint's StructuralAttachment still points at it (a non-leaf
-// hardpoint would orphan its children -- deletion is scoped to leaves); or the requester's
-// CargoHold does not have room for every module the hardpoint returns
-// (CargoHoldHasRoomFor, shared/components/Loot.h) -- "if storage is full, don't allow the
-// deletion," refused whole rather than returning a partial set and dropping the rest.
+// hardpoint would orphan its children -- deletion is scoped to leaves); or (features.md 2.2's
+// settled reversal, architecture.md 15.2 finding 8) the hardpoint still holds modules -- unmount
+// first, then delete. Nothing is ever refunded to cargo here.
 //
-// On success: every id in the hardpoint's MountedModules (shared/components/Rig.h) is appended
-// to the requester's CargoHold, the hardpoint is removed from Rig::children, and the hardpoint
-// entity is destroyed.
+// On success: the hardpoint is removed from Rig::children and the hardpoint entity is destroyed.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::refactor_system

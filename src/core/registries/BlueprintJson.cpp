@@ -49,6 +49,12 @@ void ParseFireControlStats(const JsonReader& reader, FireControlStats& out) {
     stats.Optional("turnRatePerSecond", out.turnRatePerSecond);
 }
 
+void ParseCargoBayStats(const JsonReader& reader, CargoBayStats& out) {
+    const JsonReader stats = reader.Child("cargoBay", "cargoBay");
+    stats.Optional("slotCount", out.slotCount);
+    stats.Optional("slotCapacity", out.slotCapacity);
+}
+
 MountBlueprint ParseMount(const JsonReader& reader) {
     MountBlueprint mount;
 
@@ -103,6 +109,19 @@ ModuleDef ParseModuleDef(const JsonReader& reader) {
     ParseFacilityStats(reader, def.facility);
     ParseSensorStats(reader, def.sensor);
     ParseFireControlStats(reader, def.fireControl);
+    ParseCargoBayStats(reader, def.cargoBay);
+    return def;
+}
+
+MaterialDef ParseMaterialDef(const JsonReader& reader) {
+    MaterialDef def;
+
+    std::string id;
+    reader.Require("id", id);
+    def.id = MaterialId(id);
+
+    reader.Require("displayName", def.displayName);
+    reader.Optional("mass", def.mass);
     return def;
 }
 

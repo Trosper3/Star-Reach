@@ -82,8 +82,6 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
 
     const BlueprintId blueprint = departing.get<BlueprintRef>(player).id;
     const FactionId faction = departing.get<FactionRef>(player).id;
-    const CargoHold cargo =
-        departing.all_of<CargoHold>(player) ? departing.get<CargoHold>(player) : CargoHold{};
     const Wallet wallet =
         departing.all_of<Wallet>(player) ? departing.get<Wallet>(player) : Wallet{};
 
@@ -118,9 +116,14 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
 
     entt::registry& arriving = world_.Registry();
     arriving.emplace<PlayerControlled>(spawned.root);
-    // Session inventory carries over; hardpoint damage/refits do not -- there is no live-rig-to-
-    // blueprint snapshot in this codebase yet (WarpToSystem's own doc comment, SpaceFlight.h).
-    arriving.emplace<CargoHold>(spawned.root, cargo);
+    // Wallet carries over; cargo does not. CargoHold now lives per cargo-bay hardpoint
+    // (architecture.md 12.23), and RigFactory::Spawn rebuilds every hardpoint empty from the
+    // blueprint -- there is nothing on `player` to copy forward the way a single root-level
+    // CargoHold used to be. This is the documented, accepted gap architecture.md 12.23 itself
+    // names: per-bay carry-over belongs in P12.31's RigState (a per-mount delta against a
+    // BlueprintId, which already has to carry MountedModules/ShellInstance too), not a
+    // regression introduced here -- hardpoint damage/refits already don't carry over for the
+    // identical reason (WarpToSystem's own doc comment, SpaceFlight.h).
     arriving.emplace<Wallet>(spawned.root, wallet);
 
     // Promote every wreck this system is owed back into an entity now that it's resident again.

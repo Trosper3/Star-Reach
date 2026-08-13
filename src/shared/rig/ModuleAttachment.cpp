@@ -6,6 +6,7 @@
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
+#include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
@@ -34,24 +35,12 @@ int SheddingPriority(ModuleKind kind) {
     }
 }
 
-}  // namespace
-
-PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::entity hardpoint,
-                                              const ModuleDef& module, float mountTraverseRadians) {
-    // get_or_emplace, not emplace: RigFactory seeds HardpointMass with the shell's own mass
-    // before this runs, and this call needs to add on top of that, not replace it. A hardpoint
-    // that never got seeded (a live-equip test built by hand, or the shellless bare-registry
-    // unit tests in ModuleAttachmentTests.cpp) simply starts from zero.
-    registry.get_or_emplace<HardpointMass>(hardpoint).value += module.mass;
-
-    if (module.powerGeneration > 0.0f) {
-        registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
-    }
-    if (module.powerDraw > 0.0f) {
-        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
-                                               SheddingPriority(module.kind));
-    }
-
+// Attaches the role components specific to `module.kind` -- everything AttachModuleComponents
+// itself does not already handle uniformly for every kind (HardpointMass, PowerSource/PowerLoad).
+// Split out purely to keep AttachModuleComponents under architecture.md 2.2's function-length cap;
+// no independent meaning outside that caller.
+PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::entity hardpoint,
+                                            const ModuleDef& module, float mountTraverseRadians) {
     PropulsionContribution propulsion;
     switch (module.kind) {
         case ModuleKind::Weapon: {
@@ -98,6 +87,16 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
             // the ModuleDef again, the same shape as EnginePropulsion above.
             registry.emplace_or_replace<HardpointSensorRange>(hardpoint, module.sensor.range);
             break;
+        case ModuleKind::CargoBay:
+            // slotCount/slotCapacity copied from the module instance, the same pattern
+            // ModuleKind::Facility uses for FacilityRef::kind above. Always starts empty --
+            // re-attaching onto an already-loaded bay without detaching first is not a supported
+            // path (RigFactory only ever attaches once; ModuleEquipSystem detaches before it
+            // would attach again).
+            registry.emplace_or_replace<CargoHold>(hardpoint, std::vector<ItemStack>{},
+                                                   module.cargoBay.slotCount,
+                                                   module.cargoBay.slotCapacity);
+            break;
         case ModuleKind::FireControl:
             registry.emplace_or_replace<FireControl>(hardpoint,
                                                      module.fireControl.turnRatePerSecond);
@@ -111,6 +110,27 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
         default: break;
     }
     return propulsion;
+}
+
+}  // namespace
+
+PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::entity hardpoint,
+                                              const ModuleDef& module, float mountTraverseRadians) {
+    // get_or_emplace, not emplace: RigFactory seeds HardpointMass with the shell's own mass
+    // before this runs, and this call needs to add on top of that, not replace it. A hardpoint
+    // that never got seeded (a live-equip test built by hand, or the shellless bare-registry
+    // unit tests in ModuleAttachmentTests.cpp) simply starts from zero.
+    registry.get_or_emplace<HardpointMass>(hardpoint).value += module.mass;
+
+    if (module.powerGeneration > 0.0f) {
+        registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
+    }
+    if (module.powerDraw > 0.0f) {
+        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
+                                               SheddingPriority(module.kind));
+    }
+
+    return AttachRoleComponents(registry, hardpoint, module, mountTraverseRadians);
 }
 
 void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
@@ -134,6 +154,10 @@ void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
             registry.remove<DockingBay>(hardpoint);
             break;
         case ModuleKind::Sensor: registry.remove<HardpointSensorRange>(hardpoint); break;
+        // Whatever the bay held is the caller's problem to spill first (LootSystem's
+        // SpillCargoHold, called by ModuleEquipSystem's unmount path before this runs) -- this
+        // function only ever tears down role components, never spawns entities.
+        case ModuleKind::CargoBay: registry.remove<CargoHold>(hardpoint); break;
         case ModuleKind::FireControl:
             registry.remove<FireControl>(hardpoint);
             // Revert to the un-augmented baseline rather than leaving the co-mounted Weapon's

@@ -16,14 +16,17 @@ namespace sr::space::module_equip_system {
 // Refused (request cleared, nothing else happens) when: the mount does not belong to the
 // requester's own Rig; the mount is Destroyed; the module's ModuleKind is not IsMountable() on
 // the mount's ShellRole (mirrors Validation.h's ModuleCompatibility rule, applied live); the
-// module is not in the requester's CargoHold; or (mount) MountedModules (shared/components/Rig.h
-// -- the single record of a mount's contents, architecture.md 13.4 decision 2) is already
-// non-empty -- unmount first.
+// module is not held anywhere in the requester's own cargo bays (shared/rig/CargoView.h); or
+// (mount) MountedModules (shared/components/Rig.h -- the single record of a mount's contents,
+// architecture.md 13.4 decision 2) is already non-empty -- unmount first. Unmounting is refused
+// the same way if the requester's cargo bays have nowhere to take the module back.
 //
-// Scoped out: rig-wide BodyMass/Propulsion are not recomputed on mount/unmount. RigFactory's own
-// engine-death handling is already documented as all-or-nothing rather than proportional
-// (DamageSystem.h) for the same reason -- correctly re-aggregating a live rig's totals from a
-// single hardpoint edit needs more bookkeeping than this issue's tested scope calls for.
+// rig_attachment::RecomputeRigTotals runs after every successful mount/unmount, so BodyMass/
+// Propulsion/SensorRange stay current with a live edit, not just a fresh build or a hardpoint
+// death (architecture.md 12.23).
+//
+// Unmounting a CargoBay-kind module spills its own contents as recoverable drops first
+// (modes/space/systems/LootSystem.h's SpillCargoHold) -- the same path a destroyed bay takes.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::module_equip_system

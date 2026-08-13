@@ -16,6 +16,7 @@
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
+#include "shared/rig/CargoView.h"
 
 using sr::CargoHold;
 using sr::DeleteHardpointRequest;
@@ -24,6 +25,8 @@ using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FireIntent;
+using sr::ItemKind;
+using sr::ItemStack;
 using sr::MountedModules;
 using sr::MountModuleRequest;
 using sr::MountTraverse;
@@ -41,6 +44,7 @@ using sr::space::SystemWorld;
 namespace module_equip_system = sr::space::module_equip_system;
 namespace refactor_system = sr::space::refactor_system;
 namespace weapon_system = sr::space::weapon_system;
+namespace cargo_view = sr::cargo_view;
 
 namespace {
 
@@ -54,6 +58,23 @@ ContentLibrary Content() {
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const ContentLibrary& content) {
     return SystemContext{world, intents, content, 1.0f / 60.0f, 0};
+}
+
+// CargoHold lives per cargo-bay hardpoint now (architecture.md 12.23). Adds a bay hardpoint to
+// `root`'s Rig::children alongside whatever mounts the test already declared, then stocks it.
+entt::entity AddCargoBay(entt::registry& registry, entt::entity root) {
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, root);
+    registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, 10, 1000.0f);
+    registry.get<Rig>(root).children.push_back(bay);
+    return bay;
+}
+
+void StockModule(entt::registry& registry, entt::entity root, const ContentLibrary& content,
+                 const sr::ModuleId& moduleId) {
+    const sr::ModuleDef* module = content.FindModule(moduleId);
+    const float mass = module != nullptr ? module->mass : 0.0f;
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, moduleId.str(), 1, mass});
 }
 
 }  // namespace
@@ -70,17 +91,15 @@ TEST_CASE("ModuleEquipSystem mounts a real cargo module onto a compatible empty 
     registry.emplace<ParentRig>(mount, root);
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.all_of<MountModuleRequest>(root));
-    CHECK(registry.get<CargoHold>(root).modules.empty());
+    CHECK(cargo_view::Merged(registry, root).empty());
     REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
     CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("pulse_cannon_i"));
     REQUIRE(registry.all_of<sr::Weapon>(mount));
@@ -105,10 +124,8 @@ TEST_CASE(
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<MountTraverse>(mount, 0.3f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
@@ -133,10 +150,8 @@ TEST_CASE("A runtime-mounted weapon fires within its authored arc and refuses ou
     registry.emplace<MountTraverse>(mount, 0.3f);  // ~17 degrees either side of dead ahead.
     registry.emplace<WorldTransform>(mount, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
     module_equip_system::Tick(ctx);
@@ -168,10 +183,8 @@ TEST_CASE("A runtime-mounted weapon does not fire at a target outside its author
     registry.emplace<MountTraverse>(mount, 0.3f);
     registry.emplace<WorldTransform>(mount, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
     module_equip_system::Tick(ctx);
@@ -201,10 +214,8 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto a Destroyed hardpoint", "[mod
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<Destroyed>(mount);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 0.0f});
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
@@ -212,11 +223,13 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto a Destroyed hardpoint", "[mod
 
     // Destroyed refuses before MountedModules is even touched -- get_or_emplace never runs.
     CHECK_FALSE(registry.all_of<MountedModules>(mount));
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+    CHECK(cargo_view::Merged(registry, root).size() == 1);
 }
 
-TEST_CASE("Mount then unmount round-trips a real module back into CargoHold, components intact",
-          "[module-equip][integration]") {
+TEST_CASE(
+    "Mount then unmount round-trips a real module back into the requester's cargo bay, "
+    "components intact",
+    "[module-equip][integration]") {
     const ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -227,10 +240,8 @@ TEST_CASE("Mount then unmount round-trips a real module back into CargoHold, com
     registry.emplace<ParentRig>(mount, root);
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
     module_equip_system::Tick(MakeContext(world, intents, content));
@@ -241,8 +252,9 @@ TEST_CASE("Mount then unmount round-trips a real module back into CargoHold, com
 
     CHECK(registry.get<MountedModules>(mount).ids.empty());
     CHECK_FALSE(registry.any_of<sr::Weapon, sr::FiringArc, sr::PowerLoad>(mount));
-    REQUIRE(registry.get<CargoHold>(root).modules.size() == 1);
-    CHECK(registry.get<CargoHold>(root).modules.front() == sr::ModuleId("pulse_cannon_i"));
+    const std::vector<ItemStack> cargo = cargo_view::Merged(registry, root);
+    REQUIRE(cargo.size() == 1);
+    CHECK(cargo.front().id == "pulse_cannon_i");
 }
 
 TEST_CASE("ModuleEquipSystem refuses a module whose kind does not match the mount's shell",
@@ -257,17 +269,15 @@ TEST_CASE("ModuleEquipSystem refuses a module whose kind does not match the moun
     registry.emplace<ParentRig>(weaponMount, root);
     registry.emplace<ShellRole>(weaponMount, sr::ShellKind::Weapon);
     registry.emplace<Rig>(root, std::vector<entt::entity>{weaponMount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("deflector_i"));  // a shield_generator module
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("deflector_i"));  // a shield_generator
     registry.emplace<MountModuleRequest>(
         root, MountModuleRequest{sr::ModuleId("deflector_i"), weaponMount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.get<MountedModules>(weaponMount).ids.empty());
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+    CHECK(cargo_view::Merged(registry, root).size() == 1);
 }
 
 TEST_CASE("A runtime-mounted module is never refunded twice across unmount and scrap",
@@ -297,29 +307,27 @@ TEST_CASE("A runtime-mounted module is never refunded twice across unmount and s
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount, otherMount});
     registry.emplace<Docked>(root, station, entt::null);
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    AddCargoBay(registry, root);
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
     module_equip_system::Tick(ctx);
-    REQUIRE(registry.get<CargoHold>(root).modules.empty());
+    REQUIRE(cargo_view::Merged(registry, root).empty());
 
     // Scrapping while still mounted is refused outright (P0-05) -- not a refund at all.
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{mount});
     refactor_system::Tick(ctx);
     REQUIRE(registry.valid(mount));
-    CHECK(registry.get<CargoHold>(root).modules.empty());
+    CHECK(cargo_view::Merged(registry, root).empty());
 
     // Unmount first: the one and only refund.
     registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
     module_equip_system::Tick(ctx);
-    REQUIRE(registry.get<CargoHold>(root).modules.size() == 1);
+    REQUIRE(cargo_view::Merged(registry, root).size() == 1);
 
     // Now scrapping succeeds -- MountedModules is empty, so there is nothing left to refund.
     registry.emplace<DeleteHardpointRequest>(root, DeleteHardpointRequest{mount});
     refactor_system::Tick(ctx);
     CHECK_FALSE(registry.valid(mount));
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);  // Still exactly one copy.
+    CHECK(cargo_view::Merged(registry, root).size() == 1);  // Still exactly one copy.
 }

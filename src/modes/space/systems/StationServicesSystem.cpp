@@ -9,6 +9,7 @@
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
 #include "shared/components/StationServices.h"
+#include "shared/rig/CargoView.h"
 
 namespace sr::space::station_services_system {
 namespace {
@@ -21,58 +22,62 @@ entt::entity DockedStation(const entt::registry& registry, entt::entity requeste
     return docked->station;
 }
 
-void ProcessBuyRequests(entt::registry& registry) {
+void ProcessBuyRequests(entt::registry& registry, const core::ContentLibrary& content) {
     std::vector<entt::entity> consumed;
     for (auto [self, request] : registry.view<BuyItemRequest>().each()) {
         consumed.push_back(self);
 
         const entt::entity station = DockedStation(registry, self);
         Wallet* wallet = registry.try_get<Wallet>(self);
-        CargoHold* buyerCargo = registry.try_get<CargoHold>(self);
-        CargoHold* stationCargo =
-            station == entt::null ? nullptr : registry.try_get<CargoHold>(station);
-        if (wallet == nullptr || buyerCargo == nullptr || stationCargo == nullptr ||
+        const ModuleDef* module = content.FindModule(request.module);
+        if (station == entt::null || wallet == nullptr || module == nullptr ||
             wallet->credits < request.cost) {
             continue;
         }
 
-        const auto held =
-            std::find(stationCargo->modules.begin(), stationCargo->modules.end(), request.module);
-        if (held == stationCargo->modules.end()) {
+        const std::string id = request.module.str();
+        if (!cargo_view::Withdraw(registry, station, ItemKind::Module, id, 1)) {
+            continue;  // The station does not stock it.
+        }
+
+        const ItemStack stack{ItemKind::Module, id, 1, module->mass};
+        if (cargo_view::Deposit(registry, self, stack) != cargo_view::DepositResult::Deposited) {
+            // The buyer has nowhere to put it -- undo the withdrawal rather than lose the module.
+            cargo_view::Deposit(registry, station, stack);
             continue;
         }
 
         wallet->credits -= request.cost;
-        stationCargo->modules.erase(held);
-        buyerCargo->modules.push_back(request.module);
     }
     for (const entt::entity self : consumed) {
         registry.remove<BuyItemRequest>(self);
     }
 }
 
-void ProcessSellRequests(entt::registry& registry) {
+void ProcessSellRequests(entt::registry& registry, const core::ContentLibrary& content) {
     std::vector<entt::entity> consumed;
     for (auto [self, request] : registry.view<SellItemRequest>().each()) {
         consumed.push_back(self);
 
         const entt::entity station = DockedStation(registry, self);
         Wallet* wallet = registry.try_get<Wallet>(self);
-        CargoHold* sellerCargo = registry.try_get<CargoHold>(self);
-        CargoHold* stationCargo =
-            station == entt::null ? nullptr : registry.try_get<CargoHold>(station);
-        if (wallet == nullptr || sellerCargo == nullptr || stationCargo == nullptr) {
+        const ModuleDef* module = content.FindModule(request.module);
+        if (station == entt::null || wallet == nullptr || module == nullptr) {
             continue;
         }
 
-        const auto held =
-            std::find(sellerCargo->modules.begin(), sellerCargo->modules.end(), request.module);
-        if (held == sellerCargo->modules.end()) {
+        const std::string id = request.module.str();
+        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, id, 1)) {
+            continue;  // The seller does not hold it.
+        }
+
+        const ItemStack stack{ItemKind::Module, id, 1, module->mass};
+        if (cargo_view::Deposit(registry, station, stack) != cargo_view::DepositResult::Deposited) {
+            // The station has nowhere to put it -- undo the withdrawal rather than lose the module.
+            cargo_view::Deposit(registry, self, stack);
             continue;
         }
 
-        sellerCargo->modules.erase(held);
-        stationCargo->modules.push_back(request.module);
         wallet->credits += request.value;
     }
     for (const entt::entity self : consumed) {
@@ -122,8 +127,8 @@ void ProcessRepairRequests(entt::registry& registry) {
 
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
-    ProcessBuyRequests(registry);
-    ProcessSellRequests(registry);
+    ProcessBuyRequests(registry, ctx.content);
+    ProcessSellRequests(registry, ctx.content);
     ProcessRepairRequests(registry);
 }
 

@@ -11,17 +11,22 @@
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Tutorial.h"
+#include "shared/rig/CargoView.h"
 
 using sr::Asteroid;
 using sr::CargoHold;
 using sr::Destroyed;
 using sr::Docked;
-using sr::MaterialStack;
+using sr::ItemKind;
+using sr::ItemStack;
+using sr::ParentRig;
+using sr::Rig;
 using sr::Target;
 using sr::Tutorial;
 using sr::TutorialStep;
 using sr::Vec2;
 using sr::WorldTransform;
+namespace cargo_view = sr::cargo_view;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace tutorial_system = sr::space::tutorial_system;
@@ -145,7 +150,11 @@ TEST_CASE("TutorialSystem advances CollectMaterial once the rig's CargoHold has 
     sr::core::ContentLibrary content;
 
     const entt::entity rig = MakeRig(registry, Vec2{0.0f, 0.0f}, TutorialStep::CollectMaterial);
-    registry.emplace<CargoHold>(rig).materials.push_back(MaterialStack{"Fe", 1});
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, rig);
+    registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, 10, 1000.0f);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{bay});
+    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Material, "Fe", 1, 2.0f});
 
     tutorial_system::Tick(MakeContext(world, intents, content));
 

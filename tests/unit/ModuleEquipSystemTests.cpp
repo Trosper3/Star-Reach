@@ -5,8 +5,11 @@
 #include "shared/components/Equip.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/CargoView.h"
 
 using sr::CargoHold;
+using sr::ItemKind;
+using sr::ItemStack;
 using sr::MountedModules;
 using sr::MountModuleRequest;
 using sr::ParentRig;
@@ -17,12 +20,22 @@ using sr::Weapon;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace module_equip_system = sr::space::module_equip_system;
+namespace cargo_view = sr::cargo_view;
 
 namespace {
 
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content) {
     return SystemContext{world, intents, content, 1.0f / 60.0f, 0};
+}
+
+// CargoHold lives per cargo-bay hardpoint now (architecture.md 12.23) -- every requester needs
+// one of these under its Rig before it can hold anything to mount/receive back.
+entt::entity MakeCargoBay(entt::registry& registry, entt::entity root) {
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, root);
+    registry.emplace<CargoHold>(bay, std::vector<ItemStack>{}, 10, 1000.0f);
+    return bay;
 }
 
 }  // namespace
@@ -43,18 +56,16 @@ TEST_CASE("ModuleEquipSystem refuses and clears a request for an unresolvable mo
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
-    registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
-
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 0.0f});
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.all_of<MountModuleRequest>(root));
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+    CHECK(cargo_view::Merged(registry, root).size() == 1);
     CHECK(registry.get<MountedModules>(mount).ids.empty());
 }
 
@@ -71,19 +82,19 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto a mount belonging to another 
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
 
     const entt::entity root = registry.create();
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{bay});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 0.0f});
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+    CHECK(cargo_view::Merged(registry, root).size() == 1);
     CHECK_FALSE(registry.all_of<MountedModules>(mount));
 }
 
-TEST_CASE("ModuleEquipSystem clears a mount request even when the requester has no CargoHold",
+TEST_CASE("ModuleEquipSystem clears a mount request even when the requester has no cargo bay",
           "[module-equip]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -99,8 +110,13 @@ TEST_CASE("ModuleEquipSystem clears a mount request even when the requester has 
     CHECK_FALSE(registry.all_of<MountModuleRequest>(root));
 }
 
-TEST_CASE("Unmounting a module hands its id back to CargoHold and empties MountedModules",
-          "[module-equip]") {
+TEST_CASE(
+    "Unmounting a module whose id no longer resolves in content is refused, not silently "
+    "discarded",
+    "[module-equip]") {
+    // A bare ContentLibrary resolves nothing -- exercising the refusal path this file's own
+    // philosophy calls for. The success path (module resolves, hands back to a cargo bay) is
+    // exercised with real content in tests/integration/ModuleEquipSystemTests.cpp.
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -112,16 +128,17 @@ TEST_CASE("Unmounting a module hands its id back to CargoHold and empties Mounte
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<MountedModules>(mount, MountedModules{{sr::ModuleId("pulse_cannon_i")}});
     registry.emplace<Weapon>(mount, 15.0f);
-    registry.emplace<CargoHold>(root);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
 
     registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
     CHECK_FALSE(registry.all_of<UnmountModuleRequest>(root));
-    CHECK(registry.get<MountedModules>(mount).ids.empty());
-    REQUIRE(registry.get<CargoHold>(root).modules.size() == 1);
-    CHECK(registry.get<CargoHold>(root).modules.front() == sr::ModuleId("pulse_cannon_i"));
+    REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
+    CHECK(registry.all_of<Weapon>(mount));
+    CHECK(cargo_view::Merged(registry, root).empty());
 }
 
 TEST_CASE("Unmounting an empty mount is a no-op", "[module-equip]") {
@@ -134,12 +151,13 @@ TEST_CASE("Unmounting an empty mount is a no-op", "[module-equip]") {
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
     registry.emplace<MountedModules>(mount);  // Present, but empty -- nothing to hand back.
-    registry.emplace<CargoHold>(root);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
     registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
 
     module_equip_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<CargoHold>(root).modules.empty());
+    CHECK(cargo_view::Merged(registry, root).empty());
 }
 
 TEST_CASE("ModuleEquipSystem refuses to mount onto an already-equipped mount", "[module-equip]") {
@@ -154,9 +172,9 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto an already-equipped mount", "
     registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
     registry.emplace<MountedModules>(mount, MountedModules{{sr::ModuleId("already_here")}});
 
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 0.0f});
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
@@ -164,7 +182,7 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto an already-equipped mount", "
 
     REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
     CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("already_here"));
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);
+    CHECK(cargo_view::Merged(registry, root).size() == 1);
 }
 
 TEST_CASE(
@@ -189,9 +207,9 @@ TEST_CASE(
     registry.emplace<MountedModules>(mount, MountedModules{{sr::ModuleId("gun_nose")}});
     registry.emplace<Weapon>(mount, 12.0f);
 
-    CargoHold cargo;
-    cargo.modules.push_back(sr::ModuleId("pulse_cannon_i"));
-    registry.emplace<CargoHold>(root, cargo);
+    const entt::entity bay = MakeCargoBay(registry, root);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
+    cargo_view::Deposit(registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 0.0f});
     registry.emplace<MountModuleRequest>(root,
                                          MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
 
@@ -199,6 +217,6 @@ TEST_CASE(
 
     REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);
     CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("gun_nose"));
-    CHECK(registry.get<Weapon>(mount).damage == 12.0f);        // Untouched -- never overwritten.
-    CHECK(registry.get<CargoHold>(root).modules.size() == 1);  // Still in cargo, not consumed.
+    CHECK(registry.get<Weapon>(mount).damage == 12.0f);     // Untouched -- never overwritten.
+    CHECK(cargo_view::Merged(registry, root).size() == 1);  // Still in cargo, not consumed.
 }
