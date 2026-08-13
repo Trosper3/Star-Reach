@@ -195,7 +195,8 @@ void SpaceFlight::Draw() const {
     const entt::registry& registry = world_.Registry();
     if (const entt::entity player = FindPlayer(registry); player != entt::null) {
         if (const auto* prev = registry.try_get<PreviousTransform>(player)) {
-            cameraPosition = Lerp(prev->position, registry.get<WorldTransform>(player).position, alpha);
+            cameraPosition =
+                Lerp(prev->position, registry.get<WorldTransform>(player).position, alpha);
         }
     }
     const render::CameraView camera{cameraPosition, cameraZoom_};
