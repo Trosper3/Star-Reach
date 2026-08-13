@@ -27,7 +27,7 @@ struct CameraView {
 // once, here:
 //
 //   DrawWorldBodies    // Star -> Planet -> Wreck -> Drop -> Asteroid -> Anomaly (BodyKind order)
-//   DrawShips          // rig roots
+//   DrawShips          // rig roots -- a heading marker only; the hull is DrawHardpoints below
 //   DrawHardpoints     // rig children
 //   DrawProjectiles
 //
@@ -39,10 +39,9 @@ struct CameraView {
 // Must be called between BeginDrawing/EndDrawing (engine::Window::BeginFrame/EndFrame).
 void DrawWorld(const SystemWorld& world, const CameraView& camera, float alpha);
 
-// True if `entity` should draw as a nose-forward triangle (has thrust) rather than a disc (does
-// not) -- the emergent silhouette rule: a rig root with a living engine reads as a ship, a
-// station or a de-engined hulk reads as one. Pure with respect to the registry, so it is
-// unit-testable without a window.
+// True if `entity` should draw a heading marker (has thrust) -- a station or a de-engined hulk
+// draws none, only the hardpoint circles DrawHardpoints already renders for it. Pure with respect
+// to the registry, so it is unit-testable without a window.
 bool HasVisiblePropulsion(const entt::registry& registry, entt::entity entity);
 
 }  // namespace sr::space::render
