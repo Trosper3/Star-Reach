@@ -35,24 +35,12 @@ int SheddingPriority(ModuleKind kind) {
     }
 }
 
-}  // namespace
-
-PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::entity hardpoint,
-                                              const ModuleDef& module, float mountTraverseRadians) {
-    // get_or_emplace, not emplace: RigFactory seeds HardpointMass with the shell's own mass
-    // before this runs, and this call needs to add on top of that, not replace it. A hardpoint
-    // that never got seeded (a live-equip test built by hand, or the shellless bare-registry
-    // unit tests in ModuleAttachmentTests.cpp) simply starts from zero.
-    registry.get_or_emplace<HardpointMass>(hardpoint).value += module.mass;
-
-    if (module.powerGeneration > 0.0f) {
-        registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
-    }
-    if (module.powerDraw > 0.0f) {
-        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
-                                               SheddingPriority(module.kind));
-    }
-
+// Attaches the role components specific to `module.kind` -- everything AttachModuleComponents
+// itself does not already handle uniformly for every kind (HardpointMass, PowerSource/PowerLoad).
+// Split out purely to keep AttachModuleComponents under architecture.md 2.2's function-length cap;
+// no independent meaning outside that caller.
+PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::entity hardpoint,
+                                            const ModuleDef& module, float mountTraverseRadians) {
     PropulsionContribution propulsion;
     switch (module.kind) {
         case ModuleKind::Weapon: {
@@ -122,6 +110,27 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
         default: break;
     }
     return propulsion;
+}
+
+}  // namespace
+
+PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::entity hardpoint,
+                                              const ModuleDef& module, float mountTraverseRadians) {
+    // get_or_emplace, not emplace: RigFactory seeds HardpointMass with the shell's own mass
+    // before this runs, and this call needs to add on top of that, not replace it. A hardpoint
+    // that never got seeded (a live-equip test built by hand, or the shellless bare-registry
+    // unit tests in ModuleAttachmentTests.cpp) simply starts from zero.
+    registry.get_or_emplace<HardpointMass>(hardpoint).value += module.mass;
+
+    if (module.powerGeneration > 0.0f) {
+        registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
+    }
+    if (module.powerDraw > 0.0f) {
+        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
+                                               SheddingPriority(module.kind));
+    }
+
+    return AttachRoleComponents(registry, hardpoint, module, mountTraverseRadians);
 }
 
 void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,

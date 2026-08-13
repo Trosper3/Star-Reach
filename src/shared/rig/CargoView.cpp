@@ -58,6 +58,75 @@ int UnitsPerSlot(float slotCapacity, float unitMass) {
     return static_cast<int>(slotCapacity / unitMass);
 }
 
+struct TopUp {
+    entt::entity hardpoint;
+    std::size_t index;
+    int amount;
+};
+struct NewSlot {
+    entt::entity hardpoint;
+    int amount;
+};
+
+// Deposit pass 1: top up an existing matching stack with room. Module stacks never merge
+// (ItemStack's comment), so this is a no-op for ItemKind::Module. Returns true if a matching
+// stack was seen at all -- even one already full -- for Deposit's HoldFull/NoFreeSlot call.
+bool TopUpMatchingStacks(entt::registry& registry, const std::vector<entt::entity>& bays,
+                         const ItemStack& stack, int& remaining, std::vector<TopUp>& topUps) {
+    bool sawMatchingStack = false;
+    if (stack.kind != ItemKind::Material) {
+        return sawMatchingStack;
+    }
+    for (const entt::entity hardpoint : bays) {
+        CargoHold& cargo = registry.get<CargoHold>(hardpoint);
+        for (std::size_t i = 0; i < cargo.stacks.size() && remaining > 0; ++i) {
+            const ItemStack& existing = cargo.stacks[i];
+            if (existing.kind != ItemKind::Material || existing.id != stack.id) {
+                continue;
+            }
+            sawMatchingStack = true;
+            const float usedMass = static_cast<float>(existing.quantity) * existing.unitMass;
+            const float roomMass = cargo.slotCapacity - usedMass;
+            const int roomUnits =
+                stack.unitMass > 0.0f ? static_cast<int>(roomMass / stack.unitMass) : remaining;
+            const int take = std::max(0, std::min(remaining, roomUnits));
+            if (take == 0) {
+                continue;
+            }
+            topUps.push_back({hardpoint, i, take});
+            remaining -= take;
+        }
+    }
+    return sawMatchingStack;
+}
+
+// Deposit pass 2: place whatever remains into free slots, emptiest-bay-first (`bays` is
+// pre-sorted), splitting across bays -- and, for a bulk deposit, across multiple slots within one
+// bay -- as needed. Returns true if any free slot was seen at all, for the same classification.
+bool FillFreeSlots(const entt::registry& registry, const std::vector<entt::entity>& bays,
+                   const ItemStack& stack, int& remaining, std::vector<NewSlot>& newSlots) {
+    bool sawFreeSlot = false;
+    for (const entt::entity hardpoint : bays) {
+        const CargoHold& cargo = registry.get<CargoHold>(hardpoint);
+        int freeSlots = cargo.slotCount - static_cast<int>(cargo.stacks.size());
+        while (remaining > 0 && freeSlots > 0) {
+            sawFreeSlot = true;
+            const int perSlot = UnitsPerSlot(cargo.slotCapacity, stack.unitMass);
+            const int take = std::max(0, std::min(remaining, perSlot));
+            if (take == 0) {
+                break;  // Not even one unit fits this bay's slotCapacity -- try the next bay.
+            }
+            newSlots.push_back({hardpoint, take});
+            remaining -= take;
+            --freeSlots;
+            if (stack.kind == ItemKind::Module) {
+                break;  // A module stack is always exactly one unit; never split further.
+            }
+        }
+    }
+    return sawFreeSlot;
+}
+
 }  // namespace
 
 float Capacity(const entt::registry& registry, entt::entity rigRoot) {
@@ -88,66 +157,10 @@ DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, const Item
     SortEmptiestFirst(registry, bays);
 
     int remaining = stack.quantity;
-    bool sawFreeSlot = false;
-    bool sawMatchingStack = false;
-
-    struct TopUp {
-        entt::entity hardpoint;
-        std::size_t index;
-        int amount;
-    };
-    struct NewSlot {
-        entt::entity hardpoint;
-        int amount;
-    };
     std::vector<TopUp> topUps;
     std::vector<NewSlot> newSlots;
-
-    // Pass 1: top up an existing matching stack with room. Module stacks never merge (ItemStack's
-    // comment), so this pass is a no-op for ItemKind::Module.
-    if (stack.kind == ItemKind::Material) {
-        for (const entt::entity hardpoint : bays) {
-            CargoHold& cargo = registry.get<CargoHold>(hardpoint);
-            for (std::size_t i = 0; i < cargo.stacks.size() && remaining > 0; ++i) {
-                const ItemStack& existing = cargo.stacks[i];
-                if (existing.kind != ItemKind::Material || existing.id != stack.id) {
-                    continue;
-                }
-                sawMatchingStack = true;
-                const float usedMass = static_cast<float>(existing.quantity) * existing.unitMass;
-                const float roomMass = cargo.slotCapacity - usedMass;
-                const int roomUnits =
-                    stack.unitMass > 0.0f ? static_cast<int>(roomMass / stack.unitMass) : remaining;
-                const int take = std::max(0, std::min(remaining, roomUnits));
-                if (take == 0) {
-                    continue;
-                }
-                topUps.push_back({hardpoint, i, take});
-                remaining -= take;
-            }
-        }
-    }
-
-    // Pass 2: place whatever remains into free slots, emptiest-bay-first, splitting across bays
-    // (and, for a bulk deposit, across multiple slots within one bay) as needed.
-    for (const entt::entity hardpoint : bays) {
-        const CargoHold& cargo = registry.get<CargoHold>(hardpoint);
-        int freeSlots = cargo.slotCount - static_cast<int>(cargo.stacks.size());
-        while (remaining > 0 && freeSlots > 0) {
-            sawFreeSlot = true;
-            const int perSlot = UnitsPerSlot(cargo.slotCapacity, stack.unitMass);
-            const int take = std::max(0, std::min(remaining, perSlot));
-            if (take == 0) {
-                break;  // Not even one unit fits this bay's slotCapacity -- try the next bay.
-            }
-            newSlots.push_back({hardpoint, take});
-            remaining -= take;
-            --freeSlots;
-            if (stack.kind == ItemKind::Module) {
-                break;  // A module stack is always exactly one unit; never split further.
-            }
-        }
-    }
+    const bool sawMatchingStack = TopUpMatchingStacks(registry, bays, stack, remaining, topUps);
+    const bool sawFreeSlot = FillFreeSlots(registry, bays, stack, remaining, newSlots);
 
     if (remaining > 0) {
         // Something existed to place against (a free slot or a matching stack) but still wasn't
