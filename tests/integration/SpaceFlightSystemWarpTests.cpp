@@ -6,7 +6,6 @@
 #include "core/galaxy/WreckRecord.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
-#include "modes/space/factories/RigFactory.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Transform.h"
@@ -17,7 +16,7 @@ using sr::BlueprintRef;
 using sr::DeathWreck;
 using sr::ElementStack;
 using sr::ModuleId;
-using sr::PlayerControlled;
+using sr::PlayerLocation;
 using sr::SystemWarpRequest;
 using sr::Vec2;
 using sr::Wallet;
@@ -26,7 +25,6 @@ using sr::core::ContentLibrary;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::space::SpaceFlight;
-namespace rig_factory = sr::space::rig_factory;
 
 namespace {
 
@@ -37,21 +35,13 @@ ContentLibrary Content() {
     return library;
 }
 
-// Spawns the player rig directly via RigFactory rather than through SpaceFlight::OnEnter, which
-// is still a stub (pre-existing gap, unrelated to system warp -- see its own comment).
-entt::entity SpawnPlayer(SpaceFlight& game, const ContentLibrary& content) {
-    rig_factory::SpawnParams params;
-    params.blueprint = BlueprintId("aegis_vanguard");
-    params.position = {0.0f, 0.0f};
-    const auto result = rig_factory::Spawn(game.World(), content, params);
-    REQUIRE(result.ok());
-    game.World().Registry().emplace<PlayerControlled>(result.root);
-    return result.root;
-}
-
+// `OnEnter` itself spawns the player rig now (architecture.md 12.24 step 1); tests locate it by
+// `PlayerLocation`, the source-of-truth component that write site emplaces (12.30.1). No test
+// spawns a second rig by hand -- that produced two player-shaped entities disagreeing about which
+// one `WarpToSystem` should carry across.
 entt::entity FindPlayer(entt::registry& registry) {
     entt::entity player = entt::null;
-    for (auto [entity] : registry.view<PlayerControlled>().each()) {
+    for (const entt::entity entity : registry.view<PlayerLocation>()) {
         player = entity;
     }
     return player;
@@ -62,18 +52,20 @@ entt::entity FindPlayer(entt::registry& registry) {
 TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and Wallet",
           "[spaceflight][warp]") {
     // Cargo is deliberately NOT asserted here -- architecture.md 12.23 moved CargoHold onto
-    // per-bay hardpoints, which RigFactory::Spawn always rebuilds empty from the blueprint, and
-    // aegis_vanguard authors no CargoBay module yet regardless. Carrying cargo across a warp is a
-    // documented, accepted gap pending P12.31's RigState (SpaceFlight.h's own comment).
+    // per-bay hardpoints, which RigFactory::Spawn always rebuilds empty from the blueprint.
+    // Carrying cargo across a warp is a documented, accepted gap pending P12.31's RigState
+    // (SpaceFlight.h's own comment).
     const ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
     SpaceFlight game(content, economy, wreckLedger);
     game.OnEnter();
 
-    const entt::entity original = SpawnPlayer(game, content);
-    game.World().Registry().emplace<Wallet>(original, 250);
-    game.World().Registry().emplace<SystemWarpRequest>(original, "kepler", Vec2{10.0f, 0.0f}, 0.0f);
+    entt::registry& before = game.World().Registry();
+    const entt::entity original = FindPlayer(before);
+    REQUIRE((original != entt::null));
+    before.get<Wallet>(original).credits = 250;
+    before.emplace<SystemWarpRequest>(original, "kepler", Vec2{10.0f, 0.0f}, 0.0f);
 
     game.Update(0.0f);
 
@@ -96,7 +88,8 @@ TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[space
     SpaceFlight game(content, economy, wreckLedger);
     game.OnEnter();
 
-    const entt::entity player = SpawnPlayer(game, content);
+    const entt::entity player = FindPlayer(game.World().Registry());
+    REQUIRE((player != entt::null));
 
     const entt::entity wreck = game.World().Registry().create();
     game.World().Registry().emplace<WorldTransform>(wreck, Vec2{500.0f, 500.0f}, 0.0f);
@@ -123,7 +116,8 @@ TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player r
     SpaceFlight game(content, economy, wreckLedger);
     game.OnEnter();
 
-    entt::entity player = SpawnPlayer(game, content);
+    entt::entity player = FindPlayer(game.World().Registry());
+    REQUIRE((player != entt::null));
     const entt::entity wreck = game.World().Registry().create();
     game.World().Registry().emplace<WorldTransform>(wreck, Vec2{500.0f, 500.0f}, 0.0f);
     DeathWreck deathWreck;

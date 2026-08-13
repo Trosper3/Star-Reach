@@ -9,6 +9,8 @@
 #include "core/time/FixedTimestep.h"
 #include "modes/IGameMode.h"
 #include "modes/space/data/SystemWorld.h"
+#include "shared/blueprints/Ids.h"
+#include "shared/components/Loot.h"
 #include "shared/math/Vec2.h"
 
 namespace sr::space {
@@ -56,6 +58,24 @@ public:
     float InterpolationAlpha() const { return clock_.Alpha(); }
 
 private:
+    // The blueprint a fresh game starts the player in. No character-selection flow exists yet
+    // (pre-existing gap, out of this class's scope) -- this is the one hardcoded starting point.
+    static constexpr const char* kStartingBlueprint = "aegis_vanguard";
+
+    // Populates `world_` (already reset to `targetSystemId` by the caller) via
+    // `world_gen::PopulateSystem`, then spawns the player's rig via `rig_factory::Spawn` and
+    // emplaces `Wallet` + `PlayerLocation` on it -- the shared body `OnEnter` and `WarpToSystem`
+    // both need (architecture.md 12.24 step 1). Not `PlayerControlled`: architecture.md 12.30.1
+    // makes `PlayerLocation` the sole source of truth and `PlayerControlled` derived from it
+    // (P4-01) -- emplacing both here would let the two disagree about where the player is.
+    //
+    // Seeded from `targetSystemId` alone via `std::hash<std::string>` -- the same placeholder
+    // `WarpToSystem` used before this was extracted (architecture.md 12.24 step 1's warning: one
+    // bug to fix later, not two), pending §12.17's real galaxy topology.
+    void SpawnPlayerInto(const std::string& targetSystemId, const BlueprintId& blueprint,
+                         const FactionId& faction, Vec2 spawnPosition, float spawnRotation,
+                         Wallet wallet);
+
     // Tears down `world_` and stands up `targetSystemId`'s in its place: demotes every DeathWreck
     // left behind into wreckLedger_ (#80), re-spawns the player from their BlueprintRef/FactionRef
     // with Wallet carried over, and promotes any wrecks the destination is owed back into

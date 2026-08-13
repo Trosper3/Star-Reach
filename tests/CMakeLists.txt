@@ -80,6 +80,7 @@ add_executable(sr_tests
     integration/StationServicesSystemTests.cpp
     integration/WorldGenTests.cpp
     integration/SpaceFlightSystemWarpTests.cpp
+    integration/SpaceFlightOnEnterTests.cpp
     unit/EconomyModelTests.cpp
 )
 

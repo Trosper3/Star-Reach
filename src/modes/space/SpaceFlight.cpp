@@ -25,9 +25,16 @@ SpaceFlight::SpaceFlight(const core::ContentLibrary& content,
     : world_("sol", "Sol"), content_(content), economy_(economy), wreckLedger_(wreckLedger) {}
 
 void SpaceFlight::OnEnter() {
-    // Factories populate the world here once they land (first vertical slice, step 5-7):
-    // WorldGen seeds the system, ShipFactory instantiates the player rig from its blueprint,
-    // NpcFactory adds the opposition. Nothing is constructed inline in this file -- Law 5.
+    // Reset before populating, not just on the way out: without this, entering a second time in
+    // the same process (architecture.md 12.29 -- quit to main menu, then start a new game)
+    // populates the new system on top of whatever `world_`/`clock_` still held from the last one,
+    // producing two suns and two players sharing a registry. §12.29 imposes this requirement on
+    // step 1 even though the quit-to-menu path itself lands later.
+    world_ = SystemWorld("sol", "Sol");
+    clock_ = core::FixedTimestep{};
+
+    SpawnPlayerInto("sol", BlueprintId(kStartingBlueprint), FactionId{}, Vec2{0.0f, 0.0f}, 0.0f,
+                    Wallet{});
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
@@ -67,12 +74,46 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     intents_.Clear();
 }
 
+void SpaceFlight::SpawnPlayerInto(const std::string& targetSystemId, const BlueprintId& blueprint,
+                                  const FactionId& faction, Vec2 spawnPosition, float spawnRotation,
+                                  Wallet wallet) {
+    // Seeded from the target system's id alone, not a real galaxy coordinate -- there is no
+    // system-adjacency/topology store yet to derive a proper core::galaxy::Seeding cascade from
+    // (architecture.md section 12.5's noted follow-up). Deterministic per id in the meantime.
+    const unsigned int seed = static_cast<unsigned int>(std::hash<std::string>{}(targetSystemId));
+    world_gen::PopulateSystem(world_, content_, seed);
+
+    const rig_factory::SpawnResult spawned = rig_factory::Spawn(
+        world_, content_,
+        rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
+    if (!spawned.ok()) {
+        return;  // Unreachable in practice -- the blueprint just came from a live rig or content.
+    }
+
+    entt::registry& arriving = world_.Registry();
+    // Wallet carries over on a warp; cargo does not. CargoHold now lives per cargo-bay hardpoint
+    // (architecture.md 12.23), and RigFactory::Spawn rebuilds every hardpoint (cargo bay
+    // included) empty from the blueprint -- there is nothing on the departing rig to copy forward
+    // the way a single root-level CargoHold used to be. This is the documented, accepted gap
+    // architecture.md 12.23 itself names: per-bay carry-over belongs in P12.31's RigState (a
+    // per-mount delta against a BlueprintId, which already has to carry
+    // MountedModules/ShellInstance too), not a regression introduced here -- hardpoint
+    // damage/refits already don't carry over for the identical reason (this class's own doc
+    // comment on WarpToSystem).
+    arriving.emplace<Wallet>(spawned.root, wallet);
+    // Not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole source of
+    // truth and PlayerControlled a derived tag (P4-01) -- writing both here would let them
+    // disagree about where the player is. Self-referential for a fighter: there is no separate
+    // cockpit hardpoint entity yet, so the rig root is its own "shell".
+    arriving.emplace<PlayerLocation>(spawned.root, PlayerLocation{spawned.root});
+}
+
 void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition,
                                float spawnRotation) {
     entt::registry& departing = world_.Registry();
 
     entt::entity player = entt::null;
-    for (auto [entity] : departing.view<PlayerControlled>().each()) {
+    for (const entt::entity entity : departing.view<PlayerLocation>()) {
         player = entity;
         break;
     }
@@ -101,32 +142,10 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     // survives this line except what was captured above. `departing` is dangling after this.
     world_ = SystemWorld(targetSystemId);
 
-    // Seeded from the target system's id alone, not a real galaxy coordinate -- there is no
-    // system-adjacency/topology store yet to derive a proper core::galaxy::Seeding cascade from
-    // (architecture.md section 12.5's noted follow-up). Deterministic per id in the meantime.
-    const unsigned int seed = static_cast<unsigned int>(std::hash<std::string>{}(targetSystemId));
-    world_gen::PopulateSystem(world_, content_, seed);
-
-    const rig_factory::SpawnResult spawned = rig_factory::Spawn(
-        world_, content_,
-        rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
-    if (!spawned.ok()) {
-        return;  // Unreachable in practice -- the blueprint just came from a live rig.
-    }
-
-    entt::registry& arriving = world_.Registry();
-    arriving.emplace<PlayerControlled>(spawned.root);
-    // Wallet carries over; cargo does not. CargoHold now lives per cargo-bay hardpoint
-    // (architecture.md 12.23), and RigFactory::Spawn rebuilds every hardpoint empty from the
-    // blueprint -- there is nothing on `player` to copy forward the way a single root-level
-    // CargoHold used to be. This is the documented, accepted gap architecture.md 12.23 itself
-    // names: per-bay carry-over belongs in P12.31's RigState (a per-mount delta against a
-    // BlueprintId, which already has to carry MountedModules/ShellInstance too), not a
-    // regression introduced here -- hardpoint damage/refits already don't carry over for the
-    // identical reason (WarpToSystem's own doc comment, SpaceFlight.h).
-    arriving.emplace<Wallet>(spawned.root, wallet);
+    SpawnPlayerInto(targetSystemId, blueprint, faction, spawnPosition, spawnRotation, wallet);
 
     // Promote every wreck this system is owed back into an entity now that it's resident again.
+    entt::registry& arriving = world_.Registry();
     for (const core::galaxy::WreckLedger::Id id : wreckLedger_.IdsForSystem(targetSystemId)) {
         if (const core::galaxy::WreckRecord* record = wreckLedger_.Find(id)) {
             loot_system::PromoteDeathWreck(arriving, *record);
@@ -153,6 +172,14 @@ void SpaceFlight::Draw() const {
     ui::bridge_view::Draw(world_.Registry());
 }
 
-void SpaceFlight::OnExit() {}
+void SpaceFlight::OnExit() {
+    // Releases the world eagerly rather than waiting for the next OnEnter -- architecture.md
+    // 12.29 (quit to main menu). OnEnter resets `world_`/`clock_` again on its own before
+    // populating, so this isn't load-bearing for re-entrancy by itself, but it frees the
+    // departed system's registry the moment the player leaves rather than holding it alive at
+    // the main menu for no reason.
+    world_ = SystemWorld("sol", "Sol");
+    intents_.Clear();
+}
 
 }  // namespace sr::space
