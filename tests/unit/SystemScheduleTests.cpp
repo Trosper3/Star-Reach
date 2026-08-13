@@ -15,20 +15,43 @@ namespace {
 // the number of *System.h files under modes/space/systems/, excluding System.h and
 // SystemSchedule.h itself.
 constexpr std::array<std::string_view, 31> kExpectedSystems{
-    "WarpSystem",         "ConstructionSystem", "ModuleEquipSystem",     "PowerSystem",
-    "SpawnSystem",        "OrbitSystem",        "PhysicsSystem",         "HierarchySystem",
-    "HazardSystem",       "DockingSystem",      "EngineerSystem",        "RefactorSystem",
-    "StationServicesSystem", "TargetingSystem", "NpcAiSystem",           "WeaponSystem",
-    "CollisionSystem",    "ProjectileSystem",   "PartySystem",           "DamageSystem",
-    "TutorialSystem",     "MiningSystem",       "ContractSystem",        "DistressSystem",
-    "LootSystem",         "CommsSystem",        "FactionEconomySystem",  "DiscoverySystem",
-    "CommanderSystem",    "ResearchSystem",     "TemplateMarketSystem",
+    "WarpSystem",
+    "ConstructionSystem",
+    "ModuleEquipSystem",
+    "PowerSystem",
+    "SpawnSystem",
+    "OrbitSystem",
+    "PhysicsSystem",
+    "HierarchySystem",
+    "HazardSystem",
+    "DockingSystem",
+    "EngineerSystem",
+    "RefactorSystem",
+    "StationServicesSystem",
+    "TargetingSystem",
+    "NpcAiSystem",
+    "WeaponSystem",
+    "CollisionSystem",
+    "ProjectileSystem",
+    "PartySystem",
+    "DamageSystem",
+    "TutorialSystem",
+    "MiningSystem",
+    "ContractSystem",
+    "DistressSystem",
+    "LootSystem",
+    "CommsSystem",
+    "FactionEconomySystem",
+    "DiscoverySystem",
+    "CommanderSystem",
+    "ResearchSystem",
+    "TemplateMarketSystem",
 };
 
 std::size_t IndexOf(std::string_view name) {
     const auto& schedule = TickSchedule();
     const auto it = std::find_if(schedule.begin(), schedule.end(),
-                                  [name](const ScheduledSystem& s) { return s.name == name; });
+                                 [name](const ScheduledSystem& s) { return s.name == name; });
     REQUIRE(it != schedule.end());
     return static_cast<std::size_t>(it - schedule.begin());
 }
@@ -40,8 +63,9 @@ TEST_CASE("Every expected system appears in the schedule exactly once", "[schedu
     REQUIRE(schedule.size() == kExpectedSystems.size());
 
     for (std::string_view expected : kExpectedSystems) {
-        const auto count = std::count_if(schedule.begin(), schedule.end(),
-                                          [expected](const ScheduledSystem& s) { return s.name == expected; });
+        const auto count =
+            std::count_if(schedule.begin(), schedule.end(),
+                          [expected](const ScheduledSystem& s) { return s.name == expected; });
         CHECK(count == 1);
     }
 }
