@@ -10,17 +10,22 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
+#include "shared/math/Angle.h"
 #include "shared/rig/ModuleAttachment.h"
 
 using Catch::Approx;
 using sr::BodyMass;
 using sr::Destroyed;
 using sr::EnginePropulsion;
+using sr::FireControl;
 using sr::HardpointMass;
+using sr::HardpointSensorRange;
 using sr::ModuleDef;
 using sr::ModuleKind;
 using sr::Propulsion;
 using sr::Rig;
+using sr::SensorRange;
 using sr::rig_attachment::AttachModuleComponents;
 using sr::rig_attachment::DetachModuleComponents;
 using sr::rig_attachment::RecomputeRigTotals;
@@ -72,6 +77,121 @@ TEST_CASE("AttachModuleComponents accumulates the module's mass onto HardpointMa
     AttachModuleComponents(registry, hardpoint, armor, 0.0f);
 
     CHECK(registry.get<HardpointMass>(hardpoint).value == Approx(14.0f));
+}
+
+TEST_CASE("AttachModuleComponents caches a Sensor module's range as HardpointSensorRange",
+          "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef sensor;
+    sensor.kind = ModuleKind::Sensor;
+    sensor.sensor.range = 2000.0f;
+
+    AttachModuleComponents(registry, hardpoint, sensor, 0.0f);
+
+    REQUIRE(registry.all_of<HardpointSensorRange>(hardpoint));
+    CHECK(registry.get<HardpointSensorRange>(hardpoint).value == Approx(2000.0f));
+}
+
+TEST_CASE(
+    "AttachModuleComponents applies FireControl's turnRatePerSecond to a co-mounted Weapon "
+    "regardless of attach order",
+    "[module-attach]") {
+    ModuleDef weapon;
+    weapon.kind = ModuleKind::Weapon;
+    ModuleDef fireControl;
+    fireControl.kind = ModuleKind::FireControl;
+    fireControl.fireControl.turnRatePerSecond = 4.0f;
+
+    SECTION("Weapon attaches first") {
+        entt::registry registry;
+        const entt::entity hardpoint = registry.create();
+        AttachModuleComponents(registry, hardpoint, weapon, 0.0f);
+        AttachModuleComponents(registry, hardpoint, fireControl, 0.0f);
+
+        REQUIRE(registry.all_of<sr::FiringArc>(hardpoint));
+        CHECK(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(4.0f));
+    }
+
+    SECTION("FireControl attaches first") {
+        entt::registry registry;
+        const entt::entity hardpoint = registry.create();
+        AttachModuleComponents(registry, hardpoint, fireControl, 0.0f);
+        AttachModuleComponents(registry, hardpoint, weapon, 0.0f);
+
+        REQUIRE(registry.all_of<sr::FiringArc>(hardpoint));
+        CHECK(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(4.0f));
+    }
+}
+
+TEST_CASE("A Weapon with no co-mounted FireControl gets the un-augmented kPi traverse baseline",
+          "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef weapon;
+    weapon.kind = ModuleKind::Weapon;
+
+    AttachModuleComponents(registry, hardpoint, weapon, 0.0f);
+
+    CHECK(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(sr::kPi));
+}
+
+TEST_CASE("DetachModuleComponents removes FireControl and reverts FiringArc to the kPi baseline",
+          "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef weapon;
+    weapon.kind = ModuleKind::Weapon;
+    ModuleDef fireControl;
+    fireControl.kind = ModuleKind::FireControl;
+    fireControl.fireControl.turnRatePerSecond = 4.0f;
+    AttachModuleComponents(registry, hardpoint, weapon, 0.0f);
+    AttachModuleComponents(registry, hardpoint, fireControl, 0.0f);
+    REQUIRE(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(4.0f));
+
+    DetachModuleComponents(registry, hardpoint, fireControl);
+
+    CHECK_FALSE(registry.all_of<FireControl>(hardpoint));
+    CHECK(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(sr::kPi));
+}
+
+TEST_CASE(
+    "Sensor, CargoBay, FireControl and Hyperdrive land in the correct power-shedding priority "
+    "band",
+    "[module-attach]") {
+    // architecture.md 12.23: FireControl joins Weapon's band; Sensor/CargoBay/Hyperdrive join
+    // Facility's -- no fifth category. Higher sheds later (ModuleAttachment.cpp's SheddingPriority
+    // doc comment), so this also orders the four relative to a plain Facility and a Weapon.
+    entt::registry registry;
+
+    ModuleDef facility;
+    facility.kind = ModuleKind::Facility;
+    facility.powerDraw = 1.0f;
+    const entt::entity facilityHp = registry.create();
+    AttachModuleComponents(registry, facilityHp, facility, 0.0f);
+
+    ModuleDef weapon;
+    weapon.kind = ModuleKind::Weapon;
+    weapon.powerDraw = 1.0f;
+    const entt::entity weaponHp = registry.create();
+    AttachModuleComponents(registry, weaponHp, weapon, 0.0f);
+
+    auto priorityOf = [&](ModuleKind kind) {
+        ModuleDef module;
+        module.kind = kind;
+        module.powerDraw = 1.0f;
+        const entt::entity hardpoint = registry.create();
+        AttachModuleComponents(registry, hardpoint, module, 0.0f);
+        return registry.get<sr::PowerLoad>(hardpoint).priority;
+    };
+
+    const int facilityPriority = registry.get<sr::PowerLoad>(facilityHp).priority;
+    const int weaponPriority = registry.get<sr::PowerLoad>(weaponHp).priority;
+
+    CHECK(priorityOf(ModuleKind::Sensor) == facilityPriority);
+    CHECK(priorityOf(ModuleKind::CargoBay) == facilityPriority);
+    CHECK(priorityOf(ModuleKind::Hyperdrive) == facilityPriority);
+    CHECK(priorityOf(ModuleKind::FireControl) == weaponPriority);
 }
 
 TEST_CASE("AttachModuleComponents writes PowerSource/PowerLoad based on the module's stats",
@@ -151,6 +271,7 @@ TEST_CASE(
     const entt::entity root = registry.create();
     registry.emplace<BodyMass>(root);
     registry.emplace<Propulsion>(root);
+    registry.emplace<SensorRange>(root);
 
     // Three engine hardpoints of equal thrust plus one inert armor hardpoint. One engine is
     // already dead -- its mass and thrust must not count.
@@ -170,17 +291,31 @@ TEST_CASE(
     const entt::entity armor = registry.create();
     registry.emplace<HardpointMass>(armor, 20.0f);
 
-    registry.emplace<Rig>(root, std::vector<entt::entity>{engineA, engineB, deadEngine, armor});
+    // Two sensor hardpoints of different range -- Max rule, and a dead one that must not count.
+    const entt::entity sensorA = registry.create();
+    registry.emplace<HardpointSensorRange>(sensorA, 1500.0f);
+
+    const entt::entity sensorB = registry.create();
+    registry.emplace<HardpointSensorRange>(sensorB, 2500.0f);
+
+    const entt::entity deadSensor = registry.create();
+    registry.emplace<HardpointSensorRange>(deadSensor, 5000.0f);
+    registry.emplace<Destroyed>(deadSensor);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{engineA, engineB, deadEngine, armor,
+                                                          sensorA, sensorB, deadSensor});
 
     RecomputeRigTotals(registry, root);
 
-    // Mass: Sum rule, dead hardpoint excluded (5 + 5 + 20, not 5 + 5 + 5 + 20).
+    // Mass: Sum rule, dead hardpoints excluded (5 + 5 + 20, not 5 + 5 + 5 + 20).
     CHECK(registry.get<BodyMass>(root).kilograms == Approx(30.0f));
     // Thrust/torque: Sum rule across the two living engines.
     CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(200.0f));
     CHECK(registry.get<Propulsion>(root).turnTorque == Approx(20.0f));
     // maxSpeed: Max rule, not Sum -- two identical engines do not raise the ceiling.
     CHECK(registry.get<Propulsion>(root).maxSpeed == Approx(300.0f));
+    // SensorRange: Max rule, and the dead sensor's higher range must not win.
+    CHECK(registry.get<SensorRange>(root).units == Approx(2500.0f));
 }
 
 TEST_CASE(

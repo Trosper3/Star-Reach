@@ -47,6 +47,19 @@ struct FacilityStats {
     int level = 1;
 };
 
+struct SensorStats {
+    // Max-aggregated onto the rig's SensorRange (architecture.md 12.23) -- two sensor arrays do
+    // not see twice as far.
+    float range = 0.0f;
+};
+
+struct FireControlStats {
+    // Applied directly to the co-mounted Weapon's FiringArc::turnRatePerSecond, replacing the
+    // un-augmented baseline (architecture.md 12.23). Per-hardpoint, not rig-aggregated -- a
+    // FireControl module only ever helps the turret it shares a mount with.
+    float turnRatePerSecond = 0.0f;
+};
+
 // The authored definition of a module: the functional half of the Shell -> Component -> Module
 // model (Law 4). Loaded from data/base_game/modules.json and never constructed as a C++
 // literal outside registries and tests -- see Law 10 and tools/ci/check_content_pipeline.py.
@@ -68,6 +81,8 @@ struct ModuleDef {
     ShieldStats shield;
     EngineStats engine;
     FacilityStats facility;
+    SensorStats sensor;
+    FireControlStats fireControl;
 };
 
 }  // namespace sr

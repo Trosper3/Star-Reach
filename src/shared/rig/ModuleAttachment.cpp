@@ -9,6 +9,7 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Targeting.h"
 #include "shared/math/Angle.h"
 
 namespace sr::rig_attachment {
@@ -16,12 +17,18 @@ namespace {
 
 // Load-shedding order, consumed by PowerSystem. Higher sheds LAST, so a browning-out rig loses
 // facilities first and engines last -- moved here verbatim from RigFactory.cpp's identical
-// helper, since both attach paths need the same order.
+// helper, since both attach paths need the same order. architecture.md 12.23: FireControl joins
+// Weapon's band (part of the gunnery chain); Sensor/CargoBay/Hyperdrive join Facility's (shed
+// first, non-combat) -- no fifth category for the four new kinds.
 int SheddingPriority(ModuleKind kind) {
     switch (kind) {
-        case ModuleKind::Facility: return 0;
+        case ModuleKind::Facility:
+        case ModuleKind::Sensor:
+        case ModuleKind::CargoBay:
+        case ModuleKind::Hyperdrive: return 0;
         case ModuleKind::ShieldGenerator: return 1;
-        case ModuleKind::Weapon: return 2;
+        case ModuleKind::Weapon:
+        case ModuleKind::FireControl: return 2;
         case ModuleKind::Engine: return 3;
         default: return 1;
     }
@@ -53,7 +60,12 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
                                                 stats.fireIntervalSeconds, stats.projectileSpeed,
                                                 stats.rangeUnits, stats.spreadRadians,
                                                 stats.projectilesPerShot, 0.0f);
-            registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, kPi);
+            // A FireControl module may already be mounted on this hardpoint -- mount.modules'
+            // authored order is not guaranteed -- in which case its rate applies immediately
+            // instead of the kPi un-augmented baseline (a manually slaved turret's traverse).
+            const auto* fireControl = registry.try_get<FireControl>(hardpoint);
+            const float turnRate = fireControl != nullptr ? fireControl->turnRatePerSecond : kPi;
+            registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, turnRate);
             break;
         }
         case ModuleKind::ShieldGenerator: {
@@ -81,6 +93,21 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }
             break;
+        case ModuleKind::Sensor:
+            // Cached, not returned -- RecomputeRigTotals reads this back later without needing
+            // the ModuleDef again, the same shape as EnginePropulsion above.
+            registry.emplace_or_replace<HardpointSensorRange>(hardpoint, module.sensor.range);
+            break;
+        case ModuleKind::FireControl:
+            registry.emplace_or_replace<FireControl>(hardpoint,
+                                                     module.fireControl.turnRatePerSecond);
+            // The reverse order: a Weapon already sitting on this hardpoint gets its FiringArc
+            // updated directly, since that Weapon's own AttachModuleComponents call already ran
+            // and cannot be retriggered.
+            if (auto* arc = registry.try_get<FiringArc>(hardpoint)) {
+                arc->turnRatePerSecond = module.fireControl.turnRatePerSecond;
+            }
+            break;
         default: break;
     }
     return propulsion;
@@ -106,6 +133,15 @@ void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
             registry.remove<FacilityRef>(hardpoint);
             registry.remove<DockingBay>(hardpoint);
             break;
+        case ModuleKind::Sensor: registry.remove<HardpointSensorRange>(hardpoint); break;
+        case ModuleKind::FireControl:
+            registry.remove<FireControl>(hardpoint);
+            // Revert to the un-augmented baseline rather than leaving the co-mounted Weapon's
+            // FiringArc at a rate nothing authored anymore.
+            if (auto* arc = registry.try_get<FiringArc>(hardpoint)) {
+                arc->turnRatePerSecond = kPi;
+            }
+            break;
         default: break;
     }
 }
@@ -117,6 +153,7 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
     }
 
     float mass = 0.0f;
+    float sensorRange = 0.0f;
     Propulsion propulsion;
     for (const entt::entity hardpoint : rig->children) {
         if (registry.all_of<Destroyed>(hardpoint)) {
@@ -130,6 +167,9 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
             propulsion.turnTorque += engine->turnTorque;
             propulsion.maxSpeed = std::max(propulsion.maxSpeed, engine->maxSpeed);
         }
+        if (const auto* sensor = registry.try_get<HardpointSensorRange>(hardpoint)) {
+            sensorRange = std::max(sensorRange, sensor->value);
+        }
     }
 
     if (auto* bodyMass = registry.try_get<BodyMass>(rigRoot)) {
@@ -137,6 +177,9 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
     }
     if (auto* rigPropulsion = registry.try_get<Propulsion>(rigRoot)) {
         *rigPropulsion = propulsion;
+    }
+    if (auto* rigSensor = registry.try_get<SensorRange>(rigRoot)) {
+        rigSensor->units = sensorRange;
     }
 }
 

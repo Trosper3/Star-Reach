@@ -20,6 +20,7 @@ namespace {
 struct RigAggregate {
     float mass = 0.0f;
     float extent = 0.0f;
+    float sensorRange = 0.0f;
     Propulsion propulsion;
 };
 
@@ -43,6 +44,12 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
         aggregate.propulsion.turnTorque += propulsion.turnTorque;
         aggregate.propulsion.maxSpeed =
             std::max(aggregate.propulsion.maxSpeed, propulsion.maxSpeed);
+    }
+    // A Sensor module writes HardpointSensorRange directly (rig_attachment::AttachModuleComponents
+    // -- Rig.h), not a return value like propulsion above; read it back the same way
+    // RecomputeRigTotals does later, so a fresh build and a live refit Max the same way.
+    if (const auto* sensor = registry.try_get<HardpointSensorRange>(hardpoint)) {
+        aggregate.sensorRange = std::max(aggregate.sensorRange, sensor->value);
     }
 }
 
@@ -154,7 +161,9 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     registry.emplace<PowerBudget>(root);
     registry.emplace<Target>(root);
     registry.emplace<Targetable>(root);
-    registry.emplace<SensorRange>(root, 2000.0f);
+    // Max-aggregated from mounted Sensor modules (architecture.md 12.23), zero for a rig with
+    // none -- no longer a hardcoded stand-in value.
+    registry.emplace<SensorRange>(root, aggregate.sensorRange);
 
     // Always emplaced, on every root -- a rig moves because it has living engines, not because a
     // blueprint flag says it may (architecture.md 12.25). A station's aggregate.propulsion stays
