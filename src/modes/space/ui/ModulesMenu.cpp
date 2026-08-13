@@ -1,5 +1,6 @@
 #include "modes/space/ui/ModulesMenu.h"
 
+#include "shared/components/Identity.h"
 #include "shared/components/Rig.h"
 #include "shared/ui/Widgets.h"
 
@@ -74,7 +75,15 @@ void Draw(const Rectangle& bounds, const entt::registry& registry, entt::entity 
             rows.push_back(row);
         }
     }
-    sr::ui::DrawListView(content, rows, 0.0f, "NO MODULES EQUIPPED");
+    for (const entt::entity mount : EquippableMounts(registry, rigRoot)) {
+        sr::ui::Row row;
+        if (const MountRef* ref = registry.try_get<MountRef>(mount)) {
+            row.label = ref->id.str();
+        }
+        row.value = "EMPTY";
+        rows.push_back(row);
+    }
+    sr::ui::DrawListView(content, rows, 0.0f, "NO MOUNTS AVAILABLE");
 }
 
 }  // namespace sr::space::ui::modules_menu

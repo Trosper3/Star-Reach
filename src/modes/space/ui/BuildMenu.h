@@ -1,6 +1,7 @@
 #pragma once
 
 #include <raylib.h>
+#include <vector>
 
 #include "shared/blueprints/Ids.h"
 #include "shared/components/Construction.h"
@@ -15,15 +16,20 @@
 // modes/space/systems/ConstructionSystem directly.
 namespace sr::space::ui::build_menu {
 
-// True when `wallet` can afford `cost` -- what Draw gates the Build button on before it ever
-// builds a request. Pure -- no raylib -- so unit-testable.
-bool CanAfford(const Wallet& wallet, int cost);
+// True when `wallet` can afford `cost` and `cargo` holds at least `materialCost`'s quantity of
+// every entry -- what Draw gates the Build button on before it ever builds a request. Pure -- no
+// raylib -- so unit-testable. `materialCost` is caller-supplied, the same reason
+// BuildStationRequest/PlaceShipRequest's own `cost` is (their doc comment): no per-blueprint
+// price registry exists yet.
+bool CanAfford(const Wallet& wallet, int cost, const CargoHold& cargo,
+               const std::vector<ItemStack>& materialCost);
 
 BuildStationRequest BuildStationBuildRequest(const BlueprintId& blueprint, Vec2 position,
                                              float rotation, int cost);
 PlaceShipRequest BuildPlaceShipRequest(const BlueprintId& blueprint, Vec2 position, float rotation,
                                        int cost);
 
-void Draw(const Rectangle& bounds, const Wallet& wallet, int cost);
+void Draw(const Rectangle& bounds, const Wallet& wallet, int cost, const CargoHold& cargo,
+          const std::vector<ItemStack>& materialCost);
 
 }  // namespace sr::space::ui::build_menu

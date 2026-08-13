@@ -87,7 +87,8 @@
           "shell": "shell_wing_hardpoint",
           "attachedTo": "core",
           "modules": ["autocannon_i"],
-          "localOffset": { "x": 16.0, "y": 0.0 }
+          "localOffset": { "x": 16.0, "y": 0.0 },
+          "traverseRadians": 0.35
         }
       ]
     },
@@ -118,6 +119,14 @@
           "attachedTo": "core",
           "modules": ["docking_bay_i"],
           "localOffset": { "x": 30.0, "y": 0.0 }
+        },
+        {
+          "id": "turret",
+          "shell": "shell_wing_hardpoint",
+          "attachedTo": "core",
+          "modules": ["pulse_cannon_i"],
+          "localOffset": { "x": 0.0, "y": -30.0 },
+          "traverseRadians": 0.35
         }
       ]
     }

@@ -62,7 +62,7 @@ FakeLibrary MakeLibrary() {
 }
 
 sr::MountBlueprint Mount(const char* id, const char* shell, const char* attachedTo,
-                         const std::vector<const char*>& modules) {
+                         const std::vector<const char*>& modules, float traverseRadians = 0.0f) {
     sr::MountBlueprint mount;
     mount.id = sr::MountId(id);
     mount.shell = sr::ShellId(shell);
@@ -70,6 +70,7 @@ sr::MountBlueprint Mount(const char* id, const char* shell, const char* attached
     for (const char* module : modules) {
         mount.modules.push_back(sr::ModuleId(module));
     }
+    mount.traverseRadians = traverseRadians;
     return mount;
 }
 
@@ -84,7 +85,7 @@ sr::ShipBlueprint MakeValidShip() {
         Mount("core", "chassis", "", {"plate"}),
         Mount("reactor", "power_bay", "core", {"cell"}),
         Mount("thruster_main", "thruster", "core", {"engine"}),
-        Mount("gun_nose", "gun", "core", {"cannon"}),
+        Mount("gun_nose", "gun", "core", {"cannon"}, 0.35f),
     };
     return bp;
 }
@@ -206,6 +207,25 @@ TEST_CASE("A module may not mount in an incompatible shell", "[validation]") {
     bp.rig.mounts[1].modules = {sr::ModuleId("cannon")};  // A weapon in a power bay.
 
     CHECK(sr::Validate(bp, library).HasRule(sr::ValidationRule::ModuleCompatibility));
+}
+
+TEST_CASE("A weapon mount with no authored traverse fails validation, naming the mount",
+          "[validation]") {
+    const FakeLibrary library = MakeLibrary();
+    sr::ShipBlueprint bp = MakeValidShip();
+    bp.rig.mounts.back().traverseRadians = 0.0f;  // gun_nose, omitted rather than authored.
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    REQUIRE(result.HasRule(sr::ValidationRule::WeaponTraverse));
+
+    bool named = false;
+    for (const auto& error : result.errors) {
+        if (error.rule == sr::ValidationRule::WeaponTraverse &&
+            error.message.find("gun_nose") != std::string::npos) {
+            named = true;
+        }
+    }
+    CHECK(named);
 }
 
 TEST_CASE("A mount may not exceed its shell's slot count", "[validation]") {

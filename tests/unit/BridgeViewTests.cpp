@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstddef>
+
 #include <entt/entity/registry.hpp>
 
 #include "modes/space/ui/BridgeView.h"
@@ -78,4 +80,28 @@ TEST_CASE("AvailableTabs de-duplicates two hardpoints of the same kind", "[bridg
     const auto tabs = AvailableTabs(registry, root);
     REQUIRE(tabs.size() == 1);
     CHECK(tabs[0] == FacilityKind::Repair);
+}
+
+TEST_CASE("AvailableTabs returns all six kinds when all six live", "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    Rig rig;
+
+    constexpr FacilityKind kAllKinds[] = {
+        FacilityKind::Repair,  FacilityKind::Manufacturing, FacilityKind::Research,
+        FacilityKind::Docking, FacilityKind::Storage,       FacilityKind::Engineering,
+    };
+    for (FacilityKind kind : kAllKinds) {
+        const entt::entity hardpoint = registry.create();
+        registry.emplace<FacilityRef>(hardpoint, kind);
+        rig.children.push_back(hardpoint);
+    }
+
+    registry.emplace<Rig>(root, std::move(rig));
+
+    const auto tabs = AvailableTabs(registry, root);
+    REQUIRE(tabs.size() == 6);
+    for (std::size_t i = 0; i < 6; ++i) {
+        CHECK(tabs[i] == kAllKinds[i]);
+    }
 }
