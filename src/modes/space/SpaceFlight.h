@@ -57,6 +57,11 @@ public:
     core::IntentQueue& Intents() { return intents_; }
     float InterpolationAlpha() const { return clock_.Alpha(); }
 
+    // The raw (un-interpolated) tick position Update() last read off the player's WorldTransform
+    // (architecture.md 12.24 step 3). Draw() blends this toward the player's live transform by
+    // InterpolationAlpha() each frame rather than storing an already-interpolated value here.
+    Vec2 CameraTarget() const { return cameraTarget_; }
+
 private:
     // The blueprint a fresh game starts the player in. No character-selection flow exists yet
     // (pre-existing gap, out of this class's scope) -- this is the one hardcoded starting point.

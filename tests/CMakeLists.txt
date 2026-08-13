@@ -82,6 +82,7 @@ add_executable(sr_tests
     integration/WorldGenTests.cpp
     integration/SpaceFlightSystemWarpTests.cpp
     integration/SpaceFlightOnEnterTests.cpp
+    integration/SpaceFlightCameraTests.cpp
     unit/EconomyModelTests.cpp
 )
 

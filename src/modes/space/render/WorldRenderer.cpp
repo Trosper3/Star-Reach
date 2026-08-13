@@ -107,34 +107,29 @@ void DrawWorldBodies(const entt::registry& registry, float alpha) {
     }
 }
 
-// Rig roots: a nose-forward triangle when the rig has visible thrust, sized by the broad-phase
-// collision radius (Physics.h), and a disc otherwise -- so a station reads as a hulk instead of
-// an arrowhead, and shooting a ship's engines out visibly turns it into one too (features.md
-// section 3.2's stated consequence, rendered, for free). The player's rig is cyan so it reads
-// distinctly against NPC opposition without needing a HUD marker yet (shared/ui/ exists now, but
-// modes/space/ui/ -- the thing that would actually draw one -- is still a separate, dependent
-// issue).
+// Rig roots: a short heading line when the rig has visible thrust, nothing otherwise. The hull
+// itself is `DrawHardpoints`' per-hardpoint circles below -- those are what ProjectileSystem
+// actually tests. An earlier version of this function drew a triangle (or, unpropelled, a disc)
+// sized by the broad-phase CollisionRadius, which is the rig's *maximum* reach across every
+// hardpoint; the flanks of that shape routinely extended past what any individual hardpoint's
+// HitRadius covered, so a shot could visibly cross the drawn hull without touching the tested one
+// (architecture.md 13.3 finding AB). features.md section 3.5 settles this: draw exactly what you
+// test, and show heading with a marker rather than by shaping the hull.
 void DrawShips(const entt::registry& registry, float alpha) {
     for (auto [entity, xf, prev, radius] :
          registry.view<WorldTransform, PreviousTransform, CollisionRadius>(entt::exclude<Destroyed>)
              .each()) {
+        if (!HasVisiblePropulsion(registry, entity)) {
+            continue;
+        }
+
         const Vec2 position = InterpolatedPosition(xf, prev, alpha);
         const float rotation = InterpolatedRotation(xf, prev, alpha);
         const Color baseColor = registry.all_of<PlayerControlled>(entity) ? SKYBLUE : ORANGE;
         const Color color = ApplyBrightness(baseColor, LightForObject(registry, position));
 
-        if (!HasVisiblePropulsion(registry, entity)) {
-            DrawCircleV(ToRaylib(position), radius.value, color);
-            continue;
-        }
-
         const Vec2 nose = position + Rotated(Vec2{radius.value, 0.0f}, rotation);
-        const Vec2 left =
-            position + Rotated(Vec2{-radius.value * 0.7f, radius.value * 0.6f}, rotation);
-        const Vec2 right =
-            position + Rotated(Vec2{-radius.value * 0.7f, -radius.value * 0.6f}, rotation);
-
-        DrawTriangle(ToRaylib(nose), ToRaylib(left), ToRaylib(right), color);
+        DrawLineV(ToRaylib(position), ToRaylib(nose), color);
     }
 }
 

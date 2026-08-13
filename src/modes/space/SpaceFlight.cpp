@@ -16,9 +16,24 @@
 #include "modes/space/ui/FlightControls.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
+#include "shared/components/Transform.h"
 #include "shared/components/Warp.h"
 
 namespace sr::space {
+namespace {
+
+// The player's rig-root entity, found the same way WarpToSystem finds it: by PlayerLocation, not
+// PlayerControlled -- architecture.md 12.30.1 makes PlayerLocation the sole source of truth, and
+// nothing derives PlayerControlled yet (P4-01, still open). entt::null if OnEnter hasn't placed a
+// player.
+entt::entity FindPlayer(const entt::registry& registry) {
+    for (const entt::entity entity : registry.view<PlayerLocation>()) {
+        return entity;
+    }
+    return entt::null;
+}
+
+}  // namespace
 
 SpaceFlight::SpaceFlight(const core::ContentLibrary& content,
                          core::economy::FactionEconomy& economy,
@@ -53,6 +68,14 @@ void SpaceFlight::Update(float realDeltaSeconds) {
         const SystemContext ctx{
             world_, intents_, content_, core::kFixedDeltaSeconds, clock_.ElapsedTicks(), &economy_};
         RunTick(ctx);
+    }
+
+    // architecture.md 12.24 step 3: the raw (un-interpolated) tick position. Draw() blends this
+    // tick's WorldTransform against the player's PreviousTransform using alpha, same as every
+    // sprite WorldRenderer draws -- snapping cameraTarget_ straight to WorldTransform here would
+    // judder against interpolated sprites between ticks.
+    if (const entt::entity player = FindPlayer(world_.Registry()); player != entt::null) {
+        cameraTarget_ = world_.Registry().get<WorldTransform>(player).position;
     }
 
     // Copied out before WarpToSystem runs, never read from `request` after: WarpToSystem replaces
@@ -163,14 +186,24 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
 void SpaceFlight::Draw() const {
     // Camera math belongs in this file (Law 7); the draw calls themselves belong in
     // modes/space/render/.
-    const render::CameraView camera{cameraTarget_, cameraZoom_};
     const float alpha = InterpolationAlpha();
+
+    // Interpolated here, not in Update() -- cameraTarget_ holds the raw tick position; blending
+    // it toward the player's live WorldTransform by alpha every frame is what keeps the camera in
+    // lockstep with WorldRenderer's own per-sprite interpolation instead of trailing it.
+    Vec2 cameraPosition = cameraTarget_;
+    const entt::registry& registry = world_.Registry();
+    if (const entt::entity player = FindPlayer(registry); player != entt::null) {
+        if (const auto* prev = registry.try_get<PreviousTransform>(player)) {
+            cameraPosition = Lerp(prev->position, registry.get<WorldTransform>(player).position, alpha);
+        }
+    }
+    const render::CameraView camera{cameraPosition, cameraZoom_};
     render::DrawWorld(world_, camera, alpha);
     // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world space
     // to screen space itself, so its reticle stays a fixed pixel size under zoom instead of
     // scaling with the world like WorldRenderer's sprites do.
-    render::DrawAimReticle(world_.Registry(), camera);
-    render::DrawWorld(world_, render::CameraView{cameraTarget_, cameraZoom_}, InterpolationAlpha());
+    render::DrawAimReticle(registry, camera);
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
     ui::cockpit_hud::Draw(world_.Registry());
