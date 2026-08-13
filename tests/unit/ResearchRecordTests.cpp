@@ -13,7 +13,7 @@ TEST_CASE("ResearchLedger returns a stored record by its id", "[research]") {
     record.systemId = "sol";
     record.item = ModuleId("pulse_cannon_i");
     record.progress = 4.0f;
-    record.cost = 10.0f;
+    record.durationSeconds = 10.0f;
     record.targetNetwork = KnowledgeNetworkId("player-network");
 
     const ResearchLedger::Id id = ledger.Add(record);
@@ -23,7 +23,7 @@ TEST_CASE("ResearchLedger returns a stored record by its id", "[research]") {
     CHECK(found->systemId == "sol");
     CHECK(found->item == ModuleId("pulse_cannon_i"));
     CHECK(found->progress == 4.0f);
-    CHECK(found->cost == 10.0f);
+    CHECK(found->durationSeconds == 10.0f);
     CHECK(found->targetNetwork == KnowledgeNetworkId("player-network"));
 }
 
