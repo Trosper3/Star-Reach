@@ -20,6 +20,7 @@ add_executable(sr_tests
     unit/FixedTimestepTests.cpp
     unit/IntentQueueTests.cpp
     unit/SystemWorldTests.cpp
+    unit/SystemScheduleTests.cpp
     unit/CollisionSystemTests.cpp
     unit/HazardSystemTests.cpp
     unit/HierarchySystemTests.cpp

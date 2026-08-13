@@ -83,6 +83,10 @@ Testing/
 __pycache__/
 *.py[cod]
 
+# Claude Code hook state (.claude/hooks/*.py mark this stale on C++ edits, cleared on
+# sr_tests runs -- local scratch, not repo content)
+.claude/build-stale.flag
+
 # IDEs and Editors
 .vscode/
 .idea/
