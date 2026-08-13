@@ -2,6 +2,7 @@
 
 #include <raylib.h>
 #include <algorithm>
+#include <cstddef>
 #include <string>
 
 #include "shared/components/Docking.h"
@@ -17,8 +18,13 @@ namespace {
 // hardpoints are destroyed and rebuilt across a session.
 constexpr FacilityKind kAllKinds[] = {
     FacilityKind::Repair,  FacilityKind::Manufacturing, FacilityKind::Research,
-    FacilityKind::Docking, FacilityKind::Storage,
+    FacilityKind::Docking, FacilityKind::Storage,       FacilityKind::Engineering,
 };
+// Catches the next FacilityKind addition at compile time instead of silently missing a tab
+// (architecture.md 13.5 group 2: this list already fell one enumerator behind once).
+static_assert(sizeof(kAllKinds) / sizeof(kAllKinds[0]) ==
+                  static_cast<std::size_t>(FacilityKind::Engineering) + 1,
+              "kAllKinds must list every FacilityKind enumerator");
 
 constexpr float kPanelWidth = 360.0f;
 constexpr float kPanelTop = 80.0f;

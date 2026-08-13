@@ -2,13 +2,31 @@
 
 #include "modes/space/ui/BuildMenu.h"
 
+using sr::CargoHold;
+using sr::ItemKind;
+using sr::ItemStack;
 using sr::Wallet;
 namespace build_menu = sr::space::ui::build_menu;
 
 TEST_CASE("CanAfford is true only when the wallet covers the cost", "[build-menu]") {
-    CHECK(build_menu::CanAfford(Wallet{500}, 500));
-    CHECK(build_menu::CanAfford(Wallet{600}, 500));
-    CHECK_FALSE(build_menu::CanAfford(Wallet{400}, 500));
+    CHECK(build_menu::CanAfford(Wallet{500}, 500, CargoHold{}, {}));
+    CHECK(build_menu::CanAfford(Wallet{600}, 500, CargoHold{}, {}));
+    CHECK_FALSE(build_menu::CanAfford(Wallet{400}, 500, CargoHold{}, {}));
+}
+
+TEST_CASE("CanAfford also requires the cargo hold to cover the material cost", "[build-menu]") {
+    CargoHold cargo;
+    cargo.stacks.push_back(ItemStack{ItemKind::Element, "Fe", 10, 1.0f});
+    const std::vector<ItemStack> materialCost{{ItemKind::Element, "Fe", 5, 0.0f}};
+
+    CHECK(build_menu::CanAfford(Wallet{500}, 500, cargo, materialCost));
+    CHECK_FALSE(build_menu::CanAfford(Wallet{400}, 500, cargo, materialCost));
+
+    const std::vector<ItemStack> tooMuch{{ItemKind::Element, "Fe", 20, 0.0f}};
+    CHECK_FALSE(build_menu::CanAfford(Wallet{500}, 500, cargo, tooMuch));
+
+    const std::vector<ItemStack> notHeld{{ItemKind::Element, "Si", 1, 0.0f}};
+    CHECK_FALSE(build_menu::CanAfford(Wallet{500}, 500, cargo, notHeld));
 }
 
 TEST_CASE("BuildStationBuildRequest/BuildPlaceShipRequest carry their fields through",

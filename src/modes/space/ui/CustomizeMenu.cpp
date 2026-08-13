@@ -60,7 +60,8 @@ void Draw(const ShipBlueprint& draft, const DefLibrary& library) {
     const ValidationResult result = Validate(draft, library);
 
     const Rectangle bounds{40.0f, 40.0f, 360.0f,
-                           40.0f + static_cast<float>(draft.rig.mounts.size()) * 20.0f};
+                           40.0f + static_cast<float>(draft.rig.mounts.size()) * 20.0f +
+                               static_cast<float>(result.errors.size()) * 16.0f};
     sr::ui::DrawBracketPanel(bounds, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
 
     DrawText(draft.displayName.empty() ? "New Template" : draft.displayName.c_str(),
@@ -73,9 +74,18 @@ void Draw(const ShipBlueprint& draft, const DefLibrary& library) {
                  static_cast<int>(bounds.y) + 32 + static_cast<int>(i) * 20, 12, sr::ui::kLabelDim);
     }
 
-    const Color saveColor = result.ok() ? sr::ui::kStatusGood : sr::ui::kStatusCritical;
-    DrawText(result.ok() ? "SAVE" : "INVALID", static_cast<int>(bounds.x) + 12,
-             static_cast<int>(bounds.y + bounds.height) + 8, 14, saveColor);
+    int errorY = static_cast<int>(bounds.y) + 32 + static_cast<int>(draft.rig.mounts.size()) * 20;
+    for (const ValidationError& error : result.errors) {
+        const std::string ruleName(ToString(error.rule));
+        DrawText(ruleName.c_str(), static_cast<int>(bounds.x) + 12, errorY, 12,
+                 sr::ui::kStatusCritical);
+        errorY += 16;
+    }
+
+    if (result.ok()) {
+        DrawText("SAVE", static_cast<int>(bounds.x) + 12,
+                 static_cast<int>(bounds.y + bounds.height) + 8, 14, sr::ui::kStatusGood);
+    }
 }
 
 }  // namespace sr::space::ui::customize_menu

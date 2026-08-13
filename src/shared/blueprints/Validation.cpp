@@ -201,6 +201,36 @@ void CheckRequiredShells(const ShipBlueprint& bp, const DefLibrary& library,
     }
 }
 
+// A weapon-shell mount carrying a resolvable module must author a positive traverseRadians
+// (architecture.md 13.3 finding W, 13.4 decision 5). Before this, an omitted field defaulted to
+// the same 0.0f RigBlueprint.h documents as "fixed forward with no traverse" -- indistinguishable
+// from a gun nobody remembered to aim, and the omission was silent.
+void CheckWeaponTraverse(const ShipBlueprint& bp, const DefLibrary& library,
+                         ValidationResult& result) {
+    for (const auto& mount : bp.rig.mounts) {
+        const ShellDef* shell = library.FindShell(mount.shell);
+        if (shell == nullptr || shell->kind != ShellKind::Weapon) {
+            continue;
+        }
+        bool hasWeaponModule = false;
+        for (const auto& moduleId : mount.modules) {
+            if (library.FindModule(moduleId) != nullptr) {
+                hasWeaponModule = true;
+                break;
+            }
+        }
+        if (!hasWeaponModule) {
+            continue;
+        }
+        if (mount.traverseRadians <= 0.0f) {
+            Add(result, ValidationRule::WeaponTraverse,
+                "Mount '" + mount.id.str() +
+                    "' carries a weapon module but authors no traverseRadians.",
+                mount.id);
+        }
+    }
+}
+
 // Rules 3 and 4 -- the two design-facing ones. This is the constraints puzzle.
 void CheckBudgets(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
     const RigTotals totals = ComputeTotals(bp, library);
@@ -232,6 +262,7 @@ std::string_view ToString(ValidationRule rule) {
         case ValidationRule::Identity: return "Identity";
         case ValidationRule::MountCapacity: return "MountCapacity";
         case ValidationRule::ModuleCompatibility: return "ModuleCompatibility";
+        case ValidationRule::WeaponTraverse: return "WeaponTraverse";
     }
     return "Unknown";
 }
@@ -271,6 +302,7 @@ ValidationResult Validate(const ShipBlueprint& bp, const DefLibrary& library) {
     CheckMountParents(bp, result);
     CheckAdjacency(bp, result);
     CheckMounting(bp, library, result);
+    CheckWeaponTraverse(bp, library, result);
     CheckRequiredShells(bp, library, result);
     CheckBudgets(bp, library, result);
     return result;
