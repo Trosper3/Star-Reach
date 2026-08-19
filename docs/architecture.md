@@ -7760,12 +7760,15 @@ respawn — placement resolves in this order:
    bay instead of the station center), so the ship reads as having just launched from the bay rather
    than materializing on top of the station's hull. If that exact point is contested, fall back to
    `FindSafePlacement`'s existing ring search — centered on the bay-exit point, not the station root.
-2. **No friendly `DockingBay` in the system: show the player warping in.** No visual for this exists
-   today — `WarpToSystem` swaps `SystemWorld`s instantaneously, with no animation anywhere in
-   `render/`. This section settles the *placement* half only (fall back to a plain hazard-clear
-   position — near whatever `SpawnAnchor` is nearest, or system center if none exists at all) and
-   **names the warp-in presentation as an explicit, unowned gap** rather than silently shipping a
-   teleport and calling the requirement met (§2.4). No task currently builds it.
+2. **No friendly `DockingBay` in the system: fall back to the nearest `SpawnAnchor`'s ring search**
+   (the pre-existing behavior). **If neither a friendly bay nor any `SpawnAnchor` exists at all,**
+   a respawn is left pending and retried the following tick — the same "no anchor yet" behavior
+   the code already had, now also covering "no bay yet" — while `OnEnter()`, which has no tick to
+   retry on, falls back to its own reference position at the call site. Showing the player warping
+   in for this case has no visual anywhere today — `WarpToSystem` swaps `SystemWorld`s
+   instantaneously, with no animation anywhere in `render/`. **Named here as an explicit, unowned
+   gap** rather than silently shipping a teleport and calling the requirement met (§2.4). No task
+   currently builds it.
 
 **Why this replaces the ring-search wholesale, not just for `OnEnter`:** a respawning player and a
 first-time player are the identical event from the placement algorithm's point of view — "the player
