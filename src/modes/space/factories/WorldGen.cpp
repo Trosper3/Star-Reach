@@ -220,11 +220,28 @@ Vec2 PickNpcPosition(Rng& rng, const std::vector<Vec2>& placed) {
     return candidate;
 }
 
+// Mobile blueprints only -- content.ShipIds() returns every authored ship, station blueprints
+// (aegis_outpost) included, and nothing about "NPC presence" should ever be able to roll one.
+// Found the hard way: on a std::hash<std::string> implementation that differs from the one this
+// was first tested against, a different seed landed on exactly that roll, producing a second,
+// fully dockable station wandering the system as an "NPC" -- std::hash's value is not portable
+// across standard library implementations, so this was always going to happen on some platform.
+std::vector<BlueprintId> MobileShipIds(const core::ContentLibrary& content) {
+    std::vector<BlueprintId> ids;
+    for (const BlueprintId& id : content.ShipIds()) {
+        const ShipBlueprint* blueprint = content.FindShip(id);
+        if (blueprint != nullptr && blueprint->mobile) {
+            ids.push_back(id);
+        }
+    }
+    return ids;
+}
+
 void SpawnNpcPresence(SystemWorld& world, const core::ContentLibrary& content, Rng& rng,
                       int count) {
-    const std::vector<BlueprintId> shipIds = content.ShipIds();
+    const std::vector<BlueprintId> shipIds = MobileShipIds(content);
     if (shipIds.empty()) {
-        return;  // No content loaded -- nothing to spawn from.
+        return;  // No mobile content loaded -- nothing to spawn from.
     }
 
     std::vector<Vec2> placed;

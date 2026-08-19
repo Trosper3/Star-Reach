@@ -78,18 +78,21 @@ private:
     static constexpr ActorId kLocalPlayerActorId{1};
 
     // Populates `world_` (already reset to `targetSystemId` by the caller) via
-    // `world_gen::PopulateSystem`, then spawns the player's rig via `rig_factory::Spawn` and
-    // emplaces `Wallet` + `PlayerLocation` on it -- the shared body `OnEnter` and `WarpToSystem`
-    // both need (architecture.md 12.24 step 1). Not `PlayerControlled`: architecture.md 12.30.1
-    // makes `PlayerLocation` the sole source of truth and `PlayerControlled` derived from it
-    // (P4-01) -- emplacing both here would let the two disagree about where the player is.
-    //
-    // Seeded from `targetSystemId` alone via `std::hash<std::string>` -- the same placeholder
-    // `WarpToSystem` used before this was extracted (architecture.md 12.24 step 1's warning: one
-    // bug to fix later, not two), pending §12.17's real galaxy topology.
-    void SpawnPlayerInto(const std::string& targetSystemId, const BlueprintId& blueprint,
-                         const FactionId& faction, Vec2 spawnPosition, float spawnRotation,
-                         Wallet wallet);
+    // `world_gen::PopulateSystem`. Seeded from `targetSystemId` alone via `std::hash<std::string>`
+    // -- the same placeholder `WarpToSystem` used before this was extracted (architecture.md
+    // 12.24 step 1's warning: one bug to fix later, not two), pending §12.17's real galaxy
+    // topology. Split from the spawn half below (architecture.md 12.36) so a caller can resolve a
+    // spawn placement against the freshly-populated registry -- world_gen::DockingBay/SpawnAnchor
+    // entities -- before a rig exists to place.
+    void PopulateWorld(const std::string& targetSystemId);
+
+    // Spawns the player's rig via `rig_factory::Spawn` and emplaces `Wallet` + `PlayerLocation` on
+    // it -- the shared body `OnEnter` and `WarpToSystem` both need (architecture.md 12.24 step 1).
+    // Not `PlayerControlled`: architecture.md 12.30.1 makes `PlayerLocation` the sole source of
+    // truth and `PlayerControlled` derived from it (P4-01) -- emplacing both here would let the
+    // two disagree about where the player is. Assumes `world_` is already populated.
+    void SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& faction, Vec2 spawnPosition,
+                       float spawnRotation, Wallet wallet);
 
     // Tears down `world_` and stands up `targetSystemId`'s in its place: demotes every DeathWreck
     // left behind into wreckLedger_ (#80), re-spawns the player from their BlueprintRef/FactionRef

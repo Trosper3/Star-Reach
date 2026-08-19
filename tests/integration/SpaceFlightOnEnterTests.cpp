@@ -6,18 +6,25 @@
 #include "core/galaxy/WreckRecord.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Spawn.h"
+#include "shared/components/Transform.h"
+#include "shared/math/Vec2.h"
 #include "shared/rig/CargoView.h"
 
+using sr::Distance;
+using sr::DockingBay;
 using sr::GravityWell;
 using sr::PlayerLocation;
 using sr::Rig;
 using sr::SpawnAnchor;
+using sr::Vec2;
 using sr::Wallet;
+using sr::WorldTransform;
 using sr::core::ContentLibrary;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
@@ -106,4 +113,32 @@ TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflig
 
     CHECK(registry.all_of<Wallet>(player));
     CHECK(sr::cargo_view::Capacity(registry, player) > 0.0f);
+}
+
+TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station's docking bay",
+          "[spaceflight][onenter]") {
+    // architecture.md 12.36 / issue #160: OnEnter used to hardcode Vec2{0, 0} -- the sun's own
+    // position (WorldGen.cpp's SpawnSun) -- placing the player inside the corona (1200 units)
+    // from the first frame, burning every hardpoint before the player could react.
+    const ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    SpaceFlight game(content, economy, wreckLedger);
+
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    const entt::entity player = FindPlayer(registry);
+    REQUIRE((player != entt::null));
+    const Vec2 playerPos = registry.get<WorldTransform>(player).position;
+
+    // WorldGen.cpp's kCoronaRange -- not exported, repeated here as a literal the way this file's
+    // other cases already pin down world-gen's tuned constants (kNpcBandMin/Max above).
+    CHECK(Distance(playerPos, Vec2{0.0f, 0.0f}) > 1200.0f);
+
+    const auto bays = registry.view<DockingBay, WorldTransform>();
+    REQUIRE(std::distance(bays.begin(), bays.end()) == 1);
+    for (auto [bay, bayXf] : bays.each()) {
+        CHECK(Distance(playerPos, bayXf.position) < 300.0f);
+    }
 }

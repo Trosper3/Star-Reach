@@ -25,6 +25,7 @@ using sr::Asteroid;
 using sr::AsteroidComposition;
 using sr::BodyKind;
 using sr::DockingBay;
+using sr::FactionId;
 using sr::FactionRef;
 using sr::GravityWell;
 using sr::Health;
@@ -173,6 +174,10 @@ TEST_CASE("PopulateSystem's station gives SpawnSystem an anchor to resolve again
     // architecture.md 13.3 R: SpawnSystem was wholly inert because SpawnAnchor had zero producers
     // -- FindNearestAnchor returned false and RespawnPending never resolved. This exercises the
     // real generated world end to end, not a hand-built anchor.
+    //
+    // architecture.md 12.36: the respawning rig's faction deliberately does NOT match the
+    // station's (aegis_directorate), so ResolveSpawnPlacement's DockingBay-exit tier finds no
+    // friendly bay and falls through to this test's actual subject, the anchor tier.
     const ContentLibrary content = Content();
     SystemWorld world("sol");
 
@@ -185,6 +190,7 @@ TEST_CASE("PopulateSystem's station gives SpawnSystem an anchor to resolve again
     const entt::entity respawning = registry.create();
     registry.emplace<WorldTransform>(respawning, sr::Vec2{50000.0f, 50000.0f}, 0.0f);
     registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, FactionId("unaligned"));
 
     sr::core::IntentQueue intents;
     spawn_system::Tick(SystemContext{world, intents, content, 1.0f / 60.0f, 0});
