@@ -66,11 +66,9 @@ entt::entity FindCoveringShield(const entt::registry& registry, entt::entity har
 }
 
 // Splits `pending` between the shield covering this hardpoint (architecture.md 12.22) and the
-// hull beneath it, per features.md section 3.1: matching damage type is absorbed first; a
-// mismatch bypasses it entirely.
-// Splits `pending` between a matching shield and the hull/power beneath it, per architecture.md
-// 12.33's generic damage-type effect table -- a single lookup replaces the old exact-type-match
-// branch, and `effect` (the default row for Kinetic/Energy) reproduces that old behavior exactly.
+// hull/power beneath it, per architecture.md 12.33's generic damage-type effect table -- a single
+// lookup replaces the old exact-type-match branch, and `effect` (the default row for
+// Kinetic/Energy) reproduces that old behavior exactly.
 void ApplyToHealthAndShield(entt::registry& registry, entt::entity hardpoint,
                             const PendingDamage& pending, Health& health,
                             const core::DamageTypeEffect& effect) {
@@ -80,19 +78,13 @@ void ApplyToHealthAndShield(entt::registry& registry, entt::entity hardpoint,
     const entt::entity coveringShield = FindCoveringShield(registry, hardpoint);
     if (coveringShield != entt::null) {
         auto& shield = registry.get<Shield>(coveringShield);
-        if (shield.current > 0.0f && shield.absorbs == pending.type) {
-            const float absorbed = std::min(shield.current, pending.amount);
+        if (shield.current > 0.0f &&
+            (shield.absorbs == pending.type || effect.alwaysAbsorbedByAnyShield)) {
+            wasAbsorbed = true;
+            absorbed = std::min(shield.current, pending.amount);
             shield.current -= absorbed;
             shield.rechargeCooldown = shield.rechargeDelaySeconds;
-            hullDamage -= absorbed;
         }
-    auto* shield = registry.try_get<Shield>(hardpoint);
-    if (shield != nullptr && shield->current > 0.0f &&
-        (shield->absorbs == pending.type || effect.alwaysAbsorbedByAnyShield)) {
-        wasAbsorbed = true;
-        absorbed = std::min(shield->current, pending.amount);
-        shield->current -= absorbed;
-        shield->rechargeCooldown = shield->rechargeDelaySeconds;
     }
 
     const float remaining = pending.amount - absorbed;
