@@ -50,4 +50,23 @@ void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
 // and losing a sensor hardpoint shrinks detection range rather than leaving it stale.
 void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot);
 
+// ~30% of aggregate structural integrity (features.md 3.2's "a ship dies before its last
+// hardpoint does") -- tunable in the 25-35% band per the same section, pending tools/economy_sim.
+// Below this, DamageSystem destroys every surviving hardpoint and the rig with them; CockpitHud
+// normalizes its displayed bar against it so the bar reaches a true zero at the failure point
+// rather than at raw zero.
+inline constexpr float kStructuralFailureThreshold = 0.30f;
+
+// Sum of LIVING (non-Destroyed) hardpoint health over total hardpoint health across rigRoot's
+// Rig::children (features.md 3.2's structural-integrity formula) -- derived, never stored. A
+// hardpoint tagged Destroyed this tick contributes zero to the numerator regardless of whatever
+// its own Health::current still reads (StructuralAttachment cascade tags Destroyed without
+// zeroing Health), but its max still counts -- the rig's total capacity does not shrink because a
+// piece of it died. Returns 0 for a rig with no Health-bearing hardpoints (a root with no
+// children yet, not a crash). Pure -- no raylib, no UI type -- so both DamageSystem (destruction)
+// and CockpitHud (the same aggregate's display) can read it without either depending on the other
+// (architecture.md 2.3: modes/space/systems/ may not include sibling ui/, and ui/ may not include
+// systems/).
+float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity rigRoot);
+
 }  // namespace sr::rig_attachment

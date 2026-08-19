@@ -32,6 +32,10 @@ enum class ValidationRule : std::uint8_t {
                           //    -- a fixed-forward gun must be authored as such, not reached by
                           //    an omitted field silently defaulting to zero (architecture.md
                           //    13.3 finding W, 13.4 decision 5).
+    StructuralCoverage,   // 12. Chassis plus armour must cover the hull envelope: no non-
+                          //     structural mount hangs directly off another non-structural one
+                          //     with nothing structural backing it (features.md 3.2's "no bare
+                          //     sections").
 };
 
 std::string_view ToString(ValidationRule rule);

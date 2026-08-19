@@ -108,13 +108,19 @@ void ApplyToHealthAndShield(entt::registry& registry, entt::entity hardpoint,
     }
 }
 
-bool HasLivingHardpoint(const entt::registry& registry, const Rig& rig) {
+// features.md 3.2: below rig_attachment::kStructuralFailureThreshold the hull gives way --
+// every surviving hardpoint is destroyed along with the root, not just whichever ones happen to
+// have already reached zero individually. A rig with every hardpoint already gone (the old
+// HasLivingHardpoint check this replaces) is the degenerate case: its aggregate integrity is
+// already 0, so it always falls through the same path.
+void ApplyStructuralFailure(entt::registry& registry, entt::entity root, const Rig& rig) {
     for (const entt::entity child : rig.children) {
         if (registry.all_of<Health>(child) && !registry.all_of<Destroyed>(child)) {
-            return true;
+            registry.emplace<Destroyed>(child);
         }
     }
-    return false;
+    registry.remove<Targetable>(root);
+    registry.emplace_or_replace<Destroyed>(root);
 }
 
 // Destroys every hardpoint structurally attached, directly or transitively, to one that died
@@ -184,9 +190,9 @@ void Tick(const SystemContext& ctx) {
     CascadeStructuralDestruction(registry);
 
     for (auto [root, rig] : registry.view<Rig>().each()) {
-        if (!HasLivingHardpoint(registry, rig)) {
-            registry.remove<Targetable>(root);
-            registry.emplace_or_replace<Destroyed>(root);
+        if (rig_attachment::AggregateStructuralIntegrity(registry, root) <
+            rig_attachment::kStructuralFailureThreshold) {
+            ApplyStructuralFailure(registry, root, rig);
             continue;
         }
 

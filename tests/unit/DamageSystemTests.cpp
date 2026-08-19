@@ -364,6 +364,67 @@ TEST_CASE(
     CHECK_FALSE(registry.all_of<Targetable>(root));
 }
 
+TEST_CASE(
+    "DamageSystem fails a rig structurally at 29% integrity, destroying a still-living hardpoint "
+    "along with it",
+    "[damage][structural-integrity]") {
+    // features.md 3.2: "a ship dies before its last hardpoint does" -- below
+    // kStructuralFailureThreshold every surviving hardpoint is destroyed too, not just whichever
+    // ones already individually reached zero.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Targetable>(root);
+
+    const entt::entity alive = registry.create();
+    registry.emplace<Health>(alive, 29.0f, 50.0f);  // Still living going into this tick.
+
+    const entt::entity dead = registry.create();
+    registry.emplace<Health>(dead, 0.0f, 50.0f);
+    registry.emplace<Destroyed>(dead);
+
+    registry.get<Rig>(root).children = {alive, dead};
+    // (29 + 0) / (50 + 50) = 0.29 -- below the 0.30 threshold.
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(root));
+    CHECK_FALSE(registry.all_of<Targetable>(root));
+    CHECK(registry.all_of<Destroyed>(alive));
+}
+
+TEST_CASE("DamageSystem leaves a rig alive at 31% structural integrity",
+          "[damage][structural-integrity]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Targetable>(root);
+
+    const entt::entity alive = registry.create();
+    registry.emplace<Health>(alive, 31.0f, 50.0f);
+
+    const entt::entity dead = registry.create();
+    registry.emplace<Health>(dead, 0.0f, 50.0f);
+    registry.emplace<Destroyed>(dead);
+
+    registry.get<Rig>(root).children = {alive, dead};
+    // (31 + 0) / (50 + 50) = 0.31 -- above the 0.30 threshold.
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(root));
+    CHECK(registry.all_of<Targetable>(root));
+    CHECK_FALSE(registry.all_of<Destroyed>(alive));
+}
+
 TEST_CASE("DamageSystem zeroes a rig's propulsion once its last living engine hardpoint dies",
           "[damage]") {
     SystemWorld world("sol");

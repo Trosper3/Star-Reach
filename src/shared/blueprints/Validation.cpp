@@ -231,6 +231,44 @@ void CheckWeaponTraverse(const ShipBlueprint& bp, const DefLibrary& library,
     }
 }
 
+// Rule 12. The union of structural hardpoints -- chassis plus armour -- must cover the hull
+// envelope: a non-structural (not Chassis, not Armor) mount must hang directly off a structural
+// one, never off another non-structural mount with no armour or chassis between them
+// (features.md 3.2's diagram: turret and engine attach to armour, not to each other). Skips a
+// mount whose own shell, or whose parent, does not resolve -- CheckIds/CheckMountParents already
+// report those.
+void CheckStructuralCoverage(const ShipBlueprint& bp, const DefLibrary& library,
+                             ValidationResult& result) {
+    std::unordered_map<std::string, const MountBlueprint*> byId;
+    for (const auto& mount : bp.rig.mounts) {
+        byId[mount.id.str()] = &mount;
+    }
+
+    for (const auto& mount : bp.rig.mounts) {
+        if (mount.attachedTo.empty()) {
+            continue;  // The root: nothing structural to check it against.
+        }
+        const ShellDef* shell = library.FindShell(mount.shell);
+        if (shell == nullptr || shell->kind == ShellKind::Chassis ||
+            shell->kind == ShellKind::Armor) {
+            continue;
+        }
+        const auto it = byId.find(mount.attachedTo.str());
+        if (it == byId.end()) {
+            continue;  // Dangling parent -- already reported by CheckMountParents.
+        }
+        const ShellDef* parentShell = library.FindShell(it->second->shell);
+        if (parentShell != nullptr && parentShell->kind != ShellKind::Chassis &&
+            parentShell->kind != ShellKind::Armor) {
+            Add(result, ValidationRule::StructuralCoverage,
+                "Mount '" + mount.id.str() + "' hangs off '" + mount.attachedTo.str() +
+                    "', a non-structural shell -- chassis and armour must cover the hull "
+                    "envelope with no bare sections.",
+                mount.id);
+        }
+    }
+}
+
 // Rules 3 and 4 -- the two design-facing ones. This is the constraints puzzle.
 void CheckBudgets(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
     const RigTotals totals = ComputeTotals(bp, library);
@@ -263,6 +301,7 @@ std::string_view ToString(ValidationRule rule) {
         case ValidationRule::MountCapacity: return "MountCapacity";
         case ValidationRule::ModuleCompatibility: return "ModuleCompatibility";
         case ValidationRule::WeaponTraverse: return "WeaponTraverse";
+        case ValidationRule::StructuralCoverage: return "StructuralCoverage";
     }
     return "Unknown";
 }
@@ -303,6 +342,7 @@ ValidationResult Validate(const ShipBlueprint& bp, const DefLibrary& library) {
     CheckAdjacency(bp, result);
     CheckMounting(bp, library, result);
     CheckWeaponTraverse(bp, library, result);
+    CheckStructuralCoverage(bp, library, result);
     CheckRequiredShells(bp, library, result);
     CheckBudgets(bp, library, result);
     return result;

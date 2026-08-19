@@ -14,22 +14,33 @@
 namespace sr::space::projectile_system {
 namespace {
 
-// Closest-approach distance from `point` to the segment [from, to]. Used instead of an
-// end-of-step point check because projectile speeds are routinely comparable to hardpoint radii
-// over one fixed tick (900+ units/s at 60 Hz is ~15 units per step, against hardpoint radii of
-// 7-22) -- a point check alone would tunnel through anything it did not land exactly on.
-float DistanceToSegment(const Vec2& point, const Vec2& from, const Vec2& to) {
+// Closest-approach point on the segment [from, to] to `point`, as a fraction 0..1 along it, plus
+// the resulting distance. Used instead of an end-of-step point check because projectile speeds
+// are routinely comparable to hardpoint radii over one fixed tick (900+ units/s at 60 Hz is ~15
+// units per step, against hardpoint radii of 7-22) -- a point check alone would tunnel through
+// anything it did not land exactly on. `t` is also most-specific-wins' tie-break key below: two
+// hardpoints of equal radius resolve to whichever the segment reaches first.
+struct SegmentProjection {
+    float t;
+    float distance;
+};
+
+SegmentProjection ProjectOntoSegment(const Vec2& point, const Vec2& from, const Vec2& to) {
     const Vec2 segment = to - from;
     const float lengthSq = LengthSquared(segment);
     if (lengthSq <= 0.0f) {
-        return Distance(point, from);
+        return SegmentProjection{0.0f, Distance(point, from)};
     }
     const float t = std::clamp(Dot(point - from, segment) / lengthSq, 0.0f, 1.0f);
-    return Distance(point, from + segment * t);
+    return SegmentProjection{t, Distance(point, from + segment * t)};
 }
 
-// Nearest-in-iteration-order thing a shot can hit -- a hardpoint OR an asteroid, uniformly,
-// whose hit radius the segment [from, to] crosses -- skipping the shooter's own rig (Combat.h:
+// Most-specific-wins (features.md 3.5, replacing the old first-in-EnTT-iteration-order pick):
+// among every hardpoint OR asteroid, uniformly, whose hit radius the segment [from, to] crosses,
+// the one with the SMALLEST hitRadius wins -- a shot that also crosses the chassis behind a
+// turret still hits the turret, since the chassis is the structural backstop, not a fallback
+// target. Ties (equal radius) resolve to whichever the segment reaches first, so the outcome
+// never depends on EnTT's iteration order. Skips the shooter's own rig (Combat.h:
 // Projectile::shooter "used to skip self-hits"), anything already destroyed this tick, and a
 // docked rig's hardpoints (features.md 3.4's "a docked vessel is not a target," the exclusion
 // half architecture.md 12.34 specifies). entt::null if the path is clear.
@@ -42,6 +53,10 @@ float DistanceToSegment(const Vec2& point, const Vec2& from, const Vec2& to) {
 // hardpoints, which never carry it.
 entt::entity FindHit(const entt::registry& registry, const Projectile& projectile, const Vec2& from,
                      const Vec2& to) {
+    entt::entity best = entt::null;
+    float bestRadius = 0.0f;
+    float bestT = 0.0f;
+
     for (auto [hardpoint, hitRadius, hpXf] : registry.view<HitRadius, WorldTransform>().each()) {
         const auto* parent = registry.try_get<ParentRig>(hardpoint);
         const bool parentDocked = parent != nullptr && registry.all_of<Docked>(parent->root);
@@ -49,11 +64,18 @@ entt::entity FindHit(const entt::registry& registry, const Projectile& projectil
             registry.all_of<Destroyed>(hardpoint) || parentDocked) {
             continue;
         }
-        if (DistanceToSegment(hpXf.position, from, to) <= hitRadius.value) {
-            return hardpoint;
+        const SegmentProjection projection = ProjectOntoSegment(hpXf.position, from, to);
+        if (projection.distance > hitRadius.value) {
+            continue;
+        }
+        if (best == entt::null || hitRadius.value < bestRadius ||
+            (hitRadius.value == bestRadius && projection.t < bestT)) {
+            best = hardpoint;
+            bestRadius = hitRadius.value;
+            bestT = projection.t;
         }
     }
-    return entt::null;
+    return best;
 }
 
 // Accumulates rather than overwrites: two projectiles landing on the same hardpoint in the same
