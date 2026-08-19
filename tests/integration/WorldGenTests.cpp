@@ -7,18 +7,25 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/factories/WorldGen.h"
 #include "modes/space/systems/OrbitSystem.h"
+#include "modes/space/systems/SpawnSystem.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
+#include "shared/components/Loot.h"
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Spawn.h"
 #include "shared/components/Transform.h"
+#include "shared/rig/CargoView.h"
 
 using Catch::Approx;
 using sr::Asteroid;
 using sr::AsteroidComposition;
 using sr::BodyKind;
+using sr::DockingBay;
+using sr::FactionRef;
 using sr::GravityWell;
 using sr::Health;
 using sr::HitRadius;
@@ -26,6 +33,8 @@ using sr::Length;
 using sr::OrbitBody;
 using sr::PlayerControlled;
 using sr::Rig;
+using sr::RespawnPending;
+using sr::SpawnAnchor;
 using sr::Velocity;
 using sr::WorldBody;
 using sr::WorldTransform;
@@ -34,6 +43,8 @@ using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace world_gen = sr::space::world_gen;
 namespace orbit_system = sr::space::orbit_system;
+namespace spawn_system = sr::space::spawn_system;
+namespace cargo_view = sr::cargo_view;
 
 namespace {
 
@@ -98,11 +109,87 @@ TEST_CASE("PopulateSystem seeds a plausible NPC presence with no PlayerControlle
     world_gen::PopulateSystem(world, content, 42u);
 
     entt::registry& registry = world.Registry();
+    // architecture.md 12.24 step 4: the station added to PopulateSystem's output is a Rig too, so
+    // the old 3-5 NPC-only band becomes 4-6 -- one station plus 3-5 NPCs.
     const auto view = registry.view<Rig>(entt::exclude<PlayerControlled>);
     const auto count = std::distance(view.begin(), view.end());
-    CHECK(count >= 3);
-    CHECK(count <= 5);
+    CHECK(count >= 4);
+    CHECK(count <= 6);
     CHECK(registry.view<PlayerControlled>().empty());
+}
+
+TEST_CASE("PopulateSystem seeds exactly one dockable station of the player's faction",
+          "[world_gen]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+
+    world_gen::PopulateSystem(world, content, 42u);
+
+    entt::registry& registry = world.Registry();
+    // SpawnAnchor, not DockingBay: the NPC-presence roll can coincidentally also pick
+    // aegis_outpost's blueprint id off content.ShipIds() (it draws from every ShipBlueprint, not
+    // just mobile ones), which would carry a DockingBay too but never goes through
+    // station_factory::Spawn -- so it gets none of SpawnAnchor/StationFacility/Wallet/NetworkOwner.
+    // SpawnAnchor is the tag only WorldGen's own station spawn ever emplaces.
+    const auto anchorView = registry.view<SpawnAnchor>();
+    REQUIRE(std::distance(anchorView.begin(), anchorView.end()) == 1);
+    const entt::entity station = *anchorView.begin();
+
+    bool hasDockingBay = false;
+    for (const entt::entity hardpoint : registry.get<Rig>(station).children) {
+        hasDockingBay |= registry.all_of<DockingBay>(hardpoint);
+    }
+    CHECK(hasDockingBay);
+
+    const auto* playerBlueprint = content.FindShip(sr::BlueprintId("aegis_vanguard"));
+    REQUIRE(playerBlueprint != nullptr);
+    CHECK(registry.get<FactionRef>(station).id == playerBlueprint->faction);
+}
+
+TEST_CASE("PopulateSystem's station has a non-zero cargo hold that accepts and refuses deposits",
+          "[world_gen]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+
+    world_gen::PopulateSystem(world, content, 42u);
+
+    entt::registry& registry = world.Registry();
+    const auto anchorView = registry.view<SpawnAnchor>();
+    REQUIRE(std::distance(anchorView.begin(), anchorView.end()) == 1);
+    const entt::entity station = *anchorView.begin();
+
+    CHECK(cargo_view::Capacity(registry, station) > 0.0f);
+
+    const sr::ItemStack fits{sr::ItemKind::Element, "iron", 1, 4.0f};
+    CHECK(cargo_view::Deposit(registry, station, fits) == cargo_view::DepositResult::Deposited);
+
+    const sr::ItemStack doesNotFit{sr::ItemKind::Element, "iron", 1, 10000.0f};
+    CHECK(cargo_view::Deposit(registry, station, doesNotFit) ==
+          cargo_view::DepositResult::HoldFull);
+}
+
+TEST_CASE("PopulateSystem's station gives SpawnSystem an anchor to resolve against",
+          "[world_gen]") {
+    // architecture.md 13.3 R: SpawnSystem was wholly inert because SpawnAnchor had zero producers
+    // -- FindNearestAnchor returned false and RespawnPending never resolved. This exercises the
+    // real generated world end to end, not a hand-built anchor.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+
+    world_gen::PopulateSystem(world, content, 42u);
+
+    entt::registry& registry = world.Registry();
+    const auto anchorView = registry.view<SpawnAnchor>();
+    REQUIRE(std::distance(anchorView.begin(), anchorView.end()) == 1);
+
+    const entt::entity respawning = registry.create();
+    registry.emplace<WorldTransform>(respawning, sr::Vec2{50000.0f, 50000.0f}, 0.0f);
+    registry.emplace<RespawnPending>(respawning, 80.0f);
+
+    sr::core::IntentQueue intents;
+    spawn_system::Tick(SystemContext{world, intents, content, 1.0f / 60.0f, 0});
+
+    CHECK_FALSE(registry.all_of<RespawnPending>(respawning));
 }
 
 TEST_CASE(

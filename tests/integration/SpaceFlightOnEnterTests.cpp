@@ -10,11 +10,13 @@
 #include "shared/components/Loot.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Spawn.h"
 #include "shared/rig/CargoView.h"
 
 using sr::GravityWell;
 using sr::PlayerLocation;
 using sr::Rig;
+using sr::SpawnAnchor;
 using sr::Wallet;
 using sr::core::ContentLibrary;
 using sr::core::economy::FactionEconomy;
@@ -40,10 +42,8 @@ entt::entity FindPlayer(entt::registry& registry) {
 
 }  // namespace
 
-TEST_CASE("OnEnter populates one sun, one player and the expected NPC count",
+TEST_CASE("OnEnter populates one sun, one player, one station and the expected NPC count",
           "[spaceflight][onenter]") {
-    // No station yet -- WorldGen doesn't spawn one (P1-05, a separate issue). Once it does, this
-    // should gain a GravityWell-sibling assertion for exactly one station.
     const ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
@@ -56,11 +56,16 @@ TEST_CASE("OnEnter populates one sun, one player and the expected NPC count",
           1);
     CHECK(std::distance(registry.view<PlayerLocation>().begin(),
                         registry.view<PlayerLocation>().end()) == 1);
+    // The station WorldGen now spawns (architecture.md 12.24 step 4) is the only entity carrying
+    // SpawnAnchor.
+    CHECK(std::distance(registry.view<SpawnAnchor>().begin(), registry.view<SpawnAnchor>().end()) ==
+          1);
 
+    // The station is a Rig without PlayerLocation too, so the old 3-5 NPC-only band becomes 4-6.
     const auto npcs = registry.view<Rig>(entt::exclude<PlayerLocation>);
     const auto npcCount = std::distance(npcs.begin(), npcs.end());
-    CHECK(npcCount >= 3);
-    CHECK(npcCount <= 5);
+    CHECK(npcCount >= 4);
+    CHECK(npcCount <= 6);
 }
 
 TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spaceflight][onenter]") {
@@ -81,7 +86,10 @@ TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spacef
           1);
     CHECK(std::distance(registry.view<PlayerLocation>().begin(),
                         registry.view<PlayerLocation>().end()) == 1);
-    CHECK(std::distance(registry.view<Wallet>().begin(), registry.view<Wallet>().end()) == 1);
+    CHECK(std::distance(registry.view<SpawnAnchor>().begin(), registry.view<SpawnAnchor>().end()) ==
+          1);
+    // One Wallet for the player, one for the station -- both producers now exist (13.3 O/P).
+    CHECK(std::distance(registry.view<Wallet>().begin(), registry.view<Wallet>().end()) == 2);
 }
 
 TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflight][onenter]") {

@@ -134,6 +134,13 @@
           "modules": ["pulse_cannon_i"],
           "localOffset": { "x": 0.0, "y": -30.0 },
           "traverseRadians": 0.35
+        },
+        {
+          "id": "hold",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["cargo_bay_i"],
+          "localOffset": { "x": 0.0, "y": 30.0 }
         }
       ]
     }

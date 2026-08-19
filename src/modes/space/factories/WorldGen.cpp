@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "modes/space/factories/NpcFactory.h"
+#include "modes/space/factories/StationFactory.h"
 #include "shared/blueprints/Ids.h"
 #include "shared/components/Health.h"
 #include "shared/components/Lighting.h"
@@ -159,6 +160,33 @@ void SpawnAsteroids(entt::registry& registry, Rng& rng, int count) {
     }
 }
 
+// -- Station ----------------------------------------------------------------------------------
+
+// The content set's only station blueprint (architecture.md 12.24 step 4) -- it already carries a
+// docking_bay_i on a shell_facility_bay, and authors the same faction the player spawns into.
+constexpr const char* kStationBlueprintId = "aegis_outpost";
+
+// Outside kSunGravityRange (2200), or OrbitSystem's gravity well drags an engineless hull; close
+// enough that step 2 (player control) is still judgeable, the same reachability kNpcBandMin/Max
+// below give the NPC presence.
+constexpr float kStationDistanceMin = 2400.0f;
+constexpr float kStationDistanceMax = 3000.0f;
+
+void SpawnStation(SystemWorld& world, const core::ContentLibrary& content, Rng& rng) {
+    const float angle = RandomFloat(rng, 0.0f, kTwoPi);
+    const float distance = RandomFloat(rng, kStationDistanceMin, kStationDistanceMax);
+
+    station_factory::SpawnParams params;
+    params.blueprint = BlueprintId(kStationBlueprintId);
+    // Faction left default (empty): aegis_outpost authors aegis_directorate, the same faction the
+    // player spawns into, which is what DockingSystem's FactionRef-equality gate requires -- a
+    // neutral or hostile station would be undockable.
+    params.position = FromAngle(angle) * distance;
+    params.rotation = RandomFloat(rng, 0.0f, kTwoPi);
+
+    station_factory::Spawn(world, content, params);
+}
+
 // -- NPC presence -----------------------------------------------------------------------------
 
 constexpr float kNpcBandMin = 1800.0f;
@@ -226,6 +254,9 @@ void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, uns
     SpawnSun(registry);
     SpawnPlanets(registry, rng, RandomInt(rng, 2, 6));
     SpawnAsteroids(registry, rng, 8);
+    // Before SpawnNpcPresence, at a fixed point in the rng sequence, so adding the station does
+    // not shift the NPC layout for a given seed.
+    SpawnStation(world, content, rng);
     SpawnNpcPresence(world, content, rng, RandomInt(rng, 3, 5));
 }
 
