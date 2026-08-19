@@ -170,12 +170,16 @@ void AddToManifest(std::vector<ElementStack>& elements, const std::string& eleme
     elements.push_back(ElementStack{elementId, quantity});
 }
 
-// features.md section 3.3 Tier 1/2, architecture.md 13.3 R: a PlayerControlled rig with every
-// hardpoint gone is the player dying. The vessel and everything mounted or held on it is
-// permanently lost -- collected into one DeathWreck at the death position (the same dual-form
-// promotion CollapseDeathWreck/PromoteDeathWreck already round-trip across a warp) rather than
-// discarded outright, per the recovery run's "cargo and equipped modules drop as a recoverable
-// wreck" rule.
+// features.md section 3.3 Tier 1/2, architecture.md 13.3 R: a rig with every hardpoint gone,
+// identified via PlayerLocation rather than PlayerControlled, is the player dying. Found during
+// #133's M1 verification pass: PlayerControlled has zero writers anywhere in src/ until P4-01
+// derives it (architecture.md 12.30.1), so keying this view on it meant death never resolved --
+// PlayerLocation is the sole source of truth in the meantime, and (self-referential until P4-01
+// gives a rig a separate cockpit hardpoint) already names this same root. The vessel and
+// everything mounted or held on it is permanently lost -- collected into one DeathWreck at the
+// death position (the same dual-form promotion CollapseDeathWreck/PromoteDeathWreck already
+// round-trip across a warp) rather than discarded outright, per the recovery run's "cargo and
+// equipped modules drop as a recoverable wreck" rule.
 //
 // There is no live-rig-to-blueprint snapshot capability in this codebase yet (P12.31's RigState,
 // SpaceFlight.h's WarpToSystem doc comment) and modes/space/systems/ may not include factories/
@@ -187,7 +191,7 @@ void AddToManifest(std::vector<ElementStack>& elements, const std::string& eleme
 // revived here.
 void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& content) {
     std::vector<entt::entity> dead;
-    for (const entt::entity root : registry.view<PlayerControlled, Rig, Destroyed>()) {
+    for (const entt::entity root : registry.view<PlayerLocation, Rig, Destroyed>()) {
         dead.push_back(root);
     }
 
