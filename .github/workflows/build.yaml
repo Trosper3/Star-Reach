@@ -84,11 +84,22 @@ jobs:
       # on main (a run cancelled at 6h1m1s with no diagnostic). Forcing both to non-interactive/
       # automatic is the standard fix; it is not a speed tweak, it is what makes this step
       # deterministic at all.
+      #
+      # apt-daily/apt-daily-upgrade: ubuntu-latest boots with these background units still holding
+      # the dpkg lock from cloud-init's own package refresh. If our apt-get starts before they
+      # release it, it blocks silently on the lock -- no prompt, nothing in the log, indistinguishable
+      # from a dead step until timeout-minutes below cuts it off (observed 2026-08-19: two
+      # consecutive hangs on this exact step while the identical step in the asan/build jobs passed
+      # in under a minute on different VMs). Killing the units first is the standard workaround.
       - name: Install raylib's X11/GL build dependencies
         env:
           DEBIAN_FRONTEND: noninteractive
           NEEDRESTART_MODE: a
+        timeout-minutes: 5
         run: |
+          sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily-upgrade.service 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y \
             libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
@@ -174,15 +185,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set --
-      # without them this apt-get intermittently hangs on ubuntu-latest until the 6-hour job
-      # ceiling instead of completing in seconds.
+      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set and
+      # apt-daily/apt-daily-upgrade are killed first -- without them this apt-get intermittently
+      # hangs on ubuntu-latest until the 6-hour job ceiling instead of completing in seconds.
       - name: Install raylib's X11/GL build dependencies
         if: runner.os == 'Linux'
         env:
           DEBIAN_FRONTEND: noninteractive
           NEEDRESTART_MODE: a
+        timeout-minutes: 5
         run: |
+          sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily-upgrade.service 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y \
             libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
@@ -262,14 +277,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set --
-      # without them this apt-get intermittently hangs on ubuntu-latest until the 6-hour job
-      # ceiling instead of completing in seconds.
+      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set and
+      # apt-daily/apt-daily-upgrade are killed first -- without them this apt-get intermittently
+      # hangs on ubuntu-latest until the 6-hour job ceiling instead of completing in seconds.
       - name: Install raylib's X11/GL build dependencies
         env:
           DEBIAN_FRONTEND: noninteractive
           NEEDRESTART_MODE: a
+        timeout-minutes: 5
         run: |
+          sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily.service 2>/dev/null || true
+          sudo systemctl kill --kill-who=all apt-daily-upgrade.service 2>/dev/null || true
           sudo apt-get update
           sudo apt-get install -y \
             libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev \
