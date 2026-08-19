@@ -1,0 +1,11 @@
+{
+    "damage_types": [
+        {
+            "type": "ion",
+            "alwaysAbsorbedByAnyShield": true,
+            "bypassStillDrainsShieldCharge": true,
+            "hullDamageFraction": 0.0,
+            "powerDrainFraction": 1.0
+        }
+    ]
+}

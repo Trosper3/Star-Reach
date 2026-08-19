@@ -12,11 +12,14 @@
 namespace sr {
 
 // features.md section 3.1. Matching type is absorbed by a shield; a mismatched type bypasses it
-// and lands directly on the hardpoint beneath. Expanding this roster multiplies the shield
-// matrix and the content burden -- it is an open design question, not a free addition.
+// and lands directly on the hardpoint beneath -- Ion is the one exception, absorbed by every
+// shield type regardless of match (architecture.md 12.33). Shield-matching itself stays exactly
+// {Kinetic, Energy}: Ion is a weapon type, not a shield type, and expanding the shield roster is
+// still the open design question this enum's growth does not reopen.
 enum class DamageType : std::uint8_t {
     Kinetic,
     Energy,
+    Ion,
 };
 
 // What a shell is structurally for. Drives Template validation (features.md section 2.3) and

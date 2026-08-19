@@ -1,6 +1,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
+
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -8,6 +10,7 @@
 #include "shared/blueprints/Taxonomy.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
@@ -19,6 +22,7 @@ using sr::EnginePropulsion;
 using sr::Health;
 using sr::ParentRig;
 using sr::PendingDamage;
+using sr::PowerSource;
 using sr::Propulsion;
 using sr::Rig;
 using sr::ShellKind;
@@ -37,6 +41,16 @@ namespace {
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content, float dt = 1.0f / 60.0f) {
     return SystemContext{world, intents, content, dt, 0};
+}
+
+// Ion's DamageTypeEffect row lives in data/base_game/damage_types.json (Law 10); the tests below
+// that exercise it need the real shipped content, not the default-constructed, unloaded
+// ContentLibrary the rest of this file uses (which resolves every DamageType to the default row).
+sr::core::ContentLibrary LoadShippedContent() {
+    sr::core::ContentLibrary library;
+    const auto report = library.LoadFromDirectory(std::filesystem::path(SR_DATA_DIR));
+    REQUIRE(report.ok());
+    return library;
 }
 
 }  // namespace
@@ -400,6 +414,113 @@ TEST_CASE("DamageSystem's per-tick recompute reproduces a living engine's propul
     damage_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(5000.0f));
+}
+
+TEST_CASE(
+    "DamageSystem absorbs Kinetic damage regardless of its source hardpoint, closing the "
+    "ram-vs-shield gap (architecture.md 15.1 finding 1)",
+    "[damage]") {
+    // CollisionSystem::ApplyRamDamage tags ram-sourced PendingDamage as DamageType::Kinetic
+    // exactly the same way a projectile hit does; this reproduces that shape directly rather than
+    // routing through CollisionSystem, since the fix lives entirely in DamageSystem's generic
+    // per-hardpoint absorption path, not in how a hit gets tagged.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(20.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+}
+
+TEST_CASE(
+    "DamageSystem lets a Kinetic hit bypass an Energy shield and deal full hull damage, "
+    "unchanged from before the effect table",
+    "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Energy, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(70.0f));
+}
+
+TEST_CASE(
+    "DamageSystem's Ion effect is absorbed by a mismatched Kinetic shield, drains it, and "
+    "deals zero hull damage while still suppressing power",
+    "[damage]") {
+    const sr::core::ContentLibrary content = LoadShippedContent();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PowerSource>(hardpoint, 40.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Ion, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(20.0f));
+    CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(3.5f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+    CHECK(registry.get<PowerSource>(hardpoint).generation == Approx(10.0f));
+}
+
+TEST_CASE("DamageSystem's Ion effect is absorbed by an Energy shield the same as a Kinetic one",
+          "[damage]") {
+    const sr::core::ContentLibrary content = LoadShippedContent();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Energy, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PowerSource>(hardpoint, 40.0f);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Ion, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(20.0f));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+    CHECK(registry.get<PowerSource>(hardpoint).generation == Approx(10.0f));
+}
+
+TEST_CASE(
+    "DamageSystem's Ion effect drains power directly on an unshielded hardpoint and still "
+    "deals no hull damage",
+    "[damage]") {
+    const sr::core::ContentLibrary content = LoadShippedContent();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<PowerSource>(hardpoint, 40.0f);
+    registry.emplace<PendingDamage>(hardpoint, 20.0f, DamageType::Ion, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+    CHECK(registry.get<PowerSource>(hardpoint).generation == Approx(20.0f));
 }
 
 TEST_CASE(

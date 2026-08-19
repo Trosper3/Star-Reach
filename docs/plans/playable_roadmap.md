@@ -2636,17 +2636,17 @@ reads.
 | P1-06 | Death, respawn and the cull | #131 |  |
 | P1-07 | The system menu and quit to main menu | #132 |  |
 | P1-08 | M1 verification pass | #133 |  |
-| P2-01 | The damage-type effect table, and Ion |  |  |
-| P2-09 | What a kill leaves behind — the wreck path and the reaper |  |  |
-| P2-02 | Docked cascade destruction |  |  |
-| P2-03 | Shields, narrow-phase collision and the structural cascade |  |  |
-| P2-04 | Structural integrity and honest hit resolution |  |  |
-| P2-05 | Object scale, `hullRadius` and draw layers |  |  |
-| P2-06 | The crew shell |  |  |
-| P2-07 | Capture — boarding in place |  |  |
-| P2-08 | Power allocation — the half the player commands |  |  |
-| P2-10 | The opposition state machine |  |  |
-| P2-11 | Faction commanders exist, and hold a system |  |  |
+| P2-01 | The damage-type effect table, and Ion | #165 |  |
+| P2-09 | What a kill leaves behind — the wreck path and the reaper | #166 |  |
+| P2-02 | Docked cascade destruction | #167 |  |
+| P2-03 | Shields, narrow-phase collision and the structural cascade | #168 |  |
+| P2-04 | Structural integrity and honest hit resolution | #169 |  |
+| P2-05 | Object scale, `hullRadius` and draw layers | #170 |  |
+| P2-06 | The crew shell | #171 |  |
+| P2-07 | Capture — boarding in place | #172 |  |
+| P2-08 | Power allocation — the half the player commands | #173 |  |
+| P2-10 | The opposition state machine | #174 |  |
+| P2-11 | Faction commanders exist, and hold a system | #175 |  |
 | P3-01 | The five null pointers, seeded relations, and the Reapers |  |  |
 | P3-02 | Combat, docking and the map consult the matrix |  |  |
 | P3-03 | Gameplay writes relations |  |  |

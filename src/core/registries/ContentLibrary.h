@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/registries/DamageTypeEffects.h"
 #include "core/registries/JsonReader.h"
 #include "shared/blueprints/DefLibrary.h"
 #include "shared/blueprints/ElementDef.h"
@@ -18,7 +19,8 @@ namespace sr::core {
 // depending on sr_core. That inversion is what keeps the layer graph acyclic.
 class ContentLibrary final : public DefLibrary {
 public:
-    // Loads shells.json, modules.json, elements.json, and ships.json from `directory`.
+    // Loads shells.json, modules.json, elements.json, ships.json, and damage_types.json from
+    // `directory`.
     //
     // Never throws and never partially aborts: a malformed entry is reported and skipped, and
     // the rest of the set still loads. Callers check the report and decide whether to run. That
@@ -40,6 +42,10 @@ public:
     // Not part of DefLibrary -- blueprint validation never resolves an element id, only
     // CargoView-adjacent systems do, and they already have a concrete ContentLibrary in hand.
     const ElementDef* FindElement(const ElementId& id) const;
+
+    // Never fails to resolve -- an unauthored DamageType (Kinetic, Energy) returns the default
+    // absorb-or-bypass row (architecture.md 12.33).
+    DamageTypeEffect LookupDamageTypeEffect(DamageType type) const;
 
     // Registers a module built at runtime rather than loaded from JSON -- architecture.md 12.12's
     // EngineerMenu, which merges two owned modules into a new one. The merged ModuleDef is
@@ -75,6 +81,7 @@ private:
     std::unordered_map<std::string, ShipBlueprint> ships_;
     std::unordered_map<std::string, ModuleDef> craftedModules_;
     std::unordered_map<std::string, ElementDef> elements_;
+    DamageTypeEffects damageTypeEffects_;
 };
 
 }  // namespace sr::core
