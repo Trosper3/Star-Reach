@@ -7,10 +7,13 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/LootSystem.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Spawn.h"
+#include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/rig/CargoView.h"
 
@@ -19,15 +22,20 @@ using sr::CargoHold;
 using sr::CollisionRadius;
 using sr::DeathWreck;
 using sr::DerelictWreck;
+using sr::Destroyed;
 using sr::ElementDrop;
 using sr::ElementStack;
+using sr::Health;
 using sr::ItemKind;
 using sr::ItemStack;
 using sr::LootDrop;
 using sr::ModuleId;
+using sr::MountedModules;
 using sr::ParentRig;
 using sr::PlayerControlled;
+using sr::RespawnPending;
 using sr::Rig;
+using sr::Targetable;
 using sr::Vec2;
 using sr::Wallet;
 using sr::WorldBody;
@@ -61,6 +69,30 @@ entt::entity MakeCollector(entt::registry& registry, const Vec2& position, float
     registry.emplace<Rig>(collector, std::vector<entt::entity>{bay});
 
     return collector;
+}
+
+// A dead PlayerControlled rig: root plus two already-Destroyed hardpoints, one carrying a
+// mounted module and one carrying cargo -- enough to exercise HandlePlayerDeath's manifest
+// collection without going through RigFactory.
+entt::entity MakeDeadPlayerRig(entt::registry& registry, const Vec2& position) {
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, position, 0.0f);
+    registry.emplace<PlayerControlled>(root);
+    registry.emplace<Destroyed>(root);
+
+    const entt::entity weaponBay = registry.create();
+    registry.emplace<Health>(weaponBay, 0.0f, 50.0f);
+    registry.emplace<Destroyed>(weaponBay);
+    registry.emplace<MountedModules>(weaponBay, std::vector<ModuleId>{ModuleId("pulse_cannon_i")});
+
+    const entt::entity cargoBay = registry.create();
+    registry.emplace<Health>(cargoBay, 0.0f, 30.0f);
+    registry.emplace<Destroyed>(cargoBay);
+    registry.emplace<CargoHold>(
+        cargoBay, std::vector<ItemStack>{ItemStack{ItemKind::Element, "Fe", 3, 2.0f}}, 4, 250.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{weaponBay, cargoBay});
+    return root;
 }
 
 }  // namespace
@@ -385,4 +417,85 @@ TEST_CASE("Recovering a promoted DeathWreck grants its manifest and clears its W
     const std::vector<ItemStack> cargo = cargo_view::Merged(registry, collector);
     REQUIRE(cargo.size() == 2);
     CHECK(ledger.Find(id) == nullptr);
+}
+
+TEST_CASE(
+    "LootSystem revives a dead PlayerControlled rig at the death position, drops its losses as "
+    "a DeathWreck, and hands SpawnSystem a RespawnPending",
+    "[loot][wreck][death]") {
+    // architecture.md 13.3 R: RespawnPending's only producer. features.md section 3.3: the
+    // vessel's equipped modules and cargo are lost to a recoverable wreck, not deleted outright.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = MakeDeadPlayerRig(registry, Vec2{40.0f, -15.0f});
+    const auto hardpoints = registry.get<Rig>(root).children;
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(root));
+    CHECK(registry.all_of<Targetable>(root));
+    REQUIRE(registry.all_of<RespawnPending>(root));
+
+    for (const entt::entity hardpoint : hardpoints) {
+        CHECK_FALSE(registry.all_of<Destroyed>(hardpoint));
+        if (const auto* health = registry.try_get<Health>(hardpoint)) {
+            CHECK(health->current == health->max);
+        }
+        if (const auto* mounted = registry.try_get<MountedModules>(hardpoint)) {
+            CHECK(mounted->ids.empty());
+        }
+        if (const auto* cargo = registry.try_get<CargoHold>(hardpoint)) {
+            CHECK(cargo->stacks.empty());
+        }
+    }
+
+    const auto wrecks = registry.view<DeathWreck>();
+    REQUIRE(std::distance(wrecks.begin(), wrecks.end()) == 1);
+    const entt::entity wreck = *wrecks.begin();
+    CHECK(registry.get<WorldTransform>(wreck).position == Vec2{40.0f, -15.0f});
+    const DeathWreck& manifest = registry.get<DeathWreck>(wreck);
+    REQUIRE(manifest.modules.size() == 1);
+    CHECK(manifest.modules.front() == ModuleId("pulse_cannon_i"));
+    REQUIRE(manifest.elements.size() == 1);
+    CHECK(manifest.elements.front().elementId == "Fe");
+    CHECK(manifest.elements.front().quantity == 3);
+}
+
+TEST_CASE("LootSystem leaves a living PlayerControlled rig alone", "[loot][death]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<PlayerControlled>(root);
+    registry.emplace<Rig>(root);
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<RespawnPending>(root));
+    CHECK(registry.view<DeathWreck>().empty());
+}
+
+TEST_CASE("LootSystem never drops a DeathWreck for a Destroyed rig that is not PlayerControlled",
+          "[loot][death]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Destroyed>(root);
+    registry.emplace<Rig>(root);
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(root));
+    CHECK_FALSE(registry.all_of<RespawnPending>(root));
+    CHECK(registry.view<DeathWreck>().empty());
 }

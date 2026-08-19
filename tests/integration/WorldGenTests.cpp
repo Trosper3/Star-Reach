@@ -192,6 +192,34 @@ TEST_CASE("PopulateSystem's station gives SpawnSystem an anchor to resolve again
     CHECK_FALSE(registry.all_of<RespawnPending>(respawning));
 }
 
+TEST_CASE("PopulateSystem's station anchor culls a rig 25,000 units out", "[world_gen]") {
+    // architecture.md 13.3 R: CullFarRigs never ran because SpawnAnchor had zero producers.
+    // Exercises the real generated world's own anchor, not a hand-built one -- the same station
+    // this file's other SpawnAnchor tests already resolve against.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+
+    world_gen::PopulateSystem(world, content, 42u);
+
+    entt::registry& registry = world.Registry();
+    const auto anchorView = registry.view<SpawnAnchor>();
+    REQUIRE(std::distance(anchorView.begin(), anchorView.end()) == 1);
+    const sr::Vec2 anchorPosition = registry.get<WorldTransform>(*anchorView.begin()).position;
+
+    const entt::entity far = registry.create();
+    registry.emplace<WorldTransform>(far, anchorPosition + sr::Vec2{25000.0f, 0.0f}, 0.0f);
+    Rig rig;
+    const entt::entity hardpoint = registry.create();
+    rig.children.push_back(hardpoint);
+    registry.emplace<Rig>(far, rig);
+
+    sr::core::IntentQueue intents;
+    spawn_system::Tick(SystemContext{world, intents, content, 1.0f / 60.0f, 0});
+
+    CHECK_FALSE(registry.valid(far));
+    CHECK_FALSE(registry.valid(hardpoint));
+}
+
 TEST_CASE(
     "PopulateSystem emits a WorldBody of each of Star, Planet and Asteroid, and every "
     "entity with WorldTransform also carries WorldBody",
