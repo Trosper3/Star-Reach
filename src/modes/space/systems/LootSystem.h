@@ -41,6 +41,14 @@ namespace sr::space::loot_system {
 //     DeathWreck at the death position, then its hardpoints are stripped and revived in place and
 //     RespawnPending is handed to SpawnSystem to carry the bare hull home to the nearest
 //     SpawnAnchor. This is the only producer RespawnPending has.
+//   - A combat kill (architecture.md 12.33's group 2d, this is the wreck path it and P2-02's
+//     cascade both feed): every other Destroyed rig -- anything not carrying PlayerLocation, so
+//     this never double-processes the death above -- spills each hardpoint's CargoHold as loose
+//     pickups (the same SpillCargoHold producer a single destroyed bay uses) and leaves exactly
+//     one DeathWreck at the death position carrying what was mounted, then the root and every one
+//     of its hardpoints is destroyed outright. Unlike the player, there is no revival: the hull is
+//     gone, and this is what stops it sitting in the registry forever for every other system to
+//     keep iterating.
 void Tick(const SystemContext& ctx);
 
 // Spawns a LootDrop (ItemKind::Module) or ElementDrop (ItemKind::Element) at `hardpoint`'s

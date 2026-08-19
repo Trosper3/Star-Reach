@@ -113,10 +113,15 @@ namespace sr::space {
 //                        entities never overlap).
 //   DistressSystem    -- after DamageSystem so a ShipUnderAttack call sees this tick's
 //                        Destroyed tag on its npcTarget.
-//   LootSystem        -- no ordering constraint against the above beyond that: it only reads
-//                        this tick's settled WorldTransform/CollisionRadius and never spawns
-//                        a drop of its own (Law 5 -- there is no LootFactory yet), so it runs
-//                        last.
+//   LootSystem        -- after DamageSystem for the same reason as MiningSystem/ContractSystem/
+//                        DistressSystem above: its combat-kill wreck pass reads this tick's
+//                        Destroyed tag on every non-player rig root, spills each hardpoint's
+//                        cargo, and reaps the hull outright (architecture.md 12.5) -- so a kill
+//                        from gunfire, a ram, or a cascade all resolve through the same pass the
+//                        same tick, whichever system tagged Destroyed. No ordering constraint
+//                        against MiningSystem/ContractSystem/DistressSystem otherwise: Asteroid-,
+//                        FactionRef-, and npcTarget-tagged reads never overlap with a rig root's
+//                        own Destroyed tag.
 //   CommsSystem, FactionEconomySystem, DiscoverySystem, CommanderSystem, ResearchSystem,
 //                        TemplateMarketSystem -- no ordering constraint among these or the
 //                        above: each touches only its own state, or only core/ for the latter

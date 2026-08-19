@@ -556,21 +556,100 @@ TEST_CASE("LootSystem leaves a living player rig alone", "[loot][death]") {
     CHECK(registry.view<DeathWreck>().empty());
 }
 
-TEST_CASE("LootSystem never drops a DeathWreck for a Destroyed rig that is not PlayerControlled",
-          "[loot][death]") {
+TEST_CASE(
+    "LootSystem leaves a wreck and reaps a combat-killed rig that has nothing mounted or held",
+    "[loot][death]") {
+    // P2-09: a combat kill produces exactly one DeathWreck even with an empty hold, and the
+    // destroyed root is gone from the registry on the following tick rather than sitting there
+    // forever for every other system to keep iterating.
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
 
     const entt::entity root = registry.create();
-    registry.emplace<WorldTransform>(root, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<WorldTransform>(root, Vec2{70.0f, -5.0f}, 0.0f);
     registry.emplace<Destroyed>(root);
     registry.emplace<Rig>(root);
 
     loot_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.all_of<Destroyed>(root));
+    CHECK_FALSE(registry.valid(root));
     CHECK_FALSE(registry.all_of<RespawnPending>(root));
-    CHECK(registry.view<DeathWreck>().empty());
+
+    const auto wrecks = registry.view<DeathWreck>();
+    REQUIRE(std::distance(wrecks.begin(), wrecks.end()) == 1);
+    const entt::entity wreck = *wrecks.begin();
+    CHECK(registry.get<WorldTransform>(wreck).position == Vec2{70.0f, -5.0f});
+    CHECK(registry.get<DeathWreck>(wreck).modules.empty());
+}
+
+TEST_CASE(
+    "LootSystem spills a combat-killed rig's cargo as loose pickups and its mounted modules as "
+    "a DeathWreck manifest, then reaps every hardpoint",
+    "[loot][death]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<WorldTransform>(root, Vec2{50.0f, 0.0f}, 0.0f);
+    registry.emplace<Destroyed>(root);
+
+    const entt::entity weaponBay = registry.create();
+    registry.emplace<WorldTransform>(weaponBay, Vec2{50.0f, 0.0f}, 0.0f);
+    registry.emplace<Destroyed>(weaponBay);
+    registry.emplace<MountedModules>(weaponBay, std::vector<ModuleId>{ModuleId("pulse_cannon_i")});
+
+    const entt::entity cargoBay = registry.create();
+    registry.emplace<WorldTransform>(cargoBay, Vec2{50.0f, 0.0f}, 0.0f);
+    registry.emplace<Destroyed>(cargoBay);
+    registry.emplace<CargoHold>(
+        cargoBay, std::vector<ItemStack>{ItemStack{ItemKind::Element, "Fe", 3, 2.0f}}, 4, 250.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{weaponBay, cargoBay});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.valid(root));
+    CHECK_FALSE(registry.valid(weaponBay));
+    CHECK_FALSE(registry.valid(cargoBay));
+
+    // Cargo spills loose, the same producer a single destroyed bay already uses -- it is not
+    // folded into the wreck manifest.
+    REQUIRE(registry.storage<ElementDrop>().size() == 1);
+    for (const entt::entity drop : registry.view<ElementDrop>()) {
+        CHECK(registry.get<ElementDrop>(drop).elementId == "Fe");
+        CHECK(registry.get<ElementDrop>(drop).quantity == 3);
+    }
+    CHECK(registry.storage<LootDrop>().size() == 0);
+
+    const auto wrecks = registry.view<DeathWreck>();
+    REQUIRE(std::distance(wrecks.begin(), wrecks.end()) == 1);
+    const DeathWreck& manifest = registry.get<DeathWreck>(*wrecks.begin());
+    REQUIRE(manifest.modules.size() == 1);
+    CHECK(manifest.modules.front() == ModuleId("pulse_cannon_i"));
+}
+
+TEST_CASE("LootSystem leaves a PlayerLocation rig's death entirely to HandlePlayerDeath",
+          "[loot][death]") {
+    // Regression coverage for the exclude<PlayerLocation> guard: without it, the same Destroyed
+    // rig would be processed twice -- revived by HandlePlayerDeath and reaped by
+    // HandleCombatKills in the same tick.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = MakeDeadPlayerRig(registry, Vec2{40.0f, -15.0f});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.valid(root));
+    CHECK_FALSE(registry.all_of<Destroyed>(root));
+    REQUIRE(registry.all_of<RespawnPending>(root));
+
+    const auto wrecks = registry.view<DeathWreck>();
+    REQUIRE(std::distance(wrecks.begin(), wrecks.end()) == 1);
 }
