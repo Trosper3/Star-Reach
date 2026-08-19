@@ -27,8 +27,7 @@ TEST_CASE("AimPointWorldPosition returns nullopt when the player has no AimPoint
     CHECK_FALSE(AimPointWorldPosition(registry).has_value());
 }
 
-TEST_CASE("AimPointWorldPosition returns the PlayerLocation entity's AimPoint",
-          "[icon-renderer]") {
+TEST_CASE("AimPointWorldPosition returns the PlayerLocation entity's AimPoint", "[icon-renderer]") {
     entt::registry registry;
     const entt::entity player = registry.create();
     registry.emplace<PlayerLocation>(player, PlayerLocation{player});
