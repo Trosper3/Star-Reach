@@ -13,6 +13,10 @@ namespace sr::space::damage_system {
 // the chassis -- it dies like anything else, and its death is rig death only because everything
 // ultimately attaches to it. Also detects rig death: a rig with no living hardpoint left loses
 // Targetable and is marked Destroyed itself -- there is no protected core (Capital Ship Design).
+// A host's death then cascades to every rig docked to it (Docked.station), tagging each Destroyed
+// and untargetable the same tick -- features.md 3.4's "dies with its host" (architecture.md 12.34),
+// reusing LootSystem's existing combat-kill DeathWreck path once it runs next rather than a second
+// one.
 //
 // Also invalidates a rig's Propulsion once its last living Engine-kind hardpoint dies. This is
 // an all-or-nothing zeroing, not a proportional recompute: doing that properly needs a
