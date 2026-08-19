@@ -67,6 +67,27 @@ enum class FacilityKind : std::uint8_t {
     Engineering,
 };
 
+// Every power category runs at one of four levels, not on/off (features.md section 2.9). Reduced
+// is never commanded directly -- it is what PowerSystem assigns to a category it has to shed to
+// fund a boost elsewhere or to cover a generation shortfall; the player only ever taps a category
+// key (toggling Boosted) or holds it (toggling Offline).
+enum class PowerLevel : std::uint8_t {
+    Offline,
+    Reduced,
+    Normal,
+    Boosted,
+};
+
+// The four player-commandable power categories (features.md section 2.9's F/G/H/J keys), one per
+// PowerLoad-carrying ModuleKind band -- the same grouping ModuleAttachment's SheddingPriority
+// already established, just given a name a menu can present.
+enum class PowerCategory : std::uint8_t {
+    Weapons,
+    Shields,
+    Engines,
+    Facilities,
+};
+
 std::string_view ToString(DamageType value);
 std::string_view ToString(ShellKind value);
 std::string_view ToString(ModuleKind value);

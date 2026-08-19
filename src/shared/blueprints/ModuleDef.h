@@ -65,6 +65,26 @@ struct CargoBayStats {
     float slotCapacity = 0.0f;  // Mass ceiling per slot. Bulk. Total is derived, never authored.
 };
 
+// One power level's effect on a module (features.md section 2.9, architecture.md 12.16 item 18).
+// `drawMultiplier` scales the module's authored powerDraw/powerGeneration; `effectMultiplier`
+// scales whatever that module's kind treats as its primary output (WeaponSystem reads it for
+// Weapon-kind damage/fire rate, PhysicsSystem for Engine-kind thrust) once PowerSystem has
+// confirmed the level is actually funded.
+struct PowerLevelStats {
+    float drawMultiplier = 1.0f;
+    float effectMultiplier = 1.0f;
+};
+
+// A cheap thruster's boost is a nudge; a military one's is an afterburner -- these are per-module
+// (Law 10), never global constants in PowerSystem. Normal is fixed at 1.0/1.0 by definition: it
+// is the baseline every other level is authored relative to, not a per-module dial.
+struct PowerLevels {
+    PowerLevelStats offline{0.0f, 0.0f};
+    PowerLevelStats reduced{0.6f, 0.75f};
+    static constexpr PowerLevelStats normal{1.0f, 1.0f};
+    PowerLevelStats boosted{1.5f, 1.3f};
+};
+
 // The authored definition of a module: the functional half of the Shell -> Component -> Module
 // model (Law 4). Loaded from data/base_game/modules.json and never constructed as a C++
 // literal outside registries and tests -- see Law 10 and tools/ci/check_content_pipeline.py.
@@ -81,6 +101,12 @@ struct ModuleDef {
 
     // Added to the hull of the shell this module occupies.
     float hullBonus = 0.0f;
+
+    // features.md section 2.9: the draw/effect multiplier this module authors at each of the
+    // four power levels. Meaningless for a module with neither powerDraw nor an effect PowerSystem
+    // scales (e.g. Armor), the same "every module carries every stat block, only the relevant one
+    // means anything" shape WeaponStats/ShieldStats/etc. already establish below.
+    PowerLevels powerLevels;
 
     WeaponStats weapon;
     ShieldStats shield;

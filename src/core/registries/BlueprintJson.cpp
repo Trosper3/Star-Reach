@@ -6,6 +6,21 @@
 namespace sr::core {
 namespace {
 
+void ParsePowerLevelStats(const JsonReader& reader, const char* key, PowerLevelStats& out) {
+    const JsonReader stats = reader.Child(key, key);
+    stats.Optional("drawMultiplier", out.drawMultiplier);
+    stats.Optional("effectMultiplier", out.effectMultiplier);
+}
+
+// "normal" is never parsed -- PowerLevels::normal is a fixed constexpr 1.0/1.0, the baseline
+// every other level is authored relative to, not a per-module dial (ModuleDef.h).
+void ParsePowerLevels(const JsonReader& reader, PowerLevels& out) {
+    const JsonReader levels = reader.Child("powerLevels", "powerLevels");
+    ParsePowerLevelStats(levels, "offline", out.offline);
+    ParsePowerLevelStats(levels, "reduced", out.reduced);
+    ParsePowerLevelStats(levels, "boosted", out.boosted);
+}
+
 void ParseWeaponStats(const JsonReader& reader, WeaponStats& out) {
     const JsonReader stats = reader.Child("weapon", "weapon");
     stats.Optional("damage", out.damage);
@@ -102,6 +117,7 @@ ModuleDef ParseModuleDef(const JsonReader& reader) {
     reader.Optional("powerDraw", def.powerDraw);
     reader.Optional("powerGeneration", def.powerGeneration);
     reader.Optional("hullBonus", def.hullBonus);
+    ParsePowerLevels(reader, def.powerLevels);
 
     ParseWeaponStats(reader, def.weapon);
     ParseShieldStats(reader, def.shield);

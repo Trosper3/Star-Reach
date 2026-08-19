@@ -192,43 +192,25 @@ TEST_CASE("DetachModuleComponents removes FireControl and reverts FiringArc to t
     CHECK(registry.get<sr::FiringArc>(hardpoint).turnRatePerSecond == Approx(sr::kPi));
 }
 
-TEST_CASE(
-    "Sensor, CargoBay, FireControl and Hyperdrive land in the correct power-shedding priority "
-    "band",
-    "[module-attach]") {
+TEST_CASE("Sensor, CargoBay, FireControl and Hyperdrive land in the correct power category",
+          "[module-attach]") {
     // architecture.md 12.23: FireControl joins Weapon's band; Sensor/CargoBay/Hyperdrive join
-    // Facility's -- no fifth category. Higher sheds later (ModuleAttachment.cpp's SheddingPriority
-    // doc comment), so this also orders the four relative to a plain Facility and a Weapon.
+    // Facility's -- no fifth category (features.md 2.9's four player-commandable categories).
     entt::registry registry;
 
-    ModuleDef facility;
-    facility.kind = ModuleKind::Facility;
-    facility.powerDraw = 1.0f;
-    const entt::entity facilityHp = registry.create();
-    AttachModuleComponents(registry, facilityHp, facility, 0.0f);
-
-    ModuleDef weapon;
-    weapon.kind = ModuleKind::Weapon;
-    weapon.powerDraw = 1.0f;
-    const entt::entity weaponHp = registry.create();
-    AttachModuleComponents(registry, weaponHp, weapon, 0.0f);
-
-    auto priorityOf = [&](ModuleKind kind) {
+    auto categoryOf = [&](ModuleKind kind) {
         ModuleDef module;
         module.kind = kind;
         module.powerDraw = 1.0f;
         const entt::entity hardpoint = registry.create();
         AttachModuleComponents(registry, hardpoint, module, 0.0f);
-        return registry.get<sr::PowerLoad>(hardpoint).priority;
+        return registry.get<sr::PowerLoad>(hardpoint).category;
     };
 
-    const int facilityPriority = registry.get<sr::PowerLoad>(facilityHp).priority;
-    const int weaponPriority = registry.get<sr::PowerLoad>(weaponHp).priority;
-
-    CHECK(priorityOf(ModuleKind::Sensor) == facilityPriority);
-    CHECK(priorityOf(ModuleKind::CargoBay) == facilityPriority);
-    CHECK(priorityOf(ModuleKind::Hyperdrive) == facilityPriority);
-    CHECK(priorityOf(ModuleKind::FireControl) == weaponPriority);
+    CHECK(categoryOf(ModuleKind::Sensor) == sr::PowerCategory::Facilities);
+    CHECK(categoryOf(ModuleKind::CargoBay) == sr::PowerCategory::Facilities);
+    CHECK(categoryOf(ModuleKind::Hyperdrive) == sr::PowerCategory::Facilities);
+    CHECK(categoryOf(ModuleKind::FireControl) == sr::PowerCategory::Weapons);
 }
 
 TEST_CASE("AttachModuleComponents writes PowerSource/PowerLoad based on the module's stats",
@@ -248,7 +230,8 @@ TEST_CASE("AttachModuleComponents writes PowerSource/PowerLoad based on the modu
     gun.powerDraw = 20.0f;
     AttachModuleComponents(registry, weapon, gun, 0.0f);
     REQUIRE(registry.all_of<sr::PowerLoad>(weapon));
-    CHECK(registry.get<sr::PowerLoad>(weapon).draw == 20.0f);
+    CHECK(registry.get<sr::PowerLoad>(weapon).authoredDraw == 20.0f);
+    CHECK(registry.get<sr::PowerLoad>(weapon).category == sr::PowerCategory::Weapons);
 }
 
 TEST_CASE("DetachModuleComponents removes exactly what AttachModuleComponents added",

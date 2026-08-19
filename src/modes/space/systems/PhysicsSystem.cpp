@@ -19,9 +19,12 @@ void Tick(const SystemContext& ctx) {
 
         if (const auto* propulsion = registry.try_get<Propulsion>(entity)) {
             if (const auto* thrust = registry.try_get<ThrustInput>(entity)) {
-                float satisfaction = 1.0f;
+                // Can exceed 1.0 when engines are commanded Boosted (features.md 2.9's
+                // afterburner) -- PowerBudget::engines is not clamped to [0, 1] the way a single
+                // rig-wide satisfaction float used to be.
+                float engineOutput = 1.0f;
                 if (const auto* budget = registry.try_get<PowerBudget>(entity)) {
-                    satisfaction = budget->satisfaction;
+                    engineOutput = budget->engines;
                 }
 
                 // Forward/strafe is a joystick, not two independent throttles: clamp the combined
@@ -33,11 +36,11 @@ void Tick(const SystemContext& ctx) {
                 }
 
                 const Vec2 force = (heading * inputDir.x + right * inputDir.y) *
-                                   (propulsion->thrustNewtons * satisfaction);
+                                   (propulsion->thrustNewtons * engineOutput);
                 velocity.linear += (force / mass.kilograms) * ctx.dt;
 
                 const float angularAccel =
-                    (propulsion->turnTorque * thrust->turn * satisfaction) / mass.kilograms;
+                    (propulsion->turnTorque * thrust->turn * engineOutput) / mass.kilograms;
                 velocity.angular += angularAccel * ctx.dt;
             }
         }
