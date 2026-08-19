@@ -67,10 +67,21 @@ enum class FacilityKind : std::uint8_t {
     Engineering,
 };
 
+// How far a shield generator's field reaches, authored per module and never rolled (features.md
+// section 3.1, architecture.md 12.22). The component pattern puts a module's effect on the
+// hardpoint it mounts on, which is right for a weapon or a power cell but silently confines a
+// shield to protecting only its own housing unless this says otherwise.
+enum class ShieldCoverage : std::uint8_t {
+    Personal,   // Its own hardpoint only -- what the code did before this enum existed.
+    Bubble,     // Every hardpoint on the same rig within ShieldStats::coverageRadius of the mount.
+    Conformal,  // Every hardpoint on the rig, full stop -- a set-membership check, not geometry.
+};
+
 std::string_view ToString(DamageType value);
 std::string_view ToString(ShellKind value);
 std::string_view ToString(ModuleKind value);
 std::string_view ToString(FacilityKind value);
+std::string_view ToString(ShieldCoverage value);
 
 // Parse helpers return false on an unknown token rather than defaulting, so a typo in JSON
 // surfaces as a registry load error naming the file and key (Law 10) instead of silently
@@ -79,8 +90,6 @@ bool FromString(std::string_view text, DamageType& out);
 bool FromString(std::string_view text, ShellKind& out);
 bool FromString(std::string_view text, ModuleKind& out);
 bool FromString(std::string_view text, FacilityKind& out);
-
-// True if a module of this kind may legally sit in a shell of this kind.
-bool IsMountable(ModuleKind module, ShellKind shell);
+bool FromString(std::string_view text, ShieldCoverage& out);
 
 }  // namespace sr

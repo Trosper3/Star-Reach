@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "shared/blueprints/Ids.h"
 #include "shared/blueprints/Taxonomy.h"
@@ -31,6 +32,25 @@ struct ShellDef {
     // Texture layer id for the separated top-down layer stack (features.md section 2.2). This is
     // an asset *key*, never a path -- engine/assets/ owns resolution (architecture.md section 6).
     std::string spriteLayer;
+
+    // Which ModuleKinds may mount here (architecture.md 12.22). Replaces the old
+    // IsMountable(ModuleKind, ShellKind) switch in Taxonomy.cpp -- a content rule in code, which
+    // Law 10 forbids -- with an authored list. ModuleKind::Armor is never listed: it is the one
+    // universal exception (Taxonomy.h documents why), checked separately by Accepts() below so
+    // content never has to repeat it on every shell.
+    std::vector<ModuleKind> acceptsKinds;
+
+    bool Accepts(ModuleKind moduleKind) const {
+        if (moduleKind == ModuleKind::Armor) {
+            return true;
+        }
+        for (const ModuleKind accepted : acceptsKinds) {
+            if (accepted == moduleKind) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 }  // namespace sr

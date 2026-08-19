@@ -13,12 +13,14 @@
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
 
 using Catch::Approx;
 using sr::DamageType;
 using sr::Destroyed;
 using sr::EnginePropulsion;
 using sr::Health;
+using sr::ParentRig;
 using sr::PendingDamage;
 using sr::PowerSource;
 using sr::Propulsion;
@@ -26,7 +28,10 @@ using sr::Rig;
 using sr::ShellKind;
 using sr::ShellRole;
 using sr::Shield;
+using sr::ShieldCoverage;
+using sr::StructuralAttachment;
 using sr::Targetable;
+using sr::WorldTransform;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace damage_system = sr::space::damage_system;
@@ -84,6 +89,186 @@ TEST_CASE("DamageSystem lets mismatched damage bypass the shield entirely", "[da
 
     CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
     CHECK(registry.get<Health>(hardpoint).current == Approx(80.0f));
+}
+
+TEST_CASE("DamageSystem's Personal shield covers only its own housing", "[damage][coverage]") {
+    // The default coverage mode -- what every shield did before ShieldCoverage existed.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    const entt::entity generator = registry.create();
+    registry.emplace<ParentRig>(generator, root);
+    registry.emplace<WorldTransform>(generator, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Shield>(generator, 50.0f, 50.0f, DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Personal, 100.0f);
+
+    const entt::entity wing = registry.create();
+    registry.emplace<ParentRig>(wing, root);
+    registry.emplace<WorldTransform>(wing, sr::Vec2{10.0f, 0.0f}, 0.0f);
+    registry.emplace<Health>(wing, 100.0f, 100.0f);
+    registry.emplace<PendingDamage>(wing, 20.0f, DamageType::Kinetic, entt::null);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{generator, wing});
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(generator).current == Approx(50.0f));
+    CHECK(registry.get<Health>(wing).current == Approx(80.0f));
+}
+
+TEST_CASE("DamageSystem's Bubble shield covers a neighbouring hardpoint within its radius",
+          "[damage][coverage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    const entt::entity generator = registry.create();
+    registry.emplace<ParentRig>(generator, root);
+    registry.emplace<WorldTransform>(generator, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Shield>(generator, 50.0f, 50.0f, DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Bubble, 15.0f);
+
+    const entt::entity wing = registry.create();
+    registry.emplace<ParentRig>(wing, root);
+    registry.emplace<WorldTransform>(wing, sr::Vec2{10.0f, 0.0f}, 0.0f);
+    registry.emplace<Health>(wing, 100.0f, 100.0f);
+    registry.emplace<PendingDamage>(wing, 20.0f, DamageType::Kinetic, entt::null);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{generator, wing});
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(generator).current == Approx(30.0f));
+    CHECK(registry.get<Health>(wing).current == Approx(100.0f));
+}
+
+TEST_CASE("DamageSystem's Bubble shield does not cover a hardpoint outside its radius",
+          "[damage][coverage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    const entt::entity generator = registry.create();
+    registry.emplace<ParentRig>(generator, root);
+    registry.emplace<WorldTransform>(generator, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Shield>(generator, 50.0f, 50.0f, DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Bubble, 5.0f);
+
+    const entt::entity wing = registry.create();
+    registry.emplace<ParentRig>(wing, root);
+    registry.emplace<WorldTransform>(wing, sr::Vec2{10.0f, 0.0f}, 0.0f);
+    registry.emplace<Health>(wing, 100.0f, 100.0f);
+    registry.emplace<PendingDamage>(wing, 20.0f, DamageType::Kinetic, entt::null);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{generator, wing});
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(generator).current == Approx(50.0f));
+    CHECK(registry.get<Health>(wing).current == Approx(80.0f));
+}
+
+TEST_CASE("DamageSystem's Conformal shield covers every hardpoint on the rig regardless of range",
+          "[damage][coverage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    const entt::entity generator = registry.create();
+    registry.emplace<ParentRig>(generator, root);
+    registry.emplace<WorldTransform>(generator, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Shield>(generator, 50.0f, 50.0f, DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Conformal, 0.0f);
+
+    const entt::entity tail = registry.create();
+    registry.emplace<ParentRig>(tail, root);
+    registry.emplace<WorldTransform>(tail, sr::Vec2{2000.0f, 0.0f}, 0.0f);
+    registry.emplace<Health>(tail, 100.0f, 100.0f);
+    registry.emplace<PendingDamage>(tail, 20.0f, DamageType::Kinetic, entt::null);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{generator, tail});
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(generator).current == Approx(30.0f));
+    CHECK(registry.get<Health>(tail).current == Approx(100.0f));
+}
+
+TEST_CASE(
+    "DamageSystem cascades destruction along StructuralAttachment when a structural parent dies",
+    "[damage][cascade]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+
+    const entt::entity chassis = registry.create();
+    registry.emplace<Health>(chassis, 5.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(chassis, entt::null);
+    registry.emplace<PendingDamage>(chassis, 10.0f, DamageType::Kinetic, entt::null);
+
+    const entt::entity wing = registry.create();
+    registry.emplace<Health>(wing, 100.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(wing, chassis);
+
+    const entt::entity gun = registry.create();  // Attached to the wing, not the chassis directly.
+    registry.emplace<Health>(gun, 100.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(gun, wing);
+
+    registry.get<Rig>(root).children = {chassis, wing, gun};
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(chassis));
+    CHECK(registry.all_of<Destroyed>(wing));
+    CHECK(registry.all_of<Destroyed>(gun));
+    CHECK(registry.all_of<Destroyed>(root));  // Everything hung off the chassis -- no special case.
+}
+
+TEST_CASE(
+    "DamageSystem leaves an unrelated hardpoint alone when a different structural branch dies",
+    "[damage][cascade]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+
+    const entt::entity chassis = registry.create();
+    registry.emplace<Health>(chassis, 100.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(chassis, entt::null);
+
+    const entt::entity wing = registry.create();
+    registry.emplace<Health>(wing, 5.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(wing, chassis);
+    registry.emplace<PendingDamage>(wing, 10.0f, DamageType::Kinetic, entt::null);
+
+    const entt::entity gun = registry.create();  // Attached to the wing, dies with it.
+    registry.emplace<Health>(gun, 100.0f, 100.0f);
+    registry.emplace<StructuralAttachment>(gun, wing);
+
+    registry.get<Rig>(root).children = {chassis, wing, gun};
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(chassis));
+    CHECK(registry.all_of<Destroyed>(wing));
+    CHECK(registry.all_of<Destroyed>(gun));
+    CHECK_FALSE(registry.all_of<Destroyed>(root));  // The chassis still lives.
 }
 
 TEST_CASE("DamageSystem spills damage exceeding shield capacity onto the hull", "[damage]") {

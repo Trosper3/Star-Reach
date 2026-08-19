@@ -8,7 +8,8 @@
       "mass": 40.0,
       "moduleSlots": 1,
       "radius": 22.0,
-      "spriteLayer": "fighter/chassis_light"
+      "spriteLayer": "fighter/chassis_light",
+      "acceptsKinds": []
     },
     {
       "id": "shell_thruster_mount",
@@ -18,7 +19,8 @@
       "mass": 12.0,
       "moduleSlots": 1,
       "radius": 9.0,
-      "spriteLayer": "fighter/thruster_mount"
+      "spriteLayer": "fighter/thruster_mount",
+      "acceptsKinds": ["engine"]
     },
     {
       "id": "shell_wing_hardpoint",
@@ -28,7 +30,8 @@
       "mass": 8.0,
       "moduleSlots": 1,
       "radius": 7.0,
-      "spriteLayer": "fighter/wing_hardpoint"
+      "spriteLayer": "fighter/wing_hardpoint",
+      "acceptsKinds": ["weapon", "fire_control"]
     },
     {
       "id": "shell_power_bay",
@@ -38,7 +41,8 @@
       "mass": 15.0,
       "moduleSlots": 1,
       "radius": 8.0,
-      "spriteLayer": "fighter/power_bay"
+      "spriteLayer": "fighter/power_bay",
+      "acceptsKinds": ["power_cell"]
     },
     {
       "id": "shell_shield_emitter",
@@ -48,7 +52,8 @@
       "mass": 10.0,
       "moduleSlots": 1,
       "radius": 8.0,
-      "spriteLayer": "fighter/shield_emitter"
+      "spriteLayer": "fighter/shield_emitter",
+      "acceptsKinds": ["shield_generator"]
     },
     {
       "id": "shell_station_core",
@@ -58,7 +63,8 @@
       "mass": 150.0,
       "moduleSlots": 1,
       "radius": 45.0,
-      "spriteLayer": "station/core_hub"
+      "spriteLayer": "station/core_hub",
+      "acceptsKinds": []
     },
     {
       "id": "shell_facility_bay",
@@ -68,7 +74,8 @@
       "mass": 20.0,
       "moduleSlots": 1,
       "radius": 14.0,
-      "spriteLayer": "station/facility_bay"
+      "spriteLayer": "station/facility_bay",
+      "acceptsKinds": ["facility", "sensor", "cargo_bay", "hyperdrive"]
     }
   ]
 }

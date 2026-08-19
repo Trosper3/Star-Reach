@@ -135,8 +135,8 @@ void CheckAdjacency(const ShipBlueprint& bp, ValidationResult& result) {
 }
 
 // Not enumerated in features.md section 2.3, but implied by ShellDef::moduleSlots and
-// IsMountable(). Both are mechanical consequences of the content model rather than design
-// choices, and catching them here is what keeps RigFactory free of defensive branches.
+// ShellDef::acceptsKinds. Both are mechanical consequences of the content model rather than
+// design choices, and catching them here is what keeps RigFactory free of defensive branches.
 void CheckMounting(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
     for (const auto& mount : bp.rig.mounts) {
         const ShellDef* shell = library.FindShell(mount.shell);
@@ -154,7 +154,7 @@ void CheckMounting(const ShipBlueprint& bp, const DefLibrary& library, Validatio
 
         for (const auto& moduleId : mount.modules) {
             const ModuleDef* module = library.FindModule(moduleId);
-            if (module != nullptr && !IsMountable(module->kind, shell->kind)) {
+            if (module != nullptr && !shell->Accepts(module->kind)) {
                 Add(result, ValidationRule::ModuleCompatibility,
                     "Module '" + moduleId.str() + "' (" + std::string(ToString(module->kind)) +
                         ") cannot mount in a " + std::string(ToString(shell->kind)) +

@@ -18,7 +18,10 @@ struct Health {
 //
 // Matching damage is absorbed; mismatched damage bypasses entirely and lands on the hull
 // beneath (features.md section 3.1). Destroying this hardpoint sets regeneration off
-// permanently for the rig -- DamageSystem does not reconstitute it.
+// permanently for the rig -- DamageSystem does not reconstitute it. `coverage`/`coverageRadius`
+// are copied from ShieldStats at attach time (architecture.md 12.22): DamageSystem resolves which
+// living Shield on the rig actually covers a damaged hardpoint before checking `absorbs`, rather
+// than assuming it is always this component's own housing.
 struct Shield {
     float current = 0.0f;
     float max = 0.0f;
@@ -27,6 +30,8 @@ struct Shield {
     float rechargeDelaySeconds = 0.0f;
     // Counts down after each absorbed hit; recharge resumes only at zero.
     float rechargeCooldown = 0.0f;
+    ShieldCoverage coverage = ShieldCoverage::Personal;
+    float coverageRadius = 0.0f;
 };
 
 // Queued damage, written by weapon/collision resolution and drained by DamageSystem.
