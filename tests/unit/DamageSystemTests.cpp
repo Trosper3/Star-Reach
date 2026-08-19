@@ -8,6 +8,7 @@
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/DamageSystem.h"
 #include "shared/blueprints/Taxonomy.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
@@ -18,6 +19,7 @@
 using Catch::Approx;
 using sr::DamageType;
 using sr::Destroyed;
+using sr::Docked;
 using sr::EnginePropulsion;
 using sr::Health;
 using sr::ParentRig;
@@ -618,4 +620,123 @@ TEST_CASE(
     CHECK(propulsion.thrustNewtons == Approx(2500.0f));
     CHECK(propulsion.turnTorque == Approx(1.5f));
     CHECK(propulsion.maxSpeed == Approx(400.0f));
+}
+
+TEST_CASE("DamageSystem destroys every rig docked to a host that dies this tick",
+          "[damage][cascade][docked]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    registry.emplace<Rig>(station);
+    registry.emplace<Targetable>(station);
+    const entt::entity stationHardpoint = registry.create();
+    registry.emplace<Health>(stationHardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(stationHardpoint);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+
+    // Each docked rig carries its own living hardpoint -- without the cascade, HasLivingHardpoint
+    // alone would leave it alive, so a pass here is attributable to Docked.station, not to an
+    // incidentally-empty rig dying on its own.
+    const entt::entity dockedA = registry.create();
+    registry.emplace<Rig>(dockedA);
+    registry.emplace<Docked>(dockedA, station, entt::null);
+    const entt::entity dockedAHardpoint = registry.create();
+    registry.emplace<Health>(dockedAHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(dockedA).children.push_back(dockedAHardpoint);
+
+    const entt::entity dockedB = registry.create();
+    registry.emplace<Rig>(dockedB);
+    registry.emplace<Docked>(dockedB, station, entt::null);
+    const entt::entity dockedBHardpoint = registry.create();
+    registry.emplace<Health>(dockedBHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(dockedB).children.push_back(dockedBHardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(station));
+    CHECK(registry.all_of<Destroyed>(dockedA));
+    CHECK(registry.all_of<Destroyed>(dockedB));
+}
+
+TEST_CASE("DamageSystem leaves a docked rig alone when its host survives the tick",
+          "[damage][cascade][docked]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    registry.emplace<Rig>(station);
+    const entt::entity stationHardpoint = registry.create();
+    registry.emplace<Health>(stationHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+
+    const entt::entity docked = registry.create();
+    registry.emplace<Rig>(docked);
+    registry.emplace<Docked>(docked, station, entt::null);
+    const entt::entity dockedHardpoint = registry.create();
+    registry.emplace<Health>(dockedHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(docked).children.push_back(dockedHardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(station));
+    CHECK_FALSE(registry.all_of<Destroyed>(docked));
+}
+
+TEST_CASE("DamageSystem dies cleanly when a host with no docked rigs is destroyed",
+          "[damage][cascade][docked]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    registry.emplace<Rig>(station);
+    const entt::entity stationHardpoint = registry.create();
+    registry.emplace<Health>(stationHardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(stationHardpoint);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(station));
+}
+
+TEST_CASE(
+    "DamageSystem's docked cascade ignores a rig docked to an unrelated station that survives",
+    "[damage][cascade][docked]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity dyingStation = registry.create();
+    registry.emplace<Rig>(dyingStation);
+    const entt::entity dyingHardpoint = registry.create();
+    registry.emplace<Health>(dyingHardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(dyingHardpoint);
+    registry.get<Rig>(dyingStation).children.push_back(dyingHardpoint);
+
+    const entt::entity survivingStation = registry.create();
+    registry.emplace<Rig>(survivingStation);
+    const entt::entity survivingHardpoint = registry.create();
+    registry.emplace<Health>(survivingHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(survivingStation).children.push_back(survivingHardpoint);
+
+    const entt::entity docked = registry.create();
+    registry.emplace<Rig>(docked);
+    registry.emplace<Docked>(docked, survivingStation, entt::null);
+    const entt::entity dockedHardpoint = registry.create();
+    registry.emplace<Health>(dockedHardpoint, 100.0f, 100.0f);
+    registry.get<Rig>(docked).children.push_back(dockedHardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(dyingStation));
+    CHECK_FALSE(registry.all_of<Destroyed>(survivingStation));
+    CHECK_FALSE(registry.all_of<Destroyed>(docked));
 }
