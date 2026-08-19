@@ -83,7 +83,9 @@ add_executable(sr_tests
     integration/SpaceFlightSystemWarpTests.cpp
     integration/SpaceFlightOnEnterTests.cpp
     integration/SpaceFlightCameraTests.cpp
+    integration/SpaceFlightSystemMenuTests.cpp
     unit/EconomyModelTests.cpp
+    unit/SystemMenuTests.cpp
 )
 
 # Tests link sr_space, which pulls the whole graph. The genuinely interesting property is that

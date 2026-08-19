@@ -57,6 +57,11 @@ public:
     core::IntentQueue& Intents() { return intents_; }
     float InterpolationAlpha() const { return clock_.Alpha(); }
 
+    // architecture.md 12.29: true once the player has confirmed Quit To Main Menu in the system
+    // menu. A latch, mirroring MainMenu::ShouldStartGame() -- main.cpp polls this once per frame
+    // and OnEnter() resets it, so starting a later game does not immediately bounce back out.
+    bool ShouldReturnToMenu() const { return returnToMenuRequested_; }
+
     // The raw (un-interpolated) tick position Update() last read off the player's WorldTransform
     // (architecture.md 12.24 step 3). Draw() blends this toward the player's live transform by
     // InterpolationAlpha() each frame rather than storing an already-interpolated value here.
@@ -105,6 +110,10 @@ private:
     // Presentation state, and the only state this class is permitted to own.
     Vec2 cameraTarget_;
     float cameraZoom_ = 1.0f;
+
+    // Mode state (ShouldReturnToMenu()'s backing field), not UI state -- architecture.md 12.29
+    // keeps the system menu's own open/closed state on a registry singleton instead.
+    bool returnToMenuRequested_ = false;
 };
 
 }  // namespace sr::space
