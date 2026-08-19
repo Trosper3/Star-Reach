@@ -33,6 +33,7 @@ using sr::ModuleId;
 using sr::MountedModules;
 using sr::ParentRig;
 using sr::PlayerControlled;
+using sr::PlayerLocation;
 using sr::RespawnPending;
 using sr::Rig;
 using sr::Targetable;
@@ -71,13 +72,14 @@ entt::entity MakeCollector(entt::registry& registry, const Vec2& position, float
     return collector;
 }
 
-// A dead PlayerControlled rig: root plus two already-Destroyed hardpoints, one carrying a
-// mounted module and one carrying cargo -- enough to exercise HandlePlayerDeath's manifest
-// collection without going through RigFactory.
+// A dead player rig: root plus two already-Destroyed hardpoints, one carrying a mounted module
+// and one carrying cargo -- enough to exercise HandlePlayerDeath's manifest collection without
+// going through RigFactory. PlayerLocation, not PlayerControlled -- HandlePlayerDeath identifies
+// the player that way (see its own doc comment for why).
 entt::entity MakeDeadPlayerRig(entt::registry& registry, const Vec2& position) {
     const entt::entity root = registry.create();
     registry.emplace<WorldTransform>(root, position, 0.0f);
-    registry.emplace<PlayerControlled>(root);
+    registry.emplace<PlayerLocation>(root, root);
     registry.emplace<Destroyed>(root);
 
     const entt::entity weaponBay = registry.create();
@@ -420,7 +422,7 @@ TEST_CASE("Recovering a promoted DeathWreck grants its manifest and clears its W
 }
 
 TEST_CASE(
-    "LootSystem revives a dead PlayerControlled rig at the death position, drops its losses as "
+    "LootSystem revives a dead PlayerLocation rig at the death position, drops its losses as "
     "a DeathWreck, and hands SpawnSystem a RespawnPending",
     "[loot][wreck][death]") {
     // architecture.md 13.3 R: RespawnPending's only producer. features.md section 3.3: the
@@ -464,7 +466,7 @@ TEST_CASE(
     CHECK(manifest.elements.front().quantity == 3);
 }
 
-TEST_CASE("LootSystem leaves a living PlayerControlled rig alone", "[loot][death]") {
+TEST_CASE("LootSystem leaves a living player rig alone", "[loot][death]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -472,7 +474,7 @@ TEST_CASE("LootSystem leaves a living PlayerControlled rig alone", "[loot][death
 
     const entt::entity root = registry.create();
     registry.emplace<WorldTransform>(root, Vec2{0.0f, 0.0f}, 0.0f);
-    registry.emplace<PlayerControlled>(root);
+    registry.emplace<PlayerLocation>(root, root);
     registry.emplace<Rig>(root);
 
     loot_system::Tick(MakeContext(world, intents, content));
