@@ -38,6 +38,8 @@ void ParseShieldStats(const JsonReader& reader, ShieldStats& out) {
     stats.OptionalEnum("absorbs", out.absorbs);
     stats.Optional("rechargePerSecond", out.rechargePerSecond);
     stats.Optional("rechargeDelaySeconds", out.rechargeDelaySeconds);
+    stats.OptionalEnum("coverage", out.coverage);
+    stats.Optional("coverageRadius", out.coverageRadius);
 }
 
 void ParseEngineStats(const JsonReader& reader, EngineStats& out) {
@@ -155,6 +157,20 @@ ShellDef ParseShellDef(const JsonReader& reader) {
     reader.Optional("moduleSlots", def.moduleSlots);
     reader.Optional("radius", def.radius);
     reader.Optional("spriteLayer", def.spriteLayer);
+
+    // ModuleKind::Armor is never listed (ShellDef::Accepts checks it separately) -- an unknown
+    // token here is still an error, the same as any other enum field, so a content typo surfaces
+    // at load time rather than as a module silently refusing to mount.
+    std::vector<std::string> acceptsKinds;
+    reader.Optional("acceptsKinds", acceptsKinds);
+    for (const std::string& token : acceptsKinds) {
+        ModuleKind kind = ModuleKind::Armor;
+        if (!FromString(token, kind)) {
+            reader.Error("field 'acceptsKinds' has unknown value '" + token + "'");
+            continue;
+        }
+        def.acceptsKinds.push_back(kind);
+    }
     return def;
 }
 

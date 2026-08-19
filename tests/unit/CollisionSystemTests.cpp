@@ -118,6 +118,33 @@ TEST_CASE(
     CHECK(registry.get<RamCooldown>(light).secondsRemaining == Approx(1.2f));
 }
 
+TEST_CASE(
+    "CollisionSystem's ramming damage scales up with the pair's absolute mass, not just the "
+    "heavy/light split",
+    "[collision]") {
+    // Identical velocities, positions and radii in both runs -- only the (symmetric) mass
+    // differs, 10x -- isolates architecture.md 12.22's reduced-mass fix from the pre-existing
+    // heavy/light split, which a same-ratio, different-magnitude pair keeps constant.
+    const auto Damage = [](float mass) {
+        SystemWorld world("sol");
+        entt::registry& registry = world.Registry();
+        sr::core::IntentQueue intents;
+        sr::core::ContentLibrary content;
+
+        const entt::entity a = MakeRig(registry, Vec2{-30.0f, 0.0f}, Vec2{5.0f, 0.0f}, mass, 50.0f);
+        MakeRig(registry, Vec2{30.0f, 0.0f}, Vec2{-5.0f, 0.0f}, mass, 50.0f);
+
+        collision_system::Tick(MakeContext(world, intents, content));
+
+        return registry.get<PendingDamage>(registry.get<Rig>(a).children.front()).amount;
+    };
+
+    const float lightPairDamage = Damage(500.0f);
+    const float heavyPairDamage = Damage(5000.0f);
+
+    CHECK(heavyPairDamage > lightPairDamage * 5.0f);
+}
+
 TEST_CASE("CollisionSystem does not queue ramming damage while RamCooldown is still active",
           "[collision]") {
     SystemWorld world("sol");

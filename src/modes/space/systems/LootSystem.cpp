@@ -279,6 +279,48 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
     }
 }
 
+// architecture.md 12.5's wreck path for a combat kill, distinct from HandlePlayerDeath above:
+// exclude<PlayerLocation> so the two never both fire for the same root. There is no recovery/
+// revival here -- a non-player kill spills its cargo as loose pickups (the same SpillCargoHold
+// producer a single destroyed bay already uses, per hardpoint) and leaves exactly one DeathWreck
+// carrying what was mounted, then the root and every one of its hardpoints is destroyed outright.
+// Runs after DamageSystem (SystemSchedule.cpp), which is what tags Destroyed and is already last
+// among the combat systems -- so this sees every death from this tick, whether the cause was
+// gunfire, a ram, or (once it lands) P2-02's docked cascade, through one death path rather than
+// three. Mounted modules are handed over as a bare id manifest, not live items -- turning that
+// into something a beam can harvest is P6-11's job, not this one's.
+void HandleCombatKills(entt::registry& registry) {
+    std::vector<entt::entity> toDestroy;
+
+    for (const entt::entity root : registry.view<Rig, Destroyed>(entt::exclude<PlayerLocation>)) {
+        const auto* xf = registry.try_get<WorldTransform>(root);
+        const Vec2 position = xf != nullptr ? xf->position : Vec2{};
+        const std::vector<entt::entity> hardpoints = registry.get<Rig>(root).children;
+
+        std::vector<ModuleId> modules;
+        for (const entt::entity hardpoint : hardpoints) {
+            if (const auto* mounted = registry.try_get<MountedModules>(hardpoint)) {
+                for (const ModuleId& moduleId : mounted->ids) {
+                    modules.push_back(moduleId);
+                }
+            }
+            SpillCargoHold(registry, hardpoint);
+            toDestroy.push_back(hardpoint);
+        }
+        toDestroy.push_back(root);
+
+        core::galaxy::WreckRecord record;
+        record.position = position;
+        record.modules = std::move(modules);
+        record.lifetimeSeconds = DeathWreck{}.lifetimeSeconds;
+        PromoteDeathWreck(registry, record);
+    }
+
+    for (const entt::entity entity : toDestroy) {
+        registry.destroy(entity);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -288,6 +330,7 @@ void Tick(const SystemContext& ctx) {
     TickDerelictWrecks(registry);
     TickDeathWrecks(registry, ctx.content, ctx.dt);
     HandlePlayerDeath(registry, ctx.content);
+    HandleCombatKills(registry);
     SpillDestroyedBays(registry);
 }
 

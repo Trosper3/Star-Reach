@@ -27,6 +27,24 @@ struct ParentRig {
 // targeting can filter without a registry lookup back into authored data every frame.
 struct ShellRole {
     ShellKind kind = ShellKind::Armor;
+
+    // Copied from ShellDef::acceptsKinds at instantiation (architecture.md 12.22) -- a live
+    // refit (ModuleEquipSystem) only ever has the hardpoint in hand, never the authored ShellDef,
+    // the same reason `kind` above is copied rather than looked up. Armor is not listed here: see
+    // ShellDef::Accepts's comment; Accepts() below checks it separately.
+    std::vector<ModuleKind> acceptsKinds;
+
+    bool Accepts(ModuleKind moduleKind) const {
+        if (moduleKind == ModuleKind::Armor) {
+            return true;
+        }
+        for (const ModuleKind accepted : acceptsKinds) {
+            if (accepted == moduleKind) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 // Per-hardpoint hit radius, copied from ShellDef::radius at instantiation. ProjectileSystem's

@@ -59,9 +59,9 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
         }
         case ModuleKind::ShieldGenerator: {
             const ShieldStats& stats = module.shield;
-            registry.emplace_or_replace<Shield>(hardpoint, stats.capacity, stats.capacity,
-                                                stats.absorbs, stats.rechargePerSecond,
-                                                stats.rechargeDelaySeconds, 0.0f);
+            registry.emplace_or_replace<Shield>(
+                hardpoint, stats.capacity, stats.capacity, stats.absorbs, stats.rechargePerSecond,
+                stats.rechargeDelaySeconds, 0.0f, stats.coverage, stats.coverageRadius);
             break;
         }
         case ModuleKind::Engine:
