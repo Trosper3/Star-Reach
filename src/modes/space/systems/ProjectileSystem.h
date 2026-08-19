@@ -4,9 +4,10 @@
 
 namespace sr::space::projectile_system {
 
-// Advances every live Projectile along its straight-line path, resolves the first hardpoint hit
-// along that path this tick (skipping the shooter's own rig), queues PendingDamage on it, and
-// culls the projectile on either a hit or exhausting its remainingRange.
+// Advances every live Projectile along its straight-line path, resolves the most-specific
+// hardpoint (smallest hitRadius, ties broken by nearest along the path) whose shape that path
+// crosses this tick (skipping the shooter's own rig), queues PendingDamage on it, and culls the
+// projectile on either a hit or exhausting its remainingRange.
 //
 // Must run after WeaponSystem (it advances what that system just spawned this tick) and before
 // DamageSystem (which drains the PendingDamage this system writes).

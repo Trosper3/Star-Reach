@@ -11,8 +11,12 @@ namespace sr::space::damage_system {
 // hardpoint whose hull reaches zero. Destruction then cascades along StructuralAttachment:
 // severing a structural parent takes every child hanging off it with it, with no special case for
 // the chassis -- it dies like anything else, and its death is rig death only because everything
-// ultimately attaches to it. Also detects rig death: a rig with no living hardpoint left loses
-// Targetable and is marked Destroyed itself -- there is no protected core (Capital Ship Design).
+// ultimately attaches to it. Also detects rig death, but not by requiring every hardpoint reach
+// zero individually (features.md 3.2: "a ship dies before its last hardpoint does"): once a
+// rig's aggregate structural integrity (shared/rig/ModuleAttachment.h's
+// AggregateStructuralIntegrity, the sum of living hardpoint health over total hardpoint health)
+// falls below kStructuralFailureThreshold, every surviving hardpoint is destroyed along with the
+// root and it loses Targetable -- there is no protected core (Capital Ship Design).
 //
 // Also invalidates a rig's Propulsion once its last living Engine-kind hardpoint dies. This is
 // an all-or-nothing zeroing, not a proportional recompute: doing that properly needs a

@@ -207,4 +207,23 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
     }
 }
 
+float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity rigRoot) {
+    const Rig* rig = registry.try_get<Rig>(rigRoot);
+    if (rig == nullptr || rig->children.empty()) {
+        return 0.0f;
+    }
+
+    float current = 0.0f;
+    float max = 0.0f;
+    for (const entt::entity child : rig->children) {
+        if (const Health* health = registry.try_get<Health>(child)) {
+            max += health->max;
+            if (!registry.all_of<Destroyed>(child)) {
+                current += health->current;
+            }
+        }
+    }
+    return max > 0.0f ? current / max : 0.0f;
+}
+
 }  // namespace sr::rig_attachment

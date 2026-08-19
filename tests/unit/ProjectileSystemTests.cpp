@@ -194,6 +194,54 @@ TEST_CASE("ProjectileSystem hits an asteroid, which carries HitRadius but no Par
     CHECK(registry.get<PendingDamage>(asteroid).amount == Approx(25.0f));
 }
 
+TEST_CASE(
+    "ProjectileSystem resolves an overlapping hit to the more specific (smaller-radius) "
+    "hardpoint, not the larger one behind it",
+    "[projectile][most-specific]") {
+    // features.md 3.5: most-specific-wins replaces first-in-iteration-order. A turret sitting in
+    // front of the chassis it's mounted on -- both hit circles crossed by the same shot -- must
+    // resolve to the turret every time, deterministically, regardless of creation order.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity shooterRig = registry.create();
+    const entt::entity targetRig = registry.create();
+    const entt::entity chassis = MakeHardpoint(registry, targetRig, Vec2{50.0f, 0.0f}, 20.0f);
+    const entt::entity turret = MakeHardpoint(registry, targetRig, Vec2{55.0f, 0.0f}, 5.0f);
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{3000.0f, 0.0f}, 25.0f,
+                                             DamageType::Kinetic, shooterRig, 1000.0f);
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    CHECK_FALSE(registry.valid(shot));
+    CHECK(registry.all_of<PendingDamage>(turret));
+    CHECK_FALSE(registry.all_of<PendingDamage>(chassis));
+}
+
+TEST_CASE(
+    "ProjectileSystem breaks an equal-radius tie by whichever hardpoint the path reaches first",
+    "[projectile][most-specific]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity shooterRig = registry.create();
+    const entt::entity targetRig = registry.create();
+    const entt::entity nearHardpoint = MakeHardpoint(registry, targetRig, Vec2{30.0f, 0.0f}, 10.0f);
+    const entt::entity farHardpoint = MakeHardpoint(registry, targetRig, Vec2{60.0f, 0.0f}, 10.0f);
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{3000.0f, 0.0f}, 25.0f,
+                                             DamageType::Kinetic, shooterRig, 1000.0f);
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    CHECK_FALSE(registry.valid(shot));
+    CHECK(registry.all_of<PendingDamage>(nearHardpoint));
+    CHECK_FALSE(registry.all_of<PendingDamage>(farHardpoint));
+}
+
 TEST_CASE("ProjectileSystem accumulates damage from two hits on the same hardpoint in one tick",
           "[projectile]") {
     SystemWorld world("sol");

@@ -230,6 +230,40 @@ TEST_CASE("A weapon mount with no authored traverse fails validation, naming the
     CHECK(named);
 }
 
+TEST_CASE(
+    "Rule 12 -- a non-structural mount hanging off another non-structural mount is rejected",
+    "[validation]") {
+    const FakeLibrary library = MakeLibrary();
+    sr::ShipBlueprint bp = MakeValidShip();
+    // A second gun attached to gun_nose (Weapon kind) instead of to the chassis or armour --
+    // nothing structural backs it.
+    bp.rig.mounts.push_back(Mount("gun_second", "gun", "gun_nose", {"cannon"}, 0.35f));
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    REQUIRE(result.HasRule(sr::ValidationRule::StructuralCoverage));
+
+    bool named = false;
+    for (const auto& error : result.errors) {
+        if (error.rule == sr::ValidationRule::StructuralCoverage &&
+            error.message.find("gun_second") != std::string::npos) {
+            named = true;
+        }
+    }
+    CHECK(named);
+}
+
+TEST_CASE("Rule 12 -- a non-structural mount backed by armour is accepted", "[validation]") {
+    FakeLibrary library = MakeLibrary();
+    library.AddShell("armor", sr::ShellKind::Armor);
+
+    sr::ShipBlueprint bp = MakeValidShip();
+    bp.rig.mounts.push_back(Mount("flank", "armor", "core", {}));
+    bp.rig.mounts.push_back(Mount("gun_second", "gun", "flank", {"cannon"}, 0.35f));
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    CHECK_FALSE(result.HasRule(sr::ValidationRule::StructuralCoverage));
+}
+
 TEST_CASE("A mount may not exceed its shell's slot count", "[validation]") {
     const FakeLibrary library = MakeLibrary();
     sr::ShipBlueprint bp = MakeValidShip();

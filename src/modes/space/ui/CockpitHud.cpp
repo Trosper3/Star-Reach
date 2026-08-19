@@ -3,9 +3,8 @@
 #include <raylib.h>
 #include <algorithm>
 
-#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
-#include "shared/components/Rig.h"
+#include "shared/rig/ModuleAttachment.h"
 #include "shared/ui/HudTheme.h"
 
 namespace sr::space::ui::cockpit_hud {
@@ -16,28 +15,26 @@ constexpr float kBarHeight = 22.0f;
 constexpr float kMargin = 24.0f;
 constexpr float kInset = 3.0f;
 
+// (raw - threshold) / (1 - threshold) -- features.md 3.2's normalized bar: raw 100% shows 100%,
+// raw at the structural-failure threshold shows a true 0%, matching the tick a hull actually
+// gives way rather than showing a sliver of bar for a ship that is already destroyed.
+float NormalizedFraction(float raw) {
+    const float span = 1.0f - rig_attachment::kStructuralFailureThreshold;
+    if (span <= 0.0f) {
+        return raw;
+    }
+    return std::clamp((raw - rig_attachment::kStructuralFailureThreshold) / span, 0.0f, 1.0f);
+}
+
 }  // namespace
 
 float AggregateHullFraction(const entt::registry& registry, entt::entity rigRoot) {
-    const Rig* rig = registry.try_get<Rig>(rigRoot);
-    if (rig == nullptr || rig->children.empty()) {
-        return 0.0f;
-    }
-
-    float current = 0.0f;
-    float max = 0.0f;
-    for (const entt::entity child : rig->children) {
-        if (const Health* health = registry.try_get<Health>(child)) {
-            current += health->current;
-            max += health->max;
-        }
-    }
-    return max > 0.0f ? current / max : 0.0f;
+    return rig_attachment::AggregateStructuralIntegrity(registry, rigRoot);
 }
 
 void Draw(const entt::registry& registry) {
     for (auto [entity] : registry.view<PlayerControlled>().each()) {
-        const float fraction = std::clamp(AggregateHullFraction(registry, entity), 0.0f, 1.0f);
+        const float fraction = NormalizedFraction(AggregateHullFraction(registry, entity));
         const float screenHeight = static_cast<float>(GetScreenHeight());
         const Rectangle bounds{kMargin, screenHeight - kMargin - kBarHeight, kBarWidth, kBarHeight};
 

@@ -11,14 +11,19 @@
 // anything stays inside Law 9's discipline.
 namespace sr::space::ui::cockpit_hud {
 
-// Sum of current/max Health across a rig's hardpoints. There is no rig-wide health bar
-// component (shared/components/Health.h: "a rig dies when its hardpoints do"), so this is the
-// aggregate a HUD needs to show one bar. Returns 0 for a rig with no Health-bearing hardpoints
-// (a root with no children yet, not a crash). Pure -- no raylib -- so unit-testable.
+// Thin forward to shared/rig/ModuleAttachment.h's AggregateStructuralIntegrity -- the raw
+// (un-normalized) sum of living current/max Health across a rig's hardpoints. There is no
+// rig-wide health bar component (shared/components/Health.h: "a rig dies when its hardpoints
+// do"), so this is the aggregate a HUD needs to show one bar; DamageSystem is the aggregate's
+// other reader, which is why the computation itself lives in shared/rig/ rather than here
+// (architecture.md 2.3: systems/ may not include ui/). Returns 0 for a rig with no Health-bearing
+// hardpoints (a root with no children yet, not a crash). Pure -- no raylib -- so unit-testable.
 float AggregateHullFraction(const entt::registry& registry, entt::entity rigRoot);
 
-// Draws the PlayerControlled rig's hull bar, screen-space, bottom-left. No-op with no
-// PlayerControlled entity. Must be called outside BeginMode2D/EndMode2D, same as IconRenderer.
+// Draws the PlayerControlled rig's hull bar, screen-space, bottom-left, normalized so it reaches
+// a true zero at features.md 3.2's structural-failure threshold rather than at raw zero -- no
+// ship is ever seen alive below that point. No-op with no PlayerControlled entity. Must be called
+// outside BeginMode2D/EndMode2D, same as IconRenderer.
 void Draw(const entt::registry& registry);
 
 }  // namespace sr::space::ui::cockpit_hud

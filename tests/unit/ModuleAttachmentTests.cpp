@@ -23,11 +23,13 @@ using sr::EnginePropulsion;
 using sr::FireControl;
 using sr::HardpointMass;
 using sr::HardpointSensorRange;
+using sr::Health;
 using sr::ModuleDef;
 using sr::ModuleKind;
 using sr::Propulsion;
 using sr::Rig;
 using sr::SensorRange;
+using sr::rig_attachment::AggregateStructuralIntegrity;
 using sr::rig_attachment::AttachModuleComponents;
 using sr::rig_attachment::DetachModuleComponents;
 using sr::rig_attachment::RecomputeRigTotals;
@@ -367,4 +369,56 @@ TEST_CASE(
     registry.emplace<Destroyed>(engineB);
     RecomputeRigTotals(registry, root);
     CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(0.0f));  // Zero only now.
+}
+
+TEST_CASE("AggregateStructuralIntegrity is 0 for a rig with no children", "[module-attach]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    CHECK(AggregateStructuralIntegrity(registry, root) == 0.0f);
+}
+
+TEST_CASE("AggregateStructuralIntegrity sums living current over total max", "[module-attach]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    Rig rig;
+
+    const entt::entity half = registry.create();
+    registry.emplace<Health>(half, 25.0f, 50.0f);
+    rig.children.push_back(half);
+
+    const entt::entity dead = registry.create();
+    registry.emplace<Health>(dead, 0.0f, 50.0f);
+    rig.children.push_back(dead);
+
+    registry.emplace<Rig>(root, std::move(rig));
+
+    // (25 + 0) / (50 + 50) = 0.25
+    CHECK(AggregateStructuralIntegrity(registry, root) == Approx(0.25f));
+}
+
+TEST_CASE(
+    "AggregateStructuralIntegrity excludes a Destroyed hardpoint's current health even if it was "
+    "never zeroed, but still counts its max",
+    "[module-attach]") {
+    // StructuralAttachment cascade (DamageSystem) tags Destroyed without touching Health -- the
+    // numerator must read "living" as the Destroyed tag, not as Health::current, or a hardpoint
+    // cascaded to death this tick would still prop up the aggregate on its stale health value.
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    Rig rig;
+
+    const entt::entity alive = registry.create();
+    registry.emplace<Health>(alive, 20.0f, 50.0f);
+    rig.children.push_back(alive);
+
+    const entt::entity cascaded = registry.create();
+    registry.emplace<Health>(cascaded, 40.0f, 50.0f);  // Never zeroed by the cascade.
+    registry.emplace<Destroyed>(cascaded);
+    rig.children.push_back(cascaded);
+
+    registry.emplace<Rig>(root, std::move(rig));
+
+    // 20 / (50 + 50) = 0.2, not (20 + 40) / 100 = 0.6.
+    CHECK(AggregateStructuralIntegrity(registry, root) == Approx(0.2f));
 }
