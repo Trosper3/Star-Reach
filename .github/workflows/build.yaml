@@ -77,7 +77,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # DEBIAN_FRONTEND/NEEDRESTART_MODE: ubuntu-latest ships a needrestart that defaults to an
+      # interactive "which services should be restarted?" prompt whenever apt-get install upgrades
+      # a library backing a running service. There is no tty in a runner, so instead of failing it
+      # hangs until the job's 6-hour ceiling -- observed both here (this step, intermittently) and
+      # on main (a run cancelled at 6h1m1s with no diagnostic). Forcing both to non-interactive/
+      # automatic is the standard fix; it is not a speed tweak, it is what makes this step
+      # deterministic at all.
       - name: Install raylib's X11/GL build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -86,6 +96,9 @@ jobs:
             wayland-protocols libxkbcommon-x11-dev
 
       - name: Install clang-tidy
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: sudo apt-get install -y clang-tidy-18
 
       # Supplies a consistent CMake and Ninja, which the presets require.
@@ -161,8 +174,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set --
+      # without them this apt-get intermittently hangs on ubuntu-latest until the 6-hour job
+      # ceiling instead of completing in seconds.
       - name: Install raylib's X11/GL build dependencies
         if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -243,7 +262,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # See the clang-tidy job's identical step for why DEBIAN_FRONTEND/NEEDRESTART_MODE are set --
+      # without them this apt-get intermittently hangs on ubuntu-latest until the 6-hour job
+      # ceiling instead of completing in seconds.
       - name: Install raylib's X11/GL build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
           sudo apt-get update
           sudo apt-get install -y \
