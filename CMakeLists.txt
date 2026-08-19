@@ -256,6 +256,7 @@ add_library(sr_space STATIC
     src/modes/space/render/WorldRenderer.cpp
     src/modes/space/ui/AvionicsMenu.cpp
     src/modes/space/ui/FlightControls.cpp
+    src/modes/space/ui/SystemMenu.cpp
     src/modes/space/ui/BridgeView.cpp
     src/modes/space/ui/CockpitHud.cpp
     src/modes/space/ui/BuildMenu.cpp

@@ -118,6 +118,14 @@ int RunGame() {
             activeMode->OnEnter();
         }
 
+        // architecture.md 12.29: the mirror of the transition above -- before this, the only
+        // exit from a running game was closing the window.
+        if (activeMode == &game && game.ShouldReturnToMenu()) {
+            activeMode->OnExit();
+            activeMode = &menu;
+            activeMode->OnEnter();
+        }
+
         window.BeginFrame();
         activeMode->Draw();
         window.EndFrame();

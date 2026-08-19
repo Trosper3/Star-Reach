@@ -14,6 +14,7 @@
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "modes/space/ui/FlightControls.h"
+#include "modes/space/ui/SystemMenu.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Transform.h"
@@ -48,17 +49,38 @@ void SpaceFlight::OnEnter() {
     // step 1 even though the quit-to-menu path itself lands later.
     world_ = SystemWorld("sol", "Sol");
     clock_ = core::FixedTimestep{};
+    // architecture.md 12.29: a latch, mirroring MainMenu::OnEnter() resetting its own
+    // startRequested_/quitRequested_ -- without this, quitting to the menu and starting a new
+    // game would read the prior game's confirmed quit and bounce straight back out.
+    returnToMenuRequested_ = false;
 
     SpawnPlayerInto("sol", BlueprintId(kStartingBlueprint), FactionId{}, Vec2{0.0f, 0.0f}, 0.0f,
                     Wallet{});
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
+    entt::registry& registry = world_.Registry();
+
+    // Esc's ladder and any Resume/Quit/Confirm/Cancel click (architecture.md 12.29) -- polled
+    // every frame regardless of pause state, for the same "IsKeyPressed reads this frame's
+    // press" reason avionics_menu::Update below is polled unconditionally too.
+    ui::system_menu::Update(registry);
+    if (ui::system_menu::QuitConfirmed(registry)) {
+        returnToMenuRequested_ = true;
+    }
+    if (ui::system_menu::IsOpen(registry)) {
+        // Paused: the system menu confers no tactical value (features.md 3.4's exception is what
+        // makes freezing here legal), so nothing below may run -- no flight input, no tick
+        // advance, no real time banked in clock_'s accumulator, or resuming would fast-forward
+        // the world through however long the player sat in the menu.
+        return;
+    }
+
     // Polled once per real frame, same as the window itself -- IsKeyPressed's "pressed this
     // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
-    ui::avionics_menu::Update(world_.Registry());
+    ui::avionics_menu::Update(registry);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -210,6 +232,9 @@ void SpaceFlight::Draw() const {
     ui::cockpit_hud::Draw(world_.Registry());
     ui::avionics_menu::Draw(world_.Registry());
     ui::bridge_view::Draw(world_.Registry());
+    // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
+    // game (architecture.md 12.29).
+    ui::system_menu::Draw(world_.Registry());
 }
 
 void SpaceFlight::OnExit() {
