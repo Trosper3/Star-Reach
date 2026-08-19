@@ -50,7 +50,15 @@ Color ColorForShell(ShellKind kind) {
 }
 
 Color ColorForProjectile(DamageType type) {
-    return type == DamageType::Energy ? SKYBLUE : YELLOW;
+    switch (type) {
+        case DamageType::Energy: return SKYBLUE;
+        case DamageType::Kinetic: return PURPLE;
+        // Electric white-blue, deliberately separated from Energy's blue by luminance rather
+        // than hue -- Ion is absorbed by neither shield type and must read as the most
+        // distinguishable of the three (features.md section 3.9).
+        case DamageType::Ion: return Color{200, 235, 255, 255};
+    }
+    return YELLOW;
 }
 
 Color ColorForBodyKind(BodyKind kind) {

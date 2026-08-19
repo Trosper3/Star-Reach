@@ -75,6 +75,9 @@ LoadReport ContentLibrary::LoadFromDirectory(const std::filesystem::path& direct
     LoadArrayFile(directory / "modules.json", "modules", ParseModuleDef, modules_, report);
     LoadArrayFile(directory / "elements.json", "elements", ParseElementDef, elements_, report);
     LoadArrayFile(directory / "ships.json", "ships", ParseShipBlueprint, ships_, report);
+
+    const LoadReport damageTypes = damageTypeEffects_.LoadFromFile(directory / "damage_types.json");
+    report.errors.insert(report.errors.end(), damageTypes.errors.begin(), damageTypes.errors.end());
     return report;
 }
 
@@ -100,6 +103,10 @@ void ContentLibrary::RegisterCraftedModule(ModuleDef module) {
 const ElementDef* ContentLibrary::FindElement(const ElementId& id) const {
     const auto it = elements_.find(id.str());
     return it == elements_.end() ? nullptr : &it->second;
+}
+
+DamageTypeEffect ContentLibrary::LookupDamageTypeEffect(DamageType type) const {
+    return damageTypeEffects_.Lookup(type);
 }
 
 const ShipBlueprint* ContentLibrary::FindShip(const BlueprintId& id) const {

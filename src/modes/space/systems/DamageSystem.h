@@ -4,8 +4,10 @@
 
 namespace sr::space::damage_system {
 
-// Regenerates shields, drains every hardpoint's PendingDamage (shield typing and bypass per
-// features.md section 3.1), and destroys any hardpoint whose hull reaches zero. Also detects rig
+// Regenerates shields, drains every hardpoint's PendingDamage through architecture.md 12.33's
+// generic damage-type effect table (shield typing, bypass, and Ion's always-absorbed/no-hull/
+// power-drain shape per features.md section 3.1), and destroys any hardpoint whose hull reaches
+// zero. Also detects rig
 // death: a rig with no living hardpoint left loses Targetable and is marked Destroyed itself --
 // there is no protected core (Capital Ship Design).
 //
