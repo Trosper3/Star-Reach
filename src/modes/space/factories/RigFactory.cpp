@@ -84,6 +84,8 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
     registry.emplace<HitRadius>(hardpoint, shell.radius);
     registry.emplace<MountTraverse>(hardpoint, mount.traverseRadians);
     registry.emplace<LocalTransform>(hardpoint, mount.localOffset, mount.localRotation);
+    registry.emplace<DrawLayer>(
+        hardpoint, mount.drawLayerOverride != 0 ? mount.drawLayerOverride : shell.drawLayer);
 
     // Seeded so the first frame renders correctly even before HierarchySystem runs.
     const Vec2 world = rootXf.position + Rotated(mount.localOffset, rootXf.rotation);

@@ -177,10 +177,10 @@ TEST_CASE("Hardpoint world transforms are seeded relative to the rig root", "[fa
     const entt::registry& registry = world.Registry();
     const auto port = factory::FindHardpoint(registry, result.root, sr::MountId("wing_port"));
 
-    // wing_port sits at (6, -14) in rig space; the rig is at (100, 50) unrotated.
+    // wing_port sits at (8.5, -14.7224) in rig space; the rig is at (100, 50) unrotated.
     const auto& transform = registry.get<sr::WorldTransform>(port);
-    CHECK(transform.position.x == Approx(106.0f));
-    CHECK(transform.position.y == Approx(36.0f));
+    CHECK(transform.position.x == Approx(108.5f));
+    CHECK(transform.position.y == Approx(35.2776f));
 }
 
 TEST_CASE("Structural attachment resolves mount ids to handles", "[factory]") {

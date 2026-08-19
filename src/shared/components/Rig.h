@@ -54,6 +54,17 @@ struct HitRadius {
     float value = 0.0f;
 };
 
+// This hardpoint's render order within its rig -- features.md section 3.5's five-layer stack (1
+// ventral..5 overlay). Resolved once at spawn from ShellDef::drawLayer, or MountBlueprint::
+// drawLayerOverride when the blueprint authors one (RigFactory::CreateHardpoint). WorldRenderer's
+// SortedHardpointsForDraw sorts on this, tie-broken by LocalTransform's y (Transform.h). Both
+// inputs are fixed for the life of a rig, so a future pass could cache the order at spawn instead
+// of resorting it every frame (architecture.md 12.16 item 19) -- not done yet, since hardpoint
+// counts are still small enough that the sort is not a measured cost.
+struct DrawLayer {
+    int value = 2;
+};
+
 // Structural adjacency from MountBlueprint::attachedTo, resolved to a handle.
 //
 // Deliberately separate from ParentRig. ParentRig is the flat root link that HierarchySystem

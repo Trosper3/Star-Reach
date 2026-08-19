@@ -31,6 +31,12 @@ struct MountBlueprint {
     // Firing arc for weapon shells, in radians, centered on localRotation. Zero or negative
     // means a fixed forward mount with no traverse.
     float traverseRadians = 0.0f;
+
+    // Per-mount override of the shell's default draw layer (features.md section 3.5) -- for the
+    // rare hull that wants one instance of a shell drawn out of its usual stack position, an
+    // engine mounted dorsally rather than ventrally, say. Zero means "no override, use the
+    // shell's ShellDef::drawLayer."
+    int drawLayerOverride = 0;
 };
 
 // The composition of a craft or station, independent of which chassis stats apply. Kept separate

@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <string>
 #include <unordered_map>
 
 #include "shared/blueprints/Validation.h"
+#include "shared/math/Angle.h"
 
 namespace {
 
@@ -11,7 +13,7 @@ namespace {
 class FakeLibrary final : public sr::DefLibrary {  // NOLINT(bugprone-exception-escape)
 public:
     void AddShell(const char* id, sr::ShellKind kind, float mass = 10.0f, int slots = 1,
-                  std::vector<sr::ModuleKind> acceptsKinds = {}) {
+                  std::vector<sr::ModuleKind> acceptsKinds = {}, float radius = 8.0f) {
         sr::ShellDef def;
         def.id = sr::ShellId(id);
         def.displayName = id;
@@ -20,6 +22,7 @@ public:
         def.mass = mass;
         def.moduleSlots = slots;
         def.acceptsKinds = std::move(acceptsKinds);
+        def.radius = radius;
         shells_[id] = def;
     }
 
@@ -64,7 +67,8 @@ FakeLibrary MakeLibrary() {
 }
 
 sr::MountBlueprint Mount(const char* id, const char* shell, const char* attachedTo,
-                         const std::vector<const char*>& modules, float traverseRadians = 0.0f) {
+                         const std::vector<const char*>& modules, float traverseRadians = 0.0f,
+                         sr::Vec2 localOffset = {}) {
     sr::MountBlueprint mount;
     mount.id = sr::MountId(id);
     mount.shell = sr::ShellId(shell);
@@ -73,9 +77,15 @@ sr::MountBlueprint Mount(const char* id, const char* shell, const char* attached
         mount.modules.push_back(sr::ModuleId(module));
     }
     mount.traverseRadians = traverseRadians;
+    mount.localOffset = localOffset;
     return mount;
 }
 
+// Every shell MakeLibrary() adds keeps ShellDef::radius at its 8.0f default, so a ring of mounts
+// each 16 units (r(A) + r(B)) from the chassis root, spaced further than 16 apart from each
+// other, satisfies rules 10 and 11 with the lower and upper bound meeting exactly at the
+// parent-child distance -- the same "touching, not overlapping" placement the scale table's own
+// worked example authors (features.md 3.5).
 sr::ShipBlueprint MakeValidShip() {
     sr::ShipBlueprint bp;
     bp.id = sr::BlueprintId("test_fighter");
@@ -85,11 +95,45 @@ sr::ShipBlueprint MakeValidShip() {
     bp.structuralMassLimit = 500.0f;
     bp.rig.mounts = {
         Mount("core", "chassis", "", {"plate"}),
-        Mount("reactor", "power_bay", "core", {"cell"}),
-        Mount("thruster_main", "thruster", "core", {"engine"}),
-        Mount("gun_nose", "gun", "core", {"cannon"}, 0.35f),
+        Mount("reactor", "power_bay", "core", {"cell"}, 0.0f, sr::Vec2{16.0f, 0.0f}),
+        Mount("thruster_main", "thruster", "core", {"engine"}, 0.0f, sr::Vec2{-8.0f, 13.8564f}),
+        Mount("gun_nose", "gun", "core", {"cannon"}, 0.35f, sr::Vec2{-8.0f, -13.8564f}),
     };
     return bp;
+}
+
+// A library with just a chassis and a peripheral shell at whatever radii the caller wants to
+// check the ring-capacity formula against (features.md 3.5): peripherals per ring ~ pi(c+p)/p.
+FakeLibrary MakeRingLibrary(float chassisRadius, float peripheralRadius) {
+    FakeLibrary library;
+    library.AddShell("core_shell", sr::ShellKind::Chassis, 10.0f, 0, {}, chassisRadius);
+    library.AddShell("ring_shell", sr::ShellKind::Armor, 10.0f, 0, {}, peripheralRadius);
+    return library;
+}
+
+// `count` peripherals evenly spaced on a ring of radius `chassisRadius + peripheralRadius`
+// around a chassis root -- exactly the placement the scale table's ring-capacity formula
+// describes, so rules 10 and 11 are the oracle for whether the documented count actually fits.
+sr::ShipBlueprint MakeRingShip(float chassisRadius, float peripheralRadius, int count) {
+    sr::ShipBlueprint bp;
+    bp.id = sr::BlueprintId("ring_test");
+    bp.schemaVersion = sr::kBlueprintSchemaVersion;
+    bp.displayName = "Ring Test";
+    bp.rig.mounts.push_back(Mount("core", "core_shell", "", {}));
+
+    const float ringRadius = chassisRadius + peripheralRadius;
+    for (int i = 0; i < count; ++i) {
+        const float angle = sr::kTwoPi * static_cast<float>(i) / static_cast<float>(count);
+        const sr::Vec2 offset = sr::Rotated(sr::Vec2{ringRadius, 0.0f}, angle);
+        const std::string id = "p" + std::to_string(i);
+        bp.rig.mounts.push_back(Mount(id.c_str(), "ring_shell", "core", {}, 0.0f, offset));
+    }
+    return bp;
+}
+
+bool RingGeometryValid(const sr::ValidationResult& result) {
+    return !result.HasRule(sr::ValidationRule::Separation) &&
+           !result.HasRule(sr::ValidationRule::Attachment);
 }
 
 }  // namespace
@@ -261,6 +305,62 @@ TEST_CASE("Rule 12 -- a non-structural mount backed by armour is accepted", "[va
 
     const sr::ValidationResult result = sr::Validate(bp, library);
     CHECK_FALSE(result.HasRule(sr::ValidationRule::StructuralCoverage));
+}
+
+TEST_CASE("Rule 10 -- two mounts closer than the sum of their radii are rejected", "[validation]") {
+    const FakeLibrary library = MakeLibrary();
+    sr::ShipBlueprint bp = MakeValidShip();
+    // Both individually touch the chassis at exactly its attachment bound (16 units, rule 11 is
+    // satisfied for each) but sit only 30 degrees apart on that ring -- too close to each other.
+    bp.rig.mounts.push_back(
+        Mount("gun_a", "gun", "core", {"cannon"}, 0.35f, sr::Vec2{16.0f, 0.0f}));
+    bp.rig.mounts.push_back(
+        Mount("gun_b", "gun", "core", {"cannon"}, 0.35f, sr::Vec2{13.8564f, 8.0f}));
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    CHECK(result.HasRule(sr::ValidationRule::Separation));
+}
+
+TEST_CASE("Rule 11 -- a mount beyond its parent's extent is rejected", "[validation]") {
+    const FakeLibrary library = MakeLibrary();
+    sr::ShipBlueprint bp = MakeValidShip();
+    // 30 units from a chassis whose attachment bound (rule 11) is 16 (8 + 8), and far enough from
+    // every other mount that separation (rule 10) stays clean -- isolates the failure to rule 11.
+    bp.rig.mounts.push_back(
+        Mount("drifter", "gun", "core", {"cannon"}, 0.35f, sr::Vec2{0.0f, 30.0f}));
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    REQUIRE(result.HasRule(sr::ValidationRule::Attachment));
+    CHECK_FALSE(result.HasRule(sr::ValidationRule::Separation));
+
+    bool named = false;
+    for (const auto& error : result.errors) {
+        if (error.rule == sr::ValidationRule::Attachment &&
+            error.message.find("drifter") != std::string::npos) {
+            named = true;
+        }
+    }
+    CHECK(named);
+}
+
+TEST_CASE("The scale table's fighter ring at p = 0.25R fits 9 peripherals, not 10",
+          "[validation]") {
+    const FakeLibrary library = MakeRingLibrary(12.0f, 6.0f);
+    CHECK(RingGeometryValid(sr::Validate(MakeRingShip(12.0f, 6.0f, 9), library)));
+    CHECK_FALSE(RingGeometryValid(sr::Validate(MakeRingShip(12.0f, 6.0f, 10), library)));
+}
+
+TEST_CASE("The scale table's fighter ring at p = 0.1R fits 18 peripherals, not 19",
+          "[validation]") {
+    const FakeLibrary library = MakeRingLibrary(12.0f, 2.5f);
+    CHECK(RingGeometryValid(sr::Validate(MakeRingShip(12.0f, 2.5f, 18), library)));
+    CHECK_FALSE(RingGeometryValid(sr::Validate(MakeRingShip(12.0f, 2.5f, 19), library)));
+}
+
+TEST_CASE("The scale table's capital-scale ring fits 16 peripherals, not 17", "[validation]") {
+    const FakeLibrary library = MakeRingLibrary(625.0f, 150.0f);
+    CHECK(RingGeometryValid(sr::Validate(MakeRingShip(625.0f, 150.0f, 16), library)));
+    CHECK_FALSE(RingGeometryValid(sr::Validate(MakeRingShip(625.0f, 150.0f, 17), library)));
 }
 
 TEST_CASE("A mount may not exceed its shell's slot count", "[validation]") {

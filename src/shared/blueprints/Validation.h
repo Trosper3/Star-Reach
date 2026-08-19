@@ -36,6 +36,12 @@ enum class ValidationRule : std::uint8_t {
                           //     structural mount hangs directly off another non-structural one
                           //     with nothing structural backing it (features.md 3.2's "no bare
                           //     sections").
+    Separation,           // 10. No two mounts closer than r(A) + r(B) -- hit circles stay
+                          //     disjoint so manual aim has something to pick apart (features.md
+                          //     3.5).
+    Attachment,           // 11. Every mount within r(A) + r(B) of what it attaches to, so it
+                          //     reads as physically joined rather than floating detached
+                          //     (features.md 3.5).
 };
 
 std::string_view ToString(ValidationRule rule);

@@ -14,6 +14,27 @@
 #include "shared/math/Angle.h"
 
 namespace sr::space::render {
+
+std::vector<entt::entity> SortedHardpointsForDraw(const entt::registry& registry) {
+    std::vector<entt::entity> hardpoints;
+    for (const entt::entity entity :
+         registry.view<WorldTransform, PreviousTransform, ShellRole, HitRadius, DrawLayer,
+                       LocalTransform>(entt::exclude<Destroyed>)) {
+        hardpoints.push_back(entity);
+    }
+    std::stable_sort(hardpoints.begin(), hardpoints.end(),
+                     [&registry](entt::entity a, entt::entity b) {
+                         const int layerA = registry.get<DrawLayer>(a).value;
+                         const int layerB = registry.get<DrawLayer>(b).value;
+                         if (layerA != layerB) {
+                             return layerA < layerB;
+                         }
+                         return registry.get<LocalTransform>(a).offset.y <
+                                registry.get<LocalTransform>(b).offset.y;
+                     });
+    return hardpoints;
+}
+
 namespace {
 
 // No asset pipeline exists yet (architecture.md section 6, deferred): every shape below is a
@@ -144,14 +165,15 @@ void DrawShips(const entt::registry& registry, float alpha) {
 // Hardpoints: one circle per living child, colored by ShellRole so a weapon, engine, or shield
 // mount reads apart from bare armor at a glance. Destroyed hardpoints are excluded entirely --
 // there is no wreck-layer art yet, and drawing a dead hardpoint identically to a live one would
-// hide exactly the information targeted fire is supposed to communicate.
+// hide exactly the information targeted fire is supposed to communicate. Draws in
+// SortedHardpointsForDraw's order, features.md section 3.5's ventral-to-overlay stack, so a
+// dorsal turret paints over the ventral engine beneath it rather than the reverse.
 void DrawHardpoints(const entt::registry& registry, float alpha) {
-    for (auto [entity, xf, prev, role, radius] :
-         registry
-             .view<WorldTransform, PreviousTransform, ShellRole, HitRadius>(
-                 entt::exclude<Destroyed>)
-             .each()) {
-        (void)entity;
+    for (const entt::entity entity : SortedHardpointsForDraw(registry)) {
+        const auto& xf = registry.get<WorldTransform>(entity);
+        const auto& prev = registry.get<PreviousTransform>(entity);
+        const auto& role = registry.get<ShellRole>(entity);
+        const auto& radius = registry.get<HitRadius>(entity);
         const Vec2 position = InterpolatedPosition(xf, prev, alpha);
         const float drawRadius = radius.value > 0.0f ? radius.value : kHardpointMinRadius;
         const Color color =

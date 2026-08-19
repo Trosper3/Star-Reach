@@ -5,8 +5,28 @@
 
 #include "shared/blueprints/Ids.h"
 #include "shared/blueprints/Taxonomy.h"
+#include "shared/math/Vec2.h"
 
 namespace sr {
+
+// The per-ShellKind default when content doesn't author an explicit ShellDef::drawLayer
+// (features.md section 3.5's five-layer stack: 1 ventral, 2 hull, 3 hull detail, 4 dorsal,
+// 5 overlay). Engine reads ventral and Weapon/Facility read dorsal because that's literally what
+// the layer table names as their contents; everything else -- internal hardware with no more
+// specific home -- defaults to the hull layer alongside the chassis. Layer 3 has no default
+// owner yet: it's reserved for decal-only detail nothing currently authors.
+inline int DefaultDrawLayer(ShellKind kind) {
+    switch (kind) {
+        case ShellKind::Engine: return 1;
+        case ShellKind::Weapon:
+        case ShellKind::Facility: return 4;
+        case ShellKind::Chassis:
+        case ShellKind::Armor:
+        case ShellKind::PowerCell:
+        case ShellKind::Shield: return 2;
+    }
+    return 2;
+}
 
 // The authored definition of a shell: the graphical/structural housing half of the
 // Shell -> Component -> Module model (Law 4). One shell becomes exactly one hardpoint entity
@@ -29,9 +49,28 @@ struct ShellDef {
     // per hardpoint, so this has to be per-shell rather than per-craft.
     float radius = 8.0f;
 
+    // Meaningful on a Chassis shell only: the hull's overall size in world units (features.md
+    // section 3.5). Rule 12 -- hull envelope, bounding every mount's centre-plus-radius within
+    // this -- is a later validation pass; today it's the one authored number the scale table's
+    // ring-capacity math (chassis radius, peripheral radius, how many rings fit) is worked from.
+    float hullRadius = 0.0f;
+
+    // Optional baked collision polygon overriding the circle `radius` above draws (features.md
+    // section 3.5). Empty means "use the circle" -- the only shape that exists until an asset
+    // pipeline can trace one from real art (architecture.md section 6, deferred). Local to the
+    // shell, convex, wound consistently. Defining the field now avoids a data-model change when
+    // that pipeline lands; nothing bakes or reads this yet.
+    std::vector<Vec2> collisionPolygon;
+
     // Texture layer id for the separated top-down layer stack (features.md section 2.2). This is
     // an asset *key*, never a path -- engine/assets/ owns resolution (architecture.md section 6).
     std::string spriteLayer;
+
+    // Render order within one rig -- features.md section 3.5's five-layer stack (1 ventral..5
+    // overlay). Separate from spriteLayer above: that's which image, this is what order. Zero
+    // means "unset"; ParseShellDef fills it from DefaultDrawLayer(kind) when content doesn't
+    // author one explicitly, so a live ShellDef always carries a valid 1-5 value.
+    int drawLayer = 0;
 
     // Which ModuleKinds may mount here (architecture.md 12.22). Replaces the old
     // IsMountable(ModuleKind, ShellKind) switch in Taxonomy.cpp -- a content rule in code, which
