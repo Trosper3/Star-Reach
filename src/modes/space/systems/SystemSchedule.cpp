@@ -44,8 +44,9 @@ namespace sr::space {
 //                        PhysicsSystem later in this same tick.
 //   ConstructionSystem, ModuleEquipSystem -- before PowerSystem, so a freshly built rig or a
 //                        mount/unmount lands in this same tick's power budget.
-//   PowerSystem       -- recomputes PowerBudget.satisfaction from last tick's Destroyed
-//                        tags, before anything that gates on it
+//   PowerSystem       -- recomputes PowerBudget's per-category weapons/shields/engines/
+//                        facilities from last tick's Destroyed tags and this rig's
+//                        PowerAllocation, before anything that gates on it
 //   SpawnSystem       -- settles a respawned rig's WorldTransform and culls far rigs before
 //                        anything below reasons about position or distance this tick
 //   OrbitSystem       -- sets planet/moon transforms and nudges ship Velocity via gravity
@@ -60,8 +61,8 @@ namespace sr::space {
 //                        HierarchySystem after PhysicsSystem; that ordering is now impossible
 //                        to satisfy alongside "before PhysicsSystem," so this follows the
 //                        reasoned constraint over the stale restated position.
-//   PhysicsSystem     -- scales thrust by PowerBudget.satisfaction; moves every rig root to
-//                        this tick's position.
+//   PhysicsSystem     -- scales thrust by PowerBudget.engines; moves every rig root to this
+//                        tick's position.
 //   HierarchySystem   -- after PhysicsSystem, not before. A hardpoint's WorldTransform is
 //                        derived from its root's, and the root only reaches this tick's pose at
 //                        PhysicsSystem -- running Hierarchy earlier (its position until this

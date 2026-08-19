@@ -21,6 +21,10 @@
       "kind": "engine",
       "mass": 26.0,
       "powerDraw": 30.0,
+      "powerLevels": {
+        "reduced": { "drawMultiplier": 0.6, "effectMultiplier": 0.7 },
+        "boosted": { "drawMultiplier": 1.8, "effectMultiplier": 1.6 }
+      },
       "engine": {
         "thrustNewtons": 5200.0,
         "turnTorque": 2000.0,

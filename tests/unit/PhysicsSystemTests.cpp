@@ -58,7 +58,7 @@ TEST_CASE("PhysicsSystem accelerates a rig root along its heading under full for
     CHECK(transform.position.x == Approx(10.0f));
 }
 
-TEST_CASE("PhysicsSystem scales thrust by the rig's power satisfaction", "[physics]") {
+TEST_CASE("PhysicsSystem scales thrust by the rig's PowerBudget::engines", "[physics]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -70,7 +70,8 @@ TEST_CASE("PhysicsSystem scales thrust by the rig's power satisfaction", "[physi
     registry.emplace<BodyMass>(root, 10.0f);
     registry.emplace<Propulsion>(root, 100.0f, 0.0f, 1000.0f);
     registry.emplace<ThrustInput>(root, 1.0f, 0.0f, 0.0f);
-    registry.emplace<PowerBudget>(root, 50.0f, 100.0f, 0.5f);
+    // generation, draw, weapons, shields, engines -- only `engines` matters to PhysicsSystem.
+    registry.emplace<PowerBudget>(root, 50.0f, 100.0f, 1.0f, 1.0f, 0.5f);
 
     physics_system::Tick(MakeContext(world, intents, content, 1.0f));
 

@@ -16,22 +16,22 @@
 namespace sr::rig_attachment {
 namespace {
 
-// Load-shedding order, consumed by PowerSystem. Higher sheds LAST, so a browning-out rig loses
-// facilities first and engines last -- moved here verbatim from RigFactory.cpp's identical
-// helper, since both attach paths need the same order. architecture.md 12.23: FireControl joins
-// Weapon's band (part of the gunnery chain); Sensor/CargoBay/Hyperdrive join Facility's (shed
-// first, non-combat) -- no fifth category for the four new kinds.
-int SheddingPriority(ModuleKind kind) {
+// Which of the four player-commandable power categories a module's draw belongs to (features.md
+// section 2.9). architecture.md 12.23: FireControl joins Weapon's band (part of the gunnery
+// chain); Sensor/CargoBay/Hyperdrive join Facility's (non-combat) -- no fifth category for the
+// four new kinds, the same grouping this used to encode as a bare shed-order int before
+// PowerPriorityList (Power.h) made shed order player-configurable instead of fixed by kind.
+PowerCategory PowerCategoryFor(ModuleKind kind) {
     switch (kind) {
         case ModuleKind::Facility:
         case ModuleKind::Sensor:
         case ModuleKind::CargoBay:
-        case ModuleKind::Hyperdrive: return 0;
-        case ModuleKind::ShieldGenerator: return 1;
+        case ModuleKind::Hyperdrive: return PowerCategory::Facilities;
+        case ModuleKind::ShieldGenerator: return PowerCategory::Shields;
         case ModuleKind::Weapon:
-        case ModuleKind::FireControl: return 2;
-        case ModuleKind::Engine: return 3;
-        default: return 1;
+        case ModuleKind::FireControl: return PowerCategory::Weapons;
+        case ModuleKind::Engine: return PowerCategory::Engines;
+        default: return PowerCategory::Facilities;
     }
 }
 
@@ -126,8 +126,8 @@ PropulsionContribution AttachModuleComponents(entt::registry& registry, entt::en
         registry.emplace_or_replace<PowerSource>(hardpoint, module.powerGeneration);
     }
     if (module.powerDraw > 0.0f) {
-        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw,
-                                               SheddingPriority(module.kind));
+        registry.emplace_or_replace<PowerLoad>(hardpoint, module.powerDraw, module.powerLevels,
+                                               PowerCategoryFor(module.kind));
     }
 
     return AttachRoleComponents(registry, hardpoint, module, mountTraverseRadians);

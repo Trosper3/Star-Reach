@@ -47,7 +47,7 @@ bool GroupEnabled(const entt::registry& registry, entt::entity hardpoint, std::u
 
 float RigSatisfaction(const entt::registry& registry, entt::entity rigRoot) {
     const auto* budget = registry.try_get<PowerBudget>(rigRoot);
-    return budget != nullptr ? budget->satisfaction : 1.0f;
+    return budget != nullptr ? budget->weapons : 1.0f;
 }
 
 // Turns `arc` toward `aimPoint` at its rated traverse speed. Returns true if the mount is
