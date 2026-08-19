@@ -164,10 +164,12 @@ TEST_CASE("StationFactory's station has a non-zero cargo hold that accepts and r
     CHECK(cargo_view::Capacity(registry, result.root) == Approx(1000.0f));  // 4 slots x 250.
 
     const sr::ItemStack stack{sr::ItemKind::Element, "iron", 50, 4.0f};
-    CHECK(cargo_view::Deposit(registry, result.root, stack) == cargo_view::DepositResult::Deposited);
+    CHECK(cargo_view::Deposit(registry, result.root, stack) ==
+          cargo_view::DepositResult::Deposited);
 
     // A deposit that cannot possibly fit (mass alone exceeds every slot's capacity) is refused
     // whole -- HOLD FULL, per the row model architecture.md 3264 describes.
     const sr::ItemStack tooBig{sr::ItemKind::Element, "titanium", 1, 5000.0f};
-    CHECK(cargo_view::Deposit(registry, result.root, tooBig) == cargo_view::DepositResult::HoldFull);
+    CHECK(cargo_view::Deposit(registry, result.root, tooBig) ==
+          cargo_view::DepositResult::HoldFull);
 }
