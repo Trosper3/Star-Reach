@@ -230,9 +230,8 @@ TEST_CASE("A weapon mount with no authored traverse fails validation, naming the
     CHECK(named);
 }
 
-TEST_CASE(
-    "Rule 12 -- a non-structural mount hanging off another non-structural mount is rejected",
-    "[validation]") {
+TEST_CASE("Rule 12 -- a non-structural mount hanging off another non-structural mount is rejected",
+          "[validation]") {
     const FakeLibrary library = MakeLibrary();
     sr::ShipBlueprint bp = MakeValidShip();
     // A second gun attached to gun_nose (Weapon kind) instead of to the chassis or armour --
