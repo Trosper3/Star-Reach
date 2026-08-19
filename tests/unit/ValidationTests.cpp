@@ -10,7 +10,8 @@ namespace {
 // C++ (Law 10) precisely so a validation test does not need a data file to run.
 class FakeLibrary final : public sr::DefLibrary {  // NOLINT(bugprone-exception-escape)
 public:
-    void AddShell(const char* id, sr::ShellKind kind, float mass = 10.0f, int slots = 1) {
+    void AddShell(const char* id, sr::ShellKind kind, float mass = 10.0f, int slots = 1,
+                  std::vector<sr::ModuleKind> acceptsKinds = {}) {
         sr::ShellDef def;
         def.id = sr::ShellId(id);
         def.displayName = id;
@@ -18,6 +19,7 @@ public:
         def.hull = 100.0f;
         def.mass = mass;
         def.moduleSlots = slots;
+        def.acceptsKinds = std::move(acceptsKinds);
         shells_[id] = def;
     }
 
@@ -51,9 +53,9 @@ private:
 FakeLibrary MakeLibrary() {
     FakeLibrary library;
     library.AddShell("chassis", sr::ShellKind::Chassis);
-    library.AddShell("power_bay", sr::ShellKind::PowerCell);
-    library.AddShell("thruster", sr::ShellKind::Engine);
-    library.AddShell("gun", sr::ShellKind::Weapon);
+    library.AddShell("power_bay", sr::ShellKind::PowerCell, 10.0f, 1, {sr::ModuleKind::PowerCell});
+    library.AddShell("thruster", sr::ShellKind::Engine, 10.0f, 1, {sr::ModuleKind::Engine});
+    library.AddShell("gun", sr::ShellKind::Weapon, 10.0f, 1, {sr::ModuleKind::Weapon});
     library.AddModule("plate", sr::ModuleKind::Armor);
     library.AddModule("cell", sr::ModuleKind::PowerCell, 10.0f, 0.0f, 100.0f);
     library.AddModule("engine", sr::ModuleKind::Engine, 10.0f, 20.0f);

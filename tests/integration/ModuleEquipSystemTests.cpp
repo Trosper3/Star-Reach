@@ -89,7 +89,8 @@ TEST_CASE("ModuleEquipSystem mounts a real cargo module onto a compatible empty 
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
     AddCargoBay(registry, root);
     StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
@@ -121,7 +122,8 @@ TEST_CASE(
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<MountTraverse>(mount, 0.3f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
     AddCargoBay(registry, root);
@@ -146,7 +148,8 @@ TEST_CASE("A runtime-mounted weapon fires within its authored arc and refuses ou
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<MountTraverse>(mount, 0.3f);  // ~17 degrees either side of dead ahead.
     registry.emplace<WorldTransform>(mount, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
@@ -179,7 +182,8 @@ TEST_CASE("A runtime-mounted weapon does not fire at a target outside its author
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<MountTraverse>(mount, 0.3f);
     registry.emplace<WorldTransform>(mount, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
@@ -211,7 +215,8 @@ TEST_CASE("ModuleEquipSystem refuses to mount onto a Destroyed hardpoint", "[mod
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<Destroyed>(mount);
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
     AddCargoBay(registry, root);
@@ -238,7 +243,8 @@ TEST_CASE(
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();
     registry.emplace<ParentRig>(mount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
     AddCargoBay(registry, root);
     StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
@@ -267,7 +273,8 @@ TEST_CASE("ModuleEquipSystem refuses a module whose kind does not match the moun
     const entt::entity root = registry.create();
     const entt::entity weaponMount = registry.create();
     registry.emplace<ParentRig>(weaponMount, root);
-    registry.emplace<ShellRole>(weaponMount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(weaponMount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<Rig>(root, std::vector<entt::entity>{weaponMount});
     AddCargoBay(registry, root);
     StockModule(registry, root, content, sr::ModuleId("deflector_i"));  // a shield_generator
@@ -304,7 +311,8 @@ TEST_CASE("A runtime-mounted module is never refunded twice across unmount and s
     const entt::entity otherMount = registry.create();  // Keeps `mount` from being "last."
     registry.emplace<ParentRig>(mount, root);
     registry.emplace<ParentRig>(otherMount, root);
-    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
     registry.emplace<Rig>(root, std::vector<entt::entity>{mount, otherMount});
     registry.emplace<Docked>(root, station, entt::null);
     AddCargoBay(registry, root);

@@ -30,6 +30,14 @@ struct ShieldStats {
     // Seconds after taking a hit before recharge resumes. Without this a shield with any
     // recharge at all is effectively unkillable under sustained low-DPS fire.
     float rechargeDelaySeconds = 0.0f;
+    // Identity, never rolled (features.md section 2.7) -- how far the field reaches beyond its
+    // own housing (architecture.md 12.22). Personal is what the code did before this field
+    // existed: every other hardpoint on the rig was unshielded regardless of what a fighter's
+    // 500-capacity generator implied to the player.
+    ShieldCoverage coverage = ShieldCoverage::Personal;
+    // Bubble only: hardpoints within this radius of the mount also benefit. Meaningless for
+    // Personal (nothing to reach) and Conformal (rig membership decides reach, not distance).
+    float coverageRadius = 0.0f;
 };
 
 struct EngineStats {

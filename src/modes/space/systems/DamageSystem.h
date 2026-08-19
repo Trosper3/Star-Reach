@@ -4,10 +4,14 @@
 
 namespace sr::space::damage_system {
 
-// Regenerates shields, drains every hardpoint's PendingDamage (shield typing and bypass per
-// features.md section 3.1), and destroys any hardpoint whose hull reaches zero. Also detects rig
-// death: a rig with no living hardpoint left loses Targetable and is marked Destroyed itself --
-// there is no protected core (Capital Ship Design).
+// Regenerates shields, drains every hardpoint's PendingDamage against whichever shield actually
+// covers it per its ShieldCoverage mode (Personal/Bubble/Conformal, architecture.md 12.22) --
+// type matching and bypass per features.md section 3.1 -- and destroys any hardpoint whose hull
+// reaches zero. Destruction then cascades along StructuralAttachment: severing a structural
+// parent takes every child hanging off it with it, with no special case for the chassis -- it
+// dies like anything else, and its death is rig death only because everything ultimately attaches
+// to it. Also detects rig death: a rig with no living hardpoint left loses Targetable and is
+// marked Destroyed itself -- there is no protected core (Capital Ship Design).
 //
 // Also invalidates a rig's Propulsion once its last living Engine-kind hardpoint dies. This is
 // an all-or-nothing zeroing, not a proportional recompute: doing that properly needs a

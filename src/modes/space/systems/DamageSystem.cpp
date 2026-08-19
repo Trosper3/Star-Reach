@@ -7,6 +7,8 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
+#include "shared/math/Vec2.h"
 #include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::damage_system {
@@ -20,18 +22,63 @@ void RegenerateShield(Shield& shield, float dt) {
     shield.current = std::min(shield.max, shield.current + shield.rechargePerSecond * dt);
 }
 
-// Splits `pending` between a matching shield and the hull beneath it, per features.md section
-// 3.1: matching damage type is absorbed by the shield first; a mismatch bypasses it entirely.
+// Which living Shield on `hardpoint`'s rig actually covers it (architecture.md 12.22) -- the fix
+// for a generator that used to protect only its own housing regardless of what its capacity
+// implied to the player. A shield on the hit hardpoint itself always covers it, in every mode;
+// otherwise the rig's other shields are searched in Rig::children order for the first whose mode
+// reaches this hardpoint: Conformal unconditionally, Bubble within coverageRadius of its mount. A
+// Personal shield elsewhere on the rig never reaches past its own housing, so it is skipped here
+// exactly as every shield was before this function existed.
+entt::entity FindCoveringShield(const entt::registry& registry, entt::entity hardpoint) {
+    if (registry.all_of<Shield>(hardpoint)) {
+        return hardpoint;
+    }
+
+    const auto* parent = registry.try_get<ParentRig>(hardpoint);
+    const auto* rig = parent != nullptr ? registry.try_get<Rig>(parent->root) : nullptr;
+    if (rig == nullptr) {
+        return entt::null;
+    }
+    const auto* targetXf = registry.try_get<WorldTransform>(hardpoint);
+
+    for (const entt::entity candidate : rig->children) {
+        if (candidate == hardpoint || registry.all_of<Destroyed>(candidate)) {
+            continue;
+        }
+        const auto* shield = registry.try_get<Shield>(candidate);
+        if (shield == nullptr) {
+            continue;
+        }
+        if (shield->coverage == ShieldCoverage::Conformal) {
+            return candidate;
+        }
+        if (shield->coverage == ShieldCoverage::Bubble && targetXf != nullptr) {
+            const auto* shieldXf = registry.try_get<WorldTransform>(candidate);
+            if (shieldXf != nullptr &&
+                Distance(shieldXf->position, targetXf->position) <= shield->coverageRadius) {
+                return candidate;
+            }
+        }
+    }
+    return entt::null;
+}
+
+// Splits `pending` between the shield covering this hardpoint (architecture.md 12.22) and the
+// hull beneath it, per features.md section 3.1: matching damage type is absorbed first; a
+// mismatch bypasses it entirely.
 void ApplyToHealthAndShield(entt::registry& registry, entt::entity hardpoint,
                             const PendingDamage& pending, Health& health) {
     float hullDamage = pending.amount;
 
-    auto* shield = registry.try_get<Shield>(hardpoint);
-    if (shield != nullptr && shield->current > 0.0f && shield->absorbs == pending.type) {
-        const float absorbed = std::min(shield->current, pending.amount);
-        shield->current -= absorbed;
-        shield->rechargeCooldown = shield->rechargeDelaySeconds;
-        hullDamage -= absorbed;
+    const entt::entity coveringShield = FindCoveringShield(registry, hardpoint);
+    if (coveringShield != entt::null) {
+        auto& shield = registry.get<Shield>(coveringShield);
+        if (shield.current > 0.0f && shield.absorbs == pending.type) {
+            const float absorbed = std::min(shield.current, pending.amount);
+            shield.current -= absorbed;
+            shield.rechargeCooldown = shield.rechargeDelaySeconds;
+            hullDamage -= absorbed;
+        }
     }
 
     health.current = std::max(0.0f, health.current - hullDamage);
@@ -49,6 +96,27 @@ bool HasLivingHardpoint(const entt::registry& registry, const Rig& rig) {
     return false;
 }
 
+// Destroys every hardpoint structurally attached, directly or transitively, to one that died
+// this tick. StructuralAttachment is already the mount hierarchy graph (RigFactory's
+// ResolveAttachments); this is what makes severing a parent take its children with it, and --
+// with no special case -- makes chassis death rig death, since everything ultimately traces back
+// to the chassis (architecture.md 12.22). Iterates to a fixed point: one pass can newly-destroy a
+// child whose own children were already visited earlier in the same pass.
+void CascadeStructuralDestruction(entt::registry& registry) {
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (auto [hardpoint, attachment] :
+             registry.view<StructuralAttachment>(entt::exclude<Destroyed>).each()) {
+            if (attachment.attachedTo != entt::null &&
+                registry.all_of<Destroyed>(attachment.attachedTo)) {
+                registry.emplace<Destroyed>(hardpoint);
+                changed = true;
+            }
+        }
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -62,6 +130,8 @@ void Tick(const SystemContext& ctx) {
         ApplyToHealthAndShield(registry, hardpoint, pending, health);
     }
     registry.clear<PendingDamage>();
+
+    CascadeStructuralDestruction(registry);
 
     for (auto [root, rig] : registry.view<Rig>().each()) {
         if (!HasLivingHardpoint(registry, rig)) {

@@ -14,8 +14,8 @@ namespace sr::space::module_equip_system {
 // but modes/space/systems/ must not include factories/, section 2.3).
 //
 // Refused (request cleared, nothing else happens) when: the mount does not belong to the
-// requester's own Rig; the mount is Destroyed; the module's ModuleKind is not IsMountable() on
-// the mount's ShellRole (mirrors Validation.h's ModuleCompatibility rule, applied live); the
+// requester's own Rig; the mount is Destroyed; the module's ModuleKind fails the mount's
+// ShellRole::Accepts() (mirrors Validation.h's ModuleCompatibility rule, applied live); the
 // module is not held anywhere in the requester's own cargo bays (shared/rig/CargoView.h); or
 // (mount) MountedModules (shared/components/Rig.h -- the single record of a mount's contents,
 // architecture.md 13.4 decision 2) is already non-empty -- unmount first. Unmounting is refused

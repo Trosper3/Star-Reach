@@ -45,7 +45,7 @@ void ProcessMountRequests(const SystemContext& ctx) {
             continue;
         }
         const ModuleDef* module = ctx.content.FindModule(request.module);
-        if (module == nullptr || !IsMountable(module->kind, shellRole->kind)) {
+        if (module == nullptr || !shellRole->Accepts(module->kind)) {
             continue;
         }
 

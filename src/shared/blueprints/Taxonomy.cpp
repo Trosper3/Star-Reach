@@ -45,6 +45,12 @@ constexpr std::array<std::pair<std::string_view, FacilityKind>, 6> kFacilityKind
     {"engineering", FacilityKind::Engineering},
 }};
 
+constexpr std::array<std::pair<std::string_view, ShieldCoverage>, 3> kShieldCoverages{{
+    {"personal", ShieldCoverage::Personal},
+    {"bubble", ShieldCoverage::Bubble},
+    {"conformal", ShieldCoverage::Conformal},
+}};
+
 template <typename Table, typename Enum>
 bool LookupToken(const Table& table, std::string_view text, Enum& out) {
     for (const auto& [token, value] : table) {
@@ -107,6 +113,15 @@ std::string_view ToString(FacilityKind value) {
     return "storage";
 }
 
+std::string_view ToString(ShieldCoverage value) {
+    switch (value) {
+        case ShieldCoverage::Personal: return "personal";
+        case ShieldCoverage::Bubble: return "bubble";
+        case ShieldCoverage::Conformal: return "conformal";
+    }
+    return "personal";
+}
+
 bool FromString(std::string_view text, DamageType& out) {
     return LookupToken(kDamageTypes, text, out);
 }
@@ -119,28 +134,8 @@ bool FromString(std::string_view text, ModuleKind& out) {
 bool FromString(std::string_view text, FacilityKind& out) {
     return LookupToken(kFacilityKinds, text, out);
 }
-
-bool IsMountable(ModuleKind module, ShellKind shell) {
-    switch (module) {
-        case ModuleKind::Weapon: return shell == ShellKind::Weapon;
-        case ModuleKind::ShieldGenerator: return shell == ShellKind::Shield;
-        case ModuleKind::PowerCell: return shell == ShellKind::PowerCell;
-        case ModuleKind::Engine: return shell == ShellKind::Engine;
-        // Sensor/CargoBay/Hyperdrive share the same non-combat housing ModuleKind::Facility
-        // already uses -- a facility bay can be an antenna, a cargo pod, or a warp core just as
-        // easily as a repair bay, and all four shed power in the same priority band.
-        case ModuleKind::Facility:
-        case ModuleKind::Sensor:
-        case ModuleKind::CargoBay:
-        case ModuleKind::Hyperdrive: return shell == ShellKind::Facility;
-        // FireControl shares the Weapon shell it augments -- a 2-slot turret mount carries both
-        // (architecture.md 12.23); do not merge this into ModuleKind::Weapon itself.
-        case ModuleKind::FireControl: return shell == ShellKind::Weapon;
-        // Armor plating is the one module that is structurally universal -- it adds hull and
-        // mass to whatever it is bolted to, which is what makes the mass budget a real trade.
-        case ModuleKind::Armor: return true;
-    }
-    return false;
+bool FromString(std::string_view text, ShieldCoverage& out) {
+    return LookupToken(kShieldCoverages, text, out);
 }
 
 }  // namespace sr

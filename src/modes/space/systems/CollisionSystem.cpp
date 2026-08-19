@@ -12,16 +12,19 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
-#include "shared/math/Angle.h"
 #include "shared/math/Vec2.h"
 
 namespace sr::space::collision_system {
 namespace {
 
 constexpr float kCellSize = 300.0f;
-constexpr int kHullSamplesPerHardpoint = 8;
 constexpr float kRestitution = 0.65f;
-constexpr float kRamDamagePerSpeed = 0.15f;
+// Kinetic energy goes as half m v^2 (architecture.md 12.22): scaled by the pair's reduced mass so
+// two dreadnoughts colliding no longer deal the same base damage as two fighters at the same
+// speed change -- only the heavy/light split did before this. Placeholder magnitude, tuned
+// against this file's own test fixtures rather than shipped content masses; T-05's combat balance
+// pass owns the final number once real hull masses (architecture.md 12.19) are widely authored.
+constexpr float kRamDamageScale = 0.00006f;
 constexpr float kRamCooldownSeconds = 1.2f;
 
 uint64_t PackCell(int32_t cx, int32_t cy) {
@@ -59,49 +62,21 @@ private:
     std::unordered_map<uint64_t, std::vector<int>> cells_;
 };
 
-// Andrew's monotone chain, O(n log n). Winding is whatever falls out of the sort -- PolygonOverlap
-// below is winding-agnostic. Returns empty if fewer than 3 distinct points survive dedup.
-std::vector<Vec2> ConvexHull(std::vector<Vec2> pts) {
-    std::sort(pts.begin(), pts.end(),
-              [](const Vec2& a, const Vec2& b) { return a.x != b.x ? a.x < b.x : a.y < b.y; });
-    pts.erase(
-        std::unique(pts.begin(), pts.end(), [](const Vec2& a, const Vec2& b) { return a == b; }),
-        pts.end());
-    if (pts.size() < 3) {
-        return {};
-    }
+// One living hardpoint's world-space collision circle.
+struct HardpointCircle {
+    Vec2 position;
+    float radius;
+};
 
-    const auto cross = [](const Vec2& o, const Vec2& a, const Vec2& b) {
-        return Cross(a - o, b - o);
-    };
-
-    const size_t n = pts.size();
-    std::vector<Vec2> hull(2 * n);
-    int k = 0;
-    for (size_t i = 0; i < n; ++i) {
-        while (k >= 2 && cross(hull[k - 2], hull[k - 1], pts[i]) <= 0.0f) {
-            --k;
-        }
-        hull[k++] = pts[i];
-    }
-    const int lower = k + 1;
-    for (int i = static_cast<int>(n) - 2; i >= 0; --i) {
-        while (k >= lower && cross(hull[k - 2], hull[k - 1], pts[i]) <= 0.0f) {
-            --k;
-        }
-        hull[k++] = pts[i];
-    }
-    hull.resize(k - 1);
-    return hull;
-}
-
-// Samples points around every living hardpoint's HitRadius circle and hulls them. There is no
-// sprite art to trace yet (architecture.md section 6, deferred) -- the rig's actual mount layout
-// stands in for it, which has the advantage of never drifting out of sync with the hardpoints
-// DamageSystem is actually destroying.
-std::vector<Vec2> BuildWorldHull(const entt::registry& registry, const Rig& rig) {
-    std::vector<Vec2> points;
-    points.reserve(rig.children.size() * kHullSamplesPerHardpoint);
+// Every living hardpoint's HitRadius circle, in world space -- the narrow-phase collidable shape
+// itself (architecture.md 12.22), not a hull sampled from it. There is no sprite art to trace yet
+// (architecture.md section 6, deferred), and unlike a hull rebuilt each tick from the same living
+// set, per-hardpoint circles let a destroyed hardpoint open an exact hole a shot -- or another
+// hull -- can cross, matching P0-01/13.3 finding AB's "draw exactly what you test."
+std::vector<HardpointCircle> LivingHardpointCircles(const entt::registry& registry,
+                                                    const Rig& rig) {
+    std::vector<HardpointCircle> circles;
+    circles.reserve(rig.children.size());
     for (const entt::entity child : rig.children) {
         if (registry.all_of<Destroyed>(child)) {
             continue;
@@ -111,78 +86,44 @@ std::vector<Vec2> BuildWorldHull(const entt::registry& registry, const Rig& rig)
         if (xf == nullptr || hit == nullptr) {
             continue;
         }
-        for (int i = 0; i < kHullSamplesPerHardpoint; ++i) {
-            const float angle = kTwoPi * static_cast<float>(i) / kHullSamplesPerHardpoint;
-            points.push_back(xf->position + Vec2{std::cos(angle), std::sin(angle)} * hit->value);
+        circles.push_back({xf->position, hit->value});
+    }
+    return circles;
+}
+
+// Deepest-penetration pair among every living hardpoint on each side, replacing the old
+// convex-hull SAT (architecture.md 12.22). Bounded cost: (living hardpoints in a) x (living
+// hardpoints in b) circle tests per candidate pair, after the broad phase already narrowed
+// candidates by CollisionRadius. On overlap, outMTV points from b's side toward a's and outDepth
+// is how far apart that pair still needs to move to stop touching -- the same convention
+// ResolvePair's push-apart and ApplyRamDamage already expect from the old polygon SAT.
+bool NarrowPhaseOverlap(const std::vector<HardpointCircle>& a,
+                        const std::vector<HardpointCircle>& b, Vec2& outMTV, float& outDepth) {
+    bool found = false;
+    float bestDepth = 0.0f;
+    Vec2 bestMTV{};
+    for (const HardpointCircle& ca : a) {
+        for (const HardpointCircle& cb : b) {
+            const Vec2 delta = ca.position - cb.position;
+            const float radiusSum = ca.radius + cb.radius;
+            const float distSq = LengthSquared(delta);
+            if (distSq >= radiusSum * radiusSum) {
+                continue;
+            }
+            const float dist = std::sqrt(distSq);
+            const float depth = radiusSum - dist;
+            if (!found || depth > bestDepth) {
+                found = true;
+                bestDepth = depth;
+                bestMTV = dist > 0.0001f ? delta * (1.0f / dist) : Vec2{1.0f, 0.0f};
+            }
         }
     }
-    return ConvexHull(std::move(points));
-}
-
-Vec2 Centroid(const std::vector<Vec2>& pts) {
-    Vec2 c{};
-    for (const Vec2& p : pts) {
-        c += p;
+    if (found) {
+        outMTV = bestMTV;
+        outDepth = bestDepth;
     }
-    return c * (1.0f / static_cast<float>(pts.size()));
-}
-
-void ProjectOntoAxis(const std::vector<Vec2>& poly, const Vec2& axis, float& outMin,
-                     float& outMax) {
-    outMin = outMax = Dot(poly[0], axis);
-    for (size_t i = 1; i < poly.size(); ++i) {
-        const float p = Dot(poly[i], axis);
-        outMin = std::min(outMin, p);
-        outMax = std::max(outMax, p);
-    }
-}
-
-// Tests every edge normal of `poly` as a candidate separating axis, tracking the axis with the
-// smallest overlap (the eventual MTV candidate) as it goes. Returns false the instant a true
-// separating axis is found.
-bool TestEdgeAxes(const std::vector<Vec2>& poly, const std::vector<Vec2>& other, float& bestDepth,
-                  Vec2& bestAxis) {
-    const size_t n = poly.size();
-    for (size_t i = 0; i < n; ++i) {
-        const Vec2 edge = poly[(i + 1) % n] - poly[i];
-        const Vec2 axis = Normalized(Vec2{-edge.y, edge.x});
-        float aMin = 0.0f, aMax = 0.0f, bMin = 0.0f, bMax = 0.0f;
-        ProjectOntoAxis(poly, axis, aMin, aMax);
-        ProjectOntoAxis(other, axis, bMin, bMax);
-        if (aMax < bMin || bMax < aMin) {
-            return false;
-        }
-        const float depth = std::min(aMax, bMax) - std::max(aMin, bMin);
-        if (depth < bestDepth) {
-            bestDepth = depth;
-            bestAxis = axis;
-        }
-    }
-    return true;
-}
-
-// Separating Axis Theorem overlap test, ported from StarReach2's CollisionHull.cpp. On overlap,
-// outMTV points from b's centroid toward a's and outDepth is the minimum distance along it that
-// separates the two hulls.
-bool PolygonOverlap(const std::vector<Vec2>& a, const std::vector<Vec2>& b, Vec2& outMTV,
-                    float& outDepth) {
-    if (a.size() < 3 || b.size() < 3) {
-        return false;
-    }
-
-    float bestDepth = FLT_MAX;
-    Vec2 bestAxis{};
-    if (!TestEdgeAxes(a, b, bestDepth, bestAxis) || !TestEdgeAxes(b, a, bestDepth, bestAxis)) {
-        return false;
-    }
-
-    if (Dot(Centroid(a) - Centroid(b), bestAxis) < 0.0f) {
-        bestAxis = bestAxis * -1.0f;
-    }
-
-    outMTV = bestAxis;
-    outDepth = bestDepth;
-    return true;
+    return found;
 }
 
 // Nearest living, damageable hardpoint to `point` -- the ram-damage aim point, same idea as
@@ -238,7 +179,10 @@ void ApplyRamDamage(entt::registry& registry, entt::entity rootA, entt::entity r
         return;
     }
 
-    const float baseDamage = kRamDamagePerSpeed * speedChange;
+    // Reduced mass, per architecture.md 12.22's ½mv² note -- this is what makes total ram damage
+    // grow with the pair's absolute mass, not just its split between the two sides.
+    const float reducedMass = (massA * massB) / (massA + massB);
+    const float baseDamage = kRamDamageScale * 0.5f * reducedMass * speedChange * speedChange;
     const bool aHeavier = massA >= massB;
     const float heavyShare = (aHeavier ? massB : massA) / (massA + massB);
     const float lightShare = 1.0f - heavyShare;
@@ -254,8 +198,9 @@ void ApplyRamDamage(entt::registry& registry, entt::entity rootA, entt::entity r
 
 // Asymmetric elastic collision: the heavier side does not move at all; the lighter side absorbs
 // the full position correction and a velocity change scaled by how much lighter it is. Ported
-// from StarReach2's ResolveMassCollision, minus the pure-circle fallback -- every rig has a real
-// hull here (BuildWorldHull), so there is no craft type left that needs one.
+// from StarReach2's ResolveMassCollision, minus the pure-circle fallback -- every rig resolves
+// through its own living hardpoint circles here (LivingHardpointCircles), so there is no craft
+// type left that needs one.
 void ResolvePair(entt::registry& registry, entt::entity rootA, entt::entity rootB) {
     auto& xfA = registry.get<WorldTransform>(rootA);
     auto& xfB = registry.get<WorldTransform>(rootB);
@@ -267,12 +212,12 @@ void ResolvePair(entt::registry& registry, entt::entity rootA, entt::entity root
 
     const Rig& rigA = registry.get<Rig>(rootA);
     const Rig& rigB = registry.get<Rig>(rootB);
-    const std::vector<Vec2> hullA = BuildWorldHull(registry, rigA);
-    const std::vector<Vec2> hullB = BuildWorldHull(registry, rigB);
+    const std::vector<HardpointCircle> circlesA = LivingHardpointCircles(registry, rigA);
+    const std::vector<HardpointCircle> circlesB = LivingHardpointCircles(registry, rigB);
 
     Vec2 mtv{};
     float depth = 0.0f;
-    if (!PolygonOverlap(hullA, hullB, mtv, depth)) {
+    if (!NarrowPhaseOverlap(circlesA, circlesB, mtv, depth)) {
         return;
     }
 

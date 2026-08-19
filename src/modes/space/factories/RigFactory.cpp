@@ -80,7 +80,7 @@ entt::entity CreateHardpoint(entt::registry& registry, entt::entity root,
 
     registry.emplace<MountRef>(hardpoint, mount.id);
     registry.emplace<ParentRig>(hardpoint, root);
-    registry.emplace<ShellRole>(hardpoint, shell.kind);
+    registry.emplace<ShellRole>(hardpoint, shell.kind, shell.acceptsKinds);
     registry.emplace<HitRadius>(hardpoint, shell.radius);
     registry.emplace<MountTraverse>(hardpoint, mount.traverseRadians);
     registry.emplace<LocalTransform>(hardpoint, mount.localOffset, mount.localRotation);
