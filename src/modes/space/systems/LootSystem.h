@@ -36,6 +36,11 @@ namespace sr::space::loot_system {
 //     vanishing with it (architecture.md 12.23's "shoot the bay, lose what was in it" -- as
 //     recoverable salvage, not as nothing). ModuleEquipSystem's unmount path calls
 //     SpillCargoHold directly for the same reason before it detaches a loaded bay.
+//   - Player death (architecture.md 13.3 R, features.md section 3.3): a PlayerControlled rig with
+//     every hardpoint destroyed has every mounted module and every cargo-bay stack folded into one
+//     DeathWreck at the death position, then its hardpoints are stripped and revived in place and
+//     RespawnPending is handed to SpawnSystem to carry the bare hull home to the nearest
+//     SpawnAnchor. This is the only producer RespawnPending has.
 void Tick(const SystemContext& ctx);
 
 // Spawns a LootDrop (ItemKind::Module) or ElementDrop (ItemKind::Element) at `hardpoint`'s

@@ -3,12 +3,16 @@
 #include <entt/entity/entity.hpp>
 #include <vector>
 
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/Spawn.h"
+#include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/rig/CargoView.h"
+#include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::loot_system {
 namespace {
@@ -153,6 +157,87 @@ void SpillDestroyedBays(entt::registry& registry) {
     }
 }
 
+// Tops up an existing matching entry rather than appending a duplicate -- ElementStack's
+// documented merge-by-id contract (Loot.h), the same rule a collector's own pickup honors.
+void AddToManifest(std::vector<ElementStack>& elements, const std::string& elementId,
+                   int quantity) {
+    for (ElementStack& stack : elements) {
+        if (stack.elementId == elementId) {
+            stack.quantity += quantity;
+            return;
+        }
+    }
+    elements.push_back(ElementStack{elementId, quantity});
+}
+
+// features.md section 3.3 Tier 1/2, architecture.md 13.3 R: a PlayerControlled rig with every
+// hardpoint gone is the player dying. The vessel and everything mounted or held on it is
+// permanently lost -- collected into one DeathWreck at the death position (the same dual-form
+// promotion CollapseDeathWreck/PromoteDeathWreck already round-trip across a warp) rather than
+// discarded outright, per the recovery run's "cargo and equipped modules drop as a recoverable
+// wreck" rule.
+//
+// There is no live-rig-to-blueprint snapshot capability in this codebase yet (P12.31's RigState,
+// SpaceFlight.h's WarpToSystem doc comment) and modes/space/systems/ may not include factories/
+// (Law 5) to build a replacement hull, so the same hardpoints are stripped bare and revived in
+// place instead of being destroyed and rebuilt -- the closest reachable approximation of
+// features.md's Starter Ship safety net available from inside a system. RespawnPending is only
+// handed to SpawnSystem (architecture.md 13.3 R) to carry the bare hull home; it never touches
+// Health or Destroyed itself (modes/space/systems/SpawnSystem.cpp), which is why the hull is
+// revived here.
+void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& content) {
+    std::vector<entt::entity> dead;
+    for (const entt::entity root : registry.view<PlayerControlled, Rig, Destroyed>()) {
+        dead.push_back(root);
+    }
+
+    for (const entt::entity root : dead) {
+        const Vec2 position = registry.get<WorldTransform>(root).position;
+        const std::vector<entt::entity> hardpoints = registry.get<Rig>(root).children;
+
+        std::vector<ModuleId> modules;
+        std::vector<ElementStack> elements;
+        for (const entt::entity hardpoint : hardpoints) {
+            if (auto* mounted = registry.try_get<MountedModules>(hardpoint)) {
+                for (const ModuleId& moduleId : mounted->ids) {
+                    modules.push_back(moduleId);
+                    if (const ModuleDef* module = content.FindModule(moduleId)) {
+                        rig_attachment::DetachModuleComponents(registry, hardpoint, *module);
+                    }
+                }
+                mounted->ids.clear();
+            }
+            if (auto* cargo = registry.try_get<CargoHold>(hardpoint)) {
+                for (const ItemStack& stack : cargo->stacks) {
+                    if (stack.kind == ItemKind::Module) {
+                        modules.push_back(ModuleId(stack.id));
+                    } else {
+                        AddToManifest(elements, stack.id, stack.quantity);
+                    }
+                }
+                cargo->stacks.clear();
+            }
+            if (auto* health = registry.try_get<Health>(hardpoint)) {
+                health->current = health->max;
+            }
+            registry.remove<Destroyed>(hardpoint);
+        }
+
+        registry.remove<Destroyed>(root);
+        registry.emplace<Targetable>(root);
+        rig_attachment::RecomputeRigTotals(registry, root);
+
+        core::galaxy::WreckRecord record;
+        record.position = position;
+        record.modules = std::move(modules);
+        record.elements = std::move(elements);
+        record.lifetimeSeconds = DeathWreck{}.lifetimeSeconds;
+        PromoteDeathWreck(registry, record);
+
+        registry.emplace<RespawnPending>(root);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -161,6 +246,7 @@ void Tick(const SystemContext& ctx) {
     TickElementDrops(registry, ctx.content, ctx.dt);
     TickDerelictWrecks(registry);
     TickDeathWrecks(registry, ctx.content, ctx.dt);
+    HandlePlayerDeath(registry, ctx.content);
     SpillDestroyedBays(registry);
 }
 
