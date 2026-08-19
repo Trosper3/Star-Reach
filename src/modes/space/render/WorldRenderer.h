@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/entity/registry.hpp>
+#include <vector>
 
 #include "modes/space/data/SystemWorld.h"
 #include "shared/math/Vec2.h"
@@ -43,5 +44,11 @@ void DrawWorld(const SystemWorld& world, const CameraView& camera, float alpha);
 // draws none, only the hardpoint circles DrawHardpoints already renders for it. Pure with respect
 // to the registry, so it is unit-testable without a window.
 bool HasVisiblePropulsion(const entt::registry& registry, entt::entity entity);
+
+// Every living hardpoint, in DrawHardpoints' draw order: ascending DrawLayer (features.md section
+// 3.5's five-layer stack), tie-broken by ascending LocalTransform y so the stacking never pops as
+// a hull turns (architecture.md 12.16 item 19). Pure with respect to the registry -- unit-testable
+// without a window, the same pattern HasVisiblePropulsion above uses.
+std::vector<entt::entity> SortedHardpointsForDraw(const entt::registry& registry);
 
 }  // namespace sr::space::render

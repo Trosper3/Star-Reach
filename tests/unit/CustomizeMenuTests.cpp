@@ -65,6 +65,9 @@ FakeLibrary MakeLibrary() {
     return library;
 }
 
+// MakeLibrary()'s shells all keep ShellDef::radius at its 8.0f default, so 16 units (r(A) + r(B))
+// from the chassis root satisfies rule 11's attachment bound exactly, and opposite sides of the
+// chassis keep rule 10's separation bound comfortably clear (features.md 3.5).
 sr::ShipBlueprint MakeValidDraft() {
     sr::ShipBlueprint draft = customize_menu::NewDraft();
     draft.id = sr::BlueprintId("player_design");
@@ -77,11 +80,11 @@ sr::ShipBlueprint MakeValidDraft() {
     customize_menu::EquipModule(draft, sr::MountId("core"), sr::ModuleId("plate"));
 
     customize_menu::AddMount(draft, sr::MountId("reactor"), sr::ShellId("power_bay"),
-                             sr::MountId("core"), sr::Vec2{});
+                             sr::MountId("core"), sr::Vec2{16.0f, 0.0f});
     customize_menu::EquipModule(draft, sr::MountId("reactor"), sr::ModuleId("cell"));
 
     customize_menu::AddMount(draft, sr::MountId("thruster_main"), sr::ShellId("thruster"),
-                             sr::MountId("core"), sr::Vec2{});
+                             sr::MountId("core"), sr::Vec2{-16.0f, 0.0f});
     customize_menu::EquipModule(draft, sr::MountId("thruster_main"), sr::ModuleId("engine"));
 
     return draft;

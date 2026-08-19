@@ -7,7 +7,8 @@
       "hull": 120.0,
       "mass": 40.0,
       "moduleSlots": 1,
-      "radius": 22.0,
+      "radius": 12.0,
+      "hullRadius": 25.0,
       "spriteLayer": "fighter/chassis_light",
       "acceptsKinds": []
     },
@@ -18,7 +19,7 @@
       "hull": 45.0,
       "mass": 12.0,
       "moduleSlots": 1,
-      "radius": 9.0,
+      "radius": 6.0,
       "spriteLayer": "fighter/thruster_mount",
       "acceptsKinds": ["engine"]
     },
@@ -29,7 +30,7 @@
       "hull": 35.0,
       "mass": 8.0,
       "moduleSlots": 1,
-      "radius": 7.0,
+      "radius": 5.0,
       "spriteLayer": "fighter/wing_hardpoint",
       "acceptsKinds": ["weapon", "fire_control"]
     },
@@ -40,7 +41,7 @@
       "hull": 50.0,
       "mass": 15.0,
       "moduleSlots": 1,
-      "radius": 8.0,
+      "radius": 5.0,
       "spriteLayer": "fighter/power_bay",
       "acceptsKinds": ["power_cell"]
     },
@@ -51,7 +52,7 @@
       "hull": 40.0,
       "mass": 10.0,
       "moduleSlots": 1,
-      "radius": 8.0,
+      "radius": 5.0,
       "spriteLayer": "fighter/shield_emitter",
       "acceptsKinds": ["shield_generator"]
     },
@@ -62,7 +63,8 @@
       "hull": 300.0,
       "mass": 150.0,
       "moduleSlots": 1,
-      "radius": 45.0,
+      "radius": 75.0,
+      "hullRadius": 150.0,
       "spriteLayer": "station/core_hub",
       "acceptsKinds": []
     },

@@ -95,6 +95,7 @@ MountBlueprint ParseMount(const JsonReader& reader) {
 
     reader.Optional("localRotation", mount.localRotation);
     reader.Optional("traverseRadians", mount.traverseRadians);
+    reader.Optional("drawLayerOverride", mount.drawLayerOverride);
 
     std::vector<std::string> modules;
     reader.Optional("modules", modules);
@@ -156,7 +157,16 @@ ShellDef ParseShellDef(const JsonReader& reader) {
     reader.Optional("mass", def.mass);
     reader.Optional("moduleSlots", def.moduleSlots);
     reader.Optional("radius", def.radius);
+    reader.Optional("hullRadius", def.hullRadius);
     reader.Optional("spriteLayer", def.spriteLayer);
+
+    // Content may author an explicit 1-5 draw layer; when it doesn't, fall back to the
+    // per-ShellKind default (features.md section 3.5) so a live ShellDef always carries a valid
+    // value rather than the unset 0 sentinel.
+    reader.Optional("drawLayer", def.drawLayer);
+    if (def.drawLayer == 0) {
+        def.drawLayer = DefaultDrawLayer(def.kind);
+    }
 
     // ModuleKind::Armor is never listed (ShellDef::Accepts checks it separately) -- an unknown
     // token here is still an error, the same as any other enum field, so a content typo surfaces

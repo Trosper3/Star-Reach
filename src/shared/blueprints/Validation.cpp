@@ -4,12 +4,19 @@
 #include <unordered_set>
 #include <vector>
 
+#include "shared/math/Vec2.h"
+
 namespace sr {
 namespace {
 
 void Add(ValidationResult& result, ValidationRule rule, std::string message, MountId mount = {}) {
     result.errors.push_back({rule, std::move(message), std::move(mount)});
 }
+
+// Rules 10 and 11 are pure geometry against authored positions, not simulated ones -- a mount
+// legitimately authored exactly touching its neighbour (the scale table's ring placements do
+// this deliberately) must not fail on float rounding from the trig that produced its position.
+constexpr float kGeometryEpsilon = 0.01f;
 
 // Rule 9. Uniqueness across the content set is enforced where it can actually be seen -- the
 // registry rejects a duplicate key at load. Here we can only check the blueprint in hand.
@@ -129,6 +136,74 @@ void CheckAdjacency(const ShipBlueprint& bp, ValidationResult& result) {
             Add(result, ValidationRule::Adjacency,
                 "Mount '" + mount.id.str() +
                     "' is not connected to the rig root; floating islands are not buildable.",
+                mount.id);
+        }
+    }
+}
+
+// Rule 10. Pairwise across every mount whose shell resolves: hit circles must stay disjoint, or
+// two overlapping hardpoints could never be aimed at separately (features.md 3.5). Positions are
+// MountBlueprint::localOffset, which is already root-relative (RigBlueprint.h), so no rig
+// transform is needed to compare two mounts' centres.
+void CheckSeparation(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
+    const auto& mounts = bp.rig.mounts;
+    for (std::size_t i = 0; i < mounts.size(); ++i) {
+        const ShellDef* shellA = library.FindShell(mounts[i].shell);
+        if (shellA == nullptr) {
+            continue;  // Already reported by CheckIds.
+        }
+        for (std::size_t j = i + 1; j < mounts.size(); ++j) {
+            const ShellDef* shellB = library.FindShell(mounts[j].shell);
+            if (shellB == nullptr) {
+                continue;
+            }
+            const float distance = Distance(mounts[i].localOffset, mounts[j].localOffset);
+            const float minSeparation = shellA->radius + shellB->radius;
+            if (distance + kGeometryEpsilon < minSeparation) {
+                Add(result, ValidationRule::Separation,
+                    "Mount '" + mounts[i].id.str() + "' and '" + mounts[j].id.str() + "' sit " +
+                        std::to_string(distance) + " apart but need " +
+                        std::to_string(minSeparation) + " to keep their hit circles disjoint.",
+                    mounts[j].id);
+            }
+        }
+    }
+}
+
+// Rule 11. Every mount must stay close enough to what it attaches to that it reads as physically
+// joined rather than floating detached beside the hull (features.md 3.5). Uses each shell's own
+// radius as its extent -- architecture.md 12.16 item 19's warning that this bound has to measure
+// a turret's *base* extent, not its drawn barrel length, or long-barrelled guns fail a check they
+// are not actually violating.
+void CheckAttachment(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
+    std::unordered_map<std::string, const MountBlueprint*> byId;
+    for (const auto& mount : bp.rig.mounts) {
+        byId[mount.id.str()] = &mount;
+    }
+
+    for (const auto& mount : bp.rig.mounts) {
+        if (mount.attachedTo.empty()) {
+            continue;  // The root: nothing to measure it against.
+        }
+        const ShellDef* shell = library.FindShell(mount.shell);
+        if (shell == nullptr) {
+            continue;  // Already reported by CheckIds.
+        }
+        const auto it = byId.find(mount.attachedTo.str());
+        if (it == byId.end()) {
+            continue;  // Dangling parent -- already reported by CheckMountParents.
+        }
+        const ShellDef* parentShell = library.FindShell(it->second->shell);
+        if (parentShell == nullptr) {
+            continue;
+        }
+        const float distance = Distance(mount.localOffset, it->second->localOffset);
+        const float maxAttachment = shell->radius + parentShell->radius;
+        if (distance > maxAttachment + kGeometryEpsilon) {
+            Add(result, ValidationRule::Attachment,
+                "Mount '" + mount.id.str() + "' sits " + std::to_string(distance) + " from '" +
+                    mount.attachedTo.str() + "' but must stay within " +
+                    std::to_string(maxAttachment) + " to read as attached.",
                 mount.id);
         }
     }
@@ -302,6 +377,8 @@ std::string_view ToString(ValidationRule rule) {
         case ValidationRule::ModuleCompatibility: return "ModuleCompatibility";
         case ValidationRule::WeaponTraverse: return "WeaponTraverse";
         case ValidationRule::StructuralCoverage: return "StructuralCoverage";
+        case ValidationRule::Separation: return "Separation";
+        case ValidationRule::Attachment: return "Attachment";
     }
     return "Unknown";
 }
@@ -340,6 +417,8 @@ ValidationResult Validate(const ShipBlueprint& bp, const DefLibrary& library) {
     CheckIds(bp, library, result);
     CheckMountParents(bp, result);
     CheckAdjacency(bp, result);
+    CheckSeparation(bp, library, result);
+    CheckAttachment(bp, library, result);
     CheckMounting(bp, library, result);
     CheckWeaponTraverse(bp, library, result);
     CheckStructuralCoverage(bp, library, result);
