@@ -4,6 +4,7 @@
 
 #include "core/registries/DamageTypeEffects.h"
 #include "shared/blueprints/Taxonomy.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
@@ -137,6 +138,34 @@ void CascadeStructuralDestruction(entt::registry& registry) {
     }
 }
 
+// Destroys every rig docked to a host that died this tick -- architecture.md 12.34's "dies with
+// its host" half of features.md 3.4, the counterpart to the exclude<Docked> hit-testing half
+// fixed elsewhere. Docked.station is a docked rig's own root's window onto its host's root, so a
+// dead host is found by checking that reference, not by walking the host's own Rig::children --
+// a docked rig is never one of those. Runs immediately after the rig-death loop above, in the same
+// tick the host's Destroyed tag is applied, so nothing downstream (LootSystem's next tick) ever
+// reads an orphaned Docked.station off a rig this pass should also have condemned. Fixed-point
+// the same way CascadeStructuralDestruction is, so a rig docked to a rig just cascade-destroyed
+// this same tick still resolves now rather than lagging a tick behind.
+//
+// Deliberately does nothing else: tagging Destroyed here is what hands a docked rig to LootSystem's
+// existing exclude<PlayerLocation> combat-kill sweep (SystemSchedule.cpp runs it after this
+// system), the same DeathWreck-and-CargoHold-spill path an ordinary kill already uses -- reusing
+// that function with a different cause, not building a parallel one.
+void CascadeDockedDestruction(entt::registry& registry) {
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (auto [root, docked] : registry.view<Docked>(entt::exclude<Destroyed>).each()) {
+            if (docked.station != entt::null && registry.all_of<Destroyed>(docked.station)) {
+                registry.remove<Targetable>(root);
+                registry.emplace<Destroyed>(root);
+                changed = true;
+            }
+        }
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -167,6 +196,8 @@ void Tick(const SystemContext& ctx) {
         // died (architecture.md 12.23's Sum/Max rule).
         rig_attachment::RecomputeRigTotals(registry, root);
     }
+
+    CascadeDockedDestruction(registry);
 }
 
 }  // namespace sr::space::damage_system
