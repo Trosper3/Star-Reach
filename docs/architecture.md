@@ -7736,6 +7736,80 @@ hyperdrive range renders unavailable and cannot be confirmed; one inside range c
 (no individual objects at Level-1 scale) is the part finding 4 actually flagged as broken *today*,
 and is buildable now, independent of both blockers — ship that part first.
 
+---
+
+### 12.36 Player Spawn And Respawn Placement — Exit The Nearest Friendly Docking Bay
+
+*Settled 2026-08-18, filed as the issue tracked below. Found during #133's M1 verification pass:
+`SpaceFlight::OnEnter()` places the player's first spawn at `Vec2{0.0f, 0.0f}` — the sun's exact
+position (`WorldGen.cpp`'s `SpawnSun`) — inside `kCoronaRange`, where `HazardSystem::ApplyCorona`
+computes full-strength falloff at distance 0 and starts burning the rig before the player can react.
+`SpawnSystem::FindSafePlacement`, which #159's respawn producer will call once built, has the same
+class of gap: it ring-searches outward from the nearest `SpawnAnchor` (the station's root) with no
+regard for what a safe position near a station should actually look like, when a much better answer
+— the station's own docking bay — already exists next to it.*
+
+**The rule:** whenever the player needs to appear in a system — the first `OnEnter()`, or a death
+respawn — placement resolves in this order:
+
+1. **Exit the nearest friendly `DockingBay`.** The same same-faction test as
+   `DockingSystem::FindEligibleBay` (`FactionRef` equality against the bay's `ParentRig` root), but
+   unranged — there is no "already near it" precondition for a fresh spawn. The position offsets
+   outward from the bay hardpoint's `WorldTransform` along the vector from the station root to the
+   bay (the same radial-outward idea `FindSafePlacement`'s ring already uses, just anchored to the
+   bay instead of the station center), so the ship reads as having just launched from the bay rather
+   than materializing on top of the station's hull. If that exact point is contested, fall back to
+   `FindSafePlacement`'s existing ring search — centered on the bay-exit point, not the station root.
+2. **No friendly `DockingBay` in the system: fall back to the nearest `SpawnAnchor`'s ring search**
+   (the pre-existing behavior). **If neither a friendly bay nor any `SpawnAnchor` exists at all,**
+   a respawn is left pending and retried the following tick — the same "no anchor yet" behavior
+   the code already had, now also covering "no bay yet" — while `OnEnter()`, which has no tick to
+   retry on, falls back to its own reference position at the call site. Showing the player warping
+   in for this case has no visual anywhere today — `WarpToSystem` swaps `SystemWorld`s
+   instantaneously, with no animation anywhere in `render/`. **Named here as an explicit, unowned
+   gap** rather than silently shipping a teleport and calling the requirement met (§2.4). No task
+   currently builds it.
+
+**Why this replaces the ring-search wholesale, not just for `OnEnter`:** a respawning player and a
+first-time player are the identical event from the placement algorithm's point of view — "the player
+needs to exist somewhere in this system, safely" — and #159's respawn producer was always going to
+call the same placement `OnEnter` should have been calling from the start. One algorithm, two call
+sites (`SpaceFlight::OnEnter()` and `SpawnSystem::ResolveRespawns`), the same shape `SpawnPlayerInto`
+already gives `OnEnter`/`WarpToSystem`'s shared spawn body (§12.24 step 1).
+
+#### Types
+
+No new component. `DockingBay` (`shared/components/Docking.h`) and `SpawnAnchor`
+(`shared/components/Spawn.h`) are unchanged — `SpawnAnchor` keeps its separate job of giving
+`CullFarRigs` something to measure distance against; it stops being the *placement* target but stays
+the *cull* reference.
+
+#### Systems
+
+- `modes/space/systems/SpawnSystem.cpp`: `FindSafePlacement` gains the `DockingBay`-first resolution
+  above; its existing ring search becomes the two fallback tiers (a contested bay-exit point, then no
+  bay at all) rather than the only tier.
+- `modes/space/SpaceFlight.cpp`: `OnEnter()` stops hardcoding `Vec2{0.0f, 0.0f}` and instead resolves
+  a placement the same way — populate the system first, then resolve before calling
+  `SpawnPlayerInto`, mirroring how `WarpToSystem` already receives a `spawnPosition` computed by its
+  caller rather than assuming one.
+
+#### Tests
+
+A fresh `OnEnter()` places the player outside `kCoronaRange`, at a friendly `DockingBay`'s exit
+point, never at the sun's position. A respawn resolves the same way. A bay whose exit point is
+contested resolves to the nearest clear ring position around that bay, not around the station root.
+A system with no station, or no friendly one, falls back to a hazard-clear placement and does not
+corona-burn the player on arrival.
+
+#### Scope
+
+**This section does not build a warp-in cinematic.** The no-bay fallback is placement-only; the
+visual `WarpSystem`/`SpaceFlight::Draw` would need to actually *show* an arrival is unscoped and
+unowned. Flagged here rather than left implicit, per §2.4.
+
+---
+
 *Compiled 2026-08-09, by grepping for readers and callers rather than by reading schemas. Every
 row below was verified against `src/`; nothing here is inferred from a header comment, and where a
 header comment and the code disagree, the disagreement is recorded as a finding.*
