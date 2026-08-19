@@ -5,6 +5,7 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/SpawnSystem.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -14,6 +15,10 @@
 using Catch::Approx;
 using sr::CollisionRadius;
 using sr::Distance;
+using sr::DockingBay;
+using sr::FactionId;
+using sr::FactionRef;
+using sr::ParentRig;
 using sr::PlayerControlled;
 using sr::RespawnPending;
 using sr::Rig;
@@ -48,6 +53,22 @@ entt::entity MakeRig(entt::registry& registry, const Vec2& position) {
     rig.children.push_back(hardpoint);
     registry.emplace<Rig>(root, rig);
     return root;
+}
+
+// A station root of `faction` with one DockingBay hardpoint offset from it by `bayLocalOffset` --
+// enough of RigFactory's real shape (ParentRig, WorldTransform) for FindNearestFriendlyBayExit to
+// resolve against, without pulling in content or a full rig build.
+entt::entity MakeStationWithBay(entt::registry& registry, const Vec2& stationPosition,
+                                const Vec2& bayLocalOffset, const FactionId& faction) {
+    const entt::entity station = registry.create();
+    registry.emplace<WorldTransform>(station, stationPosition, 0.0f);
+    registry.emplace<FactionRef>(station, faction);
+
+    const entt::entity bay = registry.create();
+    registry.emplace<WorldTransform>(bay, stationPosition + bayLocalOffset, 0.0f);
+    registry.emplace<ParentRig>(bay, station);
+    registry.emplace<DockingBay>(bay);
+    return station;
 }
 
 }  // namespace
@@ -121,6 +142,7 @@ TEST_CASE("SpawnSystem places a respawning rig near the nearest anchor and clear
     const entt::entity respawning = registry.create();
     registry.emplace<WorldTransform>(respawning, Vec2{-9000.0f, -9000.0f}, 0.0f);
     registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, FactionId("test_faction"));
 
     spawn_system::Tick(MakeContext(world, intents, content));
 
@@ -147,6 +169,7 @@ TEST_CASE("SpawnSystem picks a placement clear of a rig already sitting next to 
     const entt::entity respawning = registry.create();
     registry.emplace<WorldTransform>(respawning, Vec2{-9000.0f, -9000.0f}, 0.0f);
     registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, FactionId("test_faction"));
 
     spawn_system::Tick(MakeContext(world, intents, content));
 
@@ -166,8 +189,60 @@ TEST_CASE("SpawnSystem leaves a respawn request untouched when no anchor exists 
     const entt::entity respawning = registry.create();
     registry.emplace<WorldTransform>(respawning, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, FactionId("test_faction"));
 
     spawn_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.all_of<RespawnPending>(respawning));
+}
+
+TEST_CASE("SpawnSystem respawns a rig at its friendly station's DockingBay exit, not the anchor",
+          "[spawn]") {
+    // architecture.md 12.36 / issue #160: exiting the bay takes priority over the bare
+    // anchor-ring search this test's anchor would otherwise resolve to.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const FactionId faction("aegis_directorate");
+    MakeAnchor(registry, Vec2{0.0f, 0.0f});
+    const entt::entity station =
+        MakeStationWithBay(registry, Vec2{2000.0f, 0.0f}, Vec2{30.0f, 0.0f}, faction);
+    const Vec2 bayPos = registry.get<WorldTransform>(station).position + Vec2{30.0f, 0.0f};
+
+    const entt::entity respawning = registry.create();
+    registry.emplace<WorldTransform>(respawning, Vec2{-9000.0f, -9000.0f}, 0.0f);
+    registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, faction);
+
+    spawn_system::Tick(MakeContext(world, intents, content));
+
+    const Vec2& resultPos = registry.get<WorldTransform>(respawning).position;
+    CHECK(Distance(bayPos, resultPos) < 100.0f);  // Clear exit point, no ring search needed.
+    CHECK(Distance(resultPos, Vec2{0.0f, 0.0f}) > 1000.0f);  // Nowhere near the (unrelated) anchor.
+    CHECK_FALSE(registry.all_of<RespawnPending>(respawning));
+}
+
+TEST_CASE("SpawnSystem falls back to the anchor when no friendly DockingBay exists", "[spawn]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    MakeAnchor(registry, Vec2{1000.0f, 0.0f});
+    // A bay exists, but for a different faction -- must not be treated as friendly.
+    MakeStationWithBay(registry, Vec2{5000.0f, 5000.0f}, Vec2{30.0f, 0.0f},
+                       FactionId("the_forgotten"));
+
+    const entt::entity respawning = registry.create();
+    registry.emplace<WorldTransform>(respawning, Vec2{-9000.0f, -9000.0f}, 0.0f);
+    registry.emplace<RespawnPending>(respawning, 80.0f);
+    registry.emplace<FactionRef>(respawning, FactionId("aegis_directorate"));
+
+    spawn_system::Tick(MakeContext(world, intents, content));
+
+    const Vec2& resultPos = registry.get<WorldTransform>(respawning).position;
+    CHECK(Distance(Vec2{1000.0f, 0.0f}, resultPos) < 200.0f);
+    CHECK_FALSE(registry.all_of<RespawnPending>(respawning));
 }

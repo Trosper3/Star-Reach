@@ -46,15 +46,22 @@ TEST_CASE("SpaceFlight's camera target follows the player from the first Update"
           "[spaceflight][camera]") {
     // architecture.md 12.24 step 3: cameraTarget_ is default-constructed and previously never
     // written at all, so the view stayed nailed to the origin regardless of where the player was.
+    // Asserted against the player's actual spawn position, not a hardcoded origin --
+    // architecture.md 12.36 moved that spawn off the origin (the sun's own position) on purpose.
     const ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
     SpaceFlight game(content, economy, wreckLedger);
     game.OnEnter();
 
+    entt::registry& registry = game.World().Registry();
+    const entt::entity player = FindPlayer(registry);
+    REQUIRE((player != entt::null));
+    const Vec2 spawnPosition = registry.get<WorldTransform>(player).position;
+
     game.Update(0.0f);
 
-    CHECK((game.CameraTarget() == Vec2{0.0f, 0.0f}));
+    CHECK((game.CameraTarget() == spawnPosition));
 }
 
 TEST_CASE("SpaceFlight's camera target tracks the player across a system warp",

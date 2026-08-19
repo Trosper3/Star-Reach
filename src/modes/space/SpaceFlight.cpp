@@ -9,6 +9,7 @@
 #include "modes/space/render/IconRenderer.h"
 #include "modes/space/render/WorldRenderer.h"
 #include "modes/space/systems/LootSystem.h"
+#include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/SystemSchedule.h"
 #include "modes/space/ui/AvionicsMenu.h"
 #include "modes/space/ui/BridgeView.h"
@@ -54,8 +55,24 @@ void SpaceFlight::OnEnter() {
     // game would read the prior game's confirmed quit and bounce straight back out.
     returnToMenuRequested_ = false;
 
-    SpawnPlayerInto("sol", BlueprintId(kStartingBlueprint), FactionId{}, Vec2{0.0f, 0.0f}, 0.0f,
-                    Wallet{});
+    PopulateWorld("sol");
+
+    // architecture.md 12.36: resolved here, before the rig exists, rather than passed as
+    // FactionId{} the way SpawnPlayerAt's own `faction.empty() -> blueprint->faction` fallback
+    // would -- ResolveSpawnPlacement needs a real FactionId to match a friendly DockingBay
+    // against, and there is no rig yet to read one off of. Unreachable in practice: the starting
+    // blueprint always resolves against loaded content.
+    const ShipBlueprint* startingBlueprint = content_.FindShip(BlueprintId(kStartingBlueprint));
+    const FactionId faction =
+        startingBlueprint != nullptr ? startingBlueprint->faction : FactionId{};
+
+    // Falls back to the reference position itself (unreachable in practice: WorldGen always
+    // spawns a friendly station) rather than propagating nullopt -- OnEnter has no per-tick retry
+    // to lean on the way SpawnSystem::ResolveRespawns does.
+    const Vec2 spawnPosition =
+        spawn_system::ResolveSpawnPlacement(world_.Registry(), faction, Vec2{0.0f, 0.0f})
+            .value_or(Vec2{0.0f, 0.0f});
+    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{});
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
@@ -122,15 +139,16 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     intents_.Clear();
 }
 
-void SpaceFlight::SpawnPlayerInto(const std::string& targetSystemId, const BlueprintId& blueprint,
-                                  const FactionId& faction, Vec2 spawnPosition, float spawnRotation,
-                                  Wallet wallet) {
+void SpaceFlight::PopulateWorld(const std::string& targetSystemId) {
     // Seeded from the target system's id alone, not a real galaxy coordinate -- there is no
     // system-adjacency/topology store yet to derive a proper core::galaxy::Seeding cascade from
     // (architecture.md section 12.5's noted follow-up). Deterministic per id in the meantime.
     const unsigned int seed = static_cast<unsigned int>(std::hash<std::string>{}(targetSystemId));
     world_gen::PopulateSystem(world_, content_, seed);
+}
 
+void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& faction,
+                                Vec2 spawnPosition, float spawnRotation, Wallet wallet) {
     const rig_factory::SpawnResult spawned = rig_factory::Spawn(
         world_, content_,
         rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
@@ -193,7 +211,8 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     // survives this line except what was captured above. `departing` is dangling after this.
     world_ = SystemWorld(targetSystemId);
 
-    SpawnPlayerInto(targetSystemId, blueprint, faction, spawnPosition, spawnRotation, wallet);
+    PopulateWorld(targetSystemId);
+    SpawnPlayerAt(blueprint, faction, spawnPosition, spawnRotation, wallet);
 
     // Promote every wreck this system is owed back into an entity now that it's resident again.
     entt::registry& arriving = world_.Registry();
