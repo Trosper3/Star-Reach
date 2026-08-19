@@ -86,6 +86,8 @@ enum class PowerCategory : std::uint8_t {
     Shields,
     Engines,
     Facilities,
+};
+
 // How far a shield generator's field reaches, authored per module and never rolled (features.md
 // section 3.1, architecture.md 12.22). The component pattern puts a module's effect on the
 // hardpoint it mounts on, which is right for a weapon or a power cell but silently confines a
