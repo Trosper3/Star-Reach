@@ -7766,9 +7766,9 @@ respawn — placement resolves in this order:
    the code already had, now also covering "no bay yet" — while `OnEnter()`, which has no tick to
    retry on, falls back to its own reference position at the call site. Showing the player warping
    in for this case has no visual anywhere today — `WarpToSystem` swaps `SystemWorld`s
-   instantaneously, with no animation anywhere in `render/`. **Named here as an explicit, unowned
-   gap** rather than silently shipping a teleport and calling the requirement met (§2.4). No task
-   currently builds it.
+   instantaneously, with no animation anywhere in `render/`. **Named here as an explicit gap**
+   rather than silently shipping a teleport and calling the requirement met (§2.4);
+   `playable_roadmap.md`'s **P9-10** now owns building it.
 
 **Why this replaces the ring-search wholesale, not just for `OnEnter`:** a respawning player and a
 first-time player are the identical event from the placement algorithm's point of view — "the player
@@ -7805,8 +7805,9 @@ corona-burn the player on arrival.
 #### Scope
 
 **This section does not build a warp-in cinematic.** The no-bay fallback is placement-only; the
-visual `WarpSystem`/`SpaceFlight::Draw` would need to actually *show* an arrival is unscoped and
-unowned. Flagged here rather than left implicit, per §2.4.
+visual `WarpSystem`/`SpaceFlight::Draw` would need to actually *show* an arrival is unscoped here.
+Flagged rather than left implicit, per §2.4, and now owned: `playable_roadmap.md`'s **P9-10** covers
+a shared arrival effect for a docking-bay exit, a no-bay respawn, and a system warp alike.
 
 ---
 

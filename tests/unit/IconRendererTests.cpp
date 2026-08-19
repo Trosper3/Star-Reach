@@ -9,11 +9,11 @@
 
 using Catch::Approx;
 using sr::AimPoint;
-using sr::PlayerControlled;
+using sr::PlayerLocation;
 using sr::Vec2;
 using sr::space::render::AimPointWorldPosition;
 
-TEST_CASE("AimPointWorldPosition returns nullopt with no PlayerControlled entity",
+TEST_CASE("AimPointWorldPosition returns nullopt with no PlayerLocation entity",
           "[icon-renderer]") {
     entt::registry registry;
     CHECK_FALSE(AimPointWorldPosition(registry).has_value());
@@ -23,15 +23,15 @@ TEST_CASE("AimPointWorldPosition returns nullopt when the player has no AimPoint
           "[icon-renderer]") {
     entt::registry registry;
     const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
+    registry.emplace<PlayerLocation>(player, PlayerLocation{player});
     CHECK_FALSE(AimPointWorldPosition(registry).has_value());
 }
 
-TEST_CASE("AimPointWorldPosition returns the PlayerControlled entity's AimPoint",
+TEST_CASE("AimPointWorldPosition returns the PlayerLocation entity's AimPoint",
           "[icon-renderer]") {
     entt::registry registry;
     const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
+    registry.emplace<PlayerLocation>(player, PlayerLocation{player});
     registry.emplace<AimPoint>(player, Vec2{200.0f, 50.0f});
 
     const auto result = AimPointWorldPosition(registry);

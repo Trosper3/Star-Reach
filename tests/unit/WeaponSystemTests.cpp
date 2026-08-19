@@ -1,9 +1,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
+
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
+#include "modes/space/factories/RigFactory.h"
 #include "modes/space/systems/WeaponSystem.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
@@ -12,6 +15,8 @@
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
+
+namespace rig_factory = sr::space::rig_factory;
 
 using Catch::Approx;
 using sr::AimPoint;
@@ -307,6 +312,37 @@ TEST_CASE("WeaponSystem only fires hardpoints whose weapon group is enabled", "[
     CHECK(registry.get<Weapon>(groupZeroHardpoint).cooldown == Approx(0.0f));
     CHECK(registry.get<Weapon>(groupOneHardpoint).cooldown == Approx(0.5f));
     (void)shot;
+}
+
+TEST_CASE("A freshly spawned aegis_vanguard fires its wing cannons dead ahead", "[weapon]") {
+    // Full-pipeline regression: blueprint JSON -> RigFactory -> WeaponSystem, the exact path a
+    // real player takes, rather than WeaponSystemTests' hand-built MakeArmedRig fixture. Isolates
+    // whether "no projectiles fire in game" is a WeaponSystem bug or an input/front-end one.
+    sr::core::ContentLibrary content;
+    const auto report = content.LoadFromDirectory(std::filesystem::path(SR_DATA_DIR));
+    REQUIRE(report.ok());
+
+    SystemWorld world("sol");
+    rig_factory::SpawnParams params;
+    params.blueprint = sr::BlueprintId("aegis_vanguard");
+    params.position = {0.0f, 0.0f};
+    params.rotation = 0.0f;
+    const auto spawned = rig_factory::Spawn(world, content, params);
+    REQUIRE(spawned.ok());
+
+    entt::registry& registry = world.Registry();
+    registry.emplace<AimPoint>(spawned.root, Vec2{500.0f, 0.0f});  // Dead ahead of rotation 0.
+    registry.emplace<FireIntent>(spawned.root);
+
+    sr::core::IntentQueue intents;
+    // Run several ticks: FiringArc must slew from its spawned currentOffset (0.0) to the aim
+    // point before AimAt reports on-target, the same as a real frame sequence would.
+    for (int i = 0; i < 10; ++i) {
+        weapon_system::Tick(MakeContext(world, intents, content));
+        registry.emplace_or_replace<FireIntent>(spawned.root);
+    }
+
+    CHECK(registry.storage<Projectile>().size() > 0);
 }
 
 TEST_CASE("A hardpoint with no WeaponGroup fires regardless of the rig's enabled mask",

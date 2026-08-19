@@ -19,14 +19,17 @@ namespace {
 // verbatim from legacy StarReach2's DockRepair.h kDockRadius.
 constexpr float kDockRangeUnits = 50.0f;
 
-// Nearest DockingBay hardpoint belonging to a different, same-faction rig, within range.
-// entt::null if nothing qualifies.
+// Nearest living DockingBay hardpoint belonging to a different, same-faction rig, within range.
+// entt::null if nothing qualifies. exclude<Destroyed>: a destroyed bay still carries DockingBay/
+// ParentRig/WorldTransform (DamageSystem only tags Destroyed, never strips components), so
+// without this a wrecked bay kept prompting "[R] DOCK" and would actually dock the player onto
+// it -- found during #133's M1 verification pass.
 entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
                              const FactionId& faction, const Vec2& position, float maxRange) {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
     for (auto [bay, parent, bayXf] :
-         registry.view<DockingBay, ParentRig, WorldTransform>().each()) {
+         registry.view<DockingBay, ParentRig, WorldTransform>(entt::exclude<Destroyed>).each()) {
         if (parent.root == self) {
             continue;  // A rig cannot dock with its own bay.
         }

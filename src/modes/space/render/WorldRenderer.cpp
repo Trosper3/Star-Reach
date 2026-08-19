@@ -107,14 +107,14 @@ void DrawWorldBodies(const entt::registry& registry, float alpha) {
     }
 }
 
-// Rig roots: a short heading line when the rig has visible thrust, nothing otherwise. The hull
-// itself is `DrawHardpoints`' per-hardpoint circles below -- those are what ProjectileSystem
-// actually tests. An earlier version of this function drew a triangle (or, unpropelled, a disc)
-// sized by the broad-phase CollisionRadius, which is the rig's *maximum* reach across every
-// hardpoint; the flanks of that shape routinely extended past what any individual hardpoint's
-// HitRadius covered, so a shot could visibly cross the drawn hull without touching the tested one
-// (architecture.md 13.3 finding AB). features.md section 3.5 settles this: draw exactly what you
-// test, and show heading with a marker rather than by shaping the hull.
+// Rig roots: a heading line when the rig has visible thrust, nothing otherwise. The hull itself
+// is `DrawHardpoints`' per-hardpoint circles below -- those are what ProjectileSystem actually
+// tests. An earlier version of this function drew a triangle (or, unpropelled, a disc) sized by
+// the broad-phase CollisionRadius, which is the rig's *maximum* reach across every hardpoint; the
+// flanks of that shape routinely extended past what any individual hardpoint's HitRadius covered,
+// so a shot could visibly cross the drawn hull without touching the tested one (architecture.md
+// 13.3 finding AB). features.md section 3.5 settles this: draw exactly what you test, and show
+// heading with a marker rather than by shaping the hull.
 void DrawShips(const entt::registry& registry, float alpha) {
     for (auto [entity, xf, prev, radius] :
          registry.view<WorldTransform, PreviousTransform, CollisionRadius>(entt::exclude<Destroyed>)

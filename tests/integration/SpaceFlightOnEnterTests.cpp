@@ -68,11 +68,14 @@ TEST_CASE("OnEnter populates one sun, one player, one station and the expected N
     CHECK(std::distance(registry.view<SpawnAnchor>().begin(), registry.view<SpawnAnchor>().end()) ==
           1);
 
-    // The station is a Rig without PlayerLocation too, so the old 3-5 NPC-only band becomes 4-6.
+    // The station is a Rig without PlayerLocation too, so the band becomes one wider on each end.
+    // TEMP (M1 verification pass, #133): WorldGen.cpp's SpawnNpcPresence call is temporarily
+    // RandomInt(15, 20) instead of (3, 5) so NPCs are findable without a zoom/minimap; bounds here
+    // track that. Revert alongside it.
     const auto npcs = registry.view<Rig>(entt::exclude<PlayerLocation>);
     const auto npcCount = std::distance(npcs.begin(), npcs.end());
-    CHECK(npcCount >= 4);
-    CHECK(npcCount <= 6);
+    CHECK(npcCount >= 16);
+    CHECK(npcCount <= 21);
 }
 
 TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spaceflight][onenter]") {

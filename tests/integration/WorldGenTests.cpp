@@ -111,11 +111,14 @@ TEST_CASE("PopulateSystem seeds a plausible NPC presence with no PlayerControlle
 
     entt::registry& registry = world.Registry();
     // architecture.md 12.24 step 4: the station added to PopulateSystem's output is a Rig too, so
-    // the old 3-5 NPC-only band becomes 4-6 -- one station plus 3-5 NPCs.
+    // the NPC-only band becomes one wider on each end -- one station plus the NPC roll.
+    // TEMP (M1 verification pass, #133): WorldGen.cpp's SpawnNpcPresence call is temporarily
+    // RandomInt(15, 20) instead of (3, 5) so NPCs are findable without a zoom/minimap; bounds here
+    // track that. Revert alongside it.
     const auto view = registry.view<Rig>(entt::exclude<PlayerControlled>);
     const auto count = std::distance(view.begin(), view.end());
-    CHECK(count >= 4);
-    CHECK(count <= 6);
+    CHECK(count >= 16);
+    CHECK(count <= 21);
     CHECK(registry.view<PlayerControlled>().empty());
 }
 

@@ -21,8 +21,13 @@ constexpr float kMapMarkerLabelOffset = 10.0f;
 }  // namespace
 
 std::optional<Vec2> AimPointWorldPosition(const entt::registry& registry) {
-    for (auto [entity, aim] : registry.view<PlayerControlled, AimPoint>().each()) {
+    // PlayerLocation, not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole
+    // source of truth today, and nothing derives PlayerControlled yet (P4-01, still open) -- a
+    // PlayerControlled-gated view here is permanently empty, the same trap SpaceFlight.cpp's
+    // FindPlayer already documents avoiding.
+    for (auto [entity, location, aim] : registry.view<PlayerLocation, AimPoint>().each()) {
         (void)entity;
+        (void)location;
         return aim.world;
     }
     return std::nullopt;

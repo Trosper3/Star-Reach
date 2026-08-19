@@ -274,7 +274,10 @@ void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, uns
     // Before SpawnNpcPresence, at a fixed point in the rng sequence, so adding the station does
     // not shift the NPC layout for a given seed.
     SpawnStation(world, content, rng);
-    SpawnNpcPresence(world, content, rng, RandomInt(rng, 3, 5));
+    // TEMP (M1 verification pass, #133): bumped from RandomInt(rng, 3, 5) so NPCs are actually
+    // findable while there's no zoom/minimap to point at them (kNpcBandMin/Max above still spread
+    // them 1800-3200 units out). Revert to 3-5 once that's no longer the bottleneck.
+    SpawnNpcPresence(world, content, rng, RandomInt(rng, 15, 20));
 }
 
 }  // namespace sr::space::world_gen

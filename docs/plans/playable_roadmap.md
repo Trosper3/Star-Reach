@@ -2082,6 +2082,28 @@ the gap is in one of the four, not in a missing boss system.
 
 ---
 
+### P9-10 · Warp-in and no-bay arrival cinematic 🔗
+**Docs:** `architecture.md` §12.36 (Scope) · `features.md` §2.11
+**Depends on:** P9-06 — **Label:** `feature`
+
+§12.36 settled *where* a player appears (nearest friendly `DockingBay`'s exit point, or a
+`SpawnAnchor` ring search with no bay) but explicitly did not build *how it looks* — named there as
+"an explicit, unowned gap" rather than left implicit. Today `WarpToSystem` swaps `SystemWorld`s
+instantaneously and `SpawnSystem`'s placement is a silent teleport; there is no animation anywhere
+in `render/` for either a system-to-system warp-in or a no-bay respawn.
+
+- **Home:** `modes/space/render/`, `modes/space/SpaceFlight.cpp` (`Draw()`), `modes/space/systems/WarpSystem.cpp`.
+- **Systems:** a brief, skippable arrival effect (e.g. an expanding ring / flash / velocity-streak
+  fade) plays at the resolved placement point on `OnEnter()`, a death respawn, and a system warp —
+  the same visual regardless of which of §12.36's two placement tiers resolved it, so a docking-bay
+  exit and a no-bay fallback both read as an arrival rather than the ship simply existing on the
+  next frame.
+- **Tests:** an arrival plays at the resolved spawn/respawn/warp position exactly once per arrival
+  and does not block input past its own duration; the ship is not targetable/collidable until it
+  completes (no free hit on a still-materializing ship).
+
+---
+
 # Phase 10 — Persistence and the shell
 
 **Exit criteria:** save, quit, load, and be where you were — with the same hull, the same damage,
@@ -2678,6 +2700,7 @@ reads.
 | P9-07 | Promotion and demotion round-trip |  |  |
 | P9-08 | The player as a faction |  |  |
 | P9-09 | Boss encounters — a verification task |  |  |
+| P9-10 | Warp-in and no-bay arrival cinematic |  |  |
 | P10-01 | `RigState` — the live-rig snapshot |  |  |
 | P10-02 | The world save |  |  |
 | P10-03 | Save, Load and Settings in the system menu |  |  |

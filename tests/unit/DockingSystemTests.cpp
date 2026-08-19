@@ -13,6 +13,7 @@
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
+using sr::Destroyed;
 using sr::Docked;
 using sr::DockingBay;
 using sr::DockPrompt;
@@ -224,6 +225,28 @@ TEST_CASE("DockingSystem undocks a rig with an UndockRequest and restores Target
     CHECK_FALSE(registry.all_of<Docked>(ship));
     CHECK_FALSE(registry.all_of<UndockRequest>(ship));
     CHECK(registry.all_of<Targetable>(ship));
+}
+
+TEST_CASE("DockingSystem does not prompt or dock a rig at a destroyed bay", "[docking]") {
+    // Regression: found during #133's M1 verification pass -- FindEligibleBay's view had no
+    // exclude<Destroyed>, so a wrecked bay (DamageSystem only tags Destroyed, it never strips
+    // DockingBay/ParentRig/WorldTransform) kept prompting "[R] DOCK" and would actually dock the
+    // player onto it.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    registry.emplace<Destroyed>(bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+    registry.emplace<DockRequest>(ship, bay);
+
+    docking_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
+    CHECK_FALSE(registry.all_of<Docked>(ship));
 }
 
 TEST_CASE("DockingSystem never docks a rig with its own bay", "[docking]") {
