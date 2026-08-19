@@ -3,6 +3,7 @@
 #include <entt/entity/entity.hpp>
 #include <vector>
 
+#include "shared/blueprints/ShipBlueprint.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
@@ -52,14 +53,20 @@ void AddCredits(entt::registry& registry, entt::entity collector, int credits) {
     registry.get_or_emplace<Wallet>(collector).credits += credits;
 }
 
-// True if some PlayerControlled collector's own CollisionRadius (widened by `extraRadius`, for
+// True if the PlayerLocation collector's own CollisionRadius (widened by `extraRadius`, for
 // drops physically bigger than a point) reaches `position`. Pickup range is deliberately never
 // a constant of its own -- it derives entirely from the collector, matching the ship-scaling
 // work this issue calls out.
+//
+// PlayerLocation, not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole
+// source of truth today, and nothing derives PlayerControlled yet (P4-01, still open) -- a
+// PlayerControlled-gated view here was permanently empty, so no drop of any kind (element,
+// module, wreck) has ever been collectible by the player, regardless of range.
 bool FindCollectorInRange(entt::registry& registry, const Vec2& position, float extraRadius,
                           entt::entity& outCollector) {
-    for (auto [collector, xf, radius] :
-         registry.view<PlayerControlled, WorldTransform, CollisionRadius>().each()) {
+    for (auto [collector, location, xf, radius] :
+         registry.view<PlayerLocation, WorldTransform, CollisionRadius>().each()) {
+        (void)location;
         if (Distance(xf.position, position) <= radius.value + extraRadius) {
             outCollector = collector;
             return true;
@@ -183,12 +190,14 @@ void AddToManifest(std::vector<ElementStack>& elements, const std::string& eleme
 //
 // There is no live-rig-to-blueprint snapshot capability in this codebase yet (P12.31's RigState,
 // SpaceFlight.h's WarpToSystem doc comment) and modes/space/systems/ may not include factories/
-// (Law 5) to build a replacement hull, so the same hardpoints are stripped bare and revived in
-// place instead of being destroyed and rebuilt -- the closest reachable approximation of
-// features.md's Starter Ship safety net available from inside a system. RespawnPending is only
-// handed to SpawnSystem (architecture.md 13.3 R) to carry the bare hull home; it never touches
-// Health or Destroyed itself (modes/space/systems/SpawnSystem.cpp), which is why the hull is
-// revived here.
+// (Law 5) to build a replacement hull, so the same hardpoints are stripped and then re-armed with
+// the starter blueprint's own default loadout in place, instead of being destroyed and rebuilt --
+// the closest reachable approximation of features.md's Starter Ship safety net ("a basic,
+// low-stat Starter Ship") available from inside a system: same hull, default equipment, empty
+// cargo, rather than an inert one with no engine or weapons. RespawnPending is only handed to
+// SpawnSystem (architecture.md 13.3 R) to carry the re-armed hull home; it never touches Health
+// or Destroyed itself (modes/space/systems/SpawnSystem.cpp), which is why the hull is revived
+// here.
 void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& content) {
     std::vector<entt::entity> dead;
     for (const entt::entity root : registry.view<PlayerLocation, Rig, Destroyed>()) {
@@ -199,9 +208,18 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
         const Vec2 position = registry.get<WorldTransform>(root).position;
         const std::vector<entt::entity> hardpoints = registry.get<Rig>(root).children;
 
+        // The starter blueprint's own default loadout, keyed by mount index -- RigFactory builds
+        // Rig::children by iterating blueprint->rig.mounts in order and pushing one hardpoint per
+        // mount (RigFactory.cpp), so index i here is mount i there. Null if the blueprint no
+        // longer resolves, which just falls back to the old bare-hull behaviour below.
+        const auto* blueprintRef = registry.try_get<BlueprintRef>(root);
+        const ShipBlueprint* blueprint =
+            blueprintRef != nullptr ? content.FindShip(blueprintRef->id) : nullptr;
+
         std::vector<ModuleId> modules;
         std::vector<ElementStack> elements;
-        for (const entt::entity hardpoint : hardpoints) {
+        for (std::size_t i = 0; i < hardpoints.size(); ++i) {
+            const entt::entity hardpoint = hardpoints[i];
             if (auto* mounted = registry.try_get<MountedModules>(hardpoint)) {
                 for (const ModuleId& moduleId : mounted->ids) {
                     modules.push_back(moduleId);
@@ -225,6 +243,25 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
                 health->current = health->max;
             }
             registry.remove<Destroyed>(hardpoint);
+
+            // Re-arm with the starter blueprint's default loadout for this mount rather than
+            // leaving the hull bare -- features.md's "Starter Ship safety net" is a basic,
+            // low-stat ship, not an inert one with no engine or weapons. Whatever the rig
+            // actually carried at death (including any refit away from the default) is already
+            // salvaged into `modules` above; this always re-arms the ORIGINAL loadout, not
+            // whatever was just stripped, the same "reset to Template" a Starter Ship implies.
+            if (blueprint != nullptr && i < blueprint->rig.mounts.size()) {
+                MountedModules& fresh = registry.get_or_emplace<MountedModules>(hardpoint);
+                const auto* traverse = registry.try_get<MountTraverse>(hardpoint);
+                const float traverseRadians = traverse != nullptr ? traverse->radians : 0.0f;
+                for (const ModuleId& moduleId : blueprint->rig.mounts[i].modules) {
+                    if (const ModuleDef* module = content.FindModule(moduleId)) {
+                        rig_attachment::AttachModuleComponents(registry, hardpoint, *module,
+                                                               traverseRadians);
+                        fresh.ids.push_back(moduleId);
+                    }
+                }
+            }
         }
 
         registry.remove<Destroyed>(root);

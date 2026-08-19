@@ -82,15 +82,19 @@ float PelletDirection(float baseDirection, float spreadRadians, int index, int c
 // after AimAt had already spent a tick's worth of traverse computing it (architecture.md 13.3
 // finding E).
 void SpawnProjectiles(entt::registry& registry, entt::entity shooter, const Weapon& weapon,
-                      const WorldTransform& mountXf, const FiringArc& arc) {
+                      const WorldTransform& mountXf, const FiringArc& arc, float mountRadius) {
     const float baseDirection = mountXf.rotation + arc.currentOffset;
     const int count = std::max(weapon.projectilesPerShot, 1);
 
     for (int i = 0; i < count; ++i) {
         const float direction = PelletDirection(baseDirection, weapon.spreadRadians, i, count);
+        // Muzzle sits at the mount's own shell edge along the firing direction, not its center --
+        // a shot spawned dead-center on a hardpoint with any real radius reads as materializing
+        // ahead of the ship rather than leaving the gun drawn there.
+        const Vec2 muzzle = mountXf.position + FromAngle(direction) * mountRadius;
         const entt::entity projectile = registry.create();
-        registry.emplace<WorldTransform>(projectile, mountXf.position, direction);
-        registry.emplace<PreviousTransform>(projectile, mountXf.position, direction);
+        registry.emplace<WorldTransform>(projectile, muzzle, direction);
+        registry.emplace<PreviousTransform>(projectile, muzzle, direction);
         registry.emplace<Velocity>(projectile, FromAngle(direction) * weapon.projectileSpeed, 0.0f);
         registry.emplace<Projectile>(projectile, weapon.damage, weapon.damageType, shooter,
                                      weapon.rangeUnits);
@@ -115,6 +119,7 @@ void Tick(const SystemContext& ctx) {
             auto* weapon = registry.try_get<Weapon>(hardpoint);
             auto* arc = registry.try_get<FiringArc>(hardpoint);
             const auto* mountXf = registry.try_get<WorldTransform>(hardpoint);
+            const auto* mountRadius = registry.try_get<HitRadius>(hardpoint);
             // PowerShed (architecture.md 13.3 finding F): a browned-out mount goes offline
             // entirely rather than just cooling down slower -- features.md 2.9's load-shedding
             // is meant to cost hardpoints, not merely fire rate.
@@ -137,7 +142,8 @@ void Tick(const SystemContext& ctx) {
             // and cooling down -- it is silenced, not offline like a PowerShed mount above.
             if (wantsToFire && onTarget && inRange && weapon->cooldown <= 0.0f &&
                 GroupEnabled(registry, hardpoint, groupMask)) {
-                SpawnProjectiles(registry, root, *weapon, *mountXf, *arc);
+                SpawnProjectiles(registry, root, *weapon, *mountXf, *arc,
+                                 mountRadius != nullptr ? mountRadius->value : 0.0f);
                 weapon->cooldown = weapon->fireIntervalSeconds;
             }
         }

@@ -106,8 +106,12 @@ BayExit FindNearestFriendlyBayExit(const entt::registry& registry, const Faction
     BayExit best;
     float bestDistSq = std::numeric_limits<float>::max();
 
+    // exclude<Destroyed>: the same gap DockingSystem::FindEligibleBay had (a wrecked bay still
+    // carries DockingBay/ParentRig/WorldTransform) -- without it, a respawn or fresh OnEnter
+    // could be placed at a destroyed bay's exit point instead of falling through to a live one
+    // or the SpawnAnchor ring search.
     for (auto [bay, parent, bayXf] :
-         registry.view<DockingBay, ParentRig, WorldTransform>().each()) {
+         registry.view<DockingBay, ParentRig, WorldTransform>(entt::exclude<Destroyed>).each()) {
         const auto* stationFaction = registry.try_get<FactionRef>(parent.root);
         if (stationFaction == nullptr || !(stationFaction->id == faction)) {
             continue;

@@ -8,6 +8,7 @@
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
+#include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
@@ -16,7 +17,8 @@
 using Catch::Approx;
 using sr::Docked;
 using sr::FireIntent;
-using sr::PlayerControlled;
+using sr::GravityWell;
+using sr::PlayerLocation;
 using sr::Target;
 using sr::ThrustInput;
 using sr::Vec2;
@@ -156,14 +158,62 @@ TEST_CASE("NpcAiSystem never drives a Docked rig, even with a live target", "[np
     CHECK_FALSE(registry.all_of<FireIntent>(seeker));
 }
 
-TEST_CASE("NpcAiSystem never drives a PlayerControlled rig", "[npc_ai]") {
+TEST_CASE("NpcAiSystem flees a GravityWell instead of pursuing a target across it", "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    // Well centred at the origin; seeker sits well inside range + the avoidance margin.
+    const entt::entity sun = registry.create();
+    registry.emplace<WorldTransform>(sun, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<GravityWell>(sun, 2200.0f, 260.0f);
+
+    // MakeSeeker's default rotation (0, i.e. +x) already faces directly away from a well
+    // centred at the origin -- no turn needed, just a straight burn clear.
+    const entt::entity seeker = MakeSeeker(registry);
+    registry.get<WorldTransform>(seeker).position = Vec2{500.0f, 0.0f};
+    // Target on the far side of the well: straight-line pursuit would cut through it.
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{-500.0f, 0.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(1.0f));
+    CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+}
+
+TEST_CASE("NpcAiSystem pursues normally once outside every GravityWell's avoidance range",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity sun = registry.create();
+    registry.emplace<WorldTransform>(sun, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<GravityWell>(sun, 2200.0f, 260.0f);
+
+    const entt::entity seeker = MakeSeeker(registry);
+    registry.get<WorldTransform>(seeker).position = Vec2{3000.0f, 0.0f};  // Outside range + margin.
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{4000.0f, 0.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(1.0f));
+    CHECK(registry.all_of<FireIntent>(seeker));
+}
+
+TEST_CASE("NpcAiSystem never drives the PlayerLocation rig", "[npc_ai]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
 
     const entt::entity player = MakeSeeker(registry);
-    registry.emplace<PlayerControlled>(player);
+    registry.emplace<PlayerLocation>(player, PlayerLocation{player});
     const entt::entity enemy = MakeTargetRig(registry, Vec2{1000.0f, 0.0f});
     registry.get<Target>(player).rig = enemy;
 

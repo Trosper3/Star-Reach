@@ -23,7 +23,7 @@
       "powerDraw": 30.0,
       "engine": {
         "thrustNewtons": 5200.0,
-        "turnTorque": 3.2,
+        "turnTorque": 2000.0,
         "maxSpeed": 420.0
       }
     },

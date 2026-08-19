@@ -111,7 +111,7 @@ TEST_CASE("PopulateSystem seeds a plausible NPC presence with no PlayerControlle
 
     entt::registry& registry = world.Registry();
     // architecture.md 12.24 step 4: the station added to PopulateSystem's output is a Rig too, so
-    // the old 3-5 NPC-only band becomes 4-6 -- one station plus 3-5 NPCs.
+    // the NPC-only band becomes one wider on each end -- one station plus the NPC roll.
     const auto view = registry.view<Rig>(entt::exclude<PlayerControlled>);
     const auto count = std::distance(view.begin(), view.end());
     CHECK(count >= 4);

@@ -118,21 +118,21 @@
           "shell": "shell_power_bay",
           "attachedTo": "core",
           "modules": ["power_cell_i"],
-          "localOffset": { "x": -30.0, "y": 0.0 }
+          "localOffset": { "x": -55.0, "y": 0.0 }
         },
         {
           "id": "dock",
           "shell": "shell_facility_bay",
           "attachedTo": "core",
           "modules": ["docking_bay_i"],
-          "localOffset": { "x": 30.0, "y": 0.0 }
+          "localOffset": { "x": 55.0, "y": 0.0 }
         },
         {
           "id": "turret",
           "shell": "shell_wing_hardpoint",
           "attachedTo": "core",
           "modules": ["pulse_cannon_i"],
-          "localOffset": { "x": 0.0, "y": -30.0 },
+          "localOffset": { "x": 0.0, "y": -55.0 },
           "traverseRadians": 0.35
         },
         {
@@ -140,7 +140,7 @@
           "shell": "shell_facility_bay",
           "attachedTo": "core",
           "modules": ["cargo_bay_i"],
-          "localOffset": { "x": 0.0, "y": 30.0 }
+          "localOffset": { "x": 0.0, "y": 55.0 }
         }
       ]
     }

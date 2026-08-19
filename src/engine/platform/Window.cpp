@@ -18,6 +18,10 @@ bool Window::Open(int width, int height, const std::string& title) {
     // the driver-level blocking wait.
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(width, height, title.c_str());
+    // raylib's default exit key is KEY_ESCAPE, which would close the window out from under
+    // modes/space/ui/SystemMenu.cpp's own Esc handling (open/close the pause menu) the instant
+    // it's pressed -- the menu would never get a frame to draw. SystemMenu owns Esc instead.
+    SetExitKey(KEY_NULL);
     open_ = IsWindowReady();
     if (open_) {
         // The simulation owns its own pacing via FixedTimestep; capping here only bounds how

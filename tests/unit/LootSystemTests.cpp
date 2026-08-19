@@ -1,12 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <filesystem>
 
 #include "core/events/IntentQueue.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
+#include "modes/space/factories/RigFactory.h"
 #include "modes/space/systems/LootSystem.h"
+#include "shared/components/Combat.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
@@ -32,23 +35,33 @@ using sr::LootDrop;
 using sr::ModuleId;
 using sr::MountedModules;
 using sr::ParentRig;
-using sr::PlayerControlled;
 using sr::PlayerLocation;
+using sr::Propulsion;
 using sr::RespawnPending;
 using sr::Rig;
 using sr::Targetable;
 using sr::Vec2;
 using sr::Wallet;
+using sr::Weapon;
 using sr::WorldBody;
 using sr::WorldTransform;
+using sr::core::ContentLibrary;
 using sr::core::galaxy::WreckLedger;
 using sr::core::galaxy::WreckRecord;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace loot_system = sr::space::loot_system;
 namespace cargo_view = sr::cargo_view;
+namespace rig_factory = sr::space::rig_factory;
 
 namespace {
+
+ContentLibrary Content() {
+    ContentLibrary library;
+    const auto report = library.LoadFromDirectory(std::filesystem::path(SR_DATA_DIR));
+    REQUIRE(report.ok());
+    return library;
+}
 
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content, float dt = 1.0f / 60.0f) {
@@ -56,13 +69,13 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 }
 
 // A collector needs a living cargo-bay hardpoint to receive anything at all (architecture.md
-// 12.23) -- a bare PlayerControlled entity with no Rig has nowhere to deposit into.
+// 12.23) -- a bare PlayerLocation entity with no Rig has nowhere to deposit into.
 entt::entity MakeCollector(entt::registry& registry, const Vec2& position, float radius,
                            int slotCount = 10, float slotCapacity = 1000.0f) {
     const entt::entity collector = registry.create();
     registry.emplace<WorldTransform>(collector, position, 0.0f);
     registry.emplace<CollisionRadius>(collector, radius);
-    registry.emplace<PlayerControlled>(collector);
+    registry.emplace<PlayerLocation>(collector, collector);
 
     const entt::entity bay = registry.create();
     registry.emplace<ParentRig>(bay, collector);
@@ -148,7 +161,7 @@ TEST_CASE("LootSystem leaves a LootDrop alone when the collector has no cargo ba
     const entt::entity collector = registry.create();
     registry.emplace<WorldTransform>(collector, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<CollisionRadius>(collector, 50.0f);
-    registry.emplace<PlayerControlled>(collector);
+    registry.emplace<PlayerLocation>(collector, collector);
 
     const entt::entity drop = registry.create();
     registry.emplace<WorldTransform>(drop, Vec2{20.0f, 0.0f}, 0.0f);
@@ -464,6 +477,66 @@ TEST_CASE(
     REQUIRE(manifest.elements.size() == 1);
     CHECK(manifest.elements.front().elementId == "Fe");
     CHECK(manifest.elements.front().quantity == 3);
+}
+
+TEST_CASE(
+    "A dead, blueprint-spawned player rig respawns with its default loadout re-armed, not bare",
+    "[loot][death]") {
+    // Full-pipeline regression: a real aegis_vanguard has a BlueprintRef RigFactory writes at
+    // spawn, which HandlePlayerDeath now uses to re-mount the starter loadout per hardpoint
+    // instead of leaving the hull stripped -- MakeDeadPlayerRig's hand-built fixture above has no
+    // BlueprintRef, so it can't exercise this path.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    rig_factory::SpawnParams params;
+    params.blueprint = sr::BlueprintId("aegis_vanguard");
+    params.position = {0.0f, 0.0f};
+    const auto spawned = rig_factory::Spawn(world, content, params);
+    REQUIRE(spawned.ok());
+
+    // RigFactory itself is faction/player-agnostic (NPCs go through it too) -- PlayerLocation is
+    // written by SpaceFlight::SpawnPlayerInto at a higher layer, not here.
+    registry.emplace<PlayerLocation>(spawned.root, spawned.root);
+    // Mirrors DamageSystem's own death transition (DamageSystem.cpp): Targetable comes off before
+    // Destroyed goes on. HandlePlayerDeath's unconditional emplace<Targetable> assumes that
+    // ordering already happened -- skipping it here (unlike the real combat path) would double-
+    // emplace and abort.
+    registry.remove<Targetable>(spawned.root);
+    registry.emplace<Destroyed>(spawned.root);
+    for (const entt::entity hardpoint : registry.get<Rig>(spawned.root).children) {
+        registry.emplace<Destroyed>(hardpoint);
+    }
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<Destroyed>(spawned.root));
+    REQUIRE(registry.all_of<RespawnPending>(spawned.root));
+
+    const auto port = rig_factory::FindHardpoint(registry, spawned.root, sr::MountId("wing_port"));
+    REQUIRE(registry.valid(port));
+    REQUIRE(registry.all_of<Weapon>(port));
+    REQUIRE(registry.all_of<MountedModules>(port));
+    REQUIRE(registry.get<MountedModules>(port).ids.size() == 1);
+    CHECK(registry.get<MountedModules>(port).ids.front() == ModuleId("pulse_cannon_i"));
+
+    const auto thruster =
+        rig_factory::FindHardpoint(registry, spawned.root, sr::MountId("thruster_main"));
+    REQUIRE(registry.valid(thruster));
+    REQUIRE(registry.all_of<MountedModules>(thruster));
+    CHECK(registry.get<MountedModules>(thruster).ids.front() == ModuleId("ion_thruster_i"));
+
+    const auto hold = rig_factory::FindHardpoint(registry, spawned.root, sr::MountId("hold"));
+    REQUIRE(registry.valid(hold));
+    CHECK(registry.get<CargoHold>(hold).stacks.empty());
+
+    // Re-armed, not just re-mounted -- Propulsion is derived from EnginePropulsion, so a real
+    // thrust/turn capability confirms the engine's role components came back too, not just its
+    // MountedModules bookkeeping.
+    REQUIRE(registry.all_of<Propulsion>(spawned.root));
+    CHECK(registry.get<Propulsion>(spawned.root).thrustNewtons > 0.0f);
 }
 
 TEST_CASE("LootSystem leaves a living player rig alone", "[loot][death]") {
