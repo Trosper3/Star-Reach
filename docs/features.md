@@ -5804,9 +5804,10 @@ untouched by death — every reverse-engineering unlock, every saved Template, e
 is still there. What is lost is physical: the vessel, its equipped modules, and everything in its
 cargo hold.
 
-**Respawn & backup** — the player respawns at an allied station and may immediately transition into
-a stashed backup ship or an existing fleet vessel, backed by stored wealth and the designs their
-network still holds.
+**Respawn & backup** — the player exits the nearest friendly station's docking bay
+(`architecture.md` §12.36), or, if none is reachable in-system, is shown warping in, and may
+immediately transition into a stashed backup ship or an existing fleet vessel, backed by stored
+wealth and the designs their network still holds.
 
 **The Starter Ship safety net** — with no stored ships remaining, the player may take a basic,
 low-stat Starter Ship and claw back up.
