@@ -8,9 +8,10 @@ namespace {
 
 // One table per enum, used for both directions. Adding an enumerator without adding its row
 // here is a compile-time break in ToString's switch, which is the intent.
-constexpr std::array<std::pair<std::string_view, DamageType>, 2> kDamageTypes{{
+constexpr std::array<std::pair<std::string_view, DamageType>, 3> kDamageTypes{{
     {"kinetic", DamageType::Kinetic},
     {"energy", DamageType::Energy},
+    {"ion", DamageType::Ion},
 }};
 
 constexpr std::array<std::pair<std::string_view, ShellKind>, 7> kShellKinds{{
@@ -62,6 +63,7 @@ std::string_view ToString(DamageType value) {
     switch (value) {
         case DamageType::Kinetic: return "kinetic";
         case DamageType::Energy: return "energy";
+        case DamageType::Ion: return "ion";
     }
     return "kinetic";
 }

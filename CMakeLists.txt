@@ -166,6 +166,7 @@ add_library(sr_core STATIC
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp
+    src/core/registries/DamageTypeEffects.cpp
     src/core/serialization/BlueprintSerialization.cpp
     src/core/serialization/KnowledgeSerialization.cpp
     src/core/serialization/SaveFile.cpp
