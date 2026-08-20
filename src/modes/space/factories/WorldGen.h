@@ -20,4 +20,14 @@ namespace sr::space::world_gen {
 // DrawShips keys off, or a sun/planet/asteroid would render as a ship.
 void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, unsigned int seed);
 
+// features.md 4.5 / architecture.md 12.2: promotes up to three already-mounted officers
+// (a `CrewRating` with a non-zero `command` roll, features.md 2.7) per distinct faction present
+// in `registry` to Commander -- "not a separate acquisition track," since every authored ship and
+// station blueprint already mounts an officer on its Bridge/cockpit via the normal equip path
+// (RigFactory). Capped at three per faction and by whatever is actually eligible; never spawns
+// anything itself. Idempotent per hardpoint -- skips one that already carries Commander. Exported
+// separately from PopulateSystem so it is independently unit-testable against a fixture registry
+// rather than only through PopulateSystem's randomized NPC mix.
+void SeedCommanders(entt::registry& registry);
+
 }  // namespace sr::space::world_gen

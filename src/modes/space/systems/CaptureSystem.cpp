@@ -62,8 +62,14 @@ entt::entity FindBoardableTarget(const entt::registry& registry, entt::entity se
 // of its own, so it transfers for free.
 void TransferOwnership(entt::registry& registry, entt::entity target, const FactionId& newFaction) {
     registry.get<FactionRef>(target).id = newFaction;
-    if (auto* commander = registry.try_get<Commander>(target)) {
-        commander->faction = newFaction;
+    // Commander lives on the Bridge/cockpit hardpoint, not the rig root (architecture.md 12.16
+    // item 22, Commander.h) -- a captured hull's commander, if it has one, is one of its children.
+    if (const auto* rig = registry.try_get<Rig>(target)) {
+        for (const entt::entity hardpoint : rig->children) {
+            if (auto* commander = registry.try_get<Commander>(hardpoint)) {
+                commander->faction = newFaction;
+            }
+        }
     }
 }
 

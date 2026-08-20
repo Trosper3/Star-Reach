@@ -102,14 +102,17 @@ TEST_CASE("CaptureSystem transfers a captured hull's crew and Commander network 
 
     const entt::entity target = MakeRig(registry, Vec2{0.0f, 0.0f}, "reavers");
     registry.emplace<Uncrewed>(target);
-    // A sub-commander riding the captured hull (features.md 2.5): the network id is anchored to
-    // this entity and must survive untouched, but `faction` must follow the hull.
+    // A sub-commander riding the captured hull (features.md 2.5), on its Bridge/cockpit hardpoint
+    // rather than the root (architecture.md 12.16 item 22, Commander.h): the network id is
+    // anchored to this entity and must survive untouched, but `faction` must follow the hull.
     const KnowledgeNetworkId network("reaver-cmd-7");
-    registry.emplace<Commander>(target,
+    const entt::entity bridge = registry.create();
+    registry.emplace<Commander>(bridge,
                                 Commander{network, CommanderOrders::Defend, FactionId("reavers")});
     // A second, still-living hardpoint aboard -- nothing about capture should touch it.
     Rig rig;
     const entt::entity survivingHardpoint = registry.create();
+    rig.children.push_back(bridge);
     rig.children.push_back(survivingHardpoint);
     registry.emplace<Rig>(target, rig);
 
@@ -118,12 +121,12 @@ TEST_CASE("CaptureSystem transfers a captured hull's crew and Commander network 
     StartThenCompleteHold(world, intents, content);
 
     CHECK(registry.get<FactionRef>(target).id == FactionId("aegis"));
-    REQUIRE(registry.all_of<Commander>(target));
-    CHECK(registry.get<Commander>(target).faction == FactionId("aegis"));
-    CHECK(registry.get<Commander>(target).network == network);
+    REQUIRE(registry.all_of<Commander>(bridge));
+    CHECK(registry.get<Commander>(bridge).faction == FactionId("aegis"));
+    CHECK(registry.get<Commander>(bridge).network == network);
     REQUIRE(registry.all_of<Rig>(target));
-    CHECK(registry.get<Rig>(target).children.size() == 1);
-    CHECK(registry.get<Rig>(target).children[0] == survivingHardpoint);
+    CHECK(registry.get<Rig>(target).children.size() == 2);
+    CHECK(registry.get<Rig>(target).children[1] == survivingHardpoint);
 }
 
 TEST_CASE("CaptureSystem does not board a target out of boarding range", "[capture]") {
