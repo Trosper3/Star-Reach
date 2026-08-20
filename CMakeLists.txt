@@ -268,6 +268,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/StationServicesMenu.cpp
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
+    src/modes/space/systems/CaptureSystem.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/ConstructionSystem.cpp
     src/modes/space/systems/EngineerSystem.cpp

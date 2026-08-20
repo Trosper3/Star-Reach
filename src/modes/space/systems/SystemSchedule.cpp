@@ -1,5 +1,6 @@
 #include "modes/space/systems/SystemSchedule.h"
 
+#include "modes/space/systems/CaptureSystem.h"
 #include "modes/space/systems/CollisionSystem.h"
 #include "modes/space/systems/CommanderSystem.h"
 #include "modes/space/systems/CommsSystem.h"
@@ -102,6 +103,11 @@ namespace sr::space {
 //   DamageSystem      -- must be last of the combat systems; destruction is the tick's
 //                        final word there. An Asteroid can be tagged Destroyed by this same
 //                        generic drain, which is exactly what MiningSystem reacts to next.
+//   CaptureSystem     -- after DamageSystem, so this tick's Uncrewed/Destroyed/Targetable are
+//                        settled before a boarder's target search reads them (features.md 3.2's
+//                        boarding-in-place). A completed capture's FactionRef flip is then visible
+//                        to everything below -- MiningSystem, ContractSystem, DistressSystem,
+//                        LootSystem, CommsSystem -- the same tick.
 //   TutorialSystem    -- after DamageSystem, before MiningSystem: its DestroyAsteroid step
 //                        reads the same this-tick Destroyed tag MiningSystem is about to
 //                        consume by destroying the entity outright.
@@ -151,6 +157,7 @@ const std::vector<ScheduledSystem>& TickSchedule() {
         {"ProjectileSystem", &projectile_system::Tick},
         {"PartySystem", &party_system::Tick},
         {"DamageSystem", &damage_system::Tick},
+        {"CaptureSystem", &capture_system::Tick},
         {"TutorialSystem", &tutorial_system::Tick},
         {"MiningSystem", &mining_system::Tick},
         {"ContractSystem", &contract_system::Tick},

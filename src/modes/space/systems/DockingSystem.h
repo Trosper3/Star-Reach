@@ -35,9 +35,9 @@ namespace sr::space::docking_system {
 // relation check -- core/diplomacy/ (issue #42) does not exist yet for a real relation lookup.
 //
 // NOT implemented here: seated turrets (needs player input/camera switching -- modes/space/ui,
-// issue #36) and capture (needs core/diplomacy/'s relation matrix, issue #42, plus a "disabled"
-// concept -- alive but with no living Weapon hardpoint -- that does not exist anywhere yet).
-// Left for those issues, the same way PartySystem left party warp for WarpSystem (#25).
+// issue #36) and capture, which now lives beside this file in CaptureSystem.cpp (#172) rather
+// than in it -- ownership transfer of an uncrewed hull is a different proximity+hold shape than
+// same-faction docking, not a variant of it.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::docking_system
