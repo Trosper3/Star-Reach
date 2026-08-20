@@ -55,6 +55,7 @@ add_executable(sr_tests
     unit/CommanderSystemTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
+    unit/CaptureSystemTests.cpp
     unit/BuildMenuTests.cpp
     unit/RefactorSystemTests.cpp
     unit/EngineerMenuTests.cpp

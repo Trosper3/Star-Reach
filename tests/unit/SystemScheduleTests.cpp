@@ -14,23 +14,16 @@ namespace {
 // directory it is checking can never fail (the issue's own membership rule). Count must match
 // the number of *System.h files under modes/space/systems/, excluding System.h and
 // SystemSchedule.h itself.
-constexpr std::array<std::string_view, 32> kExpectedSystems{
-    "WarpSystem",        "ConstructionSystem",
-    "ModuleEquipSystem", "PowerSystem",
-    "SpawnSystem",       "OrbitSystem",
-    "PlayerInputSystem", "PhysicsSystem",
-    "HierarchySystem",   "HazardSystem",
-    "DockingSystem",     "EngineerSystem",
-    "RefactorSystem",    "StationServicesSystem",
-    "TargetingSystem",   "NpcAiSystem",
-    "WeaponSystem",      "CollisionSystem",
-    "ProjectileSystem",  "PartySystem",
-    "DamageSystem",      "TutorialSystem",
-    "MiningSystem",      "ContractSystem",
-    "DistressSystem",    "LootSystem",
-    "CommsSystem",       "FactionEconomySystem",
-    "DiscoverySystem",   "CommanderSystem",
-    "ResearchSystem",    "TemplateMarketSystem",
+constexpr std::array<std::string_view, 33> kExpectedSystems{
+    "WarpSystem",           "ConstructionSystem",    "ModuleEquipSystem", "PowerSystem",
+    "SpawnSystem",          "OrbitSystem",           "PlayerInputSystem", "PhysicsSystem",
+    "HierarchySystem",      "HazardSystem",          "DockingSystem",     "EngineerSystem",
+    "RefactorSystem",       "StationServicesSystem", "TargetingSystem",   "NpcAiSystem",
+    "WeaponSystem",         "CollisionSystem",       "ProjectileSystem",  "PartySystem",
+    "DamageSystem",         "CaptureSystem",         "TutorialSystem",    "MiningSystem",
+    "ContractSystem",       "DistressSystem",        "LootSystem",        "CommsSystem",
+    "FactionEconomySystem", "DiscoverySystem",       "CommanderSystem",   "ResearchSystem",
+    "TemplateMarketSystem",
 };
 
 std::size_t IndexOf(std::string_view name) {
