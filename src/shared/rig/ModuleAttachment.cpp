@@ -111,8 +111,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
             // Cached, not returned -- RecomputeRigTotals reads this back later across every
             // living hardpoint, the same shape HardpointSensorRange already uses.
             registry.emplace_or_replace<CrewRating>(hardpoint, module.crew.operation,
-                                                     module.crew.command, module.crew.sensors,
-                                                     module.crew.repair);
+                                                    module.crew.command, module.crew.sensors,
+                                                    module.crew.repair);
             break;
         default: break;
     }

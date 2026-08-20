@@ -218,10 +218,9 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
         const Vec2 position = registry.get<WorldTransform>(root).position;
         const std::vector<entt::entity> hardpoints = registry.get<Rig>(root).children;
 
-        // The starter blueprint's own default loadout, keyed by mount index -- RigFactory builds
-        // Rig::children by iterating blueprint->rig.mounts in order and pushing one hardpoint per
-        // mount (RigFactory.cpp), so index i here is mount i there. Null if the blueprint no
-        // longer resolves, which just falls back to the old bare-hull behaviour below.
+        // The starter blueprint's own default loadout, keyed by mount index -- RigFactory pushes
+        // one hardpoint per mount in blueprint->rig.mounts order, so index i here is mount i
+        // there. Null if the blueprint no longer resolves, falling back to the bare hull below.
         const auto* blueprintRef = registry.try_get<BlueprintRef>(root);
         const ShipBlueprint* blueprint =
             blueprintRef != nullptr ? content.FindShip(blueprintRef->id) : nullptr;
@@ -254,12 +253,8 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
             }
             registry.remove<Destroyed>(hardpoint);
 
-            // Re-arm with the starter blueprint's default loadout for this mount rather than
-            // leaving the hull bare -- features.md's "Starter Ship safety net" is a basic,
-            // low-stat ship, not an inert one with no engine or weapons. Whatever the rig
-            // actually carried at death (including any refit away from the default) is already
-            // salvaged into `modules` above; this always re-arms the ORIGINAL loadout, not
-            // whatever was just stripped, the same "reset to Template" a Starter Ship implies.
+            // Re-arm with the starter blueprint's default loadout -- features.md's Starter Ship
+            // safety net, "reset to Template" rather than whatever refit was just salvaged above.
             if (blueprint != nullptr && i < blueprint->rig.mounts.size()) {
                 MountedModules& fresh = registry.get_or_emplace<MountedModules>(hardpoint);
                 const auto* traverse = registry.try_get<MountTraverse>(hardpoint);
@@ -275,12 +270,9 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
         }
 
         registry.remove<Destroyed>(root);
-        // emplace_or_replace, not emplace: the Destroyed path always arrives with Targetable
-        // already stripped (DamageSystem's ApplyStructuralFailure/CascadeDockedDestruction both
-        // remove it before tagging Destroyed), but the Uncrewed path above never touches
-        // Targetable at all -- an uncrewed-but-intact hull stays targetable and capturable
-        // (features.md 3.2) right up until this respawn. A plain emplace here aborted on entt's
-        // "Slot not available" the first time a player died via Uncrewed alone.
+        // emplace_or_replace: unlike the Destroyed path, Uncrewed above never strips Targetable
+        // (an uncrewed hull stays targetable/capturable, features.md 3.2) -- a plain emplace
+        // here aborted on entt's "Slot not available" for an Uncrewed death.
         registry.emplace_or_replace<Targetable>(root);
         rig_attachment::RecomputeRigTotals(registry, root);
 

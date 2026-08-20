@@ -75,10 +75,10 @@ void Tick(const SystemContext& ctx) {
     // is gone has nothing left to steer or shoot with, so it coasts and stops asking to fire the
     // same way a target-less rig already does below, rather than the AI flying and firing a hull
     // nobody is aboard.
-    for (auto [self, target, xf, thrust] :
-         registry.view<Target, WorldTransform, ThrustInput>(
-             entt::exclude<PlayerLocation, Docked, Uncrewed>)
-             .each()) {
+    for (auto [self, target, xf, thrust] : registry
+                                               .view<Target, WorldTransform, ThrustInput>(
+                                                   entt::exclude<PlayerLocation, Docked, Uncrewed>)
+                                               .each()) {
         // Reset every tick: a rig that lost its target coasts and stops asking to fire, rather
         // than holding whatever throttle and FireIntent it last had.
         thrust = ThrustInput{};

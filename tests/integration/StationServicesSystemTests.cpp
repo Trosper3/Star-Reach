@@ -352,7 +352,7 @@ TEST_CASE("Repair rate is multiplied by the docked STATION's own crew, not the r
 
     const entt::entity station = MakeStation(registry, {});
     AddRepairFacility(registry, content, station, 6.0f);  // 6.0 * (1/60) = 0.1 achievable fraction
-    registry.emplace<CrewRepairBonus>(station, 0.5f);  // +50% from a Repair-rolled bridge crew
+    registry.emplace<CrewRepairBonus>(station, 0.5f);     // +50% from a Repair-rolled bridge crew
 
     const entt::entity hardpoint = registry.create();
     registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing
