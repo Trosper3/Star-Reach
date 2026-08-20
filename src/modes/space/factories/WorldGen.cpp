@@ -2,12 +2,16 @@
 
 #include <cstddef>
 #include <random>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "modes/space/factories/NpcFactory.h"
 #include "modes/space/factories/StationFactory.h"
 #include "shared/blueprints/Ids.h"
+#include "shared/components/Commander.h"
 #include "shared/components/Health.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Lighting.h"
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
@@ -262,6 +266,37 @@ void SpawnNpcPresence(SystemWorld& world, const core::ContentLibrary& content, R
     }
 }
 
+// -- Commanders -------------------------------------------------------------------------------
+
+constexpr int kCommandersPerFaction = 3;
+
+// One hardpoint already carrying an officer (CrewRating with a non-zero command roll) eligible
+// to be promoted to Commander, and the faction that officer serves.
+struct EligibleCommander {
+    entt::entity hardpoint;
+    FactionId faction;
+};
+
+// Every not-yet-Commander, not-Destroyed hardpoint across every Rig-and-FactionRef-carrying root
+// in `registry` whose CrewRating rolled a non-zero `command` -- features.md 2.7's Bridge/cockpit
+// officer, wherever the blueprint already mounted one (RigFactory's normal equip path, not a
+// second acquisition track).
+std::vector<EligibleCommander> FindEligibleCommanders(const entt::registry& registry) {
+    std::vector<EligibleCommander> found;
+    for (auto [root, rig, faction] : registry.view<Rig, FactionRef>().each()) {
+        for (const entt::entity hardpoint : rig.children) {
+            if (registry.any_of<Destroyed, Commander>(hardpoint)) {
+                continue;
+            }
+            const auto* crew = registry.try_get<CrewRating>(hardpoint);
+            if (crew != nullptr && crew->command > 0.0f) {
+                found.push_back(EligibleCommander{hardpoint, faction.id});
+            }
+        }
+    }
+    return found;
+}
+
 }  // namespace
 
 void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, unsigned int seed) {
@@ -275,6 +310,35 @@ void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, uns
     // not shift the NPC layout for a given seed.
     SpawnStation(world, content, rng);
     SpawnNpcPresence(world, content, rng, RandomInt(rng, 3, 5));
+    SeedCommanders(registry);
+}
+
+void SeedCommanders(entt::registry& registry) {
+    // Counts against the cap from whatever already carries Commander, not just this call's own
+    // finds -- otherwise a second call (e.g. a later WorldGen pass into the same registry) would
+    // reset the count to zero and seed past the cap, since FindEligibleCommanders already
+    // excludes anything Commander-tagged and has no memory of an earlier pass.
+    std::unordered_map<std::string, int> seededPerFaction;
+    for (auto [hardpoint, commander] : registry.view<Commander>(entt::exclude<Destroyed>).each()) {
+        ++seededPerFaction[commander.faction.str()];
+    }
+
+    for (const EligibleCommander& candidate : FindEligibleCommanders(registry)) {
+        int& count = seededPerFaction[candidate.faction.str()];
+        if (count >= kCommandersPerFaction) {
+            continue;
+        }
+        // Placeholder per-commander network id -- WorldGen has no KnowledgeStore pointer to
+        // Create() a real one (StationFactory.cpp's own placeholder-network comment records the
+        // identical gap: architecture.md 12.24 step 6's ctx.knowledge is still nullptr, and
+        // factories take no such pointer). Stable and derivable, and costs nothing to correct
+        // once a real store bootstraps -- whatever does just needs to Create() (or migrate in) a
+        // network under this same id.
+        const KnowledgeNetworkId network(candidate.faction.str() + "-cmd-" + std::to_string(count));
+        registry.emplace<Commander>(candidate.hardpoint, network, CommanderOrders::Defend,
+                                    candidate.faction);
+        ++count;
+    }
 }
 
 }  // namespace sr::space::world_gen

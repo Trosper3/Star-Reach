@@ -53,6 +53,7 @@ add_executable(sr_tests
     unit/StorageMenuTests.cpp
     unit/ModulesMenuTests.cpp
     unit/CommanderSystemTests.cpp
+    unit/WorldGenSeedCommandersTests.cpp
     unit/NpcAiSystemTests.cpp
     unit/DockingSystemTests.cpp
     unit/CaptureSystemTests.cpp
