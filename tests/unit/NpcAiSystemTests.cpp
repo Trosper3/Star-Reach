@@ -5,10 +5,13 @@
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/NpcAiSystem.h"
+#include "shared/components/Ai.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Orbit.h"
+#include "shared/components/Party.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
@@ -16,10 +19,15 @@
 #include "shared/math/Angle.h"
 
 using Catch::Approx;
+using sr::AiBehavior;
+using sr::AiState;
 using sr::Docked;
 using sr::FireIntent;
 using sr::GravityWell;
+using sr::Health;
+using sr::PartyMember;
 using sr::PlayerLocation;
+using sr::Rig;
 using sr::Target;
 using sr::ThrustInput;
 using sr::Uncrewed;
@@ -66,6 +74,7 @@ TEST_CASE("NpcAiSystem does nothing for a seeker with no acquired target", "[npc
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
     CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
     CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Patrol);
 }
 
 TEST_CASE("NpcAiSystem thrusts forward and requests fire once aimed at a far target", "[npc_ai]") {
@@ -83,6 +92,8 @@ TEST_CASE("NpcAiSystem thrusts forward and requests fire once aimed at a far tar
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(1.0f));
     CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
     CHECK(registry.all_of<FireIntent>(seeker));
+    // Beyond kEngageRangeUnits: still closing, not yet holding at range.
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Chase);
 }
 
 TEST_CASE("NpcAiSystem turns toward a target that is not dead ahead", "[npc_ai]") {
@@ -119,6 +130,8 @@ TEST_CASE("NpcAiSystem stops closing once within engagement range but keeps requ
 
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
     CHECK(registry.all_of<FireIntent>(seeker));
+    // Within kEngageRangeUnits: holding at range rather than still closing.
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Attack);
 }
 
 TEST_CASE("NpcAiSystem clears stale thrust and fire intent once a target is lost", "[npc_ai]") {
@@ -130,6 +143,7 @@ TEST_CASE("NpcAiSystem clears stale thrust and fire intent once a target is lost
     const entt::entity seeker = MakeSeeker(registry);
     registry.get<ThrustInput>(seeker) = ThrustInput{1.0f, 0.0f, 1.0f};
     registry.emplace<FireIntent>(seeker);
+    registry.emplace<AiBehavior>(seeker, AiState::Chase);
     // Target.rig stays entt::null (never acquired / lost by TargetingSystem this tick).
 
     npc_ai_system::Tick(MakeContext(world, intents, content));
@@ -137,6 +151,8 @@ TEST_CASE("NpcAiSystem clears stale thrust and fire intent once a target is lost
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
     CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
     CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+    // Returns to Patrol rather than freezing in whatever state it lost the target in.
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Patrol);
 }
 
 TEST_CASE("NpcAiSystem never drives a Docked rig, even with a live target", "[npc_ai]") {
@@ -243,4 +259,116 @@ TEST_CASE("NpcAiSystem never drives the PlayerLocation rig", "[npc_ai]") {
 
     CHECK(registry.get<ThrustInput>(player).forward == Approx(0.0f));
     CHECK_FALSE(registry.all_of<FireIntent>(player));
+}
+
+TEST_CASE("NpcAiSystem flees and stops firing once structural integrity drops below threshold",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    // 20% aggregate integrity: below kFleeIntegrityFraction (0.5), well above
+    // rig_attachment::kStructuralFailureThreshold (0.30) so DamageSystem would not already have
+    // destroyed the rig outright.
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 20.0f, 100.0f);
+    registry.emplace<Rig>(seeker, std::vector<entt::entity>{hardpoint});
+
+    // Enemy due south: away-from-threat is due north, a clean quarter turn with no +-pi
+    // wraparound ambiguity (the same reason the "not dead ahead" test above picks +y).
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{0.0f, -1000.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Flee);
+    CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.5f));
+    // Not yet aligned with the flee heading: still turning, not yet burning.
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+}
+
+TEST_CASE("NpcAiSystem does not flee a healthy rig even with a live target", "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 90.0f, 100.0f);
+    registry.emplace<Rig>(seeker, std::vector<entt::entity>{hardpoint});
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{1000.0f, 0.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Chase);
+    CHECK(registry.all_of<FireIntent>(seeker));
+}
+
+TEST_CASE(
+    "NpcAiSystem gives up a chase beyond its own reach, clearing Target and returning to Patrol",
+    "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    // MakeSeeker carries no SensorRange, so Reach() falls back to kFallbackReachUnits (2000) --
+    // beyond it a chase is not worth continuing (TargetingSystem's own IsValidTarget never drops
+    // a Target for distance alone, so without this an NPC would chase indefinitely).
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{5000.0f, 0.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Patrol);
+    CHECK((registry.get<Target>(seeker).rig == entt::null));
+    CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+}
+
+TEST_CASE(
+    "NpcAiSystem pursues an assigned escort target without acquiring PartyMember, holding "
+    "station once in range",
+    "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    // Due north and beyond kEscortHoldRangeUnits: still closing.
+    const entt::entity friendly = MakeTargetRig(registry, Vec2{0.0f, 1000.0f});
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, friendly);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Escort);
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.5f));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+    CHECK_FALSE(registry.all_of<FireIntent>(seeker));
+    CHECK_FALSE(registry.all_of<PartyMember>(seeker));
+}
+
+TEST_CASE("NpcAiSystem holds station once within escort range instead of continuing to close",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity friendly = MakeTargetRig(registry, Vec2{100.0f, 0.0f});  // inside hold range
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, friendly);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Escort);
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
 }
