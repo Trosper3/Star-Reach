@@ -51,6 +51,13 @@ enum class ModuleKind : std::uint8_t {
     CargoBay,     // slotCount x slotCapacity, total derived -- P0-10 wires CargoHold onto it.
     FireControl,  // Drives the co-mounted Weapon's FiringArc::turnRatePerSecond.
     Hyperdrive,   // WarpSystem's fuel/jump gate lands in P9-06; this just makes the kind exist.
+    // features.md section 2.7: one kind covers piloting, command, sensors and repair -- what it
+    // does is entirely a property of which of its four rollable stats were spent on (CrewStats,
+    // ModuleDef.h). Mounts in a cockpit/bridge (rig-wide effect) or a turret (that hardpoint
+    // alone) via ShellDef::acceptsKinds/crewSlots like any other kind -- no ShellKind of its own.
+    // Destroying every living Crew module disables the rig rather than destroying it (section
+    // 3.2's "the uncrewed hull").
+    Crew,
 };
 
 // Which capability a Facility shell provides once powered. features.md section 4 --

@@ -10,6 +10,7 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
@@ -21,6 +22,7 @@ using sr::GravityWell;
 using sr::PlayerLocation;
 using sr::Target;
 using sr::ThrustInput;
+using sr::Uncrewed;
 using sr::Vec2;
 using sr::WorldTransform;
 using sr::space::SystemContext;
@@ -204,6 +206,26 @@ TEST_CASE("NpcAiSystem pursues normally once outside every GravityWell's avoidan
 
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(1.0f));
     CHECK(registry.all_of<FireIntent>(seeker));
+}
+
+TEST_CASE("NpcAiSystem never drives an Uncrewed rig, even with a live target", "[npc_ai]") {
+    // features.md 3.2's uncrewed hull: no living control-shell crew means the rig stops flying
+    // and firing, without being destroyed -- the same shape as the Docked exclusion above.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    registry.emplace<Uncrewed>(seeker);
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{1000.0f, 0.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
+    CHECK_FALSE(registry.all_of<FireIntent>(seeker));
 }
 
 TEST_CASE("NpcAiSystem never drives the PlayerLocation rig", "[npc_ai]") {

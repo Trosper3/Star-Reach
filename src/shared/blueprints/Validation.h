@@ -28,6 +28,8 @@ enum class ValidationRule : std::uint8_t {
     Identity,             // 9. Non-empty blueprint id and a supported schemaVersion.
     MountCapacity,        //    Module count within the shell's slot count.
     ModuleCompatibility,  //    Module kind legal for the shell kind it occupies.
+    CrewCapacity,         //    Crew-kind module count within the shell's own crewSlots budget --
+                          //    separate from MountCapacity above (features.md 2.7).
     WeaponTraverse,       //    A weapon-shell mount carrying a module authors traverseRadians > 0
                           //    -- a fixed-forward gun must be authored as such, not reached by
                           //    an omitted field silently defaulting to zero (architecture.md

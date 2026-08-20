@@ -14,6 +14,7 @@
 
 using sr::BuyItemRequest;
 using sr::CargoHold;
+using sr::CrewRepairBonus;
 using sr::Destroyed;
 using sr::Docked;
 using sr::FacilityKind;
@@ -93,6 +94,7 @@ entt::entity AddRepairFacility(entt::registry& registry, ContentLibrary& content
     const entt::entity hardpoint = registry.create();
     registry.emplace<FacilityRef>(hardpoint, FacilityKind::Repair);
     registry.emplace<MountedModules>(hardpoint, std::vector<ModuleId>{module.id});
+    registry.emplace<ParentRig>(hardpoint, station);
     registry.get<Rig>(station).children.push_back(hardpoint);
     return hardpoint;
 }
@@ -335,6 +337,40 @@ TEST_CASE("Repair rate scales with the facility's authored rate",
     CHECK_FALSE(registry.all_of<RepairRequest>(rig));
     CHECK(registry.get<Wallet>(rig).credits == 90);           // spend = round(0.1 * 100)
     CHECK(registry.get<Health>(hardpoint).current == 55.0f);  // 50 + 0.1 * 50 missing
+}
+
+TEST_CASE("Repair rate is multiplied by the docked STATION's own crew, not the requester's",
+          "[station-services][integration][crew]") {
+    // features.md 2.7's Repair role: an officer multiplies the facility they are stationed
+    // aboard, never whoever is being repaired -- CrewRepairBonus lives on the station root
+    // (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals), read here via the facility
+    // hardpoint's own ParentRig.
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6.0f);  // 6.0 * (1/60) = 0.1 achievable fraction
+    registry.emplace<CrewRepairBonus>(station, 0.5f);  // +50% from a Repair-rolled bridge crew
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    // The requester's OWN crew must not matter -- only lack of a CrewRepairBonus on `rig` itself
+    // would silently pass this test, so its absence here is deliberate, not an oversight.
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});  // asks for a full repair
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    // Achieved fraction: min(1.0, 6.0 * 1.5 * dt) = 9.0 / 60 = 0.15, not the un-boosted 0.1.
+    CHECK_FALSE(registry.all_of<RepairRequest>(rig));
+    CHECK(registry.get<Wallet>(rig).credits == 85);           // spend = round(0.15 * 100)
+    CHECK(registry.get<Health>(hardpoint).current == 57.5f);  // 50 + 0.15 * 50 missing
 }
 
 TEST_CASE("Requests are refused when the requester is not Docked",

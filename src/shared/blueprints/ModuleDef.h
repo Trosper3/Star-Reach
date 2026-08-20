@@ -73,6 +73,22 @@ struct CargoBayStats {
     float slotCapacity = 0.0f;  // Mass ceiling per slot. Bulk. Total is derived, never authored.
 };
 
+// features.md section 2.7: "a module supplies a capability, an officer multiplies it, an officer
+// never creates one." All four are percentage multipliers, authored directly for now -- there is
+// no quality-band roll to spend a budget across yet (P11-04), so content picks a number the same
+// way every other ModuleDef stat is authored. Only sensors and repair are read anywhere today
+// (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals, modes/space/systems/
+// StationServicesSystem.cpp) -- operation and command are specified consumers (TargetingSystem's
+// hardpoint-selection bias, CommanderSystem's standing orders/command authority) that land in
+// their own issues; §2.4 tolerates an authored-but-not-yet-read field only because both already
+// have a settled home, unlike the damage-control/navigator roles this section keeps out entirely.
+struct CrewStats {
+    float operation = 0.0f;  // TargetingSystem's hardpoint-selection bias; flight/gunnery boosts.
+    float command = 0.0f;    // CommanderSystem's standing-order quality and command authority.
+    float sensors = 0.0f;    // Multiplies the rig's aggregated SensorRange from a control shell.
+    float repair = 0.0f;     // Multiplies a Repair facility's ratePerSecond from a control shell.
+};
+
 // One power level's effect on a module (features.md section 2.9, architecture.md 12.16 item 18).
 // `drawMultiplier` scales the module's authored powerDraw/powerGeneration; `effectMultiplier`
 // scales whatever that module's kind treats as its primary output (WeaponSystem reads it for
@@ -123,6 +139,7 @@ struct ModuleDef {
     SensorStats sensor;
     FireControlStats fireControl;
     CargoBayStats cargoBay;
+    CrewStats crew;
 };
 
 }  // namespace sr

@@ -54,8 +54,9 @@ TEST_CASE("A blueprint becomes a parent entity plus one child per mount", "[fact
     REQUIRE(result.ok());
 
     const auto& rig = world.Registry().get<sr::Rig>(result.root);
-    // aegis_vanguard declares seven mounts: core, reactor, thruster, two wings, emitter, hold.
-    CHECK(rig.children.size() == 7);
+    // aegis_vanguard declares eight mounts: core, reactor, thruster, two wings, emitter, hold,
+    // cockpit.
+    CHECK(rig.children.size() == 8);
 
     for (const entt::entity child : rig.children) {
         CHECK(world.Registry()

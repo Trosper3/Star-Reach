@@ -23,6 +23,7 @@
 using sr::BodyKind;
 using sr::CargoHold;
 using sr::CollisionRadius;
+using sr::CrewRating;
 using sr::DeathWreck;
 using sr::DerelictWreck;
 using sr::Destroyed;
@@ -40,6 +41,7 @@ using sr::Propulsion;
 using sr::RespawnPending;
 using sr::Rig;
 using sr::Targetable;
+using sr::Uncrewed;
 using sr::Vec2;
 using sr::Wallet;
 using sr::Weapon;
@@ -537,6 +539,45 @@ TEST_CASE(
     // MountedModules bookkeeping.
     REQUIRE(registry.all_of<Propulsion>(spawned.root));
     CHECK(registry.get<Propulsion>(spawned.root).thrustNewtons > 0.0f);
+}
+
+TEST_CASE(
+    "An Uncrewed player rig ends the run the same way a fully Destroyed one does, and respawn "
+    "re-crews the cockpit",
+    "[loot][death]") {
+    // features.md 3.2: losing the crew shell is fatal for the player even though the rest of the
+    // hull is untouched -- Uncrewed alone must trigger the same respawn path Destroyed does.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    rig_factory::SpawnParams params;
+    params.blueprint = sr::BlueprintId("aegis_vanguard");
+    params.position = {0.0f, 0.0f};
+    const auto spawned = rig_factory::Spawn(world, content, params);
+    REQUIRE(spawned.ok());
+
+    registry.emplace<PlayerLocation>(spawned.root, spawned.root);
+
+    const auto cockpit = rig_factory::FindHardpoint(registry, spawned.root, sr::MountId("cockpit"));
+    REQUIRE(registry.valid(cockpit));
+    REQUIRE(registry.all_of<CrewRating>(cockpit));
+    registry.get<Health>(cockpit).current = 0.0f;
+    registry.emplace<Destroyed>(cockpit);
+    // What DamageSystem's RecomputeRigTotals would have tagged this same tick, ahead of
+    // LootSystem in SystemSchedule.cpp -- exercised here in isolation.
+    registry.emplace<Uncrewed>(spawned.root);
+
+    // The rest of the rig is untouched -- unlike the full-death fixture above, the root itself
+    // was never Destroyed.
+    CHECK_FALSE(registry.all_of<Destroyed>(spawned.root));
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<RespawnPending>(spawned.root));
+    CHECK_FALSE(registry.all_of<Uncrewed>(spawned.root));
+    REQUIRE(registry.all_of<CrewRating>(cockpit));  // re-crewed from the starter loadout
 }
 
 TEST_CASE("LootSystem leaves a living player rig alone", "[loot][death]") {

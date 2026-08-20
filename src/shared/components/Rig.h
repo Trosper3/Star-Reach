@@ -134,4 +134,39 @@ struct FireControl {
     float turnRatePerSecond = 0.0f;
 };
 
+// Present on a hardpoint mounting a Crew module: the module's four authored rollable stats
+// (features.md section 2.7 -- ModuleDef.h's CrewStats). shared/rig/ModuleAttachment's
+// Attach/Detach pair owns this component's lifetime, the same shape EnginePropulsion and
+// HardpointSensorRange already use. RecomputeRigTotals reads this back across living hardpoints to
+// decide whether the rig counts as crewed at all (Uncrewed below) and, for a hardpoint whose
+// ShellRole::kind is not Weapon (a cockpit or bridge, never a turret), to apply the officer's
+// percentages rig-wide -- "modules provide base stats, officers provide percentages," applied
+// after the Sum/Max pass rather than as a term inside it.
+struct CrewRating {
+    float operation = 0.0f;
+    float command = 0.0f;
+    float sensors = 0.0f;
+    float repair = 0.0f;
+};
+
+// Tag: this rig has no living CrewRating outside a turret anywhere in its hardpoints -- features.md
+// section 3.2's "the uncrewed hull." Recomputed every tick by RecomputeRigTotals alongside the
+// rig's other aggregates rather than event-driven: a hardpoint regaining a Crew module (a live
+// refit, a boarding crew retaking the bridge) clears the tag for free on its next recompute, with
+// no separate un-set path to maintain. The hull is not Destroyed -- it keeps its velocity, stays
+// targetable and collidable, and can be captured; NpcAiSystem's crew check is what actually stops
+// it flying and firing.
+struct Uncrewed {};
+
+// This rig's aggregate crew bonus toward its OWN Repair facility's heal rate (features.md 2.7,
+// architecture.md 12.14 item 16's "Repair crew role's only named consumer") -- the officer-
+// multiplies-a-base-stat rule RecomputeRigTotals already applies in place to SensorRange, stored
+// here instead because a Repair facility's authored ratePerSecond lives on ModuleDef and is read
+// on demand by StationServicesSystem rather than aggregated onto the rig root the way SensorRange
+// already is. Absent (not zero) when no living control-shell crew rolled into `repair`, the same
+// "component presence, not a magic number" pattern DockPrompt/PendingDamage already use.
+struct CrewRepairBonus {
+    float value = 0.0f;
+};
+
 }  // namespace sr

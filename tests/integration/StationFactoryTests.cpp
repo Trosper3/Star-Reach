@@ -61,8 +61,8 @@ TEST_CASE("StationFactory spawns the same rig shape RigFactory would", "[station
     REQUIRE(result.ok());
 
     const entt::registry& registry = world.Registry();
-    // aegis_outpost declares five mounts: core, reactor, dock, turret, hold.
-    CHECK(registry.get<Rig>(result.root).children.size() == 5);
+    // aegis_outpost declares six mounts: core, reactor, dock, turret, hold, bridge.
+    CHECK(registry.get<Rig>(result.root).children.size() == 6);
     CHECK(registry.get<FactionRef>(result.root).id == sr::FactionId("aegis_directorate"));
 }
 

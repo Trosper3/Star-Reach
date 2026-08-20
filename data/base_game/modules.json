@@ -124,6 +124,18 @@
       "kind": "hyperdrive",
       "mass": 30.0,
       "powerDraw": 25.0
+    },
+    {
+      "id": "crew_officer_i",
+      "displayName": "Crew Officer I",
+      "kind": "crew",
+      "mass": 6.0,
+      "crew": {
+        "operation": 0.15,
+        "command": 0.1,
+        "sensors": 0.1,
+        "repair": 0.1
+      }
     }
   ]
 }

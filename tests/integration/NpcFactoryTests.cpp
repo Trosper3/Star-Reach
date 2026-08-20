@@ -38,8 +38,8 @@ TEST_CASE("NpcFactory spawns the same rig shape RigFactory would", "[npc_factory
     REQUIRE(result.ok());
 
     const entt::registry& registry = world.Registry();
-    // forgotten_scrapper declares four mounts: core, reactor, thruster, nose gun.
-    CHECK(registry.get<sr::Rig>(result.root).children.size() == 4);
+    // forgotten_scrapper declares five mounts: core, reactor, thruster, nose gun, cockpit.
+    CHECK(registry.get<sr::Rig>(result.root).children.size() == 5);
     CHECK(registry.get<sr::FactionRef>(result.root).id == sr::FactionId("the_forgotten"));
 }
 

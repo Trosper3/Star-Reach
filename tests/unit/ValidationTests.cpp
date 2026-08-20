@@ -13,7 +13,8 @@ namespace {
 class FakeLibrary final : public sr::DefLibrary {  // NOLINT(bugprone-exception-escape)
 public:
     void AddShell(const char* id, sr::ShellKind kind, float mass = 10.0f, int slots = 1,
-                  std::vector<sr::ModuleKind> acceptsKinds = {}, float radius = 8.0f) {
+                  std::vector<sr::ModuleKind> acceptsKinds = {}, float radius = 8.0f,
+                  int crewSlots = 0) {
         sr::ShellDef def;
         def.id = sr::ShellId(id);
         def.displayName = id;
@@ -21,6 +22,7 @@ public:
         def.hull = 100.0f;
         def.mass = mass;
         def.moduleSlots = slots;
+        def.crewSlots = crewSlots;
         def.acceptsKinds = std::move(acceptsKinds);
         def.radius = radius;
         shells_[id] = def;
@@ -369,6 +371,49 @@ TEST_CASE("A mount may not exceed its shell's slot count", "[validation]") {
     bp.rig.mounts.back().modules = {sr::ModuleId("cannon"), sr::ModuleId("cannon")};
 
     CHECK(sr::Validate(bp, library).HasRule(sr::ValidationRule::MountCapacity));
+}
+
+TEST_CASE("A Crew module spends its shell's crewSlots budget, not moduleSlots", "[validation]") {
+    // features.md 2.7: "one authored field carries all of it" -- a turret keeps its own weapon
+    // slot whether or not a Crew module also rides along, so a Crew-kind module must not count
+    // against MountCapacity's moduleSlots check.
+    FakeLibrary library = MakeLibrary();
+    library.AddShell("gun", sr::ShellKind::Weapon, 10.0f, 1, {sr::ModuleKind::Weapon}, 8.0f, 1);
+    library.AddModule("officer", sr::ModuleKind::Crew);
+
+    sr::ShipBlueprint bp = MakeValidShip();
+    bp.rig.mounts.back().modules = {sr::ModuleId("cannon"), sr::ModuleId("officer")};
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    CHECK_FALSE(result.HasRule(sr::ValidationRule::MountCapacity));
+    CHECK_FALSE(result.HasRule(sr::ValidationRule::CrewCapacity));
+}
+
+TEST_CASE("A mount may not exceed its shell's own crewSlots budget", "[validation]") {
+    FakeLibrary library = MakeLibrary();
+    library.AddShell("gun", sr::ShellKind::Weapon, 10.0f, 1, {sr::ModuleKind::Weapon}, 8.0f,
+                     1);  // crewSlots: 1
+    library.AddModule("officer", sr::ModuleKind::Crew);
+
+    sr::ShipBlueprint bp = MakeValidShip();
+    bp.rig.mounts.back().modules = {sr::ModuleId("cannon"), sr::ModuleId("officer"),
+                                    sr::ModuleId("officer")};
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    CHECK(result.HasRule(sr::ValidationRule::CrewCapacity));
+    CHECK_FALSE(result.HasRule(sr::ValidationRule::MountCapacity));  // the weapon slot alone fits.
+}
+
+TEST_CASE("A Crew module still needs the shell to accept ModuleKind::Crew", "[validation]") {
+    // "gun" only accepts Weapon (MakeLibrary()) -- crewSlots alone does not imply acceptance.
+    FakeLibrary library = MakeLibrary();
+    library.AddModule("officer", sr::ModuleKind::Crew);
+
+    sr::ShipBlueprint bp = MakeValidShip();
+    bp.rig.mounts.back().modules = {sr::ModuleId("cannon"), sr::ModuleId("officer")};
+
+    const sr::ValidationResult result = sr::Validate(bp, library);
+    CHECK(result.HasRule(sr::ValidationRule::ModuleCompatibility));
 }
 
 TEST_CASE("Validation reports every violated rule, not just the first", "[validation]") {

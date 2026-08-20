@@ -188,6 +188,14 @@ void AddToManifest(std::vector<ElementStack>& elements, const std::string& eleme
 // round-trip across a warp) rather than discarded outright, per the recovery run's "cargo and
 // equipped modules drop as a recoverable wreck" rule.
 //
+// Also triggers on Uncrewed, not just Destroyed -- features.md section 3.2 resolves its own open
+// question here: "the player IS the crew of the ship they are flying [or, per section 3.4,
+// docked aboard], so losing that shell is a Tier 1 death," even though an uncrewed hull is by
+// definition not Destroyed and every other hardpoint on it may be untouched. The respawn pass
+// below re-arms the same hardpoints from the starter blueprint's default loadout regardless of
+// which condition fired, which re-mounts a fresh Crew module into the cockpit/bridge mount and
+// clears Uncrewed via RecomputeRigTotals at the end of this function -- so this can never loop.
+//
 // There is no live-rig-to-blueprint snapshot capability in this codebase yet (P12.31's RigState,
 // SpaceFlight.h's WarpToSystem doc comment) and modes/space/systems/ may not include factories/
 // (Law 5) to build a replacement hull, so the same hardpoints are stripped and then re-armed with
@@ -200,8 +208,10 @@ void AddToManifest(std::vector<ElementStack>& elements, const std::string& eleme
 // here.
 void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& content) {
     std::vector<entt::entity> dead;
-    for (const entt::entity root : registry.view<PlayerLocation, Rig, Destroyed>()) {
-        dead.push_back(root);
+    for (const entt::entity root : registry.view<PlayerLocation, Rig>()) {
+        if (registry.all_of<Destroyed>(root) || registry.all_of<Uncrewed>(root)) {
+            dead.push_back(root);
+        }
     }
 
     for (const entt::entity root : dead) {
@@ -265,7 +275,13 @@ void HandlePlayerDeath(entt::registry& registry, const core::ContentLibrary& con
         }
 
         registry.remove<Destroyed>(root);
-        registry.emplace<Targetable>(root);
+        // emplace_or_replace, not emplace: the Destroyed path always arrives with Targetable
+        // already stripped (DamageSystem's ApplyStructuralFailure/CascadeDockedDestruction both
+        // remove it before tagging Destroyed), but the Uncrewed path above never touches
+        // Targetable at all -- an uncrewed-but-intact hull stays targetable and capturable
+        // (features.md 3.2) right up until this respawn. A plain emplace here aborted on entt's
+        // "Slot not available" the first time a player died via Uncrewed alone.
+        registry.emplace_or_replace<Targetable>(root);
         rig_attachment::RecomputeRigTotals(registry, root);
 
         core::galaxy::WreckRecord record;

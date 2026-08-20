@@ -24,7 +24,7 @@ constexpr std::array<std::pair<std::string_view, ShellKind>, 7> kShellKinds{{
     {"facility", ShellKind::Facility},
 }};
 
-constexpr std::array<std::pair<std::string_view, ModuleKind>, 10> kModuleKinds{{
+constexpr std::array<std::pair<std::string_view, ModuleKind>, 11> kModuleKinds{{
     {"weapon", ModuleKind::Weapon},
     {"shield_generator", ModuleKind::ShieldGenerator},
     {"power_cell", ModuleKind::PowerCell},
@@ -35,6 +35,7 @@ constexpr std::array<std::pair<std::string_view, ModuleKind>, 10> kModuleKinds{{
     {"cargo_bay", ModuleKind::CargoBay},
     {"fire_control", ModuleKind::FireControl},
     {"hyperdrive", ModuleKind::Hyperdrive},
+    {"crew", ModuleKind::Crew},
 }};
 
 constexpr std::array<std::pair<std::string_view, FacilityKind>, 6> kFacilityKinds{{
@@ -99,6 +100,7 @@ std::string_view ToString(ModuleKind value) {
         case ModuleKind::CargoBay: return "cargo_bay";
         case ModuleKind::FireControl: return "fire_control";
         case ModuleKind::Hyperdrive: return "hyperdrive";
+        case ModuleKind::Crew: return "crew";
     }
     return "armor";
 }

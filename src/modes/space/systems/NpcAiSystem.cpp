@@ -8,6 +8,7 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
@@ -69,8 +70,14 @@ void Tick(const SystemContext& ctx) {
     // player's own ThrustInput and stripping their FireIntent every tick, right before
     // WeaponSystem read it. Movement still looked fine (PhysicsSystem consumes ThrustInput before
     // this system runs), but firing was silently dead regardless of aim.
+    //
+    // exclude<Uncrewed>: features.md 3.2's uncrewed hull -- a rig whose living control-shell crew
+    // is gone has nothing left to steer or shoot with, so it coasts and stops asking to fire the
+    // same way a target-less rig already does below, rather than the AI flying and firing a hull
+    // nobody is aboard.
     for (auto [self, target, xf, thrust] :
-         registry.view<Target, WorldTransform, ThrustInput>(entt::exclude<PlayerLocation, Docked>)
+         registry.view<Target, WorldTransform, ThrustInput>(
+             entt::exclude<PlayerLocation, Docked, Uncrewed>)
              .each()) {
         // Reset every tick: a rig that lost its target coasts and stops asking to fire, rather
         // than holding whatever throttle and FireIntent it last had.
