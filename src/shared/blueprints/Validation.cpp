@@ -219,11 +219,31 @@ void CheckMounting(const ShipBlueprint& bp, const DefLibrary& library, Validatio
             continue;  // Already reported by CheckIds.
         }
 
-        if (static_cast<int>(mount.modules.size()) > shell->moduleSlots) {
+        // Crew-kind modules spend a separate budget (ShellDef::crewSlots below), not this one --
+        // features.md 2.7 wants a turret's weapon slot untouched by whether it is also crewed.
+        int nonCrewCount = 0;
+        int crewCount = 0;
+        for (const auto& moduleId : mount.modules) {
+            const ModuleDef* module = library.FindModule(moduleId);
+            if (module != nullptr && module->kind == ModuleKind::Crew) {
+                ++crewCount;
+            } else {
+                ++nonCrewCount;
+            }
+        }
+
+        if (nonCrewCount > shell->moduleSlots) {
             Add(result, ValidationRule::MountCapacity,
-                "Mount '" + mount.id.str() + "' holds " + std::to_string(mount.modules.size()) +
+                "Mount '" + mount.id.str() + "' holds " + std::to_string(nonCrewCount) +
                     " modules but shell '" + shell->id.str() + "' has " +
                     std::to_string(shell->moduleSlots) + " slot(s).",
+                mount.id);
+        }
+        if (crewCount > shell->crewSlots) {
+            Add(result, ValidationRule::CrewCapacity,
+                "Mount '" + mount.id.str() + "' holds " + std::to_string(crewCount) +
+                    " crew modules but shell '" + shell->id.str() + "' has " +
+                    std::to_string(shell->crewSlots) + " crew slot(s).",
                 mount.id);
         }
 
@@ -375,6 +395,7 @@ std::string_view ToString(ValidationRule rule) {
         case ValidationRule::Identity: return "Identity";
         case ValidationRule::MountCapacity: return "MountCapacity";
         case ValidationRule::ModuleCompatibility: return "ModuleCompatibility";
+        case ValidationRule::CrewCapacity: return "CrewCapacity";
         case ValidationRule::WeaponTraverse: return "WeaponTraverse";
         case ValidationRule::StructuralCoverage: return "StructuralCoverage";
         case ValidationRule::Separation: return "Separation";

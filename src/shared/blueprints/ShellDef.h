@@ -45,6 +45,13 @@ struct ShellDef {
     // How many modules may occupy this shell. Zero is legal: a pure armor plate.
     int moduleSlots = 0;
 
+    // How many Crew-kind modules this shell can carry, on top of moduleSlots above rather than
+    // counted against it (features.md section 2.7: "one authored field carries all of it") -- a
+    // turret keeps its own weapon slot whether or not a Crew module also rides along. Zero is the
+    // default for every shell that is not an authored cockpit, bridge, or turret (section 2.7's
+    // crew-slots-by-shell-type table: Bridge 2, Cockpit 1, Turret 1 always, everything else 0).
+    int crewSlots = 0;
+
     // Collision/targeting radius of this hardpoint in world units. Targeting picks an aim point
     // per hardpoint, so this has to be per-shell rather than per-craft.
     float radius = 8.0f;

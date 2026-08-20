@@ -107,6 +107,13 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                 arc->turnRatePerSecond = module.fireControl.turnRatePerSecond;
             }
             break;
+        case ModuleKind::Crew:
+            // Cached, not returned -- RecomputeRigTotals reads this back later across every
+            // living hardpoint, the same shape HardpointSensorRange already uses.
+            registry.emplace_or_replace<CrewRating>(hardpoint, module.crew.operation,
+                                                    module.crew.command, module.crew.sensors,
+                                                    module.crew.repair);
+            break;
         default: break;
     }
     return propulsion;
@@ -166,6 +173,7 @@ void DetachModuleComponents(entt::registry& registry, entt::entity hardpoint,
                 arc->turnRatePerSecond = kPi;
             }
             break;
+        case ModuleKind::Crew: registry.remove<CrewRating>(hardpoint); break;
         default: break;
     }
 }
@@ -179,6 +187,17 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
     float mass = 0.0f;
     float sensorRange = 0.0f;
     Propulsion propulsion;
+
+    // features.md 2.7: a turret's own Crew (ShellRole::kind == Weapon) is scoped to that
+    // hardpoint alone -- independent tracking is TargetingSystem/WeaponSystem's concern, not the
+    // rig's. Every other crew-carrying shell is the rig's control shell (a cockpit or bridge) and
+    // is what keeps the whole rig flying and firing; `crewed` tracks whether ANY of those is still
+    // alive, and the two bonuses below are Maxed across them the same way a rig never benefits
+    // twice from two of the same specialist.
+    bool crewed = false;
+    float sensorCrewBonus = 0.0f;
+    float repairCrewBonus = 0.0f;
+
     for (const entt::entity hardpoint : rig->children) {
         if (registry.all_of<Destroyed>(hardpoint)) {
             continue;
@@ -194,6 +213,14 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
         if (const auto* sensor = registry.try_get<HardpointSensorRange>(hardpoint)) {
             sensorRange = std::max(sensorRange, sensor->value);
         }
+        if (const auto* crew = registry.try_get<CrewRating>(hardpoint)) {
+            const auto* role = registry.try_get<ShellRole>(hardpoint);
+            if (role == nullptr || role->kind != ShellKind::Weapon) {
+                crewed = true;
+                sensorCrewBonus = std::max(sensorCrewBonus, crew->sensors);
+                repairCrewBonus = std::max(repairCrewBonus, crew->repair);
+            }
+        }
     }
 
     if (auto* bodyMass = registry.try_get<BodyMass>(rigRoot)) {
@@ -203,7 +230,24 @@ void RecomputeRigTotals(entt::registry& registry, entt::entity rigRoot) {
         *rigPropulsion = propulsion;
     }
     if (auto* rigSensor = registry.try_get<SensorRange>(rigRoot)) {
-        rigSensor->units = sensorRange;
+        // features.md 2.7's third aggregation rule, beside Sum and Max above: an officer
+        // multiplies a base stat rather than contributing a term inside the pass that built it, so
+        // the crew bonus is applied only after sensorRange itself is already final.
+        rigSensor->units = sensorRange * (1.0f + sensorCrewBonus);
+    }
+    if (repairCrewBonus > 0.0f) {
+        registry.emplace_or_replace<CrewRepairBonus>(rigRoot, repairCrewBonus);
+    } else {
+        registry.remove<CrewRepairBonus>(rigRoot);
+    }
+
+    // features.md 3.2's uncrewed hull: no living control-shell crew means the rig stops flying and
+    // firing (NpcAiSystem's crew check below) without being destroyed -- it keeps its velocity and
+    // drifts, remains targetable and collidable, and can be captured.
+    if (crewed) {
+        registry.remove<Uncrewed>(rigRoot);
+    } else {
+        registry.emplace_or_replace<Uncrewed>(rigRoot);
     }
 }
 

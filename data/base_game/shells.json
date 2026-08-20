@@ -30,9 +30,10 @@
       "hull": 35.0,
       "mass": 8.0,
       "moduleSlots": 1,
+      "crewSlots": 1,
       "radius": 5.0,
       "spriteLayer": "fighter/wing_hardpoint",
-      "acceptsKinds": ["weapon", "fire_control"]
+      "acceptsKinds": ["weapon", "fire_control", "crew"]
     },
     {
       "id": "shell_power_bay",
@@ -78,6 +79,30 @@
       "radius": 14.0,
       "spriteLayer": "station/facility_bay",
       "acceptsKinds": ["facility", "sensor", "cargo_bay", "hyperdrive"]
+    },
+    {
+      "id": "shell_cockpit",
+      "displayName": "Cockpit",
+      "kind": "armor",
+      "hull": 30.0,
+      "mass": 6.0,
+      "moduleSlots": 0,
+      "crewSlots": 1,
+      "radius": 4.0,
+      "spriteLayer": "fighter/cockpit",
+      "acceptsKinds": ["crew"]
+    },
+    {
+      "id": "shell_bridge",
+      "displayName": "Bridge",
+      "kind": "armor",
+      "hull": 60.0,
+      "mass": 15.0,
+      "moduleSlots": 0,
+      "crewSlots": 2,
+      "radius": 10.0,
+      "spriteLayer": "station/bridge",
+      "acceptsKinds": ["crew"]
     }
   ]
 }

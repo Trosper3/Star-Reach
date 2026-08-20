@@ -114,19 +114,36 @@ entt::entity DockedRepairFacility(const entt::registry& registry, entt::entity s
 // content lookup RefactorSystem uses to resolve a hardpoint's ModuleDef: MountedModules names
 // which module(s) RigFactory attached here, and FacilityStats::ratePerSecond (parsed, merged by
 // EngineerSystem, read by nothing until now) lives on that ModuleDef.
+//
+// Multiplied by the STATION's own crew, not the requester's -- features.md 2.7's Repair role
+// boosts the facility a Repair officer is stationed aboard, not whoever is being repaired.
+// CrewRepairBonus is a rig-root aggregate (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals,
+// architecture.md 12.14 item 16's "Repair crew role's only named consumer"), read here via the
+// facility hardpoint's own ParentRig rather than passed in, since the station root is otherwise
+// only known one call up (DockedRepairFacility already resolved it against `station`).
 float RepairFacilityRate(const entt::registry& registry, const core::ContentLibrary& content,
                          entt::entity facilityHardpoint) {
     const MountedModules* mounted = registry.try_get<MountedModules>(facilityHardpoint);
     if (mounted == nullptr) {
         return 0.0f;
     }
+    float rate = 0.0f;
     for (const ModuleId& id : mounted->ids) {
         const ModuleDef* module = content.FindModule(id);
         if (module != nullptr && module->facility.kind == FacilityKind::Repair) {
-            return module->facility.ratePerSecond;
+            rate = module->facility.ratePerSecond;
+            break;
         }
     }
-    return 0.0f;
+    if (rate <= 0.0f) {
+        return 0.0f;
+    }
+    if (const auto* parent = registry.try_get<ParentRig>(facilityHardpoint)) {
+        if (const auto* bonus = registry.try_get<CrewRepairBonus>(parent->root)) {
+            rate *= (1.0f + bonus->value);
+        }
+    }
+    return rate;
 }
 
 void ProcessRepairRequests(const SystemContext& ctx) {

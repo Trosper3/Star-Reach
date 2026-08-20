@@ -425,6 +425,42 @@ TEST_CASE("DamageSystem leaves a rig alive at 31% structural integrity",
     CHECK_FALSE(registry.all_of<Destroyed>(alive));
 }
 
+TEST_CASE(
+    "DamageSystem's crew shell death tags the rig Uncrewed rather than Destroyed, leaving the "
+    "rest of the ship intact",
+    "[damage][crew]") {
+    // features.md 3.2's uncrewed hull: killing the crew shell disables a hull rather than
+    // destroying it, as long as the rest of the rig stays above the structural failure threshold
+    // -- the crew hardpoint's own death does not cascade (nothing is StructuralAttachment'd to
+    // it), unlike a chassis dying.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+
+    const entt::entity armor = registry.create();
+    registry.emplace<Health>(armor, 300.0f, 300.0f);
+    registry.emplace<ShellRole>(armor, ShellKind::Armor);
+
+    const entt::entity cockpit = registry.create();
+    registry.emplace<Health>(cockpit, 5.0f, 30.0f);
+    registry.emplace<ShellRole>(cockpit, ShellKind::Armor);
+    registry.emplace<sr::CrewRating>(cockpit, 0.0f, 0.0f, 0.0f, 0.0f);
+    registry.emplace<PendingDamage>(cockpit, 20.0f, DamageType::Kinetic, entt::null);
+
+    registry.get<Rig>(root).children = {armor, cockpit};
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.all_of<Destroyed>(cockpit));
+    CHECK_FALSE(registry.all_of<Destroyed>(root));
+    CHECK_FALSE(registry.all_of<Destroyed>(armor));
+    CHECK(registry.all_of<sr::Uncrewed>(root));
+}
+
 TEST_CASE("DamageSystem zeroes a rig's propulsion once its last living engine hardpoint dies",
           "[damage]") {
     SystemWorld world("sol");

@@ -18,6 +18,8 @@
 using Catch::Approx;
 using sr::BodyMass;
 using sr::CargoHold;
+using sr::CrewRating;
+using sr::CrewRepairBonus;
 using sr::Destroyed;
 using sr::EnginePropulsion;
 using sr::FireControl;
@@ -29,6 +31,9 @@ using sr::ModuleKind;
 using sr::Propulsion;
 using sr::Rig;
 using sr::SensorRange;
+using sr::ShellKind;
+using sr::ShellRole;
+using sr::Uncrewed;
 using sr::rig_attachment::AggregateStructuralIntegrity;
 using sr::rig_attachment::AttachModuleComponents;
 using sr::rig_attachment::DetachModuleComponents;
@@ -115,6 +120,41 @@ TEST_CASE(
     CHECK(cargo.stacks.empty());
     CHECK(cargo.slotCount == 4);
     CHECK(cargo.slotCapacity == Approx(250.0f));
+}
+
+TEST_CASE("AttachModuleComponents caches a Crew module's four stats as CrewRating",
+          "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef crew;
+    crew.kind = ModuleKind::Crew;
+    crew.crew.operation = 0.15f;
+    crew.crew.command = 0.1f;
+    crew.crew.sensors = 0.2f;
+    crew.crew.repair = 0.05f;
+
+    AttachModuleComponents(registry, hardpoint, crew, 0.0f);
+
+    REQUIRE(registry.all_of<CrewRating>(hardpoint));
+    const CrewRating& rating = registry.get<CrewRating>(hardpoint);
+    CHECK(rating.operation == Approx(0.15f));
+    CHECK(rating.command == Approx(0.1f));
+    CHECK(rating.sensors == Approx(0.2f));
+    CHECK(rating.repair == Approx(0.05f));
+}
+
+TEST_CASE("DetachModuleComponents removes CrewRating for a crew module", "[module-attach]") {
+    entt::registry registry;
+    const entt::entity hardpoint = registry.create();
+    ModuleDef crew;
+    crew.kind = ModuleKind::Crew;
+    crew.crew.sensors = 0.2f;
+    AttachModuleComponents(registry, hardpoint, crew, 0.0f);
+    REQUIRE(registry.all_of<CrewRating>(hardpoint));
+
+    DetachModuleComponents(registry, hardpoint, crew);
+
+    CHECK_FALSE(registry.all_of<CrewRating>(hardpoint));
 }
 
 TEST_CASE("DetachModuleComponents removes CargoHold for a cargo-bay module", "[module-attach]") {
@@ -369,6 +409,102 @@ TEST_CASE(
     registry.emplace<Destroyed>(engineB);
     RecomputeRigTotals(registry, root);
     CHECK(registry.get<Propulsion>(root).thrustNewtons == Approx(0.0f));  // Zero only now.
+}
+
+TEST_CASE("RecomputeRigTotals tags a rig Uncrewed when it has no living control-shell crew",
+          "[module-attach][crew]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<BodyMass>(root);
+    registry.emplace<Propulsion>(root);
+    registry.emplace<SensorRange>(root);
+
+    const entt::entity armor = registry.create();
+    registry.emplace<HardpointMass>(armor, 5.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{armor});
+
+    RecomputeRigTotals(registry, root);
+
+    CHECK(registry.all_of<Uncrewed>(root));
+}
+
+TEST_CASE(
+    "RecomputeRigTotals clears Uncrewed and applies the cockpit crew's sensors multiplier to "
+    "SensorRange",
+    "[module-attach][crew]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<BodyMass>(root);
+    registry.emplace<Propulsion>(root);
+    registry.emplace<SensorRange>(root);
+
+    const entt::entity sensor = registry.create();
+    registry.emplace<HardpointSensorRange>(sensor, 1000.0f);
+
+    // A cockpit: Armor-kind, not Weapon -- features.md 2.7's control shell, whose crew scope
+    // widens to the whole rig.
+    const entt::entity cockpit = registry.create();
+    registry.emplace<ShellRole>(cockpit, ShellKind::Armor, std::vector<ModuleKind>{});
+    registry.emplace<CrewRating>(cockpit, 0.0f, 0.0f, 0.25f, 0.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{sensor, cockpit});
+
+    RecomputeRigTotals(registry, root);
+
+    CHECK_FALSE(registry.all_of<Uncrewed>(root));
+    CHECK(registry.get<SensorRange>(root).units == Approx(1250.0f));  // 1000 * (1 + 0.25)
+}
+
+TEST_CASE(
+    "RecomputeRigTotals scopes a turret's own crew to that hardpoint alone, leaving the rig "
+    "Uncrewed",
+    "[module-attach][crew]") {
+    // features.md 2.7: a turret's crewed/uncrewed state is TargetingSystem/WeaponSystem's own
+    // concern (independent tracking vs. slaved), never a substitute for a cockpit or bridge.
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<BodyMass>(root);
+    registry.emplace<Propulsion>(root);
+    registry.emplace<SensorRange>(root);
+
+    const entt::entity turret = registry.create();
+    registry.emplace<ShellRole>(turret, ShellKind::Weapon, std::vector<ModuleKind>{});
+    registry.emplace<CrewRating>(turret, 0.3f, 0.0f, 0.5f, 0.0f);
+
+    registry.emplace<Rig>(root, std::vector<entt::entity>{turret});
+
+    RecomputeRigTotals(registry, root);
+
+    CHECK(registry.all_of<Uncrewed>(root));
+    CHECK(registry.get<SensorRange>(root).units == Approx(0.0f));
+}
+
+TEST_CASE(
+    "RecomputeRigTotals stores a CrewRepairBonus from the bridge crew's repair stat, and clears "
+    "it once uncrewed",
+    "[module-attach][crew]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<BodyMass>(root);
+    registry.emplace<Propulsion>(root);
+    registry.emplace<SensorRange>(root);
+
+    const entt::entity bridge = registry.create();
+    registry.emplace<ShellRole>(bridge, ShellKind::Armor, std::vector<ModuleKind>{});
+    registry.emplace<CrewRating>(bridge, 0.0f, 0.0f, 0.0f, 0.4f);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{bridge});
+
+    RecomputeRigTotals(registry, root);
+
+    REQUIRE(registry.all_of<CrewRepairBonus>(root));
+    CHECK(registry.get<CrewRepairBonus>(root).value == Approx(0.4f));
+
+    registry.emplace<Destroyed>(bridge);
+    RecomputeRigTotals(registry, root);
+
+    CHECK(registry.all_of<Uncrewed>(root));
+    CHECK_FALSE(registry.all_of<CrewRepairBonus>(root));
 }
 
 TEST_CASE("AggregateStructuralIntegrity is 0 for a rig with no children", "[module-attach]") {

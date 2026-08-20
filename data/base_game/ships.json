@@ -58,6 +58,13 @@
           "attachedTo": "core",
           "modules": ["cargo_bay_i"],
           "localOffset": { "x": -13.0, "y": 22.5167 }
+        },
+        {
+          "id": "cockpit",
+          "shell": "shell_cockpit",
+          "attachedTo": "hold",
+          "modules": ["crew_officer_i"],
+          "localOffset": { "x": -22.0, "y": 38.1051 }
         }
       ]
     },
@@ -96,6 +103,13 @@
           "modules": ["autocannon_i"],
           "localOffset": { "x": 17.0, "y": 0.0 },
           "traverseRadians": 0.35
+        },
+        {
+          "id": "cockpit",
+          "shell": "shell_cockpit",
+          "attachedTo": "core",
+          "modules": ["crew_officer_i"],
+          "localOffset": { "x": 0.0, "y": -16.0 }
         }
       ]
     },
@@ -141,6 +155,13 @@
           "attachedTo": "core",
           "modules": ["cargo_bay_i"],
           "localOffset": { "x": 0.0, "y": 89.0 }
+        },
+        {
+          "id": "bridge",
+          "shell": "shell_bridge",
+          "attachedTo": "core",
+          "modules": ["crew_officer_i"],
+          "localOffset": { "x": 60.1042, "y": 60.1042 }
         }
       ]
     }

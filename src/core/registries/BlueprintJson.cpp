@@ -72,6 +72,14 @@ void ParseCargoBayStats(const JsonReader& reader, CargoBayStats& out) {
     stats.Optional("slotCapacity", out.slotCapacity);
 }
 
+void ParseCrewStats(const JsonReader& reader, CrewStats& out) {
+    const JsonReader stats = reader.Child("crew", "crew");
+    stats.Optional("operation", out.operation);
+    stats.Optional("command", out.command);
+    stats.Optional("sensors", out.sensors);
+    stats.Optional("repair", out.repair);
+}
+
 MountBlueprint ParseMount(const JsonReader& reader) {
     MountBlueprint mount;
 
@@ -129,6 +137,7 @@ ModuleDef ParseModuleDef(const JsonReader& reader) {
     ParseSensorStats(reader, def.sensor);
     ParseFireControlStats(reader, def.fireControl);
     ParseCargoBayStats(reader, def.cargoBay);
+    ParseCrewStats(reader, def.crew);
     return def;
 }
 
@@ -156,6 +165,7 @@ ShellDef ParseShellDef(const JsonReader& reader) {
     reader.Require("hull", def.hull);
     reader.Optional("mass", def.mass);
     reader.Optional("moduleSlots", def.moduleSlots);
+    reader.Optional("crewSlots", def.crewSlots);
     reader.Optional("radius", def.radius);
     reader.Optional("hullRadius", def.hullRadius);
     reader.Optional("spriteLayer", def.spriteLayer);
