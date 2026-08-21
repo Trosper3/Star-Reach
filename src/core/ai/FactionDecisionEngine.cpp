@@ -61,4 +61,18 @@ void CollapseFaction(diplomacy::Territory& territory, const FactionId& faction) 
     territory.ReleaseAll(faction);
 }
 
+std::optional<std::string> SelectReaperTarget(
+    const std::vector<ReaperTargetCandidate>& candidates) {
+    if (candidates.empty()) {
+        return std::nullopt;
+    }
+    const ReaperTargetCandidate* best = &candidates.front();
+    for (const ReaperTargetCandidate& candidate : candidates) {
+        if (candidate.structuralDensity > best->structuralDensity) {
+            best = &candidate;
+        }
+    }
+    return best->systemId;
+}
+
 }  // namespace sr::core::ai

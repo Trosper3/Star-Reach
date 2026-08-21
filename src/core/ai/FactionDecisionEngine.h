@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "core/diplomacy/Territory.h"
 #include "core/economy/FactionEconomy.h"
@@ -112,5 +113,20 @@ bool HasCollapsed(const SurvivalPillars& pillars);
 // bridge, no real caller yet" shape architecture.md 12.5's WreckRecord landed in before its
 // eventual warp-system wiring (#97) existed.
 void CollapseFaction(diplomacy::Territory& territory, const FactionId& faction);
+
+// features.md 5.7: the Reapers target by structural density, not politics -- a distinct AI-
+// targeting axis nothing else in the design uses. A candidate system and the caller-computed
+// density score (station count and grade, once core/galaxy/ has a per-system roster to compute it
+// from) -- not owned here for the same reason EvaluateColonization takes candidateSystemId
+// instead of discovering it (architecture.md 12.32).
+struct ReaperTargetCandidate {
+    std::string systemId;
+    float structuralDensity;  // Caller's units; only relative order matters here.
+};
+
+// Highest-density candidate wins, full stop -- no relation check, no roll. Isolated or derelict
+// sectors (features.md 5.7) score at or near zero and simply never win. A tie keeps whichever
+// candidate appears first in `candidates`. nullopt only for an empty list.
+std::optional<std::string> SelectReaperTarget(const std::vector<ReaperTargetCandidate>& candidates);
 
 }  // namespace sr::core::ai

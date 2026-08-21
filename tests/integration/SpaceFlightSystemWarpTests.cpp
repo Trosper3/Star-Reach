@@ -2,8 +2,12 @@
 
 #include <filesystem>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
+#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
 #include "shared/components/Identity.h"
@@ -22,8 +26,12 @@ using sr::Vec2;
 using sr::Wallet;
 using sr::WorldTransform;
 using sr::core::ContentLibrary;
+using sr::core::diplomacy::DiplomacyMatrix;
+using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
+using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
+using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
 
 namespace {
@@ -55,10 +63,14 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
     // per-bay hardpoints, which RigFactory::Spawn always rebuilds empty from the blueprint.
     // Carrying cargo across a warp is a documented, accepted gap pending P12.31's RigState
     // (SpaceFlight.h's own comment).
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::registry& before = game.World().Registry();
@@ -82,10 +94,14 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
 }
 
 TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[spaceflight][warp]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     const entt::entity player = FindPlayer(game.World().Registry());
@@ -110,10 +126,14 @@ TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[space
 
 TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player returns",
           "[spaceflight][warp]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::entity player = FindPlayer(game.World().Registry());

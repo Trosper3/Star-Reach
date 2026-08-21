@@ -37,10 +37,20 @@ entt::entity FindPlayer(const entt::registry& registry) {
 
 }  // namespace
 
-SpaceFlight::SpaceFlight(const core::ContentLibrary& content,
-                         core::economy::FactionEconomy& economy,
-                         core::galaxy::WreckLedger& wreckLedger)
-    : world_("sol", "Sol"), content_(content), economy_(economy), wreckLedger_(wreckLedger) {}
+SpaceFlight::SpaceFlight(core::ContentLibrary& content, core::economy::FactionEconomy& economy,
+                         core::galaxy::WreckLedger& wreckLedger,
+                         core::galaxy::DiscoveryState& discovery,
+                         core::knowledge::KnowledgeStore& knowledge,
+                         core::diplomacy::DiplomacyMatrix& diplomacy,
+                         core::diplomacy::Reputation& reputation)
+    : world_("sol", "Sol"),
+      content_(content),
+      economy_(economy),
+      wreckLedger_(wreckLedger),
+      discovery_(discovery),
+      knowledge_(knowledge),
+      diplomacy_(diplomacy),
+      reputation_(reputation) {}
 
 void SpaceFlight::OnEnter() {
     // Reset before populating, not just on the way out: without this, entering a second time in
@@ -104,8 +114,20 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     clock_.Advance(realDeltaSeconds);
 
     while (clock_.ConsumeStep()) {
-        const SystemContext ctx{
-            world_, intents_, content_, core::kFixedDeltaSeconds, clock_.ElapsedTicks(), &economy_};
+        // architecture.md 12.24 step 6: the five galaxy-wide pointers, alongside `economy` above.
+        // `craftedModules` aliases `content_` itself, non-const -- see this class's constructor
+        // comment.
+        const SystemContext ctx{world_,
+                                intents_,
+                                content_,
+                                core::kFixedDeltaSeconds,
+                                clock_.ElapsedTicks(),
+                                &economy_,
+                                &discovery_,
+                                &knowledge_,
+                                &diplomacy_,
+                                &reputation_,
+                                &content_};
         RunTick(ctx);
     }
 

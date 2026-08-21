@@ -2,8 +2,12 @@
 
 #include <filesystem>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
+#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
 #include "modes/space/SpaceFlight.h"
@@ -19,8 +23,12 @@ using sr::SystemWarpRequest;
 using sr::Vec2;
 using sr::WorldTransform;
 using sr::core::ContentLibrary;
+using sr::core::diplomacy::DiplomacyMatrix;
+using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
+using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
+using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
 
 namespace {
@@ -48,10 +56,14 @@ TEST_CASE("SpaceFlight's camera target follows the player from the first Update"
     // written at all, so the view stayed nailed to the origin regardless of where the player was.
     // Asserted against the player's actual spawn position, not a hardcoded origin --
     // architecture.md 12.36 moved that spawn off the origin (the sun's own position) on purpose.
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();
@@ -66,10 +78,14 @@ TEST_CASE("SpaceFlight's camera target follows the player from the first Update"
 
 TEST_CASE("SpaceFlight's camera target tracks the player across a system warp",
           "[spaceflight][camera]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
     game.Update(0.0f);
 
@@ -87,10 +103,14 @@ TEST_CASE("SpaceFlight's camera target tracks the player across a system warp",
 
 TEST_CASE("SpaceFlight's camera target tracks the player across a respawn",
           "[spaceflight][camera]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();

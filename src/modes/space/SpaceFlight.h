@@ -2,9 +2,13 @@
 
 #include <string>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
+#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
 #include "modes/IGameMode.h"
@@ -31,8 +35,15 @@ namespace sr::space {
 // does not; it belongs in systems/.
 class SpaceFlight : public modes::IGameMode {
 public:
-    SpaceFlight(const core::ContentLibrary& content, core::economy::FactionEconomy& economy,
-                core::galaxy::WreckLedger& wreckLedger);
+    // `content` is non-const -- unlike `economy`/`wreckLedger` below, SystemContext::craftedModules
+    // (architecture.md 12.24 step 6) needs a mutable pointer at the same object `content` const-
+    // exposes as SystemContext::content, so EngineerSystem's runtime-registered modules resolve
+    // everywhere else content.FindModule already does.
+    SpaceFlight(core::ContentLibrary& content, core::economy::FactionEconomy& economy,
+                core::galaxy::WreckLedger& wreckLedger, core::galaxy::DiscoveryState& discovery,
+                core::knowledge::KnowledgeStore& knowledge,
+                core::diplomacy::DiplomacyMatrix& diplomacy,
+                core::diplomacy::Reputation& reputation);
 
     void OnEnter() override;
 
@@ -105,9 +116,13 @@ private:
 
     SystemWorld world_;
     core::IntentQueue intents_;
-    const core::ContentLibrary& content_;
+    core::ContentLibrary& content_;
     core::economy::FactionEconomy& economy_;
     core::galaxy::WreckLedger& wreckLedger_;
+    core::galaxy::DiscoveryState& discovery_;
+    core::knowledge::KnowledgeStore& knowledge_;
+    core::diplomacy::DiplomacyMatrix& diplomacy_;
+    core::diplomacy::Reputation& reputation_;
     core::FixedTimestep clock_;
 
     // Presentation state, and the only state this class is permitted to own.

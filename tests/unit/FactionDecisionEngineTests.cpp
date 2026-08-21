@@ -16,6 +16,8 @@ using sr::core::ai::HasCollapsed;
 using sr::core::ai::kReferenceStock;
 using sr::core::ai::RaidDispatchChance;
 using sr::core::ai::RaidDispatchDirective;
+using sr::core::ai::ReaperTargetCandidate;
+using sr::core::ai::SelectReaperTarget;
 using sr::core::ai::SurvivalPillars;
 using sr::core::diplomacy::Territory;
 using sr::core::economy::FactionEconomy;
@@ -160,4 +162,33 @@ TEST_CASE("CollapseFaction unclaims every system the faction owns", "[faction-su
     CHECK(territory.Owner("sol").empty());
     CHECK(territory.Owner("kepler").empty());
     CHECK(territory.Owner("vega") == FactionId("aegis"));  // Untouched.
+}
+
+TEST_CASE("SelectReaperTarget returns nullopt for an empty candidate list", "[faction-decision]") {
+    CHECK_FALSE(SelectReaperTarget({}).has_value());
+}
+
+TEST_CASE("SelectReaperTarget returns the single candidate", "[faction-decision]") {
+    const auto target = SelectReaperTarget({ReaperTargetCandidate{"kepler", 3.0f}});
+    REQUIRE(target.has_value());
+    CHECK(*target == "kepler");
+}
+
+TEST_CASE("SelectReaperTarget picks the highest structural density", "[faction-decision]") {
+    const auto target = SelectReaperTarget({
+        ReaperTargetCandidate{"frontier", 1.0f},
+        ReaperTargetCandidate{"capital", 9.0f},
+        ReaperTargetCandidate{"outpost", 4.0f},
+    });
+    REQUIRE(target.has_value());
+    CHECK(*target == "capital");
+}
+
+TEST_CASE("SelectReaperTarget breaks a tie by keeping the first candidate", "[faction-decision]") {
+    const auto target = SelectReaperTarget({
+        ReaperTargetCandidate{"first", 5.0f},
+        ReaperTargetCandidate{"second", 5.0f},
+    });
+    REQUIRE(target.has_value());
+    CHECK(*target == "first");
 }

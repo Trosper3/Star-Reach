@@ -39,6 +39,24 @@ TEST_CASE("Reputation crosses the hostile threshold", "[diplomacy]") {
     CHECK(reputation.ThresholdRelation(FactionId("aegis")) == Relation::Hostile);
 }
 
+TEST_CASE("Reputation crosses the allied threshold", "[diplomacy]") {
+    Reputation reputation;
+    reputation.Adjust(FactionId("aegis"), Reputation::kAlliedThreshold);
+    CHECK(reputation.ThresholdRelation(FactionId("aegis")) == Relation::Allied);
+}
+
+TEST_CASE("Reputation crosses the distrustful threshold", "[diplomacy]") {
+    Reputation reputation;
+    reputation.Adjust(FactionId("aegis"), Reputation::kDistrustfulThreshold);
+    CHECK(reputation.ThresholdRelation(FactionId("aegis")) == Relation::Distrustful);
+}
+
+TEST_CASE("Reputation crosses the war threshold", "[diplomacy]") {
+    Reputation reputation;
+    reputation.Adjust(FactionId("aegis"), Reputation::kWarThreshold);
+    CHECK(reputation.ThresholdRelation(FactionId("aegis")) == Relation::War);
+}
+
 TEST_CASE("Reputation Tick decays a positive score toward zero without overshooting",
           "[diplomacy]") {
     Reputation reputation;
