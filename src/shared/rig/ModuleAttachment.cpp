@@ -77,7 +77,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                 hardpoint, propulsion.thrustNewtons, propulsion.turnTorque, propulsion.maxSpeed);
             break;
         case ModuleKind::Facility:
-            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind);
+            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind,
+                                                      module.facility.grade);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }

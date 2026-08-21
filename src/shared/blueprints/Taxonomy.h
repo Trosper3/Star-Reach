@@ -67,10 +67,14 @@ enum class FacilityKind : std::uint8_t {
     Manufacturing,
     Research,
     Docking,
-    Storage,
+    // architecture.md 12.30: a capability the FACILITY provides (buy/sell), distinct from
+    // deposit/withdraw, which is gated on the host simply carrying a CargoHold -- no facility
+    // hardpoint at all. Was FacilityKind::Storage before P4-01; that name described a container
+    // the component already is.
+    Trade,
     // Grants EngineerMenu (module merging) and RefactorMenu (hardpoint deletion) at whatever
-    // station/ship carries this facility. FacilityStats::level (ModuleDef.h) is only meaningful
-    // for this kind -- the engineer's skill tier, 1-5, scales EngineerSystem's merge formula.
+    // station/ship carries this facility. FacilityStats::grade (ModuleDef.h) is only meaningful
+    // for this kind -- the engineer's skill tier, scales EngineerSystem's merge formula.
     Engineering,
 };
 

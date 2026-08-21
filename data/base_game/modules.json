@@ -88,6 +88,60 @@
       }
     },
     {
+      "id": "trade_exchange_i",
+      "displayName": "Trade Exchange I",
+      "kind": "facility",
+      "mass": 18.0,
+      "powerDraw": 15.0,
+      "facility": {
+        "kind": "trade"
+      }
+    },
+    {
+      "id": "repair_bay_i",
+      "displayName": "Repair Bay I",
+      "kind": "facility",
+      "mass": 20.0,
+      "powerDraw": 15.0,
+      "facility": {
+        "kind": "repair",
+        "ratePerSecond": 5.0
+      }
+    },
+    {
+      "id": "engineering_bay_i",
+      "displayName": "Engineering Bay I",
+      "kind": "facility",
+      "mass": 22.0,
+      "powerDraw": 12.0,
+      "facility": {
+        "kind": "engineering",
+        "grade": 3
+      }
+    },
+    {
+      "id": "manufacturing_bay_i",
+      "displayName": "Manufacturing Bay I",
+      "kind": "facility",
+      "mass": 24.0,
+      "powerDraw": 18.0,
+      "facility": {
+        "kind": "manufacturing",
+        "ratePerSecond": 1.0
+      }
+    },
+    {
+      "id": "research_lab_i",
+      "displayName": "Research Lab I",
+      "kind": "facility",
+      "mass": 16.0,
+      "powerDraw": 14.0,
+      "facility": {
+        "kind": "research",
+        "ratePerSecond": 1.0
+      }
+    },
+    {
       "id": "sensor_array_i",
       "displayName": "Sensor Array I",
       "kind": "sensor",

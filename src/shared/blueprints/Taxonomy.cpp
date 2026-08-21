@@ -43,7 +43,7 @@ constexpr std::array<std::pair<std::string_view, FacilityKind>, 6> kFacilityKind
     {"manufacturing", FacilityKind::Manufacturing},
     {"research", FacilityKind::Research},
     {"docking", FacilityKind::Docking},
-    {"storage", FacilityKind::Storage},
+    {"trade", FacilityKind::Trade},
     {"engineering", FacilityKind::Engineering},
 }};
 
@@ -111,10 +111,13 @@ std::string_view ToString(FacilityKind value) {
         case FacilityKind::Manufacturing: return "manufacturing";
         case FacilityKind::Research: return "research";
         case FacilityKind::Docking: return "docking";
-        case FacilityKind::Storage: return "storage";
+        case FacilityKind::Trade: return "trade";
         case FacilityKind::Engineering: return "engineering";
     }
-    return "storage";
+    // No content can author this token (FromString rejects it), unlike returning a real kind's
+    // name here would -- architecture.md 12.30: an out-of-range enum value must fail loudly if it
+    // is ever round-tripped, not silently alias to whichever kind happened to be the fallback.
+    return "<invalid-facility-kind>";
 }
 
 std::string_view ToString(ShieldCoverage value) {

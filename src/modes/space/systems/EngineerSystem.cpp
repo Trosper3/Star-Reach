@@ -31,7 +31,7 @@ std::optional<int> DockedEngineeringLevel(const entt::registry& registry, entt::
         }
         const FacilityRef* facility = registry.try_get<FacilityRef>(hardpoint);
         if (facility != nullptr && facility->kind == FacilityKind::Engineering) {
-            return facility->level;
+            return facility->grade;
         }
     }
     return std::nullopt;

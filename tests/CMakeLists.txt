@@ -10,6 +10,8 @@ add_executable(sr_tests
     unit/LightingPassTests.cpp
     unit/CockpitHudTests.cpp
     unit/BridgeViewTests.cpp
+    unit/BlueprintJsonTests.cpp
+    unit/PlayerLocationSystemTests.cpp
     unit/NavigationMapTests.cpp
     unit/CustomizeMenuTests.cpp
     unit/ValidationTests.cpp

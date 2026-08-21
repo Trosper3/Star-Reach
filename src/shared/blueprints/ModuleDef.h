@@ -47,12 +47,15 @@ struct EngineStats {
 };
 
 struct FacilityStats {
-    FacilityKind kind = FacilityKind::Storage;
+    FacilityKind kind = FacilityKind::Trade;
     float ratePerSecond = 0.0f;  // Repair HP/s, manufacturing progress/s, research points/s.
     int capacity = 0;            // Docking bays, storage slots.
-    // Meaningful only for FacilityKind::Engineering: the engineer's skill tier, 1-5, scaling
+    // Meaningful only for FacilityKind::Engineering: the engineer's skill tier, scaling
     // EngineerSystem's merge formula (higher preserves more of the secondary module's stats).
-    int level = 1;
+    // Named "grade" rather than "level" from the start (architecture.md 13.3 finding K, re-aimed
+    // by 12.19): neither name is parsed today, so authoring the eventual name costs nothing extra
+    // and avoids a second rename once FacilityStats::level/Grade fold together later.
+    int grade = 1;
 };
 
 struct SensorStats {

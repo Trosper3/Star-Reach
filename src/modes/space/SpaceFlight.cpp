@@ -25,10 +25,13 @@
 namespace sr::space {
 namespace {
 
-// The player's rig-root entity, found the same way WarpToSystem finds it: by PlayerLocation, not
-// PlayerControlled -- architecture.md 12.30.1 makes PlayerLocation the sole source of truth, and
-// nothing derives PlayerControlled yet (P4-01, still open). entt::null if OnEnter hasn't placed a
-// player.
+// The player's shell entity (the entity carrying PlayerLocation -- their own rig root while
+// flying, a facility hardpoint while docked), found by PlayerLocation, not PlayerControlled --
+// architecture.md 12.30.1 makes PlayerLocation the sole source of truth. PlayerControlled is now
+// derived from this every tick by modes/space/systems/PlayerLocationSystem.h (P4-01), but camera
+// follow below wants wherever the player is actually standing (WorldTransform resolves for a
+// hardpoint the same way it does for a rig root), which is this helper's job, not
+// PlayerControlled's. entt::null if OnEnter hasn't placed a player.
 entt::entity FindPlayer(const entt::registry& registry) {
     for (const entt::entity entity : registry.view<PlayerLocation>()) {
         return entity;
@@ -107,6 +110,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
     ui::avionics_menu::Update(registry);
+    ui::bridge_view::Update(registry);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
