@@ -28,4 +28,18 @@ struct SpendResult {
     bool succeeded = false;
 };
 
+// Set by input or AI to record one tick of trade or blockade pressure between two factions;
+// consumed and cleared by FactionEconomySystem the same tick, the same idiom as DepositRequest.
+// features.md 5.3 names "trade volume, blockade, embargo" as one writer trigger with a single
+// effect, "slow drift" -- a single request nudges the pair's DiplomacyMatrix relation exactly one
+// band (DiplomacyMatrix::DriftToward); it takes many ticks of sustained pressure from whatever
+// future system emits these (a border/trade-lane model, not yet built) to actually cross a band
+// boundary.
+struct TradePressureRequest {
+    FactionId a;
+    FactionId b;
+    bool blockade = false;  // false: trade volume, drifts toward Allied. true: blockade/embargo,
+                            // drifts toward Hostile.
+};
+
 }  // namespace sr

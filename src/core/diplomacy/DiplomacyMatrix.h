@@ -23,6 +23,12 @@ public:
     Relation Get(const FactionId& a, const FactionId& b) const;
     void Set(const FactionId& a, const FactionId& b, Relation relation);
 
+    // Nudges the pair exactly one band toward `target` (features.md 5.3's "slow drift" writers --
+    // trade volume, blockade, embargo) -- never further, so a single event can't jump straight
+    // from Neutral to Allied or Hostile. A no-op once the pair already reads `target`. Set()'s own
+    // a == b no-op still applies underneath.
+    void DriftToward(const FactionId& a, const FactionId& b, Relation target);
+
 private:
     using Pair = std::pair<FactionId, FactionId>;
     static Pair Canonical(const FactionId& a, const FactionId& b);

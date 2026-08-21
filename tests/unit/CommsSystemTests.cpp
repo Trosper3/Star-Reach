@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/diplomacy/Reputation.h"
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -12,10 +13,13 @@
 using sr::CommsLog;
 using sr::CommsLogSingleton;
 using sr::DisplayName;
+using sr::FactionId;
+using sr::FactionRef;
 using sr::HailRequest;
 using sr::SensorRange;
 using sr::Vec2;
 using sr::WorldTransform;
+using sr::core::diplomacy::Reputation;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace comms_system = sr::space::comms_system;
@@ -25,6 +29,12 @@ namespace {
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content) {
     return SystemContext{world, intents, content, 1.0f / 60.0f, 3};
+}
+
+SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
+                          const sr::core::ContentLibrary& content, Reputation& reputation) {
+    return SystemContext{world,   intents, content, 1.0f / 60.0f, 3,
+                         nullptr, nullptr, nullptr, nullptr,      &reputation};
 }
 
 entt::entity MakeHailer(entt::registry& registry, const Vec2& position, float sensorRange) {
@@ -152,4 +162,63 @@ TEST_CASE("CommsLog retains only the most recent kCommsLogCap (8) entries", "[co
     const CommsLog* log = FindLog(registry);
     REQUIRE(log != nullptr);
     CHECK(log->entries.size() == 8);
+}
+
+TEST_CASE("CommsSystem raises the target faction's reputation on a successful hail", "[comms]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity target = registry.create();
+    registry.emplace<WorldTransform>(target, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<DisplayName>(target, "Aegis Outpost");
+    registry.emplace<FactionRef>(target, FactionId("aegis"));
+
+    const entt::entity hailer = MakeHailer(registry, Vec2{0.0f, 0.0f}, 2000.0f);
+    registry.emplace<HailRequest>(hailer, target);
+
+    comms_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("aegis")) > 0.0f);
+}
+
+TEST_CASE("CommsSystem leaves reputation untouched when the hail is out of range", "[comms]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity target = registry.create();
+    registry.emplace<WorldTransform>(target, Vec2{9000.0f, 0.0f}, 0.0f);
+    registry.emplace<DisplayName>(target, "Reaver Raider");
+    registry.emplace<FactionRef>(target, FactionId("reavers"));
+
+    const entt::entity hailer = MakeHailer(registry, Vec2{0.0f, 0.0f}, 500.0f);
+    registry.emplace<HailRequest>(hailer, target);
+
+    comms_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("reavers")) == 0.0f);
+}
+
+TEST_CASE("CommsSystem does not touch reputation for a target with no FactionRef", "[comms]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity target = registry.create();
+    registry.emplace<WorldTransform>(target, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<DisplayName>(target, "Aegis Outpost");
+
+    const entt::entity hailer = MakeHailer(registry, Vec2{0.0f, 0.0f}, 2000.0f);
+    registry.emplace<HailRequest>(hailer, target);
+
+    comms_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("aegis")) == 0.0f);
 }

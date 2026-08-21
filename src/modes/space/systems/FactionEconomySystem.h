@@ -14,8 +14,12 @@ namespace sr::space::faction_economy_system {
 //     pipeline yet (StationFactory, #41) for a real manufacturing tick to feed this instead.
 //   - Spending: a SpendRequest attempts FactionEconomy::Spend and writes the outcome onto the
 //     SAME entity as SpendResult for whatever requested it to read back.
+//   - Relations: a TradePressureRequest drifts the named pair's core/diplomacy/DiplomacyMatrix
+//     entry one band toward Allied (trade) or Hostile (blockade/embargo) -- features.md 5.3's
+//     "trade volume, blockade, embargo" writer trigger. Independent of the economy pointer above;
+//     runs off ctx.diplomacy instead.
 //
-// Both requests exist with no producer wired up yet, the same way DockRequest existed before
+// All three requests exist with no producer wired up yet, the same way DockRequest existed before
 // player input did -- a future FactionDecisionSystem (#31) is the obvious first caller.
 //
 // NOT implemented here: station rebuild/upgrade. Legacy StarReach2's version reconstructs a

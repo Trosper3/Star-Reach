@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "core/diplomacy/Reputation.h"
 #include "shared/components/Comms.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Targeting.h"
@@ -16,6 +17,13 @@ namespace {
 
 // Ported verbatim from legacy StarReach2's kCommsLogCap.
 constexpr std::size_t kCommsLogCap = 8;
+
+// features.md 5.3's "bounded nudge" for CommsSystem's "successful diplomacy" trigger. There is no
+// negotiation/tribute/threat intent yet (architecture.md 15.1 finding 14), so a hail that reaches
+// its target and gets a response is the one success case this system already has -- deliberately
+// smaller than ContractSystem's completion step, since a hail carries far less weight than
+// finishing a job for a faction.
+constexpr float kHailSuccessStep = 2.0f;
 
 constexpr std::array<const char*, 3> kHailResponses = {
     "Receiving you.",
@@ -90,6 +98,12 @@ void Tick(const SystemContext& ctx) {
                               static_cast<std::uint32_t>(ctx.tick);
             const std::size_t index = Hash32(seed) % kHailResponses.size();
             PushEntry(registry, log, name + ": " + kHailResponses[index], false);
+
+            if (ctx.reputation != nullptr) {
+                if (const auto* faction = registry.try_get<FactionRef>(request.target)) {
+                    ctx.reputation->Adjust(faction->id, kHailSuccessStep);
+                }
+            }
         } else {
             PushEntry(registry, log, name + " does not respond -- out of range.", false);
         }
