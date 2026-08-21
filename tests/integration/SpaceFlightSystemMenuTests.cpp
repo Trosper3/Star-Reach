@@ -5,7 +5,6 @@
 #include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
-#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
@@ -26,7 +25,6 @@ using sr::core::kFixedDeltaSeconds;
 using sr::core::diplomacy::DiplomacyMatrix;
 using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
-using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
@@ -71,11 +69,10 @@ TEST_CASE("ShouldReturnToMenu is a latch that does not re-fire", "[spaceflight][
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     CHECK_FALSE(game.ShouldReturnToMenu());
@@ -102,11 +99,10 @@ TEST_CASE(
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();

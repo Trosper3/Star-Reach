@@ -15,10 +15,12 @@ namespace sr::space::research_system {
 // every resident station's StationFacility::researchJobs against dt, gated on the station
 // carrying a living (non-Destroyed) FacilityKind::Research hardpoint -- destroying the lab
 // freezes its jobs in place rather than letting them keep completing. On completion grants the
-// researched item into its targetNetwork via ctx.knowledge; a null ctx.knowledge is NOT the same
-// guard DiscoverySystem uses for ctx.discovery -- the grant is destructive, so a null pointer
-// freezes the job at durationSeconds (resumable, input intact) instead of erasing it and
-// silently spending the input for nothing. No TickCoarse -- see CollapseResearchJobs/
+// researched item into its targetNetwork via ctx.knowledge; a null ctx.knowledge is NOT the plain
+// skip-the-tick guard DiscoverySystem uses on the same pointer -- ResearchSystem's grant is
+// destructive of a job in progress, so a null pointer instead freezes the job at durationSeconds
+// (resumable, input intact) rather than erasing it and silently spending the input for nothing.
+// DiscoverySystem has nothing to freeze -- its scan is a pure re-derivable presence check, so a
+// null ctx.knowledge is a harmless no-op tick. No TickCoarse -- see CollapseResearchJobs/
 // PromoteResearchJobs below for how a job survives a system demoting out of Tier 1 instead.
 void Tick(const SystemContext& ctx);
 

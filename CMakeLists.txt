@@ -158,12 +158,12 @@ add_library(sr_core STATIC
     src/core/diplomacy/Reputation.cpp
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
-    src/core/galaxy/Discovery.cpp
     src/core/galaxy/ResearchRecord.cpp
     src/core/galaxy/Seeding.cpp
     src/core/galaxy/Topology.cpp
     src/core/galaxy/WreckRecord.cpp
     src/core/knowledge/KnowledgeNetwork.cpp
+    src/core/knowledge/KnowledgeSeeding.cpp
     src/core/registries/JsonReader.cpp
     src/core/registries/BlueprintJson.cpp
     src/core/registries/ContentLibrary.cpp

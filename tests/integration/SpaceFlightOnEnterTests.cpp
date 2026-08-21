@@ -5,7 +5,6 @@
 #include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
-#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
@@ -33,7 +32,6 @@ using sr::core::ContentLibrary;
 using sr::core::diplomacy::DiplomacyMatrix;
 using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
-using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
@@ -62,11 +60,10 @@ TEST_CASE("OnEnter populates one sun, one player, one station and the expected N
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 
@@ -95,11 +92,10 @@ TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spacef
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
 
     game.OnEnter();
     game.OnEnter();
@@ -119,11 +115,10 @@ TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflig
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 
@@ -143,11 +138,10 @@ TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station'
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 

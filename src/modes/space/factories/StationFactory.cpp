@@ -1,5 +1,6 @@
 #include "modes/space/factories/StationFactory.h"
 
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/NetworkOwner.h"
@@ -33,12 +34,13 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     // Placeholder network id, one per faction rather than per station. There is no KnowledgeStore
     // reachable from a factory (architecture.md 12.24 step 6's ctx.knowledge is still nullptr, and
     // WorldGen/StationFactory take no such pointer), so this cannot call KnowledgeStore::Create()
-    // for a real registered network. Deriving the id from FactionId is stable and matches
+    // for a real registered network. FactionNetworkId's derivation is stable and matches
     // NetworkOwnerKind::Faction's intended shape -- a faction's stations share one general network
     // -- and costs nothing to correct later: whatever bootstraps the real store just needs to
-    // Create() (or migrate in) a network under this same id.
+    // Create() (or migrate in) a network under this same id. core::knowledge::SeedFactionNetworks
+    // (KnowledgeSeeding.h) is that bootstrap, called once at startup.
     const FactionRef& faction = registry.get<FactionRef>(result.root);
-    registry.emplace<NetworkOwner>(result.root, KnowledgeNetworkId(faction.id.str()));
+    registry.emplace<NetworkOwner>(result.root, core::knowledge::FactionNetworkId(faction.id));
 
     return result;
 }

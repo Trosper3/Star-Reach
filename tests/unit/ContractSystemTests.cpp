@@ -33,8 +33,8 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content, Reputation& reputation,
                           float dt = 1.0f / 60.0f) {
-    return SystemContext{world,   intents, content, dt,      0,
-                         nullptr, nullptr, nullptr, nullptr, &reputation};
+    return SystemContext{world,   intents, content, dt,     0,
+                         nullptr, nullptr, nullptr, &reputation};
 }
 
 entt::entity MakeHostileRig(entt::registry& registry, const char* faction) {

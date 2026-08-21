@@ -6,9 +6,9 @@
 #include "core/diplomacy/RelationSeeding.h"
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
-#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
+#include "core/knowledge/KnowledgeSeeding.h"
 #include "core/registries/ContentLibrary.h"
 #include "engine/assets/FontCache.h"
 #include "engine/assets/TextureCache.h"
@@ -63,14 +63,13 @@ std::optional<sr::core::ContentLibrary> LoadGameContent(const std::filesystem::p
     return content;
 }
 
-// The four SystemContext pointers SpaceFlight::Update was constructing with only `economy` set
+// The three SystemContext pointers SpaceFlight::Update was constructing with only `economy` set
 // (architecture.md 12.24 step 6), bundled so RunGame can own and pass them by reference in one
 // line -- same "not a global" shape as `economy`/`wreckLedger`. Split out of RunGame for the same
 // function-length-cap reason LoadGameContent is (tools/ci/check_sizes.py): the members need to
 // outlive the SpaceFlight that borrows them, which returning the bundle by value here already
 // guarantees the same way `content` above does.
 struct GalaxyState {
-    sr::core::galaxy::DiscoveryState discovery;
     sr::core::knowledge::KnowledgeStore knowledge;
     sr::core::diplomacy::DiplomacyMatrix diplomacy;
     sr::core::diplomacy::Reputation reputation;
@@ -78,11 +77,14 @@ struct GalaxyState {
 
 // architecture.md 12.32: seeded once, before any system's first tick, immediately after
 // construction -- a live ctx.diplomacy pointer into an unseeded matrix is the same null-object
-// failure one layer down.
+// failure one layer down. SeedFactionNetworks is the identical rule for ctx.knowledge
+// (features.md 8.3): DiscoverySystem's Grant() calls are no-ops against faction networks nothing
+// ever Create()'d.
 GalaxyState MakeGalaxyState() {
     GalaxyState state;
     sr::core::diplomacy::SeedBaselineRelations(state.diplomacy);
     sr::core::diplomacy::SeedReaperHostility(state.diplomacy);
+    sr::core::knowledge::SeedFactionNetworks(state.knowledge);
     return state;
 }
 
@@ -127,8 +129,8 @@ int RunGame() {
     GalaxyState galaxy = MakeGalaxyState();
 
     sr::modes::main_menu::MainMenu menu(textures, fonts);
-    sr::space::SpaceFlight game(*content, economy, wreckLedger, galaxy.discovery, galaxy.knowledge,
-                                galaxy.diplomacy, galaxy.reputation);
+    sr::space::SpaceFlight game(*content, economy, wreckLedger, galaxy.knowledge, galaxy.diplomacy,
+                                galaxy.reputation);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
     // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and

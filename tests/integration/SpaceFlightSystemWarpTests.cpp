@@ -5,7 +5,6 @@
 #include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
-#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
@@ -29,7 +28,6 @@ using sr::core::ContentLibrary;
 using sr::core::diplomacy::DiplomacyMatrix;
 using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
-using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
@@ -66,11 +64,10 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::registry& before = game.World().Registry();
@@ -97,11 +94,10 @@ TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[space
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     const entt::entity player = FindPlayer(game.World().Registry());
@@ -129,11 +125,10 @@ TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player r
     ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    DiscoveryState discovery;
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
     game.OnEnter();
 
     entt::entity player = FindPlayer(game.World().Registry());

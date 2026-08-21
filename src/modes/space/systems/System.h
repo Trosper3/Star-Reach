@@ -4,7 +4,6 @@
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
-#include "core/galaxy/Discovery.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -42,18 +41,14 @@ struct SystemContext {
     // FactionEconomySystem reads or writes through it today.
     core::economy::FactionEconomy* economy = nullptr;
 
-    // Galaxy-wide per-faction discovered-system knowledge (Law 8 -- core/galaxy/, not this or
-    // any registry). Same nullable-pointer shape as `economy` above, for the same reason: most
-    // systems never touch it, and every test fixture predating DiscoverySystem (#32) constructs
-    // a SystemContext without one.
-    core::galaxy::DiscoveryState* discovery = nullptr;
-
-    // The galaxy-wide store behind architecture.md 12.1's knowledge networks and 12.7's Template
-    // sales (Law 8 -- core/knowledge/, not this or any registry). Same nullable-pointer shape as
-    // `economy`/`discovery` above, for the same reason: most systems never touch it, and every
-    // test fixture predating ResearchSystem (#81) constructs a SystemContext without one.
-    // Writers: ResearchSystem grants an unlock on job completion; TemplateMarketSystem copies a
-    // Template on sale.
+    // The galaxy-wide store behind architecture.md 12.1's knowledge networks, 12.7's Template
+    // sales, and features.md 8.3's fog of war (Law 8 -- core/knowledge/, not this or any
+    // registry). Same nullable-pointer shape as `economy` above, for the same reason: most
+    // systems never touch it, and every test fixture predating ResearchSystem (#81) constructs a
+    // SystemContext without one. Writers: ResearchSystem grants an unlock on job completion;
+    // TemplateMarketSystem copies a Template on sale; DiscoverySystem grants a discovered system
+    // to the resident faction's network (features.md 8.3 -- this absorbed
+    // core/galaxy/DiscoveryState's old role and SystemContext::discovery along with it).
     core::knowledge::KnowledgeStore* knowledge = nullptr;
 
     // Galaxy-wide faction-vs-faction relations (Law 8 -- core/diplomacy/). Same nullable-pointer

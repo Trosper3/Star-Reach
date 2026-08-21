@@ -35,12 +35,12 @@ add_executable(sr_tests
     unit/ProjectileSystemTests.cpp
     unit/SpawnSystemTests.cpp
     unit/DamageSystemTests.cpp
-    unit/DiscoveryTests.cpp
     unit/DiscoverySystemTests.cpp
     unit/WreckRecordTests.cpp
     unit/SeedingTests.cpp
     unit/TopologyTests.cpp
     unit/KnowledgeNetworkTests.cpp
+    unit/KnowledgeSeedingTests.cpp
     unit/KnowledgeSerializationTests.cpp
     unit/LootSystemTests.cpp
     unit/MiningSystemTests.cpp

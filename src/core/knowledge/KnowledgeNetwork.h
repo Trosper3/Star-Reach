@@ -105,4 +105,11 @@ private:
     std::uint64_t nextId_ = 1;
 };
 
+// A faction's general network is keyed by its own FactionId string rather than a Create()'d
+// counter id -- StationFactory.cpp's placeholder emplace originated this rule (a faction's
+// stations share one general network, and factories have no KnowledgeStore reachable to Create()
+// against); DiscoverySystem and NavigationMap need the identical derivation to land writes and
+// reads on the same network, so it lives here once rather than three times.
+KnowledgeNetworkId FactionNetworkId(const FactionId& faction);
+
 }  // namespace sr::core::knowledge

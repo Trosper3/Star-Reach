@@ -29,8 +29,7 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content, DiplomacyMatrix& diplomacy) {
-    return SystemContext{world,   intents, content, 1.0f / 60.0f, 0,
-                         nullptr, nullptr, nullptr, &diplomacy};
+    return SystemContext{world, intents, content, 1.0f / 60.0f, 0, nullptr, nullptr, &diplomacy};
 }
 
 }  // namespace
