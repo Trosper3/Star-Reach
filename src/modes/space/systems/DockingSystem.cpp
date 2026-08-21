@@ -26,7 +26,7 @@ constexpr float kDockRangeUnits = 50.0f;
 // TargetingSystem use; a rig is always dockable at its own faction's bays regardless, since
 // DiplomacyMatrix::Get(a, a) reads Friendly by construction.
 bool CanDock(const core::diplomacy::DiplomacyMatrix* diplomacy, const FactionId& seeker,
-            const FactionId& station) {
+             const FactionId& station) {
     if (diplomacy == nullptr) {
         return false;
     }

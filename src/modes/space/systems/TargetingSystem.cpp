@@ -20,7 +20,7 @@ namespace {
 // wired (architecture.md 12.24 step 6) -- the same convention TemplateMarketSystem::PassesGate
 // uses for the mirror-image gate.
 bool IsHostile(const core::diplomacy::DiplomacyMatrix* diplomacy, const FactionRef& seeker,
-              const FactionRef& other) {
+               const FactionRef& other) {
     if (diplomacy == nullptr) {
         return false;
     }

@@ -163,12 +163,10 @@ TEST_CASE("VisibleHostileRigs fails closed with no diplomacy or discovery pointe
     diplomacy.Set(FactionId("aegis"), FactionId("reavers"), Relation::Hostile);
     DiscoveryState discovery = MakeDiscoveredState();
 
-    CHECK(
-        navigation_map::VisibleHostileRigs(registry, player, nullptr, &discovery, kSystemId)
-            .empty());
-    CHECK(
-        navigation_map::VisibleHostileRigs(registry, player, &diplomacy, nullptr, kSystemId)
-            .empty());
+    CHECK(navigation_map::VisibleHostileRigs(registry, player, nullptr, &discovery, kSystemId)
+              .empty());
+    CHECK(navigation_map::VisibleHostileRigs(registry, player, &diplomacy, nullptr, kSystemId)
+              .empty());
 }
 
 TEST_CASE("VisibleHostileRigs excludes a non-Targetable rig in range", "[navigation-map]") {
