@@ -78,7 +78,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
             break;
         case ModuleKind::Facility:
             registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind,
-                                                     module.facility.grade);
+                                                     module.facility.grade,
+                                                     module.facility.capacity);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }

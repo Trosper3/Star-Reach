@@ -10,10 +10,20 @@ namespace sr::space::docking_system {
 //   - Prompt: every undocked, Targetable rig gets a DockPrompt naming the nearest same-faction
 //     DockingBay hardpoint (on a DIFFERENT rig) within range, recomputed fresh every tick --
 //     absent the instant nothing qualifies.
+//   - Prompt (capacity): FindEligibleBay skips any DockingBay whose occupancy has reached its
+//     FacilityRef::capacity (0 means unlimited, matching CargoHold::capacity's convention) --
+//     architecture.md 12.30.2, "a full bay is not an eligible bay." Refused in the search, not at
+//     the handoff, so an inbound rig whose target bay fills mid-flight simply stops seeing it and
+//     re-routes to the next nearest, rather than holding a DockRequest that will never be
+//     accepted. Occupancy is counted once per tick into a bay->count map, not once per candidate
+//     inside FindEligibleBay, to stay O(rigs + bays) rather than O(rigs * bays).
 //   - Dock: a DockRequest naming the bay DockPrompt currently names (set by input or AI, the
 //     same idiom as Combat.h's FireIntent) tags the requester Docked and removes Targetable --
 //     Targeting.h already documents "a docked player is untargetable" as this system's rule to
-//     enforce.
+//     enforce. If the docking rig is the player's own (PlayerLocation.shell names it directly),
+//     PlayerLocation also moves onto `bay` this same tick -- architecture.md 12.30.2's "PlayerLocation
+//     resolves to Docked.bay on arrival," landing the player on the Bay screen by default rather
+//     than leaving them stood in their own cockpit until they click a router tab.
 //   - Undock: an UndockRequest on a Docked rig clears Docked and restores Targetable.
 //   - Immobile while docked: Velocity and ThrustInput are zeroed every tick a rig is Docked.
 //     PhysicsSystem runs earlier in TickSchedule than NpcAiSystem, so whatever ThrustInput
