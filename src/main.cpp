@@ -2,8 +2,13 @@
 #include <iostream>
 #include <optional>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/RelationSeeding.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
+#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "engine/assets/FontCache.h"
 #include "engine/assets/TextureCache.h"
@@ -58,6 +63,29 @@ std::optional<sr::core::ContentLibrary> LoadGameContent(const std::filesystem::p
     return content;
 }
 
+// The four SystemContext pointers SpaceFlight::Update was constructing with only `economy` set
+// (architecture.md 12.24 step 6), bundled so RunGame can own and pass them by reference in one
+// line -- same "not a global" shape as `economy`/`wreckLedger`. Split out of RunGame for the same
+// function-length-cap reason LoadGameContent is (tools/ci/check_sizes.py): the members need to
+// outlive the SpaceFlight that borrows them, which returning the bundle by value here already
+// guarantees the same way `content` above does.
+struct GalaxyState {
+    sr::core::galaxy::DiscoveryState discovery;
+    sr::core::knowledge::KnowledgeStore knowledge;
+    sr::core::diplomacy::DiplomacyMatrix diplomacy;
+    sr::core::diplomacy::Reputation reputation;
+};
+
+// architecture.md 12.32: seeded once, before any system's first tick, immediately after
+// construction -- a live ctx.diplomacy pointer into an unseeded matrix is the same null-object
+// failure one layer down.
+GalaxyState MakeGalaxyState() {
+    GalaxyState state;
+    sr::core::diplomacy::SeedBaselineRelations(state.diplomacy);
+    sr::core::diplomacy::SeedReaperHostility(state.diplomacy);
+    return state;
+}
+
 // The actual entry point, split from main() below so that function can stay exception-free
 // (clang-tidy's bugprone-exception-escape, section 8's CI/CD table). std::filesystem calls in
 // FindContentDirectory can throw std::filesystem_error on a genuinely broken environment (a
@@ -71,7 +99,7 @@ int RunGame() {
         return 1;
     }
 
-    const std::optional<sr::core::ContentLibrary> content = LoadGameContent(contentDir);
+    std::optional<sr::core::ContentLibrary> content = LoadGameContent(contentDir);
     if (!content.has_value()) {
         return 1;
     }
@@ -96,8 +124,11 @@ int RunGame() {
     // state a system warp (architecture.md section 12.5) demotes wrecks into and promotes them
     // back out of, never a global.
     sr::core::galaxy::WreckLedger wreckLedger;
+    GalaxyState galaxy = MakeGalaxyState();
+
     sr::modes::main_menu::MainMenu menu(textures, fonts);
-    sr::space::SpaceFlight game(*content, economy, wreckLedger);
+    sr::space::SpaceFlight game(*content, economy, wreckLedger, galaxy.discovery, galaxy.knowledge,
+                                galaxy.diplomacy, galaxy.reputation);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
     // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and

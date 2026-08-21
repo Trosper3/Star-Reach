@@ -17,15 +17,21 @@ namespace sr::core::diplomacy {
 // tracking standing for.
 class Reputation {
 public:
-    static constexpr float kFriendlyThreshold = 25.0f;
-    static constexpr float kHostileThreshold = -25.0f;
+    // features.md 5.3's six-band range, architecture.md 12.32: Friendly keeps its old ±25
+    // boundary in spirit (renamed here to match the widened band names), and Allied/Distrustful/
+    // Hostile/War slot in at the band edges §5.3's table itself specifies.
+    static constexpr float kAlliedThreshold = 50.0f;
+    static constexpr float kFriendlyThreshold = 15.0f;
+    static constexpr float kDistrustfulThreshold = -15.0f;
+    static constexpr float kHostileThreshold = -50.0f;
+    static constexpr float kWarThreshold = -85.0f;
 
     // Unset factions start at 0 (Neutral).
     float Score(const FactionId& faction) const;
 
     void Adjust(const FactionId& faction, float delta);
 
-    // Score() mapped through the friendly/hostile thresholds above.
+    // Score() mapped through the band thresholds above.
     Relation ThresholdRelation(const FactionId& faction) const;
 
     // Pulls every tracked faction's score back toward 0 at kDecayPerSecond, without overshooting.

@@ -70,6 +70,7 @@ add_executable(sr_tests
     unit/FactionEconomyTests.cpp
     unit/FactionEconomySystemTests.cpp
     unit/DiplomacyMatrixTests.cpp
+    unit/RelationSeedingTests.cpp
     unit/ReputationTests.cpp
     unit/TerritoryTests.cpp
     unit/FactionDecisionEngineTests.cpp

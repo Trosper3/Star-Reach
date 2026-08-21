@@ -154,6 +154,7 @@ target_include_directories(sr_shared SYSTEM PRIVATE
 add_library(sr_core STATIC
     src/core/ai/FactionDecisionEngine.cpp
     src/core/diplomacy/DiplomacyMatrix.cpp
+    src/core/diplomacy/RelationSeeding.cpp
     src/core/diplomacy/Reputation.cpp
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp

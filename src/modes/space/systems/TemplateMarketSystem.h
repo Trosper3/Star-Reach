@@ -14,7 +14,8 @@ namespace sr::space::template_market_system {
 // sale directly) and resolves each in three steps, per architecture.md 12.7:
 //
 //   1. Gate    -- ctx.diplomacy's relation between buyerFaction and sellerFaction must be
-//                 Neutral or Friendly. Hostile refuses the pitch before evaluating anything else.
+//                 Neutral or better (Neutral, Friendly, Allied). Distrustful, Hostile and War all
+//                 refuse the pitch before evaluating anything else (features.md 5.3).
 //   2. Accept  -- deterministic, no roll: PitchTemplateIntent::archetypeFits and
 //                 beatsCurrentManufacture must both be true, and ctx.economy must show
 //                 buyerFaction can afford materialsCost. Failing any of these rejects the pitch;

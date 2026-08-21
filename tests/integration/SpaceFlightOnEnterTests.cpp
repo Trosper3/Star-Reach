@@ -2,8 +2,12 @@
 
 #include <filesystem>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
+#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
 #include "shared/components/Docking.h"
@@ -26,8 +30,12 @@ using sr::Vec2;
 using sr::Wallet;
 using sr::WorldTransform;
 using sr::core::ContentLibrary;
+using sr::core::diplomacy::DiplomacyMatrix;
+using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
+using sr::core::galaxy::DiscoveryState;
 using sr::core::galaxy::WreckLedger;
+using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
 
 namespace {
@@ -51,10 +59,14 @@ entt::entity FindPlayer(entt::registry& registry) {
 
 TEST_CASE("OnEnter populates one sun, one player, one station and the expected NPC count",
           "[spaceflight][onenter]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 
@@ -80,10 +92,14 @@ TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spacef
     // menu and starting a second game calls OnEnter twice in the same process. Without a world_
     // reset before populating, the second call populates on top of the first -- two suns, two
     // players.
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
 
     game.OnEnter();
     game.OnEnter();
@@ -100,10 +116,14 @@ TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spacef
 }
 
 TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflight][onenter]") {
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 
@@ -120,10 +140,14 @@ TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station'
     // architecture.md 12.36 / issue #160: OnEnter used to hardcode Vec2{0, 0} -- the sun's own
     // position (WorldGen.cpp's SpawnSun) -- placing the player inside the corona (1200 units)
     // from the first frame, burning every hardpoint before the player could react.
-    const ContentLibrary content = Content();
+    ContentLibrary content = Content();
     FactionEconomy economy;
     WreckLedger wreckLedger;
-    SpaceFlight game(content, economy, wreckLedger);
+    DiscoveryState discovery;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    SpaceFlight game(content, economy, wreckLedger, discovery, knowledge, diplomacy, reputation);
 
     game.OnEnter();
 

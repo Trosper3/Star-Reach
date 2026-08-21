@@ -79,6 +79,44 @@ TEST_CASE("TemplateMarketSystem refuses a pitch to a Hostile faction", "[templat
     CHECK_FALSE(fx.knowledge.Get(buyer)->savedTemplates.count("razor_frigate"));
 }
 
+TEST_CASE("TemplateMarketSystem refuses a pitch to a Distrustful or War faction",
+          "[template-market]") {
+    // Regression test for the six-state Relation widening (architecture.md 12.32): the old gate
+    // compared only `!= Hostile`, which would have let these two bands through by accident since
+    // they didn't exist as distinct states before.
+    Fixture fx;
+    const KnowledgeNetworkId seller = fx.knowledge.Create(NetworkOwnerKind::Player);
+    const KnowledgeNetworkId distrustfulBuyer = fx.knowledge.Create(NetworkOwnerKind::Faction);
+    const KnowledgeNetworkId warBuyer = fx.knowledge.Create(NetworkOwnerKind::Faction);
+    fx.economy.Deposit(FactionId("distrustful"), 1000);
+    fx.economy.Deposit(FactionId("atwar"), 1000);
+    fx.diplomacy.Set(FactionId("distrustful"), FactionId("player"), Relation::Distrustful);
+    fx.diplomacy.Set(FactionId("atwar"), FactionId("player"), Relation::War);
+
+    fx.intents.Push(
+        fx.MakePitch(seller, distrustfulBuyer, FactionId("player"), FactionId("distrustful")));
+    fx.intents.Push(fx.MakePitch(seller, warBuyer, FactionId("player"), FactionId("atwar")));
+    template_market_system::Tick(fx.Context());
+
+    CHECK_FALSE(fx.knowledge.Get(distrustfulBuyer)->savedTemplates.count("razor_frigate"));
+    CHECK_FALSE(fx.knowledge.Get(warBuyer)->savedTemplates.count("razor_frigate"));
+}
+
+TEST_CASE("TemplateMarketSystem accepts a pitch to an Allied faction", "[template-market]") {
+    Fixture fx;
+    const KnowledgeNetworkId seller = fx.knowledge.Create(NetworkOwnerKind::Player);
+    const KnowledgeNetworkId buyer = fx.knowledge.Create(NetworkOwnerKind::Faction);
+    fx.knowledge.Grant(seller, sr::core::knowledge::NetworkEntryKind::SavedTemplate,
+                       "razor_frigate");
+    fx.economy.Deposit(FactionId("ally"), 1000);
+    fx.diplomacy.Set(FactionId("ally"), FactionId("player"), Relation::Allied);
+
+    fx.intents.Push(fx.MakePitch(seller, buyer, FactionId("player"), FactionId("ally")));
+    template_market_system::Tick(fx.Context());
+
+    CHECK(fx.knowledge.Get(buyer)->savedTemplates.count("razor_frigate") == 1);
+}
+
 TEST_CASE("TemplateMarketSystem rejects a pitch that does not fit the buyer's archetype",
           "[template-market]") {
     Fixture fx;

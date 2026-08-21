@@ -19,11 +19,20 @@ void Reputation::Adjust(const FactionId& faction, float delta) {
 
 Relation Reputation::ThresholdRelation(const FactionId& faction) const {
     const float score = Score(faction);
+    if (score >= kAlliedThreshold) {
+        return Relation::Allied;
+    }
     if (score >= kFriendlyThreshold) {
         return Relation::Friendly;
     }
+    if (score <= kWarThreshold) {
+        return Relation::War;
+    }
     if (score <= kHostileThreshold) {
         return Relation::Hostile;
+    }
+    if (score <= kDistrustfulThreshold) {
+        return Relation::Distrustful;
     }
     return Relation::Neutral;
 }
