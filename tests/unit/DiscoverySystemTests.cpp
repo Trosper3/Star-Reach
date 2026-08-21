@@ -4,6 +4,7 @@
 
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "modes/space/systems/DiscoverySystem.h"
+#include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Identity.h"
 
 using sr::FactionId;
@@ -16,6 +17,7 @@ using sr::core::knowledge::NetworkOwnerKind;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace discovery_system = sr::space::discovery_system;
+namespace player_record_system = sr::space::player_record_system;
 
 namespace {
 
@@ -37,7 +39,7 @@ void SeedFaction(KnowledgeStore& knowledge, const FactionId& faction) {
 
 }  // namespace
 
-TEST_CASE("DiscoverySystem discovers the active system for the player's faction",
+TEST_CASE("DiscoverySystem discovers the active system for the player's record faction",
           "[discovery-system]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -46,9 +48,7 @@ TEST_CASE("DiscoverySystem discovers the active system for the player's faction"
     KnowledgeStore knowledge;
     SeedFaction(knowledge, FactionId("aegis"));
 
-    const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
-    registry.emplace<FactionRef>(player, FactionId("aegis"));
+    player_record_system::SetFaction(registry, FactionId("aegis"));
 
     discovery_system::Tick(MakeContext(world, intents, content, knowledge));
 
@@ -57,7 +57,7 @@ TEST_CASE("DiscoverySystem discovers the active system for the player's faction"
     CHECK(network->discoveredSystems.contains("sol"));
 }
 
-TEST_CASE("DiscoverySystem does nothing without a PlayerControlled entity", "[discovery-system]") {
+TEST_CASE("DiscoverySystem does nothing without a player record", "[discovery-system]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -81,9 +81,7 @@ TEST_CASE("DiscoverySystem does nothing when the context has no knowledge pointe
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
 
-    const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
-    registry.emplace<FactionRef>(player, FactionId("aegis"));
+    player_record_system::SetFaction(registry, FactionId("aegis"));
 
     const SystemContext ctx{world, intents, content, 1.0f / 60.0f, 0};  // knowledge defaults null.
     discovery_system::Tick(ctx);                                        // Must not crash.
@@ -101,36 +99,36 @@ TEST_CASE("DiscoverySystem's grant is a no-op for a faction with no seeded netwo
     sr::core::ContentLibrary content;
     KnowledgeStore knowledge;  // "unseeded" faction never registered.
 
-    const entt::entity player = registry.create();
-    registry.emplace<PlayerControlled>(player);
-    registry.emplace<FactionRef>(player, FactionId("unseeded"));
+    player_record_system::SetFaction(registry, FactionId("unseeded"));
 
     discovery_system::Tick(MakeContext(world, intents, content, knowledge));
 
     CHECK(knowledge.Get(FactionNetworkId(FactionId("unseeded"))) == nullptr);
 }
 
-TEST_CASE("DiscoverySystem's writes are shared: two allies land on the same network",
-          "[discovery-system]") {
-    // features.md 8.3: "a faction's members share what any one of them has found." Coverage is
-    // per NETWORK, not per entity -- two PlayerControlled rigs under the same FactionRef write
-    // (and therefore read) the identical KnowledgeNetwork by construction, with no separate
-    // pooling step required.
+TEST_CASE(
+    "DiscoverySystem credits the player's own faction, not a foreign station's it is docked at",
+    "[discovery-system]") {
+    // architecture.md 12.30.3, amending 12.30.1: while docked, the derived PlayerControlled names
+    // the station -- at a foreign one, that FactionRef is the host's, and discovery must not
+    // invert to credit them. Simulates the docked shape directly: a PlayerControlled/FactionRef
+    // pair under the host's flag, alongside a player record under the player's own.
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
     KnowledgeStore knowledge;
     SeedFaction(knowledge, FactionId("aegis"));
+    SeedFaction(knowledge, FactionId("zenith"));
 
-    const entt::entity allyOne = registry.create();
-    registry.emplace<PlayerControlled>(allyOne);
-    registry.emplace<FactionRef>(allyOne, FactionId("aegis"));
-    const entt::entity allyTwo = registry.create();
-    registry.emplace<PlayerControlled>(allyTwo);
-    registry.emplace<FactionRef>(allyTwo, FactionId("aegis"));
+    player_record_system::SetFaction(registry, FactionId("aegis"));
+    const entt::entity foreignStation = registry.create();
+    registry.emplace<PlayerControlled>(foreignStation);
+    registry.emplace<FactionRef>(foreignStation, FactionId("zenith"));
 
     discovery_system::Tick(MakeContext(world, intents, content, knowledge));
 
-    CHECK(knowledge.Get(FactionNetworkId(FactionId("aegis")))->discoveredSystems.size() == 1);
+    CHECK(knowledge.Get(FactionNetworkId(FactionId("aegis")))->discoveredSystems.contains("sol"));
+    CHECK_FALSE(
+        knowledge.Get(FactionNetworkId(FactionId("zenith")))->discoveredSystems.contains("sol"));
 }

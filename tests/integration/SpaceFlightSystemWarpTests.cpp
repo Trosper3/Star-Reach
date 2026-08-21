@@ -9,6 +9,7 @@
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
+#include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Transform.h"
@@ -18,6 +19,7 @@ using sr::BlueprintId;
 using sr::BlueprintRef;
 using sr::DeathWreck;
 using sr::ElementStack;
+using sr::FactionRef;
 using sr::ModuleId;
 using sr::PlayerLocation;
 using sr::SystemWarpRequest;
@@ -31,6 +33,7 @@ using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
+namespace player_record_system = sr::space::player_record_system;
 
 namespace {
 
@@ -88,6 +91,10 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
 
     REQUIRE(registry.all_of<Wallet>(arrived));
     CHECK(registry.get<Wallet>(arrived).credits == 250);
+
+    // architecture.md 12.30.3: the player record survives the registry swap a warp performs, the
+    // same way Wallet does above.
+    CHECK(player_record_system::FactionOf(registry) == registry.get<FactionRef>(arrived).id);
 }
 
 TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[spaceflight][warp]") {
