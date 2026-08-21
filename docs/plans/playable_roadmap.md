@@ -2647,11 +2647,11 @@ reads.
 | P2-08 | Power allocation — the half the player commands | #173 |  |
 | P2-10 | The opposition state machine | #174 |  |
 | P2-11 | Faction commanders exist, and hold a system | #175 |  |
-| P3-01 | The five null pointers, seeded relations, and the Reapers |  |  |
-| P3-02 | Combat, docking and the map consult the matrix |  |  |
-| P3-03 | Gameplay writes relations |  |  |
-| P3-04 | The player's faction moves onto the player record |  |  |
-| P3-05 | Fog of war migrates to knowledge networks |  |  |
+| P3-01 | The five null pointers, seeded relations, and the Reapers | #188 |  |
+| P3-02 | Combat, docking and the map consult the matrix | #189 |  |
+| P3-03 | Gameplay writes relations | #190 |  |
+| P3-04 | The player's faction moves onto the player record | #192 |  |
+| P3-05 | Fog of war migrates to knowledge networks | #191 |  |
 | P4-01 | The router |  |  |
 | P4-02 | Screen 1 — the Bay |  |  |
 | P4-03 | Screen 2 — Storage |  |  |
