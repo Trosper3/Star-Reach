@@ -70,8 +70,8 @@ TEST_CASE("DiscoverySystem does nothing without a PlayerControlled entity", "[di
 
     discovery_system::Tick(MakeContext(world, intents, content, knowledge));
 
-    CHECK_FALSE(knowledge.Get(FactionNetworkId(FactionId("reavers")))->discoveredSystems.contains(
-        "sol"));
+    CHECK_FALSE(
+        knowledge.Get(FactionNetworkId(FactionId("reavers")))->discoveredSystems.contains("sol"));
 }
 
 TEST_CASE("DiscoverySystem does nothing when the context has no knowledge pointer",
@@ -86,7 +86,7 @@ TEST_CASE("DiscoverySystem does nothing when the context has no knowledge pointe
     registry.emplace<FactionRef>(player, FactionId("aegis"));
 
     const SystemContext ctx{world, intents, content, 1.0f / 60.0f, 0};  // knowledge defaults null.
-    discovery_system::Tick(ctx);                                       // Must not crash.
+    discovery_system::Tick(ctx);                                        // Must not crash.
 }
 
 TEST_CASE("DiscoverySystem's grant is a no-op for a faction with no seeded network",

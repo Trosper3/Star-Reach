@@ -9,9 +9,10 @@ namespace {
 // The same ten factions core/diplomacy/RelationSeeding.cpp's kAlliances/kRivalries enumerate --
 // every faction that can hold discovered-system knowledge, not just the ones in a baseline table.
 constexpr std::array<const char*, 10> kAllFactions{
-    "aegis_directorate", "meridian_star_corps", "kore_industries", "the_forgotten",
-    "ai_concordance",    "zenith_collective",   "voidwalkers",     "edenian_pact",
-    "pyre_ascendancy",   "reapers",
+    "aegis_directorate", "meridian_star_corps", "kore_industries",
+    "the_forgotten",     "ai_concordance",      "zenith_collective",
+    "voidwalkers",       "edenian_pact",        "pyre_ascendancy",
+    "reapers",
 };
 
 }  // namespace
