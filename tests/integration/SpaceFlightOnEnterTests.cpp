@@ -9,6 +9,7 @@
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/SpaceFlight.h"
+#include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
@@ -21,6 +22,7 @@
 
 using sr::Distance;
 using sr::DockingBay;
+using sr::FactionRef;
 using sr::GravityWell;
 using sr::PlayerLocation;
 using sr::Rig;
@@ -35,6 +37,7 @@ using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
 using sr::space::SpaceFlight;
+namespace player_record_system = sr::space::player_record_system;
 
 namespace {
 
@@ -128,6 +131,10 @@ TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflig
 
     CHECK(registry.all_of<Wallet>(player));
     CHECK(sr::cargo_view::Capacity(registry, player) > 0.0f);
+
+    // architecture.md 12.30.3: OnEnter's first spawn writes the player record alongside the rig,
+    // not just the rig's own FactionRef.
+    CHECK(player_record_system::FactionOf(registry) == registry.get<FactionRef>(player).id);
 }
 
 TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station's docking bay",

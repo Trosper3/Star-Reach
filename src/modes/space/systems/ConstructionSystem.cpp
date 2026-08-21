@@ -1,19 +1,23 @@
-#include "modes/space/systems/ConstructionSystem.h"
+﻿#include "modes/space/systems/ConstructionSystem.h"
 
 #include <vector>
 
 #include "modes/space/factories/RigFactory.h"
 #include "modes/space/factories/StationFactory.h"
+#include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Construction.h"
-#include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 
 namespace sr::space::construction_system {
 namespace {
 
-FactionId RequesterFaction(const entt::registry& registry, entt::entity requester) {
-    const FactionRef* faction = registry.try_get<FactionRef>(requester);
-    return faction != nullptr ? faction->id : FactionId{};
+// The player's own FactionId, not the requester's FactionRef -- the requester is the docked rig
+// root the request was set on, which is the station itself while docked at a foreign one
+// (architecture.md 12.30.3, amending 12.30.1). Only the player ever raises these requests: no NPC
+// faction economy path emplaces BuildStationRequest/PlaceShipRequest (that side runs entirely
+// through core/economy/FactionEconomy.h's SpendFactionStock).
+FactionId RequesterFaction(const entt::registry& registry) {
+    return player_record_system::FactionOf(registry);
 }
 
 void ProcessStationRequests(const SystemContext& ctx) {
@@ -30,7 +34,7 @@ void ProcessStationRequests(const SystemContext& ctx) {
 
         rig_factory::SpawnParams params;
         params.blueprint = request.blueprint;
-        params.faction = RequesterFaction(registry, self);
+        params.faction = RequesterFaction(registry);
         params.position = request.position;
         params.rotation = request.rotation;
 
@@ -60,7 +64,7 @@ void ProcessShipRequests(const SystemContext& ctx) {
 
         rig_factory::SpawnParams params;
         params.blueprint = request.blueprint;
-        params.faction = RequesterFaction(registry, self);
+        params.faction = RequesterFaction(registry);
         params.position = request.position;
         params.rotation = request.rotation;
 

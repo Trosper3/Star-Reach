@@ -9,6 +9,7 @@
 #include "modes/space/render/IconRenderer.h"
 #include "modes/space/render/WorldRenderer.h"
 #include "modes/space/systems/LootSystem.h"
+#include "modes/space/systems/PlayerRecordSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/SystemSchedule.h"
 #include "modes/space/ui/AvionicsMenu.h"
@@ -194,6 +195,11 @@ void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& f
     // ActorRef (architecture.md 12.24 step 2): resolves core::Intent's ActorId back to this
     // entity for PlayerInputSystem. Written here, at spawn, never by a system.
     arriving.emplace<ActorRef>(spawned.root, ActorRef{kLocalPlayerActorId});
+    // The player record (architecture.md 12.30.3): survives independent of PlayerLocation's
+    // shell, but not independent of the registry itself -- `arriving` is a fresh SystemWorld on
+    // every warp, so this re-creates the record there too, the same reason Wallet is threaded
+    // through as a parameter instead of assumed to still exist.
+    player_record_system::SetFaction(arriving, faction);
 }
 
 void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition,

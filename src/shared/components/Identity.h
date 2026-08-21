@@ -59,4 +59,22 @@ struct ActorRef {
     ActorId id;
 };
 
+// Tag: the one entity per registry carrying state that belongs to the player rather than to
+// whatever hull they occupy -- Comms.h's CommsLogSingleton precedent (architecture.md 12.30.3).
+// Created lazily by PlayerRecordSystem the first time anything sets it.
+struct PlayerRecordSingleton {};
+
+// The player's own FactionId, independent of PlayerLocation/PlayerControlled. "Identity is not
+// location" (architecture.md 12.30.3, amending 12.30.1): while docked, the derived
+// PlayerControlled names the station, and a station parked in a foreign bay is not the player's
+// faction. Written once at spawn (SpaceFlight::SpawnPlayerAt) and carried across a warp the same
+// way Wallet is; read by anything that needs "is this the player's own?" rather than "who owns
+// the hull the player is standing in right now" (DiscoverySystem, ConstructionSystem's
+// requester). A hull's own allegiance -- TargetingSystem, DockingSystem's gate, ContractSystem's
+// kill credit -- keeps reading FactionRef off the hull itself; this component never substitutes
+// for that.
+struct PlayerFaction {
+    FactionId id;
+};
+
 }  // namespace sr
