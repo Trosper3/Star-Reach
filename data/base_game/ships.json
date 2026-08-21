@@ -119,7 +119,7 @@
       "displayName": "Outpost",
       "faction": "aegis_directorate",
       "mobile": false,
-      "structuralMassLimit": 500.0,
+      "structuralMassLimit": 900.0,
       "mounts": [
         {
           "id": "core",
@@ -140,6 +140,41 @@
           "attachedTo": "core",
           "modules": ["docking_bay_i"],
           "localOffset": { "x": 89.0, "y": 0.0 }
+        },
+        {
+          "id": "market",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["trade_exchange_i"],
+          "localOffset": { "x": -44.5, "y": 77.0763 }
+        },
+        {
+          "id": "repair",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["repair_bay_i"],
+          "localOffset": { "x": -70.1330, "y": 54.7939 }
+        },
+        {
+          "id": "engineering",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["engineering_bay_i"],
+          "localOffset": { "x": -85.5523, "y": 24.5317 }
+        },
+        {
+          "id": "manufacturing",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["manufacturing_bay_i"],
+          "localOffset": { "x": -77.0763, "y": -44.5 }
+        },
+        {
+          "id": "research",
+          "shell": "shell_facility_bay",
+          "attachedTo": "core",
+          "modules": ["research_lab_i"],
+          "localOffset": { "x": -49.7682, "y": -73.7844 }
         },
         {
           "id": "turret",

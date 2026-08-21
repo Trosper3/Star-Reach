@@ -15,9 +15,9 @@ namespace sr {
 // generic version every FacilityKind gets, Docking included.
 struct FacilityRef {
     FacilityKind kind = FacilityKind::Repair;
-    // Copied from ModuleDef::facility.level at attach time. Meaningful only for
-    // FacilityKind::Engineering -- see ModuleDef.h's FacilityStats::level comment.
-    int level = 1;
+    // Copied from ModuleDef::facility.grade at attach time. Meaningful only for
+    // FacilityKind::Engineering -- see ModuleDef.h's FacilityStats::grade comment.
+    int grade = 1;
 };
 
 }  // namespace sr

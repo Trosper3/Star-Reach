@@ -23,7 +23,7 @@ namespace sr::space::engineer_system {
 // already makes. Every numeric field on the merge (mass, powerDraw, powerGeneration, hullBonus,
 // and whichever kind-specific stat block matches) becomes
 // `primaryValue + secondaryValue * (engineerLevel * 0.1)` -- the Engineering facility's
-// FacilityRef::level (1-5) scaling how much of the secondary module survives the merge. This is
+// FacilityRef::grade (1-5) scaling how much of the secondary module survives the merge. This is
 // a placeholder scale, not a tuned value, the same category architecture.md 12.7's rate-roll
 // weights are flagged as. Removes `primary` and `secondary` from CargoHold and adds the merged
 // module's id.

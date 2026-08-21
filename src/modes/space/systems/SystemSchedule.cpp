@@ -22,6 +22,7 @@
 #include "modes/space/systems/PartySystem.h"
 #include "modes/space/systems/PhysicsSystem.h"
 #include "modes/space/systems/PlayerInputSystem.h"
+#include "modes/space/systems/PlayerLocationSystem.h"
 #include "modes/space/systems/PowerSystem.h"
 #include "modes/space/systems/ProjectileSystem.h"
 #include "modes/space/systems/RefactorSystem.h"
@@ -40,6 +41,12 @@ namespace sr::space {
 // add the entry in the SAME commit as the system file -- a system with no schedule entry is
 // a dead abstraction (architecture.md section 2.4) and will be deleted at review.
 //
+//   PlayerLocationSystem -- runs absolute first, ahead of WarpSystem. Derives PlayerControlled
+//                        from this tick's PlayerLocation (architecture.md 12.30.1); everything
+//                        below that reads PlayerControlled -- TargetingSystem's exclusion,
+//                        NpcAiSystem's, LootSystem's collector search, CaptureSystem -- needs it
+//                        settled first. Depends on nothing upstream: Rig/ParentRig membership is
+//                        fixed at spawn/attach time, not recomputed per tick.
 //   WarpSystem        -- runs first: a rig teleported this tick is repositioned before anything
 //                        below reasons about position, including HierarchySystem and
 //                        PhysicsSystem later in this same tick.
@@ -136,6 +143,7 @@ namespace sr::space {
 //
 const std::vector<ScheduledSystem>& TickSchedule() {
     static const std::vector<ScheduledSystem> schedule{
+        {"PlayerLocationSystem", &player_location_system::Tick},
         {"WarpSystem", &warp_system::Tick},
         {"ConstructionSystem", &construction_system::Tick},
         {"ModuleEquipSystem", &module_equip_system::Tick},

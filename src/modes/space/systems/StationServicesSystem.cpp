@@ -109,7 +109,7 @@ entt::entity DockedRepairFacility(const entt::registry& registry, entt::entity s
     return entt::null;
 }
 
-// The facility's authored heal rate. FacilityRef itself carries only kind/level (architecture.md
+// The facility's authored heal rate. FacilityRef itself carries only kind/grade (architecture.md
 // 13.3 finding K) -- never a field's authored value -- so the rate has to come from the same
 // content lookup RefactorSystem uses to resolve a hardpoint's ModuleDef: MountedModules names
 // which module(s) RigFactory attached here, and FacilityStats::ratePerSecond (parsed, merged by

@@ -292,6 +292,7 @@ add_library(sr_space STATIC
     src/modes/space/systems/PartySystem.cpp
     src/modes/space/systems/PhysicsSystem.cpp
     src/modes/space/systems/PlayerInputSystem.cpp
+    src/modes/space/systems/PlayerLocationSystem.cpp
     src/modes/space/systems/PlayerRecordSystem.cpp
     src/modes/space/systems/PowerSystem.cpp
     src/modes/space/systems/ProjectileSystem.cpp

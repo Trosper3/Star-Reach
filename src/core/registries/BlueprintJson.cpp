@@ -50,10 +50,20 @@ void ParseEngineStats(const JsonReader& reader, EngineStats& out) {
 }
 
 void ParseFacilityStats(const JsonReader& reader, FacilityStats& out) {
+    // Unlike every other ParseXStats function, this one is gated on the block's presence: it is
+    // called unconditionally for every module def (architecture.md 12.30 finding, 13.3 class W),
+    // and most modules author no "facility" key at all. Requiring "kind" below without this guard
+    // would fail every non-facility module in the content set. A module that DOES author
+    // "facility": {} -- even empty -- is a different case: it is declaring itself a facility, and
+    // an omitted or misspelled "kind" there is the silent-default bug this fixes.
+    if (!reader.Has("facility")) {
+        return;
+    }
     const JsonReader stats = reader.Child("facility", "facility");
-    stats.OptionalEnum("kind", out.kind);
+    stats.RequireEnum("kind", out.kind);
     stats.Optional("ratePerSecond", out.ratePerSecond);
     stats.Optional("capacity", out.capacity);
+    stats.Optional("grade", out.grade);
 }
 
 void ParseSensorStats(const JsonReader& reader, SensorStats& out) {

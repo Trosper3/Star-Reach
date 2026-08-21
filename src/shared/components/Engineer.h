@@ -13,7 +13,7 @@ namespace sr {
 // DockRequest. Both ids must be present in the requester's own CargoHold.
 //
 // `primary` is kept as the merge's base; `secondary` contributes a fraction of its own stats,
-// scaled by the docked Engineering facility's FacilityRef::level (1-5): contribution =
+// scaled by the docked Engineering facility's FacilityRef::grade (1-5): contribution =
 // secondaryStat * (level * 0.1) -- a level-1 engineer preserves 10% of the secondary module,
 // level 5 preserves 50%. This is a placeholder scale, not a tuned value, the same category
 // architecture.md 12.7's rate-roll weights are flagged as.
