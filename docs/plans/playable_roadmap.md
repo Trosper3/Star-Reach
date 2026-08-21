@@ -2613,26 +2613,26 @@ reads.
 | Task | Title | Issue | Merged |
 |---|---|:---:|:---:|
 | P0-01 | World bodies, hittability and the star hazard | #110 |  |
-| P0-02 | The shared widget layer | #111 |  |
+| P0-02 | The shared widget layer | #111 | ✅ |
 | P0-03 | Galaxy topology | #112 |  |
 | P0-04 | The schedule and `Docked` correctness sweep | #113 |  |
-| P0-05 | The hardpoint lifecycle defect pack | #114 |  |
-| P0-06 | `MountedModules` is the single mount record | #115 |  |
+| P0-05 | The hardpoint lifecycle defect pack | #114 | ✅ |
+| P0-06 | `MountedModules` is the single mount record | #115 | ✅ |
 | P0-07 | Delete the `mobile` movement gate | #116 |  |
-| P0-08 | Rig aggregation: `RecomputeRigTotals` and the Sum/Max rule | #117 |  |
+| P0-08 | Rig aggregation: `RecomputeRigTotals` and the Sum/Max rule | #117 | ✅ |
 | P0-09 | Four new `ModuleKind`s for systems that have no module | #118 |  |
-| P0-10 | `CargoHold` moves onto the bay | #119 |  |
-| P0-11 | The repair path defect pack | #120 |  |
-| P0-12 | The research chain defect pack | #121 |  |
+| P0-10 | `CargoHold` moves onto the bay | #119 | ✅ |
+| P0-11 | The repair path defect pack | #120 | ✅ |
+| P0-12 | The research chain defect pack | #121 | ✅ |
 | P0-13 | The `Element` / `Material` rename — one pass or none | #122 |  |
 | P0-14 | Delete `TickCoarse` until it has a driver | #123 |  |
-| P0-15 | Group 2 leftovers: text, tabs and one-liners | #124 |  |
+| P0-15 | Group 2 leftovers: text, tabs and one-liners | #124 | ✅ |
 | P0-16 | The schedule is tested | #125 |  |
 | P1-01 | `OnEnter`: the world and the player | #126 |  |
 | P1-02 | Player input through the intent queue | #127 |  |
 | P1-03 | Weapon groups, and no automatic target lock | #128 |  |
 | P1-04 | Camera, and the two render defects | #129 |  |
-| P1-05 | A station to dock at | #130 |  |
+| P1-05 | A station to dock at | #130 | ✅ |
 | P1-06 | Death, respawn and the cull | #131 |  |
 | P1-07 | The system menu and quit to main menu | #132 |  |
 | P1-08 | M1 verification pass | #133 |  |
@@ -2645,22 +2645,22 @@ reads.
 | P2-06 | The crew shell | #171 |  |
 | P2-07 | Capture — boarding in place | #172 |  |
 | P2-08 | Power allocation — the half the player commands | #173 |  |
-| P2-10 | The opposition state machine | #174 |  |
+| P2-10 | The opposition state machine | #174 | ✅ |
 | P2-11 | Faction commanders exist, and hold a system | #175 |  |
-| P3-01 | The five null pointers, seeded relations, and the Reapers | #188 |  |
-| P3-02 | Combat, docking and the map consult the matrix | #189 |  |
-| P3-03 | Gameplay writes relations | #190 |  |
-| P3-04 | The player's faction moves onto the player record | #192 |  |
-| P3-05 | Fog of war migrates to knowledge networks | #191 |  |
-| P4-01 | The router |  |  |
-| P4-02 | Screen 1 — the Bay |  |  |
-| P4-03 | Screen 2 — Storage |  |  |
-| P4-04 | Screen 3 — Repair |  |  |
-| P4-05 | Screen 4 — Engineering |  |  |
-| P4-06 | Screen 6 — Research, and its five missing producers |  |  |
-| P4-07 | Screen 5 — Manufacturing, Draft half |  |  |
-| P4-08 | The two flight overlays |  |  |
-| P4-09 | M3 verification pass |  |  |
+| P3-01 | The five null pointers, seeded relations, and the Reapers | #188 | ✅ |
+| P3-02 | Combat, docking and the map consult the matrix | #189 | ✅ |
+| P3-03 | Gameplay writes relations | #190 | ✅ |
+| P3-04 | The player's faction moves onto the player record | #192 | ✅ |
+| P3-05 | Fog of war migrates to knowledge networks | #191 | ✅ |
+| P4-01 | The router | #199 |  |
+| P4-02 | Screen 1 — the Bay | #200 |  |
+| P4-03 | Screen 2 — Storage | #201 |  |
+| P4-04 | Screen 3 — Repair | #202 |  |
+| P4-05 | Screen 4 — Engineering | #203 |  |
+| P4-06 | Screen 6 — Research, and its five missing producers | #204 |  |
+| P4-07 | Screen 5 — Manufacturing, Draft half | #205 |  |
+| P4-08 | The two flight overlays | #206 |  |
+| P4-09 | M3 verification pass | #207 |  |
 | P5-01 | The status display |  |  |
 | P5-02 | The flight HUD |  |  |
 | P5-03 | The comms surface |  |  |
