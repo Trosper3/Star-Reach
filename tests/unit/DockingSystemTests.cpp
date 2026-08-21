@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -29,6 +30,8 @@ using sr::UndockRequest;
 using sr::Vec2;
 using sr::Velocity;
 using sr::WorldTransform;
+using sr::core::diplomacy::DiplomacyMatrix;
+using sr::core::diplomacy::Relation;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace docking_system = sr::space::docking_system;
@@ -36,8 +39,11 @@ namespace docking_system = sr::space::docking_system;
 namespace {
 
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
-                          const sr::core::ContentLibrary& content, float dt = 1.0f / 60.0f) {
-    return SystemContext{world, intents, content, dt, 0};
+                          const sr::core::ContentLibrary& content, DiplomacyMatrix& diplomacy,
+                          float dt = 1.0f / 60.0f) {
+    SystemContext ctx{world, intents, content, dt, 0};
+    ctx.diplomacy = &diplomacy;
+    return ctx;
 }
 
 entt::entity MakeShip(entt::registry& registry, const Vec2& position, const char* faction) {
@@ -74,12 +80,52 @@ TEST_CASE("DockingSystem prompts a Targetable rig within range of a same-faction
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     entt::entity bay = entt::null;
     MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
     const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    REQUIRE(registry.all_of<DockPrompt>(ship));
+    CHECK(registry.get<DockPrompt>(ship).bay == bay);
+}
+
+TEST_CASE("DockingSystem prompts a Targetable rig at a Neutral, non-owned station's bay",
+          "[docking]") {
+    // features.md 5.3's band table, applied: Neutral is not Distrustful-or-below, so docking at
+    // a station you do not own is possible at all -- what the whole Market screen assumes
+    // (architecture.md 13.3 finding N / 12.30.3). "kore" vs "aegis" is left unset -- Neutral.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "kore", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    REQUIRE(registry.all_of<DockPrompt>(ship));
+    CHECK(registry.get<DockPrompt>(ship).bay == bay);
+}
+
+TEST_CASE("DockingSystem prompts a Targetable rig at an Allied station's bay", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+    diplomacy.Set(FactionId("aegis"), FactionId("pyre"), Relation::Allied);
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "pyre", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     REQUIRE(registry.all_of<DockPrompt>(ship));
     CHECK(registry.get<DockPrompt>(ship).bay == bay);
@@ -90,27 +136,49 @@ TEST_CASE("DockingSystem does not prompt a rig out of range", "[docking]") {
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     entt::entity bay = entt::null;
     MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
     const entt::entity ship = MakeShip(registry, Vec2{9000.0f, 0.0f}, "aegis");
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<DockPrompt>(ship));
 }
 
-TEST_CASE("DockingSystem does not prompt a rig near a hostile-faction bay", "[docking]") {
+TEST_CASE("DockingSystem does not prompt a rig near a Hostile-faction bay", "[docking]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+    diplomacy.Set(FactionId("aegis"), FactionId("reavers"), Relation::Hostile);
 
     entt::entity bay = entt::null;
     MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "reavers", bay);
     const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
+}
+
+TEST_CASE("DockingSystem does not prompt a rig near a Distrustful-faction bay", "[docking]") {
+    // Regression for the six-state Relation widening (architecture.md 12.32): Distrustful is its
+    // own band, milder than Hostile, and the docking gate must refuse it too (features.md 5.3).
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+    diplomacy.Set(FactionId("aegis"), FactionId("reavers"), Relation::Distrustful);
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "reavers", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<DockPrompt>(ship));
 }
@@ -120,6 +188,7 @@ TEST_CASE("DockingSystem docks a rig whose DockRequest names the prompted bay", 
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     entt::entity bay = entt::null;
     const entt::entity station =
@@ -127,7 +196,7 @@ TEST_CASE("DockingSystem docks a rig whose DockRequest names the prompted bay", 
     const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
     registry.emplace<DockRequest>(ship, bay);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     REQUIRE(registry.all_of<Docked>(ship));
     CHECK(registry.get<Docked>(ship).station == station);
@@ -141,13 +210,14 @@ TEST_CASE("DockingSystem drops a DockRequest naming a bay that is not in range",
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     entt::entity farBay = entt::null;
     MakeStation(registry, Vec2{9000.0f, 0.0f}, Vec2{9000.0f, 0.0f}, "aegis", farBay);
     const entt::entity ship = MakeShip(registry, Vec2{0.0f, 0.0f}, "aegis");
     registry.emplace<DockRequest>(ship, farBay);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<Docked>(ship));
     CHECK_FALSE(registry.all_of<DockRequest>(ship));
@@ -161,6 +231,7 @@ TEST_CASE(
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     const entt::entity station = registry.create();
     const entt::entity bay = registry.create();
@@ -177,7 +248,7 @@ TEST_CASE(
     rig.children.push_back(living);
     registry.emplace<Rig>(ship, rig);
 
-    docking_system::Tick(MakeContext(world, intents, content, 1.0f));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy, 1.0f));
 
     CHECK(registry.get<Health>(living).current == Catch::Approx(50.0f));
 }
@@ -187,6 +258,7 @@ TEST_CASE("DockingSystem zeroes a docked rig's Velocity and ThrustInput", "[dock
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     const entt::entity station = registry.create();
     const entt::entity ship = registry.create();
@@ -195,7 +267,7 @@ TEST_CASE("DockingSystem zeroes a docked rig's Velocity and ThrustInput", "[dock
     registry.emplace<Velocity>(ship, Vec2{500.0f, -20.0f}, 3.0f);
     registry.emplace<ThrustInput>(ship, 1.0f, -1.0f, 0.5f);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     const Velocity& velocity = registry.get<Velocity>(ship);
     CHECK(velocity.linear.x == 0.0f);
@@ -213,6 +285,7 @@ TEST_CASE("DockingSystem undocks a rig with an UndockRequest and restores Target
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     const entt::entity station = registry.create();
     const entt::entity ship = registry.create();
@@ -220,7 +293,7 @@ TEST_CASE("DockingSystem undocks a rig with an UndockRequest and restores Target
     registry.emplace<Rig>(ship);
     registry.emplace<UndockRequest>(ship);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<Docked>(ship));
     CHECK_FALSE(registry.all_of<UndockRequest>(ship));
@@ -236,6 +309,7 @@ TEST_CASE("DockingSystem does not prompt or dock a rig at a destroyed bay", "[do
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     entt::entity bay = entt::null;
     MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
@@ -243,7 +317,7 @@ TEST_CASE("DockingSystem does not prompt or dock a rig at a destroyed bay", "[do
     const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
     registry.emplace<DockRequest>(ship, bay);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<DockPrompt>(ship));
     CHECK_FALSE(registry.all_of<Docked>(ship));
@@ -254,6 +328,7 @@ TEST_CASE("DockingSystem never docks a rig with its own bay", "[docking]") {
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
     sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
 
     // A station is itself a rig root with FactionRef + Targetable, so it is also a candidate
     // "docker" -- it must never resolve its own bay as an eligible target.
@@ -267,7 +342,26 @@ TEST_CASE("DockingSystem never docks a rig with its own bay", "[docking]") {
     registry.emplace<WorldTransform>(bay, Vec2{0.0f, 0.0f}, 0.0f);
     registry.emplace<DockingBay>(bay);
 
-    docking_system::Tick(MakeContext(world, intents, content));
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<DockPrompt>(station));
+}
+
+TEST_CASE("DockingSystem fails closed with no diplomacy pointer wired", "[docking]") {
+    // architecture.md 12.24 step 6: ctx.diplomacy is nullptr until wired. Nothing is dockable in
+    // that state, not even a same-faction bay -- the same convention TemplateMarketSystem and
+    // TargetingSystem use.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    SystemContext ctx{world, intents, content, 1.0f / 60.0f, 0};  // ctx.diplomacy left nullptr.
+    docking_system::Tick(ctx);
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
 }

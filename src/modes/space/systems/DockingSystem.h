@@ -31,8 +31,11 @@ namespace sr::space::docking_system {
 // not repair until that re-homes onto ctx.economy (P4-04, architecture.md 12.30.4's dependency
 // table).
 //
-// Faction eligibility is simplified to "same FactionRef" rather than legacy's non-hostile
-// relation check -- core/diplomacy/ (issue #42) does not exist yet for a real relation lookup.
+// Eligibility is a ctx.diplomacy band lookup, not FactionRef equality (architecture.md 13.3
+// finding N / features.md 5.3's six-row table): docking is refused at Distrustful and below,
+// permitted at Neutral and above -- this is what makes docking at a station you do not own
+// possible at all. A rig is always dockable at its own faction's bays regardless, since
+// DiplomacyMatrix::Get(a, a) reads Friendly by construction. A null ctx.diplomacy fails closed.
 //
 // NOT implemented here: seated turrets (needs player input/camera switching -- modes/space/ui,
 // issue #36) and capture, which now lives beside this file in CaptureSystem.cpp (#172) rather

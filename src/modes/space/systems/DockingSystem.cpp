@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -19,13 +20,28 @@ namespace {
 // verbatim from legacy StarReach2's DockRepair.h kDockRadius.
 constexpr float kDockRangeUnits = 50.0f;
 
-// Nearest living DockingBay hardpoint belonging to a different, same-faction rig, within range.
-// entt::null if nothing qualifies. exclude<Destroyed>: a destroyed bay still carries DockingBay/
-// ParentRig/WorldTransform (DamageSystem only tags Destroyed, never strips components), so
-// without this a wrecked bay kept prompting "[R] DOCK" and would actually dock the player onto
-// it -- found during #133's M1 verification pass.
+// features.md 5.3's six-row band table, applied to docking: refused at Distrustful and below,
+// permitted at Neutral and above -- this is what makes docking at a station you don't own
+// possible at all. A null matrix fails closed, the same convention TemplateMarketSystem and
+// TargetingSystem use; a rig is always dockable at its own faction's bays regardless, since
+// DiplomacyMatrix::Get(a, a) reads Friendly by construction.
+bool CanDock(const core::diplomacy::DiplomacyMatrix* diplomacy, const FactionId& seeker,
+             const FactionId& station) {
+    if (diplomacy == nullptr) {
+        return false;
+    }
+    return diplomacy->Get(seeker, station) > core::diplomacy::Relation::Distrustful;
+}
+
+// Nearest living DockingBay hardpoint belonging to a different rig this seeker may dock at,
+// within range. entt::null if nothing qualifies. exclude<Destroyed>: a destroyed bay still
+// carries DockingBay/ParentRig/WorldTransform (DamageSystem only tags Destroyed, never strips
+// components), so without this a wrecked bay kept prompting "[R] DOCK" and would actually dock
+// the player onto it -- found during #133's M1 verification pass.
 entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
-                             const FactionId& faction, const Vec2& position, float maxRange) {
+                             const FactionId& faction,
+                             const core::diplomacy::DiplomacyMatrix* diplomacy,
+                             const Vec2& position, float maxRange) {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
     for (auto [bay, parent, bayXf] :
@@ -34,7 +50,7 @@ entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
             continue;  // A rig cannot dock with its own bay.
         }
         const auto* stationFaction = registry.try_get<FactionRef>(parent.root);
-        if (stationFaction == nullptr || !(stationFaction->id == faction)) {
+        if (stationFaction == nullptr || !CanDock(diplomacy, faction, stationFaction->id)) {
             continue;
         }
         const float dist = Distance(position, bayXf.position);
@@ -46,13 +62,14 @@ entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
     return best;
 }
 
-void UpdatePromptsAndRequests(entt::registry& registry) {
+void UpdatePromptsAndRequests(entt::registry& registry,
+                              const core::diplomacy::DiplomacyMatrix* diplomacy) {
     std::vector<std::pair<entt::entity, entt::entity>> toDock;  // (rig root, bay)
 
     for (auto [self, xf, faction] :
          registry.view<WorldTransform, FactionRef, Targetable>(entt::exclude<Docked>).each()) {
         const entt::entity nearestBay =
-            FindEligibleBay(registry, self, faction.id, xf.position, kDockRangeUnits);
+            FindEligibleBay(registry, self, faction.id, diplomacy, xf.position, kDockRangeUnits);
 
         if (nearestBay != entt::null) {
             registry.emplace_or_replace<DockPrompt>(self, nearestBay);
@@ -109,7 +126,7 @@ void ImmobilizeDocked(entt::registry& registry) {
 
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
-    UpdatePromptsAndRequests(registry);
+    UpdatePromptsAndRequests(registry, ctx.diplomacy);
     ImmobilizeDocked(registry);
 }
 

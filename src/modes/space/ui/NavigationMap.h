@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
 #include "core/galaxy/Discovery.h"
 #include "modes/space/render/WorldRenderer.h"
 #include "shared/blueprints/Ids.h"
@@ -48,18 +49,28 @@ std::vector<std::string> DiscoveredSystemIds(const FactionId& faction,
 // therefore no entities to draw icons for in the first place.
 bool ShowsShipIcons(ZoomLevel level);
 
-// Sensor-gated fog of war for level 3 (architecture.md 12.6, "settled: sensor-coverage only"):
-// every Targetable, non-same-faction rig root within `player`'s own SensorRange. `player` must
-// carry FactionRef, WorldTransform, and SensorRange, or the result is empty. Pure -- no raylib --
-// so unit-testable without a live GL context.
-std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player);
+// Sensor-gated fog of war for level 3 (architecture.md 12.6, "settled: sensor-coverage only"),
+// now a real relation-band membership test rather than faction inequality (architecture.md 15.1
+// finding 17, the same simplification finding N records for TargetingSystem): every Targetable
+// rig root within `player`'s own SensorRange whose stance toward `player`'s faction reads Hostile
+// or War on `diplomacy` -- features.md 5.3's "fired on" bands, Neutral/Friendly/Allied rigs never
+// appear. Gated a second way on `systemId` having been discovered by `player`'s faction on
+// `discovery` -- finding 17's other half. `player` must carry FactionRef, WorldTransform, and
+// SensorRange, and both `diplomacy` and `discovery` must be non-null, or the result is empty
+// (fails closed, the same convention TargetingSystem/DockingSystem use). Pure -- no raylib -- so
+// unit-testable without a live GL context.
+std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player,
+                                             const core::diplomacy::DiplomacyMatrix* diplomacy,
+                                             const core::galaxy::DiscoveryState* discovery,
+                                             const std::string& systemId);
 
-// Draws the map at `level` for `playerFaction`. Galaxy/Region draw DiscoveredSystemIds as fixed
-// screen-space markers with a placeholder layout (this header's comment); System projects
-// VisibleHostileRigs through `camera` the same way DrawTargetReticle does (render/IconRenderer.h)
-// and draws the same fixed-size marker; Tactical is a no-op here -- level 4 is the existing
-// WorldRenderer path (architecture.md 12.6), not a second renderer.
+// Draws the map at `level` for `playerFaction` in `systemId`. Galaxy/Region draw
+// DiscoveredSystemIds as fixed screen-space markers with a placeholder layout (this header's
+// comment); System projects VisibleHostileRigs through `camera` the same way DrawTargetReticle
+// does (render/IconRenderer.h) and draws the same fixed-size marker; Tactical is a no-op here --
+// level 4 is the existing WorldRenderer path (architecture.md 12.6), not a second renderer.
 void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& playerFaction,
-          const core::galaxy::DiscoveryState& discovery, const render::CameraView& camera);
+          const std::string& systemId, const core::galaxy::DiscoveryState& discovery,
+          const core::diplomacy::DiplomacyMatrix& diplomacy, const render::CameraView& camera);
 
 }  // namespace sr::space::ui::navigation_map

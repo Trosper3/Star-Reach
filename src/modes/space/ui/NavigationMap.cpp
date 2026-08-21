@@ -45,13 +45,22 @@ bool ShowsShipIcons(ZoomLevel level) {
     return level == ZoomLevel::System;
 }
 
-std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player) {
+std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player,
+                                             const core::diplomacy::DiplomacyMatrix* diplomacy,
+                                             const core::galaxy::DiscoveryState* discovery,
+                                             const std::string& systemId) {
     std::vector<entt::entity> visible;
+    if (diplomacy == nullptr || discovery == nullptr) {
+        return visible;
+    }
     if (!registry.all_of<FactionRef, WorldTransform, SensorRange>(player)) {
         return visible;
     }
 
     const FactionId& playerFaction = registry.get<FactionRef>(player).id;
+    if (!discovery->IsDiscovered(playerFaction, systemId)) {
+        return visible;
+    }
     const Vec2 playerPosition = registry.get<WorldTransform>(player).position;
     const float sensorRangeSq = [&] {
         const float range = registry.get<SensorRange>(player).units;
@@ -60,7 +69,7 @@ std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, ent
 
     for (auto [entity, faction, xf] :
          registry.view<FactionRef, WorldTransform, Targetable>().each()) {
-        if (faction.id == playerFaction) {
+        if (diplomacy->Get(playerFaction, faction.id) > core::diplomacy::Relation::Hostile) {
             continue;
         }
         if (DistanceSquared(playerPosition, xf.position) <= sensorRangeSq) {
@@ -71,7 +80,8 @@ std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, ent
 }
 
 void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& playerFaction,
-          const core::galaxy::DiscoveryState& discovery, const render::CameraView& camera) {
+          const std::string& systemId, const core::galaxy::DiscoveryState& discovery,
+          const core::diplomacy::DiplomacyMatrix& diplomacy, const render::CameraView& camera) {
     if (level == ZoomLevel::Galaxy || level == ZoomLevel::Region) {
         const std::vector<std::string> systemIds = DiscoveredSystemIds(playerFaction, discovery);
         const float radius = level == ZoomLevel::Galaxy ? 260.0f : 140.0f;
@@ -87,7 +97,8 @@ void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& play
         if (player == entt::null) {
             return;
         }
-        for (const entt::entity hostile : VisibleHostileRigs(registry, player)) {
+        for (const entt::entity hostile :
+             VisibleHostileRigs(registry, player, &diplomacy, &discovery, systemId)) {
             const Vec2 worldPos = registry.get<WorldTransform>(hostile).position;
             render::DrawMapMarker(render::WorldToScreen(worldPos, camera), sr::ui::kStatusCritical,
                                   "");

@@ -2,6 +2,7 @@
 
 #include <limits>
 
+#include "core/diplomacy/DiplomacyMatrix.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
@@ -12,14 +13,25 @@ namespace sr::space::targeting_system {
 
 namespace {
 
-bool IsHostile(const FactionRef& seeker, const FactionRef& other) {
-    return !(seeker.id == other.id);
+// True when `seeker`'s stance toward `other` is Hostile or War -- the two bands features.md 5.3
+// describes as "fired on" (in claimed territory, or anywhere, respectively). No territory model
+// exists yet (architecture.md 12.32), so both collapse to one auto-acquire threshold instead of
+// distinguishing them. A null matrix fails closed -- nothing is hostile until ctx.diplomacy is
+// wired (architecture.md 12.24 step 6) -- the same convention TemplateMarketSystem::PassesGate
+// uses for the mirror-image gate.
+bool IsHostile(const core::diplomacy::DiplomacyMatrix* diplomacy, const FactionRef& seeker,
+               const FactionRef& other) {
+    if (diplomacy == nullptr) {
+        return false;
+    }
+    return diplomacy->Get(seeker.id, other.id) <= core::diplomacy::Relation::Hostile;
 }
 
 // True while `rig` is still a legal target for `seekerFaction`: alive, Targetable, and hostile.
 // A rig that stopped being any of those needs to be dropped THIS tick, or the seeker spends the
 // tick aiming at nothing.
 bool IsValidTarget(const entt::registry& registry, entt::entity rig,
+                   const core::diplomacy::DiplomacyMatrix* diplomacy,
                    const FactionRef& seekerFaction) {
     if (rig == entt::null || !registry.valid(rig)) {
         return false;
@@ -27,19 +39,20 @@ bool IsValidTarget(const entt::registry& registry, entt::entity rig,
     if (!registry.all_of<Targetable, FactionRef>(rig)) {
         return false;
     }
-    return IsHostile(seekerFaction, registry.get<FactionRef>(rig));
+    return IsHostile(diplomacy, seekerFaction, registry.get<FactionRef>(rig));
 }
 
 // Nearest hostile, Targetable rig within `range` of `position`. entt::null if nothing qualifies.
 entt::entity AcquireNearestHostile(const entt::registry& registry, entt::entity self,
-                                   const Vec2& position, const FactionRef& seekerFaction,
-                                   float range) {
+                                   const Vec2& position,
+                                   const core::diplomacy::DiplomacyMatrix* diplomacy,
+                                   const FactionRef& seekerFaction, float range) {
     entt::entity best = entt::null;
     float bestDistSq = range * range;
 
     for (auto [candidate, xf, faction] :
          registry.view<Targetable, WorldTransform, FactionRef>().each()) {
-        if (candidate == self || !IsHostile(seekerFaction, faction)) {
+        if (candidate == self || !IsHostile(diplomacy, seekerFaction, faction)) {
             continue;
         }
         const float distSq = DistanceSquared(position, xf.position);
@@ -92,14 +105,14 @@ void Tick(const SystemContext& ctx) {
          registry
              .view<Target, WorldTransform, FactionRef, SensorRange>(entt::exclude<PlayerControlled>)
              .each()) {
-        if (!IsValidTarget(registry, target.rig, faction)) {
+        if (!IsValidTarget(registry, target.rig, ctx.diplomacy, faction)) {
             target.rig = entt::null;
             target.hardpoint = entt::null;
         }
 
         if (target.rig == entt::null) {
-            target.rig =
-                AcquireNearestHostile(registry, seeker, xf.position, faction, sensor.units);
+            target.rig = AcquireNearestHostile(registry, seeker, xf.position, ctx.diplomacy,
+                                               faction, sensor.units);
         }
 
         if (target.rig == entt::null) {
