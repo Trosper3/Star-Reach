@@ -1,0 +1,72 @@
+#pragma once
+
+#include <entt/entity/entity.hpp>
+#include <entt/entity/registry.hpp>
+#include <vector>
+
+#include "shared/blueprints/Ids.h"
+#include "shared/components/StationServices.h"
+#include "shared/ui/Row.h"
+
+// modes/space/ui/StorageScreen -- architecture.md 12.30.3's Storage half, split out of
+// StationServicesMenu: "one hold, two questions" -- Deposit (vessel -> station) and Withdraw
+// (station -> vessel), free of charge, offered only within one owner. The Market half (Buy/Sell,
+// crossing an ownership boundary at a price) ships in P6-08 once Pricing.h/ItemId/ctx.diplomacy
+// exist; a warehouse that does not deal is a complete screen on its own.
+//
+// Gated on the host carrying a CargoHold and no hardpoint at all (architecture.md 12.30's split),
+// so unlike Bay/Repair/etc. there is no facility hardpoint for PlayerLocation to name -- this
+// screen is a companion panel, drawn whenever bridge_view::DockedStation resolves to an owned,
+// CargoHold-carrying station, alongside whichever hardpoint screen (if any) is also showing,
+// rather than a router tab you switch into.
+//
+// modes/*/ui/ must not include systems/ (section 2.3); this builds TransferItemRequest
+// (shared/components/StationServices.h) for the caller to place on the requester -- the vessel
+// root the player arrived in, never PlayerControlled, which while docked is the station itself
+// (architecture.md 12.30.1/12.30.3's named trap) -- and never calls
+// modes/space/systems/StationServicesSystem directly.
+namespace sr::space::ui::storage_screen {
+
+// One row of either hold: the underlying stack plus whether a full-stack transfer of it would fit
+// in the OTHER hold right now (mass only -- the coarse HOLD FULL case; the finer-grained NO FREE
+// SLOT distinction is left to the system's own refusal). Pure -- no raylib -- so unit-testable.
+struct StorageRow {
+    ItemKind kind = ItemKind::Element;
+    std::string id;
+    int quantity = 0;
+    float unitMass = 0.0f;
+    bool fits = true;
+    sr::ui::Row row;
+};
+
+// `rigRoot`'s living-bay contents (shared/rig/CargoView.h's Merged), each annotated with whether
+// moving the whole stack to `destination` would fit by mass alone.
+std::vector<StorageRow> Rows(const entt::registry& registry, entt::entity rigRoot,
+                             entt::entity destination);
+
+TransferItemRequest BuildDepositRequest(const StorageRow& row);
+TransferItemRequest BuildWithdrawRequest(const StorageRow& row);
+
+// The station carrying a CargoHold that Deposit/Withdraw currently apply to: DockedStation's
+// result, gated on a living CargoHold-carrying child and FactionRef == playerFaction (architecture.md
+// 12.30.3's ownership table -- Deposit/Withdraw is the "Yours" row's warehouse pair). entt::null
+// otherwise, including "not yours" -- the screen simply does not appear, matching the table's
+// "None" outcome for every case this issue ships.
+entt::entity ActiveStation(const entt::registry& registry, const FactionId& playerFaction);
+
+// The player's own vessel (FactionRef == playerFaction) currently Docked at `station`, or
+// entt::null if none. At most one exists today -- parking a second hull is not yet a shippable
+// path (architecture.md 12.30.2's parked-hull gap, blocked on RigState/P10-01).
+entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
+                          const FactionId& playerFaction);
+
+// Reads this frame's input and, while ActiveStation resolves, hit-tests both ListViews -- a click
+// on a row performs a whole-stack transfer in that row's direction. No-op otherwise, or with no
+// owned vessel currently docked there (OwnedVesselAt).
+void Update(entt::registry& registry, const FactionId& playerFaction);
+
+// Draws the Storage screen: header (station name, both holds' mass used/capacity), your hold on
+// the left, the station's on the right. No-op unless ActiveStation resolves.
+void Draw(const entt::registry& registry, const FactionId& playerFaction);
+
+}  // namespace sr::space::ui::storage_screen
