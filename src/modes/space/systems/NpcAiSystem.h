@@ -20,7 +20,13 @@ namespace sr::space::npc_ai_system {
 //   - Flee: this tick's aggregate structural integrity (shared/rig/ModuleAttachment.h) has
 //     dropped below a threshold -- turns and burns away from the current Target instead of toward
 //     it, and never requests FireIntent. The load-bearing state: it is what makes structural
-//     damage frightening rather than arithmetic.
+//     damage frightening rather than arithmetic. If DockPrompt names a bay this same tick
+//     (DockingSystem runs earlier in TickSchedule), it also requests that bay -- the retreat's
+//     destination (architecture.md 12.30.4).
+//   - Repair: any docked, damaged, non-player rig -- however it got there, not only via Flee --
+//     orders its own full repair every tick it lacks one (architecture.md 12.30.4's other half of
+//     "who pays when the repaired rig is not the player's"). StationServicesSystem resolves the
+//     payer and does the actual healing; this only places the order.
 //   - Escort: no Target, but AiBehavior::escortTarget names a friendly rig to station-keep on.
 //     Writes no PartyLeader/PartyMember of its own -- that pair belongs to a Defend order (P8-02),
 //     not to this system.

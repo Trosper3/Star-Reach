@@ -14,6 +14,7 @@
 #include "shared/components/Party.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/StationServices.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
@@ -22,11 +23,14 @@ using Catch::Approx;
 using sr::AiBehavior;
 using sr::AiState;
 using sr::Docked;
+using sr::DockPrompt;
+using sr::DockRequest;
 using sr::FireIntent;
 using sr::GravityWell;
 using sr::Health;
 using sr::PartyMember;
 using sr::PlayerLocation;
+using sr::RepairOrder;
 using sr::Rig;
 using sr::Target;
 using sr::ThrustInput;
@@ -288,6 +292,114 @@ TEST_CASE("NpcAiSystem flees and stops firing once structural integrity drops be
     CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.5f));
     // Not yet aligned with the flee heading: still turning, not yet burning.
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+    CHECK_FALSE(registry.all_of<DockRequest>(seeker));  // No DockPrompt this tick.
+}
+
+TEST_CASE("NpcAiSystem requests the DockPrompt's bay while fleeing", "[npc_ai]") {
+    // architecture.md 12.30.4: Flee is the disengagement; this gives it a destination.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 20.0f, 100.0f);
+    registry.emplace<Rig>(seeker, std::vector<entt::entity>{hardpoint});
+
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{0.0f, -1000.0f});
+    registry.get<Target>(seeker).rig = enemy;
+
+    const entt::entity bay = registry.create();
+    registry.emplace<DockPrompt>(seeker, bay);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Flee);
+    REQUIRE(registry.all_of<DockRequest>(seeker));
+    CHECK(registry.get<DockRequest>(seeker).bay == bay);
+}
+
+TEST_CASE("NpcAiSystem orders repair for a docked, damaged, non-player rig", "[npc_ai]") {
+    // architecture.md 12.30.4: NPC repair's other half -- the AI producer RepairOrder had none of
+    // before this.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<RepairOrder>(npc));
+    const RepairOrder& order = registry.get<RepairOrder>(npc);
+    CHECK(order.subject == npc);
+    CHECK((order.hardpoint == entt::null));
+    CHECK(order.targetFraction == Approx(1.0f));
+}
+
+TEST_CASE("NpcAiSystem does not order repair for a docked rig already at full integrity",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<RepairOrder>(npc));
+}
+
+TEST_CASE("NpcAiSystem does not overwrite an in-progress RepairOrder's creditRemainder",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, entt::null, 1.0f, 0.75f});
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<RepairOrder>(npc).creditRemainder == Approx(0.75f));
+}
+
+TEST_CASE("NpcAiSystem does not order repair for the player's own docked rig", "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = registry.create();
+    const entt::entity player = registry.create();
+    registry.emplace<Docked>(player, station, entt::null);
+    registry.emplace<PlayerLocation>(player, PlayerLocation{player});
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+    registry.emplace<Rig>(player, std::vector<entt::entity>{hardpoint});
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<RepairOrder>(player));
 }
 
 TEST_CASE("NpcAiSystem does not flee a healthy rig even with a live target", "[npc_ai]") {

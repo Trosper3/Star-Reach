@@ -158,6 +158,7 @@ add_library(sr_core STATIC
     src/core/diplomacy/Reputation.cpp
     src/core/diplomacy/Territory.cpp
     src/core/economy/FactionEconomy.cpp
+    src/core/economy/Pricing.cpp
     src/core/galaxy/ResearchRecord.cpp
     src/core/galaxy/Seeding.cpp
     src/core/galaxy/Topology.cpp
@@ -267,6 +268,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
     src/modes/space/ui/StationServicesMenu.cpp
+    src/modes/space/ui/RepairScreen.cpp
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/systems/CaptureSystem.cpp

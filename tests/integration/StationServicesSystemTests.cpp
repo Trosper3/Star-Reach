@@ -1,17 +1,21 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 
 #include <filesystem>
 
+#include "core/economy/FactionEconomy.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/systems/StationServicesSystem.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
 #include "shared/components/StationServices.h"
 #include "shared/rig/CargoView.h"
 
+using Catch::Approx;
 using sr::BuyItemRequest;
 using sr::CargoHold;
 using sr::CrewRepairBonus;
@@ -19,6 +23,8 @@ using sr::Destroyed;
 using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
+using sr::FactionId;
+using sr::FactionRef;
 using sr::Health;
 using sr::ItemKind;
 using sr::ItemStack;
@@ -27,11 +33,12 @@ using sr::ModuleId;
 using sr::ModuleKind;
 using sr::MountedModules;
 using sr::ParentRig;
-using sr::RepairRequest;
+using sr::RepairOrder;
 using sr::Rig;
 using sr::SellItemRequest;
 using sr::Wallet;
 using sr::core::ContentLibrary;
+using sr::core::economy::FactionEconomy;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace station_services_system = sr::space::station_services_system;
@@ -210,32 +217,100 @@ TEST_CASE("Selling refuses when the seller does not hold the module",
     CHECK(cargo_view::Merged(registry, station).empty());
 }
 
-TEST_CASE("Repair spend scales with the requested fraction and heals proportionally",
-          "[station-services][integration]") {
+TEST_CASE("RepairOrder heals toward its target, capped by the facility's rate this tick, "
+          "billing whole credits for hull actually restored",
+          "[station-services][integration][repair]") {
+    // architecture.md 13.3 finding I / 13.4 decision 1: the rate DockingSystem's deleted free
+    // heal used to apply moves to FacilityStats::ratePerSecond instead of dying with it -- this
+    // is that field's reader. A slow facility can only deliver rate * dt this tick.
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 1000.0f);  // fast enough to not cap this tick
+    AddRepairFacility(registry, content, station, 60.0f);  // 60 * (1/60) = 1.0 HP achievable
     const entt::entity hardpoint = registry.create();
-    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing -- rate-capped, not target
 
     const entt::entity rig = registry.create();
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{0.5f, 100});  // spend 50 for half repair
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    CHECK_FALSE(registry.all_of<RepairRequest>(rig));
-    CHECK(registry.get<Wallet>(rig).credits == 50);
-    CHECK(registry.get<Health>(hardpoint).current == 75.0f);  // 50 + 0.5 * 50 missing
+    REQUIRE(registry.all_of<RepairOrder>(rig));  // Target not yet reached.
+    CHECK(registry.get<Health>(hardpoint).current == Approx(51.0f));  // +1.0 HP this tick
+    CHECK(registry.get<Wallet>(rig).credits == 98);  // costPerHp(grade 1) == 2; 1.0 HP * 2 == 2
 }
 
-TEST_CASE("Repair does not heal a Destroyed hardpoint", "[station-services][integration]") {
+TEST_CASE("RepairOrder's rate is multiplied by the docked STATION's own crew, not the "
+          "requester's",
+          "[station-services][integration][repair][crew]") {
+    // features.md 2.7's Repair role: an officer multiplies the facility they are stationed
+    // aboard, never whoever is being repaired -- CrewRepairBonus lives on the station root
+    // (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals), read here via the facility
+    // hardpoint's own ParentRig.
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 60.0f);  // 60 * (1/60) == 1.0 HP achievable
+    registry.emplace<CrewRepairBonus>(station, 0.5f);      // +50% from a Repair-rolled bridge crew
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    // The requester's OWN crew must not matter -- only lack of a CrewRepairBonus on `rig` itself
+    // would silently pass this test, so its absence here is deliberate, not an oversight.
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    // Achieved this tick: 1.0 * 1.5 == 1.5 HP, not the un-boosted 1.0.
+    CHECK(registry.get<Health>(hardpoint).current == Approx(51.5f));
+    CHECK(registry.get<Wallet>(rig).credits == 97);  // 1.5 HP * costPerHp(2) == 3
+}
+
+TEST_CASE("RepairOrder completes and stops billing once its target fraction is reached",
+          "[station-services][integration][repair]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6000.0f);  // fast enough to reach target in 1 tick
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 0.6f, 0.0f});  // target 60/100
+
+    const SystemContext ctx = MakeContext(world, intents, content);
+    station_services_system::Tick(ctx);  // Reaches the target this tick.
+    CHECK(registry.get<Health>(hardpoint).current == Approx(60.0f));
+    CHECK(registry.get<Wallet>(rig).credits == 80);  // 10 HP * costPerHp(2) == 20
+
+    station_services_system::Tick(ctx);  // Detects target already met -- completes, bills nothing.
+    CHECK_FALSE(registry.all_of<RepairOrder>(rig));
+    CHECK(registry.get<Health>(hardpoint).current == Approx(60.0f));
+    CHECK(registry.get<Wallet>(rig).credits == 80);
+}
+
+TEST_CASE("RepairOrder does not heal a Destroyed hardpoint even under Repair All, and charges "
+          "nothing for it",
+          "[station-services][integration][repair]") {
     // architecture.md 12.30.7's Destroyed sweep: a permanently dead hardpoint stays dead --
     // features.md 3.9's colour-is-condition schematic would otherwise draw it green after this.
     ContentLibrary content = Content();
@@ -244,50 +319,54 @@ TEST_CASE("Repair does not heal a Destroyed hardpoint", "[station-services][inte
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 1000.0f);  // fast enough to not cap this tick
-    const entt::entity hardpoint = registry.create();
-    registry.emplace<Health>(hardpoint, 0.0f, 100.0f);
-    registry.emplace<Destroyed>(hardpoint);
+    AddRepairFacility(registry, content, station, 6000.0f);
+    const entt::entity destroyedHardpoint = registry.create();
+    registry.emplace<Health>(destroyedHardpoint, 0.0f, 100.0f);
+    registry.emplace<Destroyed>(destroyedHardpoint);
+    const entt::entity livingHardpoint = registry.create();
+    registry.emplace<Health>(livingHardpoint, 50.0f, 100.0f);
 
     const entt::entity rig = registry.create();
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
-    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{destroyedHardpoint, livingHardpoint});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, entt::null, 1.0f, 0.0f});  // Repair All
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<Health>(hardpoint).current == 0.0f);
-    // The credits still spend -- the request named a fraction of the whole rig, and the point of
-    // this test is the destroyed hardpoint's own health, not the wallet math.
+    CHECK(registry.get<Health>(destroyedHardpoint).current == 0.0f);
+    CHECK(registry.get<Health>(livingHardpoint).current == Approx(100.0f));
+    CHECK(registry.get<Wallet>(rig).credits == 0);  // 50 HP * costPerHp(2) == 100, all from living
 }
 
-TEST_CASE("Repair refuses when the wallet cannot afford the scaled spend",
-          "[station-services][integration]") {
+TEST_CASE("RepairOrder stalls -- heals nothing, bills nothing, stays in place -- when the "
+          "wallet cannot afford this tick's cost",
+          "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 1000.0f);  // fast enough to not cap this tick
+    AddRepairFacility(registry, content, station, 6000.0f);
     const entt::entity hardpoint = registry.create();
     registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
 
     const entt::entity rig = registry.create();
     registry.emplace<Docked>(rig, station, entt::null);
-    registry.emplace<Wallet>(rig, 10);
+    registry.emplace<Wallet>(rig, 10);  // Nowhere near costPerHp(2) * 50 missing == 100
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{0.5f, 100});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.get<Wallet>(rig).credits == 10);
     CHECK(registry.get<Health>(hardpoint).current == 50.0f);
+    CHECK(registry.all_of<RepairOrder>(rig));  // Stalled, not gone -- may resume once funded.
 }
 
-TEST_CASE("Repair refuses when the docked station has no Repair facility",
-          "[station-services][integration]") {
+TEST_CASE("RepairOrder is dropped when the docked station has no living Repair facility",
+          "[station-services][integration][repair]") {
     const ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -301,76 +380,226 @@ TEST_CASE("Repair refuses when the docked station has no Repair facility",
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    CHECK_FALSE(registry.all_of<RepairRequest>(rig));
+    CHECK_FALSE(registry.all_of<RepairOrder>(rig));
     CHECK(registry.get<Wallet>(rig).credits == 100);
     CHECK(registry.get<Health>(hardpoint).current == 50.0f);
 }
 
-TEST_CASE("Repair rate scales with the facility's authored rate",
-          "[station-services][integration]") {
-    // architecture.md 13.3 finding I / 13.4 decision 1: the rate DockingSystem's deleted free
-    // heal used to apply moves to FacilityStats::ratePerSecond instead of dying with it -- this
-    // is that field's first real reader. A slow facility can only deliver rate * dt of the
-    // requested fraction in one tick, and billing follows the same capped fraction.
+TEST_CASE("Destroying the Repair hardpoint mid-order stops it that tick",
+          "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 6.0f);  // 6.0 * (1/60) = 0.1 achievable fraction
+    const entt::entity facility = AddRepairFacility(registry, content, station, 6000.0f);
     const entt::entity hardpoint = registry.create();
-    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
 
     const entt::entity rig = registry.create();
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});  // asks for a full repair
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<Destroyed>(facility);
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    CHECK_FALSE(registry.all_of<RepairRequest>(rig));
-    CHECK(registry.get<Wallet>(rig).credits == 90);           // spend = round(0.1 * 100)
-    CHECK(registry.get<Health>(hardpoint).current == 55.0f);  // 50 + 0.1 * 50 missing
+    CHECK_FALSE(registry.all_of<RepairOrder>(rig));
+    CHECK(registry.get<Wallet>(rig).credits == 100);
+    CHECK(registry.get<Health>(hardpoint).current == 50.0f);
 }
 
-TEST_CASE("Repair rate is multiplied by the docked STATION's own crew, not the requester's",
-          "[station-services][integration][crew]") {
-    // features.md 2.7's Repair role: an officer multiplies the facility they are stationed
-    // aboard, never whoever is being repaired -- CrewRepairBonus lives on the station root
-    // (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals), read here via the facility
-    // hardpoint's own ParentRig.
+TEST_CASE("Undocking mid-order drops the RepairOrder", "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 6.0f);  // 6.0 * (1/60) = 0.1 achievable fraction
-    registry.emplace<CrewRepairBonus>(station, 0.5f);     // +50% from a Repair-rolled bridge crew
-
+    AddRepairFacility(registry, content, station, 6000.0f);
     const entt::entity hardpoint = registry.create();
-    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);  // 50 missing
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
 
     const entt::entity rig = registry.create();
-    registry.emplace<Docked>(rig, station, entt::null);
-    // The requester's OWN crew must not matter -- only lack of a CrewRepairBonus on `rig` itself
-    // would silently pass this test, so its absence here is deliberate, not an oversight.
+    // No Docked -- already undocked before this tick runs.
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairRequest>(rig, RepairRequest{1.0f, 100});  // asks for a full repair
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    // Achieved fraction: min(1.0, 6.0 * 1.5 * dt) = 9.0 / 60 = 0.15, not the un-boosted 0.1.
-    CHECK_FALSE(registry.all_of<RepairRequest>(rig));
-    CHECK(registry.get<Wallet>(rig).credits == 85);           // spend = round(0.15 * 100)
-    CHECK(registry.get<Health>(hardpoint).current == 57.5f);  // 50 + 0.15 * 50 missing
+    CHECK_FALSE(registry.all_of<RepairOrder>(rig));
+    CHECK(registry.get<Health>(hardpoint).current == 50.0f);
+}
+
+TEST_CASE("A station the requester owns is a valid subject and its own hardpoints heal",
+          "[station-services][integration][repair]") {
+    // architecture.md 12.30.4: the assertion that fails today for every station in the galaxy --
+    // there is no reader anywhere that raises Health.current on an entity that is never Docked.
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    AddRepairFacility(registry, content, station, 6000.0f);
+    const entt::entity stationHardpoint = registry.create();
+    registry.emplace<Health>(stationHardpoint, 50.0f, 100.0f);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<FactionRef>(rig, FactionId("aegis"));
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<RepairOrder>(rig, RepairOrder{station, stationHardpoint, 1.0f, 0.0f});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Health>(stationHardpoint).current == Approx(100.0f));
+    CHECK(registry.get<Wallet>(rig).credits == 0);  // 50 HP * costPerHp(2) == 100
+}
+
+TEST_CASE("RepairOrder is invalidated when its subject is neither the requester nor an owned "
+          "station",
+          "[station-services][integration][repair]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("kore"));  // Not the requester's faction.
+    AddRepairFacility(registry, content, station, 6000.0f);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<FactionRef>(rig, FactionId("aegis"));
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<RepairOrder>(rig, RepairOrder{station, entt::null, 1.0f, 0.0f});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<RepairOrder>(rig));
+    CHECK(registry.get<Wallet>(rig).credits == 100);
+}
+
+TEST_CASE("An NPC with no Wallet repairs against ctx.economy", "[station-services][integration][repair]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    FactionEconomy economy;
+    economy.Deposit(FactionId("reavers"), 1000);
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6000.0f);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    registry.emplace<FactionRef>(npc, FactionId("reavers"));  // No Wallet.
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+
+    SystemContext ctx = MakeContext(world, intents, content);
+    ctx.economy = &economy;
+    station_services_system::Tick(ctx);
+
+    CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
+    CHECK(economy.Stock(FactionId("reavers")) == 900);  // 50 HP * costPerHp(2) == 100
+}
+
+TEST_CASE("An NPC's repair is refused when its faction's stock cannot afford it, and heals "
+          "nothing",
+          "[station-services][integration][repair]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    FactionEconomy economy;
+    economy.Deposit(FactionId("reavers"), 5);  // Far short of the tick's cost.
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6000.0f);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    registry.emplace<FactionRef>(npc, FactionId("reavers"));
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+
+    SystemContext ctx = MakeContext(world, intents, content);
+    ctx.economy = &economy;
+    station_services_system::Tick(ctx);
+
+    CHECK(registry.get<Health>(hardpoint).current == 50.0f);
+    CHECK(economy.Stock(FactionId("reavers")) == 5);
+    CHECK(registry.all_of<RepairOrder>(npc));  // Stalled, not gone.
+}
+
+TEST_CASE("An NPC does not repair, and does not repair for free, with ctx.economy == nullptr",
+          "[station-services][integration][repair]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6000.0f);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity npc = registry.create();
+    registry.emplace<Docked>(npc, station, entt::null);
+    registry.emplace<FactionRef>(npc, FactionId("reavers"));
+    registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+
+    station_services_system::Tick(MakeContext(world, intents, content));  // ctx.economy left null.
+
+    CHECK(registry.get<Health>(hardpoint).current == 50.0f);
+    CHECK(registry.all_of<RepairOrder>(npc));  // Stalled, not gone.
+}
+
+TEST_CASE("A repair spanning many ticks charges a total, not zero -- the rounding trap",
+          "[station-services][integration][repair]") {
+    // architecture.md 12.30.4's own warning: billing per tick in whole credits at a slow rate
+    // would round to zero every tick and make repair free again unless the fractional remainder
+    // is carried forward (RepairOrder::creditRemainder).
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6.0f);  // 6 * (1/60) == 0.1 HP/tick
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<Wallet>(rig, 100);
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+
+    const SystemContext ctx = MakeContext(world, intents, content);
+    for (int i = 0; i < 100; ++i) {
+        station_services_system::Tick(ctx);
+    }
+
+    // 100 ticks * 0.1 HP == 10.0 HP restored; costPerHp(grade 1) == 2 -> 20 credits total.
+    CHECK(registry.get<Health>(hardpoint).current == Approx(60.0f));
+    CHECK(registry.get<Wallet>(rig).credits == 80);
 }
 
 TEST_CASE("Requests are refused when the requester is not Docked",
