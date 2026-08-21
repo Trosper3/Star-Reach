@@ -16,6 +16,11 @@ namespace sr::space::comms_system {
 //   - Dialogue lines: a small canned response pool, picked by a deterministic hash of
 //     (requester, tick) rather than RNG state -- the same reasoning MiningSystem's element roll
 //     already documents for keeping Law 2's fast-forward replayable.
+//   - Relations: features.md 5.3's "successful diplomacy" trigger for this system. There is no
+//     negotiation/tribute/threat intent yet, so a hail that lands (the in-range branch above)
+//     is the trigger today -- it nudges the target's Reputation (core/diplomacy/Reputation.h) up
+//     by a bounded step if the target carries a FactionRef. A no-op otherwise, or if
+//     ctx.reputation is null.
 //
 // NOT implemented here: the contract-board/distress-hail flows legacy layered onto hailing
 // (ContractSystem #27 and DistressSystem #28 don't exist yet) and any actual UI rendering of the

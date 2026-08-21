@@ -20,11 +20,16 @@ namespace sr::space::contract_system {
 //     for Escort too, even though its own briefing text promised survival was the win condition.
 //   - Reward: rewardCredits is credited to the holder's Wallet (shared/components/Loot.h,
 //     reused from LootSystem) on completion. Nothing is paid on failure.
+//   - Relations: features.md 5.3 names this system as a relation writer -- in practice
+//     Reputation (core/diplomacy/Reputation.h), since Contract::issuingFaction has only one named
+//     party and the holder is rarely itself a faction. Completing either contract type nudges
+//     the issuer's standing up; only Escort can fail today (Bounty has no timer), and failing it
+//     nudges the issuer down by the same step. A no-op if issuingFaction was left default
+//     (empty) or ctx.reputation is null.
 //
 // NOT implemented here: Courier contracts (need FactionEconomySystem's station stock, #30, which
-// doesn't exist yet), reputation rewards (need core/diplomacy/'s relation matrix, #42), and
-// contract-board offer generation (a future UI/economy concern -- this system only manages a
-// contract already accepted).
+// doesn't exist yet), and contract-board offer generation (a future UI/economy concern -- this
+// system only manages a contract already accepted).
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::contract_system

@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "core/diplomacy/Reputation.h"
 #include "shared/components/Contract.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
@@ -9,6 +10,19 @@
 
 namespace sr::space::contract_system {
 namespace {
+
+// features.md 5.3's "positive / negative to the issuer" -- the same magnitude either direction,
+// sign flipped by outcome. Reputation.h's own decay (1/sec) and TemplateMarketSystem's ±100 rate
+// bonus clamp set the scale this needs to sit inside: large enough to read as a real move, small
+// enough that a handful of contracts can't single-handedly swing a faction from Neutral to Allied.
+constexpr float kContractRelationStep = 10.0f;
+
+void AdjustIssuerRelation(const SystemContext& ctx, const FactionId& issuingFaction, float delta) {
+    if (ctx.reputation == nullptr || issuingFaction.empty()) {
+        return;
+    }
+    ctx.reputation->Adjust(issuingFaction, delta);
+}
 
 void AcceptRequests(entt::registry& registry) {
     std::vector<entt::entity> consumed;
@@ -58,6 +72,7 @@ void Tick(const SystemContext& ctx) {
             }
             if (contract.killsDone >= contract.killsRequired) {
                 CreditReward(registry, holder, contract.rewardCredits);
+                AdjustIssuerRelation(ctx, contract.issuingFaction, kContractRelationStep);
                 resolved.push_back(holder);
             }
             continue;
@@ -66,12 +81,14 @@ void Tick(const SystemContext& ctx) {
         // Escort.
         if (contract.escortTarget == entt::null || !registry.valid(contract.escortTarget) ||
             registry.all_of<Destroyed>(contract.escortTarget)) {
+            AdjustIssuerRelation(ctx, contract.issuingFaction, -kContractRelationStep);
             resolved.push_back(holder);  // Failed -- no reward.
             continue;
         }
         contract.timeRemaining -= ctx.dt;
         if (contract.timeRemaining <= 0.0f) {
             CreditReward(registry, holder, contract.rewardCredits);
+            AdjustIssuerRelation(ctx, contract.issuingFaction, kContractRelationStep);
             resolved.push_back(holder);
         }
     }

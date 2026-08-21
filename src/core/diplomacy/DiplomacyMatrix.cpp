@@ -1,5 +1,7 @@
 #include "core/diplomacy/DiplomacyMatrix.h"
 
+#include <cstdint>
+
 namespace sr::core::diplomacy {
 
 DiplomacyMatrix::Pair DiplomacyMatrix::Canonical(const FactionId& a, const FactionId& b) {
@@ -19,6 +21,16 @@ void DiplomacyMatrix::Set(const FactionId& a, const FactionId& b, Relation relat
         return;
     }
     relations_[Canonical(a, b)] = relation;
+}
+
+void DiplomacyMatrix::DriftToward(const FactionId& a, const FactionId& b, Relation target) {
+    const auto current = static_cast<std::uint8_t>(Get(a, b));
+    const auto want = static_cast<std::uint8_t>(target);
+    if (current == want) {
+        return;
+    }
+    const std::uint8_t stepped = current < want ? current + 1 : current - 1;
+    Set(a, b, static_cast<Relation>(stepped));
 }
 
 }  // namespace sr::core::diplomacy

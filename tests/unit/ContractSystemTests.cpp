@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/diplomacy/Reputation.h"
 #include "core/events/IntentQueue.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/data/SystemWorld.h"
@@ -17,6 +18,7 @@ using sr::FactionId;
 using sr::FactionRef;
 using sr::KillCredited;
 using sr::Wallet;
+using sr::core::diplomacy::Reputation;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
 namespace contract_system = sr::space::contract_system;
@@ -28,6 +30,13 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
     return SystemContext{world, intents, content, dt, 0};
 }
 
+SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
+                          const sr::core::ContentLibrary& content, Reputation& reputation,
+                          float dt = 1.0f / 60.0f) {
+    return SystemContext{world,   intents, content, dt,      0,
+                         nullptr, nullptr, nullptr, nullptr, &reputation};
+}
+
 entt::entity MakeHostileRig(entt::registry& registry, const char* faction) {
     const entt::entity rig = registry.create();
     registry.emplace<FactionRef>(rig, FactionId(faction));
@@ -35,21 +44,29 @@ entt::entity MakeHostileRig(entt::registry& registry, const char* faction) {
     return rig;
 }
 
-Contract BountyContract(const char* targetFaction, int killsRequired, int rewardCredits) {
+Contract BountyContract(const char* targetFaction, int killsRequired, int rewardCredits,
+                        const char* issuingFaction = nullptr) {
     Contract contract;
     contract.type = ContractType::Bounty;
     contract.targetFaction = FactionId(targetFaction);
     contract.killsRequired = killsRequired;
     contract.rewardCredits = rewardCredits;
+    if (issuingFaction != nullptr) {
+        contract.issuingFaction = FactionId(issuingFaction);
+    }
     return contract;
 }
 
-Contract EscortContract(entt::entity target, float timeRemaining, int rewardCredits) {
+Contract EscortContract(entt::entity target, float timeRemaining, int rewardCredits,
+                        const char* issuingFaction = nullptr) {
     Contract contract;
     contract.type = ContractType::Escort;
     contract.escortTarget = target;
     contract.timeRemaining = timeRemaining;
     contract.rewardCredits = rewardCredits;
+    if (issuingFaction != nullptr) {
+        contract.issuingFaction = FactionId(issuingFaction);
+    }
     return contract;
 }
 
@@ -230,4 +247,75 @@ TEST_CASE("ContractSystem keeps a still-running Escort contract active", "[contr
 
     REQUIRE(registry.all_of<Contract>(holder));
     CHECK(registry.get<Contract>(holder).timeRemaining < 60.0f);
+}
+
+TEST_CASE("ContractSystem raises the issuer's reputation when a Bounty contract completes",
+          "[contract]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity holder = registry.create();
+    registry.emplace<Contract>(holder, BountyContract("reavers", 1, 750, "aegis"));
+    MakeHostileRig(registry, "reavers");
+
+    contract_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("aegis")) > 0.0f);
+}
+
+TEST_CASE("ContractSystem lowers the issuer's reputation when an Escort contract fails",
+          "[contract]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity target = registry.create();
+    registry.emplace<Destroyed>(target);
+
+    const entt::entity holder = registry.create();
+    registry.emplace<Contract>(holder, EscortContract(target, 60.0f, 500, "aegis"));
+
+    contract_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("aegis")) < 0.0f);
+}
+
+TEST_CASE("ContractSystem raises the issuer's reputation when an Escort contract completes",
+          "[contract]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity target = registry.create();
+
+    const entt::entity holder = registry.create();
+    registry.emplace<Contract>(holder, EscortContract(target, 1.0f, 500, "aegis"));
+
+    contract_system::Tick(MakeContext(world, intents, content, reputation, 1.0f));
+
+    CHECK(reputation.Score(FactionId("aegis")) > 0.0f);
+}
+
+TEST_CASE("ContractSystem leaves reputation untouched when issuingFaction was never set",
+          "[contract]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    Reputation reputation;
+
+    const entt::entity holder = registry.create();
+    registry.emplace<Contract>(holder, BountyContract("reavers", 1, 750));  // No issuing faction.
+    MakeHostileRig(registry, "reavers");
+
+    contract_system::Tick(MakeContext(world, intents, content, reputation));
+
+    CHECK(reputation.Score(FactionId("")) == 0.0f);
 }

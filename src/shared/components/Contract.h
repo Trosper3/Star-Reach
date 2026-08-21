@@ -18,6 +18,12 @@ struct Contract {
     ContractType type = ContractType::Bounty;
     int rewardCredits = 0;
 
+    // Who offered this contract. features.md 5.3 names ContractSystem as a relation writer keyed
+    // on "the issuer" specifically -- default-constructed (empty) is legal and simply means no
+    // reputation adjustment fires on resolution, the same fail-open convention TargetingSystem's
+    // null ctx.diplomacy uses.
+    FactionId issuingFaction;
+
     // Bounty: kill killsRequired rigs of targetFaction (anywhere) while this contract is active.
     FactionId targetFaction;
     int killsRequired = 0;
