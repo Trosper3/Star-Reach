@@ -34,7 +34,7 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
 SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& intents,
                           const sr::core::ContentLibrary& content, Reputation& reputation) {
     return SystemContext{world,   intents, content, 1.0f / 60.0f, 3,
-                         nullptr, nullptr, nullptr, nullptr,      &reputation};
+                         nullptr, nullptr, nullptr, &reputation};
 }
 
 entt::entity MakeHailer(entt::registry& registry, const Vec2& position, float sensorRange) {

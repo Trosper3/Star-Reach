@@ -39,7 +39,6 @@ entt::entity FindPlayer(const entt::registry& registry) {
 
 SpaceFlight::SpaceFlight(core::ContentLibrary& content, core::economy::FactionEconomy& economy,
                          core::galaxy::WreckLedger& wreckLedger,
-                         core::galaxy::DiscoveryState& discovery,
                          core::knowledge::KnowledgeStore& knowledge,
                          core::diplomacy::DiplomacyMatrix& diplomacy,
                          core::diplomacy::Reputation& reputation)
@@ -47,7 +46,6 @@ SpaceFlight::SpaceFlight(core::ContentLibrary& content, core::economy::FactionEc
       content_(content),
       economy_(economy),
       wreckLedger_(wreckLedger),
-      discovery_(discovery),
       knowledge_(knowledge),
       diplomacy_(diplomacy),
       reputation_(reputation) {}
@@ -114,7 +112,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     clock_.Advance(realDeltaSeconds);
 
     while (clock_.ConsumeStep()) {
-        // architecture.md 12.24 step 6: the five galaxy-wide pointers, alongside `economy` above.
+        // architecture.md 12.24 step 6: the four galaxy-wide pointers, alongside `economy` above.
         // `craftedModules` aliases `content_` itself, non-const -- see this class's constructor
         // comment.
         const SystemContext ctx{world_,
@@ -123,7 +121,6 @@ void SpaceFlight::Update(float realDeltaSeconds) {
                                 core::kFixedDeltaSeconds,
                                 clock_.ElapsedTicks(),
                                 &economy_,
-                                &discovery_,
                                 &knowledge_,
                                 &diplomacy_,
                                 &reputation_,

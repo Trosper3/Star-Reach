@@ -7,14 +7,14 @@
 #include <vector>
 
 #include "core/diplomacy/DiplomacyMatrix.h"
-#include "core/galaxy/Discovery.h"
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "modes/space/render/WorldRenderer.h"
 #include "shared/blueprints/Ids.h"
 
 // modes/space/ui/NavigationMap -- architecture.md 12.6, features.md section 8.
 //
-// modes/*/ui/ must not include systems/ (section 2.3), so this reads core/galaxy/'s
-// DiscoveryState directly and the registry directly (the same access BridgeView already has) --
+// modes/*/ui/ must not include systems/ (section 2.3), so this reads core/knowledge/'s
+// KnowledgeStore directly and the registry directly (the same access BridgeView already has) --
 // never a systems/ header. Nothing here changes state, so there is no Intent to emit yet either:
 // features.md section 8's RTS move order at zoom level 3 needs a galaxy-level in-transit-fleet
 // concept that Law 2 itself flags as still unbuilt ("the awkward case... not yet built" --
@@ -28,7 +28,8 @@
 // systems, their display names, or their galaxy-map positions (that roster is a separate,
 // unbuilt piece of content infrastructure, not a NavigationMap concern). So levels 1-2 are
 // scoped here to what a real data source already answers: the player's own faction's discovered
-// systems (core/galaxy/Discovery.h), not the full galaxy. Level 3 is the resident system's own
+// systems (core/knowledge/KnowledgeNetwork.h's KnowledgeStore, keyed by
+// core::knowledge::FactionNetworkId), not the full galaxy. Level 3 is the resident system's own
 // registry and needs no such roster.
 namespace sr::space::ui::navigation_map {
 
@@ -39,10 +40,12 @@ enum class ZoomLevel : std::uint8_t {
     Tactical = 4,
 };
 
-// `faction`'s discovered system ids, sorted for deterministic iteration/tests. Pure -- no
-// raylib -- so unit-testable. What levels 1-2 (Galaxy/Region) draw.
+// `faction`'s discovered system ids, sorted for deterministic iteration/tests. Empty if
+// `faction`'s network is not registered in `knowledge` (fails closed, the same convention every
+// other reader below uses). Pure -- no raylib -- so unit-testable. What levels 1-2
+// (Galaxy/Region) draw.
 std::vector<std::string> DiscoveredSystemIds(const FactionId& faction,
-                                             const core::galaxy::DiscoveryState& discovery);
+                                             const core::knowledge::KnowledgeStore& knowledge);
 
 // features.md 8.2: ship/fleet icons are scoped to System (level 3) and culled entirely above it.
 // This is correctness, not an optimization -- Galaxy/Region levels have no registry and
@@ -54,14 +57,14 @@ bool ShowsShipIcons(ZoomLevel level);
 // finding 17, the same simplification finding N records for TargetingSystem): every Targetable
 // rig root within `player`'s own SensorRange whose stance toward `player`'s faction reads Hostile
 // or War on `diplomacy` -- features.md 5.3's "fired on" bands, Neutral/Friendly/Allied rigs never
-// appear. Gated a second way on `systemId` having been discovered by `player`'s faction on
-// `discovery` -- finding 17's other half. `player` must carry FactionRef, WorldTransform, and
-// SensorRange, and both `diplomacy` and `discovery` must be non-null, or the result is empty
+// appear. Gated a second way on `systemId` having been discovered by `player`'s faction's network
+// on `knowledge` -- finding 17's other half. `player` must carry FactionRef, WorldTransform, and
+// SensorRange, and both `diplomacy` and `knowledge` must be non-null, or the result is empty
 // (fails closed, the same convention TargetingSystem/DockingSystem use). Pure -- no raylib -- so
 // unit-testable without a live GL context.
 std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player,
                                              const core::diplomacy::DiplomacyMatrix* diplomacy,
-                                             const core::galaxy::DiscoveryState* discovery,
+                                             const core::knowledge::KnowledgeStore* knowledge,
                                              const std::string& systemId);
 
 // Draws the map at `level` for `playerFaction` in `systemId`. Galaxy/Region draw
@@ -70,7 +73,7 @@ std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, ent
 // does (render/IconRenderer.h) and draws the same fixed-size marker; Tactical is a no-op here --
 // level 4 is the existing WorldRenderer path (architecture.md 12.6), not a second renderer.
 void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& playerFaction,
-          const std::string& systemId, const core::galaxy::DiscoveryState& discovery,
+          const std::string& systemId, const core::knowledge::KnowledgeStore& knowledge,
           const core::diplomacy::DiplomacyMatrix& diplomacy, const render::CameraView& camera);
 
 }  // namespace sr::space::ui::navigation_map

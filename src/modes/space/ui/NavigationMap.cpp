@@ -34,9 +34,14 @@ Vec2 CircleLayoutPosition(std::size_t index, std::size_t count, float radius) {
 }  // namespace
 
 std::vector<std::string> DiscoveredSystemIds(const FactionId& faction,
-                                             const core::galaxy::DiscoveryState& discovery) {
-    std::vector<std::string> ids(discovery.Discovered(faction).begin(),
-                                 discovery.Discovered(faction).end());
+                                             const core::knowledge::KnowledgeStore& knowledge) {
+    const core::knowledge::KnowledgeNetwork* network =
+        knowledge.Get(core::knowledge::FactionNetworkId(faction));
+    if (network == nullptr) {
+        return {};
+    }
+    std::vector<std::string> ids(network->discoveredSystems.begin(),
+                                 network->discoveredSystems.end());
     std::sort(ids.begin(), ids.end());
     return ids;
 }
@@ -47,10 +52,10 @@ bool ShowsShipIcons(ZoomLevel level) {
 
 std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, entt::entity player,
                                              const core::diplomacy::DiplomacyMatrix* diplomacy,
-                                             const core::galaxy::DiscoveryState* discovery,
+                                             const core::knowledge::KnowledgeStore* knowledge,
                                              const std::string& systemId) {
     std::vector<entt::entity> visible;
-    if (diplomacy == nullptr || discovery == nullptr) {
+    if (diplomacy == nullptr || knowledge == nullptr) {
         return visible;
     }
     if (!registry.all_of<FactionRef, WorldTransform, SensorRange>(player)) {
@@ -58,7 +63,9 @@ std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, ent
     }
 
     const FactionId& playerFaction = registry.get<FactionRef>(player).id;
-    if (!discovery->IsDiscovered(playerFaction, systemId)) {
+    const core::knowledge::KnowledgeNetwork* network =
+        knowledge->Get(core::knowledge::FactionNetworkId(playerFaction));
+    if (network == nullptr || !network->discoveredSystems.contains(systemId)) {
         return visible;
     }
     const Vec2 playerPosition = registry.get<WorldTransform>(player).position;
@@ -80,10 +87,10 @@ std::vector<entt::entity> VisibleHostileRigs(const entt::registry& registry, ent
 }
 
 void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& playerFaction,
-          const std::string& systemId, const core::galaxy::DiscoveryState& discovery,
+          const std::string& systemId, const core::knowledge::KnowledgeStore& knowledge,
           const core::diplomacy::DiplomacyMatrix& diplomacy, const render::CameraView& camera) {
     if (level == ZoomLevel::Galaxy || level == ZoomLevel::Region) {
-        const std::vector<std::string> systemIds = DiscoveredSystemIds(playerFaction, discovery);
+        const std::vector<std::string> systemIds = DiscoveredSystemIds(playerFaction, knowledge);
         const float radius = level == ZoomLevel::Galaxy ? 260.0f : 140.0f;
         for (std::size_t i = 0; i < systemIds.size(); ++i) {
             const Vec2 screenPos = CircleLayoutPosition(i, systemIds.size(), radius);
@@ -98,7 +105,7 @@ void Draw(const entt::registry& registry, ZoomLevel level, const FactionId& play
             return;
         }
         for (const entt::entity hostile :
-             VisibleHostileRigs(registry, player, &diplomacy, &discovery, systemId)) {
+             VisibleHostileRigs(registry, player, &diplomacy, &knowledge, systemId)) {
             const Vec2 worldPos = registry.get<WorldTransform>(hostile).position;
             render::DrawMapMarker(render::WorldToScreen(worldPos, camera), sr::ui::kStatusCritical,
                                   "");

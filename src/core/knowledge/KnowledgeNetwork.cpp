@@ -67,4 +67,8 @@ void KnowledgeStore::SetNextIdCounter(std::uint64_t next) {
     nextId_ = next;
 }
 
+KnowledgeNetworkId FactionNetworkId(const FactionId& faction) {
+    return KnowledgeNetworkId(faction.str());
+}
+
 }  // namespace sr::core::knowledge

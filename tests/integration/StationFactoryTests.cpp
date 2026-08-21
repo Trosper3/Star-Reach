@@ -3,6 +3,7 @@
 
 #include <filesystem>
 
+#include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/factories/StationFactory.h"
 #include "shared/components/Docking.h"
@@ -21,7 +22,6 @@ using sr::DockingBay;
 using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionRef;
-using sr::KnowledgeNetworkId;
 using sr::LinearDamping;
 using sr::NetworkOwner;
 using sr::Propulsion;
@@ -145,7 +145,7 @@ TEST_CASE(
     CHECK(registry.all_of<Wallet>(result.root));
     REQUIRE(registry.all_of<NetworkOwner>(result.root));
     CHECK(registry.get<NetworkOwner>(result.root).network ==
-          KnowledgeNetworkId(registry.get<FactionRef>(result.root).id.str()));
+          sr::core::knowledge::FactionNetworkId(registry.get<FactionRef>(result.root).id));
 }
 
 TEST_CASE("StationFactory's station has a non-zero cargo hold that accepts and refuses deposits",

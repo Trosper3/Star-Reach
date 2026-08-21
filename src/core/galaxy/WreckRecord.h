@@ -29,9 +29,9 @@ struct WreckRecord {
 };
 
 // Galaxy-wide store of demoted wrecks (Law 8 -- core/galaxy/, not any one registry), the same
-// "plain data outside any one registry" shape DiscoveryState uses for per-faction knowledge.
-// Keyed by an id assigned at write time rather than by system, since a system can hold more than
-// one wreck at once.
+// "plain data outside any one registry" shape core/knowledge/KnowledgeNetwork.h's KnowledgeStore
+// uses for per-network knowledge. Keyed by an id assigned at write time rather than by system,
+// since a system can hold more than one wreck at once.
 class WreckLedger {
 public:
     using Id = std::uint64_t;

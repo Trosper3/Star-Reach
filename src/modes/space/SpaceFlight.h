@@ -6,7 +6,6 @@
 #include "core/diplomacy/Reputation.h"
 #include "core/economy/FactionEconomy.h"
 #include "core/events/IntentQueue.h"
-#include "core/galaxy/Discovery.h"
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
@@ -40,8 +39,7 @@ public:
     // exposes as SystemContext::content, so EngineerSystem's runtime-registered modules resolve
     // everywhere else content.FindModule already does.
     SpaceFlight(core::ContentLibrary& content, core::economy::FactionEconomy& economy,
-                core::galaxy::WreckLedger& wreckLedger, core::galaxy::DiscoveryState& discovery,
-                core::knowledge::KnowledgeStore& knowledge,
+                core::galaxy::WreckLedger& wreckLedger, core::knowledge::KnowledgeStore& knowledge,
                 core::diplomacy::DiplomacyMatrix& diplomacy,
                 core::diplomacy::Reputation& reputation);
 
@@ -119,7 +117,6 @@ private:
     core::ContentLibrary& content_;
     core::economy::FactionEconomy& economy_;
     core::galaxy::WreckLedger& wreckLedger_;
-    core::galaxy::DiscoveryState& discovery_;
     core::knowledge::KnowledgeStore& knowledge_;
     core::diplomacy::DiplomacyMatrix& diplomacy_;
     core::diplomacy::Reputation& reputation_;
