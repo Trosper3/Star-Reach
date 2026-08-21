@@ -125,7 +125,8 @@ std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entit
     if (repair != entt::null) {
         tabs.push_back({ScreenId::Repair, repair});
     }
-    const entt::entity engineering = firstByKind[static_cast<std::size_t>(FacilityKind::Engineering)];
+    const entt::entity engineering =
+        firstByKind[static_cast<std::size_t>(FacilityKind::Engineering)];
     if (engineering != entt::null) {
         tabs.push_back({ScreenId::Engineering, engineering});
     }
@@ -142,7 +143,7 @@ std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entit
 }
 
 void SelectTab(entt::registry& registry, entt::entity shell, std::span<const BridgeTab> tabs,
-              int tabIndex) {
+               int tabIndex) {
     if (tabIndex < 0 || static_cast<std::size_t>(tabIndex) >= tabs.size()) {
         return;
     }
@@ -163,7 +164,7 @@ void Update(entt::registry& registry) {
 
     const std::vector<BridgeTab> tabs = AvailableTabs(registry, docked->station);
     const sr::ui::UiInput input{GetMousePosition(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
-                               GetMouseWheelMove()};
+                                GetMouseWheelMove()};
     if (!input.clicked) {
         return;
     }

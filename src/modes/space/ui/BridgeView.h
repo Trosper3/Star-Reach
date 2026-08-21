@@ -28,13 +28,13 @@ namespace sr::space::ui::bridge_view {
 // `hardpoint` is entt::null for it -- there is nothing to move PlayerLocation onto, and its
 // per-screen readout measures the station's aggregate integrity instead of one hardpoint's.
 enum class ScreenId : std::uint8_t {
-    Bay,           // FacilityKind::Docking
-    Market,        // FacilityKind::Trade
-    Storage,       // No FacilityKind -- gated on the host carrying a CargoHold (12.30.3)
-    Repair,        // FacilityKind::Repair
-    Engineering,   // FacilityKind::Engineering
-    Manufacturing, // FacilityKind::Manufacturing
-    Research,      // FacilityKind::Research
+    Bay,            // FacilityKind::Docking
+    Market,         // FacilityKind::Trade
+    Storage,        // No FacilityKind -- gated on the host carrying a CargoHold (12.30.3)
+    Repair,         // FacilityKind::Repair
+    Engineering,    // FacilityKind::Engineering
+    Manufacturing,  // FacilityKind::Manufacturing
+    Research,       // FacilityKind::Research
 };
 
 std::string_view ToString(ScreenId value);
@@ -59,7 +59,7 @@ std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entit
 // tab's hardpoint is entt::null (Storage -- nothing physical to stand in), or when it already
 // names `shell`.
 void SelectTab(entt::registry& registry, entt::entity shell, std::span<const BridgeTab> tabs,
-              int tabIndex);
+               int tabIndex);
 
 // Reads this frame's input (raylib) and the PlayerControlled entity's Docked state: hit-tests the
 // tab strip Draw() below renders and, on a click, calls SelectTab. No-op with no PlayerControlled

@@ -41,9 +41,10 @@ TEST_CASE("PlayerLocationSystem derives PlayerControlled onto shell itself when 
     CHECK(registry.view<PlayerControlled>().size() == 1);
 }
 
-TEST_CASE("PlayerLocationSystem derives PlayerControlled onto ParentRig::root when shell is a "
-          "hardpoint",
-          "[player-location-system]") {
+TEST_CASE(
+    "PlayerLocationSystem derives PlayerControlled onto ParentRig::root when shell is a "
+    "hardpoint",
+    "[player-location-system]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;

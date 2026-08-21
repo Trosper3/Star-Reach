@@ -126,16 +126,16 @@ TEST_CASE("AvailableTabs returns all seven screens when every facility kind and 
     const auto tabs = AvailableTabs(registry, root);
     REQUIRE(tabs.size() == 7);
     constexpr ScreenId kExpectedOrder[] = {
-        ScreenId::Bay,     ScreenId::Market,        ScreenId::Storage, ScreenId::Repair,
+        ScreenId::Bay,         ScreenId::Market,        ScreenId::Storage,  ScreenId::Repair,
         ScreenId::Engineering, ScreenId::Manufacturing, ScreenId::Research,
     };
     for (std::size_t i = 0; i < 7; ++i) {
         CHECK(tabs[i].screen == kExpectedOrder[i]);
     }
     // The Storage tab names no hardpoint -- there is nothing physical to move PlayerLocation onto.
-    const auto storageTab =
-        std::find_if(tabs.begin(), tabs.end(),
-                     [](const BridgeTab& tab) { return tab.screen == ScreenId::Storage; });
+    const auto storageTab = std::find_if(tabs.begin(), tabs.end(), [](const BridgeTab& tab) {
+        return tab.screen == ScreenId::Storage;
+    });
     REQUIRE(storageTab != tabs.end());
     CHECK((storageTab->hardpoint == entt::null));
 }
