@@ -30,7 +30,7 @@ FactionId RequesterFaction(const entt::registry& registry) {
 // every requester may already build it, the same as before this gate existed. A drafted Template
 // requires `self`'s own NetworkOwner to hold it, refused (no spend) otherwise.
 bool PassesKnowledgeGate(const SystemContext& ctx, entt::entity self,
-                        const BlueprintId& blueprint) {
+                         const BlueprintId& blueprint) {
     if (!ctx.content.IsDraftedTemplate(blueprint)) {
         return true;
     }
@@ -133,7 +133,8 @@ void ConsumeSaveTemplateRequests(const SystemContext& ctx) {
             return;
         }
         ctx.craftedModules->RegisterDraftedTemplate(request.blueprint);
-        ctx.knowledge->Grant(request.targetNetwork, core::knowledge::NetworkEntryKind::SavedTemplate,
+        ctx.knowledge->Grant(request.targetNetwork,
+                             core::knowledge::NetworkEntryKind::SavedTemplate,
                              request.blueprint.id.str());
     });
 }

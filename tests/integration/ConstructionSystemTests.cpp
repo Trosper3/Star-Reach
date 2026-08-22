@@ -209,7 +209,7 @@ TEST_CASE("A saved Template retains its body and can be built", "[construction]"
     CHECK(knowledge.Get(network)->savedTemplates.count("player_copy_ship") == 1);
     REQUIRE(content.FindShip(sr::BlueprintId("player_copy_ship")) != nullptr);
     CHECK(content.FindShip(sr::BlueprintId("player_copy_ship"))->rig.mounts.size() ==
-         draft.rig.mounts.size());
+          draft.rig.mounts.size());
 
     // Buildable: PlaceShipRequest for the saved id, from a requester whose network holds it.
     const entt::entity requester = registry.create();
