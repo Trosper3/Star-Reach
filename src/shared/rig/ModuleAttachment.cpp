@@ -286,6 +286,8 @@ entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
         }
     }
     return entt::null;
+}
+
 entt::entity CreateBareHardpoint(entt::registry& registry, entt::entity root,
                                  const MountBlueprint& mount, const ShellDef& shell) {
     const entt::entity hardpoint = registry.create();
