@@ -7,6 +7,7 @@
 #include "modes/space/data/SystemWorld.h"
 #include "modes/space/systems/DockingSystem.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -19,10 +20,13 @@ using sr::Docked;
 using sr::DockingBay;
 using sr::DockPrompt;
 using sr::DockRequest;
+using sr::FacilityKind;
+using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
 using sr::Health;
 using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::Rig;
 using sr::Targetable;
 using sr::ThrustInput;
@@ -345,6 +349,126 @@ TEST_CASE("DockingSystem never docks a rig with its own bay", "[docking]") {
     docking_system::Tick(MakeContext(world, intents, content, diplomacy));
 
     CHECK_FALSE(registry.all_of<DockPrompt>(station));
+}
+
+TEST_CASE("DockingSystem does not prompt a rig toward a bay already at capacity", "[docking]") {
+    // architecture.md 12.30.2: "a full bay is not an eligible bay."
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    registry.emplace<FacilityRef>(bay, FacilityKind::Docking, /*grade=*/1, /*capacity=*/1);
+
+    const entt::entity docked = registry.create();
+    registry.emplace<Docked>(docked, entt::null, bay);
+
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    CHECK_FALSE(registry.all_of<DockPrompt>(ship));
+}
+
+TEST_CASE("DockingSystem prompts again once a full bay's docked vessel has launched", "[docking]") {
+    // Occupancy is counted at the top of the tick a launch is processed in, so the bay reads
+    // full through that same tick (Tick() runs UpdatePromptsAndRequests, which snapshots
+    // occupancy, before ImmobilizeDocked consumes the UndockRequest) -- capacity frees up as of
+    // the next tick, the same one-tick lag PlayerControlled's own derivation already accepts.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    registry.emplace<FacilityRef>(bay, FacilityKind::Docking, /*grade=*/1, /*capacity=*/1);
+
+    const entt::entity docked = registry.create();
+    registry.emplace<Docked>(docked, entt::null, bay);
+    registry.emplace<UndockRequest>(docked);
+    registry.emplace<Rig>(docked);
+
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    const SystemContext ctx = MakeContext(world, intents, content, diplomacy);
+    docking_system::Tick(ctx);
+    CHECK_FALSE(registry.all_of<Docked>(docked));  // The launch itself did land this tick.
+
+    docking_system::Tick(ctx);
+    REQUIRE(registry.all_of<DockPrompt>(ship));
+    CHECK(registry.get<DockPrompt>(ship).bay == bay);
+}
+
+TEST_CASE("DockingSystem's capacity: 0 never blocks", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    registry.emplace<FacilityRef>(bay, FacilityKind::Docking, /*grade=*/1, /*capacity=*/0);
+
+    for (int i = 0; i < 3; ++i) {
+        const entt::entity docked = registry.create();
+        registry.emplace<Docked>(docked, entt::null, bay);
+    }
+
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    CHECK(registry.all_of<DockPrompt>(ship));
+}
+
+TEST_CASE("DockingSystem moves the player's PlayerLocation onto Docked.bay on arrival",
+          "[docking]") {
+    // architecture.md 12.30.2: "PlayerLocation resolves to Docked.bay on arrival" -- the Bay
+    // screen is the default screen a player lands on, without clicking a router tab first.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+    registry.emplace<PlayerLocation>(ship, PlayerLocation{ship});
+    registry.emplace<DockRequest>(ship, bay);
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    REQUIRE(registry.all_of<Docked>(ship));
+    CHECK_FALSE(registry.all_of<PlayerLocation>(ship));
+    REQUIRE(registry.all_of<PlayerLocation>(bay));
+    CHECK(registry.get<PlayerLocation>(bay).shell == bay);
+}
+
+TEST_CASE("DockingSystem leaves a non-player rig's own location untouched on dock", "[docking]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+    DiplomacyMatrix diplomacy;
+
+    entt::entity bay = entt::null;
+    MakeStation(registry, Vec2{0.0f, 0.0f}, Vec2{0.0f, 0.0f}, "aegis", bay);
+    const entt::entity ship = MakeShip(registry, Vec2{20.0f, 0.0f}, "aegis");
+    registry.emplace<DockRequest>(ship, bay);
+    // No PlayerLocation entity anywhere -- an NPC dock must not fabricate one.
+
+    docking_system::Tick(MakeContext(world, intents, content, diplomacy));
+
+    REQUIRE(registry.all_of<Docked>(ship));
+    CHECK_FALSE(registry.all_of<PlayerLocation>(ship));
+    CHECK_FALSE(registry.all_of<PlayerLocation>(bay));
 }
 
 TEST_CASE("DockingSystem fails closed with no diplomacy pointer wired", "[docking]") {

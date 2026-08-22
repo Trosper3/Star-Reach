@@ -13,6 +13,7 @@
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/SystemSchedule.h"
 #include "modes/space/ui/AvionicsMenu.h"
+#include "modes/space/ui/BayView.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "modes/space/ui/FlightControls.h"
@@ -110,11 +111,15 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
-    ui::avionics_menu::Update(registry);
+    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
+    // (section 2.3), and both files below need "is this hull mine" (architecture.md 12.30.2).
+    const FactionId playerFaction = player_record_system::FactionOf(registry);
+    ui::avionics_menu::Update(registry, playerFaction);
     ui::bridge_view::Update(registry);
     // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
     // (section 2.3), and this screen needs "is this station mine" (architecture.md 12.30.3).
     ui::repair_screen::Update(registry, player_record_system::FactionOf(registry));
+    ui::bay_view::Update(registry, playerFaction);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -281,10 +286,12 @@ void SpaceFlight::Draw() const {
     render::DrawAimReticle(registry, camera);
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
+    const FactionId playerFaction = player_record_system::FactionOf(registry);
     ui::cockpit_hud::Draw(world_.Registry());
-    ui::avionics_menu::Draw(world_.Registry());
+    ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     ui::bridge_view::Draw(world_.Registry());
     ui::repair_screen::Draw(registry, player_record_system::FactionOf(registry));
+    ui::bay_view::Draw(world_.Registry(), playerFaction);
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
     ui::system_menu::Draw(world_.Registry());
