@@ -7,6 +7,7 @@
 #include <entt/entity/registry.hpp>
 
 #include "modes/space/ui/BridgeView.h"
+#include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
@@ -14,12 +15,15 @@
 
 using sr::CargoHold;
 using sr::Destroyed;
+using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
+using sr::ParentRig;
 using sr::PlayerLocation;
 using sr::Rig;
 using sr::space::ui::bridge_view::AvailableTabs;
 using sr::space::ui::bridge_view::BridgeTab;
+using sr::space::ui::bridge_view::DockedStation;
 using sr::space::ui::bridge_view::ScreenId;
 using sr::space::ui::bridge_view::SelectTab;
 
@@ -210,4 +214,59 @@ TEST_CASE("SelectTab does nothing for an out-of-range index", "[bridge-view]") {
     SelectTab(registry, shell, tabs, 5);
 
     REQUIRE(registry.all_of<PlayerLocation>(shell));
+}
+
+TEST_CASE("DockedStation is null while flying (no Docked, no facility hardpoint)",
+          "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity shell = registry.create();
+    registry.emplace<PlayerLocation>(shell, PlayerLocation{shell});
+
+    CHECK((DockedStation(registry) == entt::null));
+}
+
+TEST_CASE("DockedStation resolves via Docked while PlayerLocation is still on the arriving vessel",
+          "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity vessel = registry.create();
+    registry.emplace<Docked>(vessel, station, entt::null);
+    registry.emplace<PlayerLocation>(vessel, PlayerLocation{vessel});
+
+    CHECK(DockedStation(registry) == station);
+}
+
+TEST_CASE(
+    "DockedStation resolves via ParentRig once PlayerLocation moves onto a facility "
+    "hardpoint",
+    "[bridge-view]") {
+    // architecture.md 12.30.1: PlayerControlled while standing in a facility is the station
+    // itself, which never carries Docked -- only a visiting vessel does. DockedStation must keep
+    // resolving anyway, or the router's tab strip goes dark the moment a screen is entered.
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<ParentRig>(hardpoint, station);
+    registry.emplace<FacilityRef>(hardpoint, FacilityKind::Repair);
+    registry.emplace<PlayerLocation>(hardpoint, PlayerLocation{hardpoint});
+
+    CHECK(DockedStation(registry) == station);
+}
+
+TEST_CASE(
+    "DockedStation resolves after boarding a different owned hull still docked at the "
+    "station",
+    "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity boardedHull = registry.create();
+    registry.emplace<Docked>(boardedHull, station, entt::null);
+    registry.emplace<PlayerLocation>(boardedHull, PlayerLocation{boardedHull});
+
+    CHECK(DockedStation(registry) == station);
+}
+
+TEST_CASE("DockedStation is null with no PlayerLocation entity", "[bridge-view]") {
+    entt::registry registry;
+    CHECK((DockedStation(registry) == entt::null));
 }

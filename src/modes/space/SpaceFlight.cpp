@@ -20,6 +20,7 @@
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ModulesMenu.h"
 #include "modes/space/ui/StorageMenu.h"
+#include "modes/space/ui/StorageScreen.h"
 #include "modes/space/ui/SystemMenu.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
@@ -156,6 +157,9 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     ui::avionics_menu::Update(registry, playerFaction);
     ui::bridge_view::Update(registry);
     ui::engineering_screen::Update(registry, player_record_system::FactionOf(registry), content_);
+    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
+    // (section 2.3), and this screen needs "is this station mine" (architecture.md 12.30.3).
+    ui::storage_screen::Update(registry, player_record_system::FactionOf(registry));
     // architecture.md 12.30.7: available everywhere, gated on nothing -- both run whether the
     // player is flying or docked over any screen (features.md 3.10), never facility-gated the
     // way bridge_view's own tabs are. PlayerVesselRoot, not PlayerLocation's own shell, since
@@ -343,6 +347,7 @@ void SpaceFlight::Draw() const {
     ui::bridge_view::Draw(world_.Registry());
     ui::engineering_screen::Draw(world_.Registry(), player_record_system::FactionOf(registry),
                                  content_);
+    ui::storage_screen::Draw(registry, player_record_system::FactionOf(registry));
     // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
     // is also showing (features.md 3.10's "an overlay is defined by being over something, not by
     // what it is over") -- after bridge_view, never gated on it.

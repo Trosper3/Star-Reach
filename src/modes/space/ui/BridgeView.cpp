@@ -42,20 +42,6 @@ Rectangle PanelBounds() {
     return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, kPanelHeight};
 }
 
-// The PlayerControlled entity, if it is Docked, else entt::null. Shared by Update and Draw so
-// both key off the same predicate.
-entt::entity DockedController(const entt::registry& registry, const Docked** outDocked) {
-    for (auto [entity] : registry.view<PlayerControlled>().each()) {
-        const Docked* docked = registry.try_get<Docked>(entity);
-        if (docked == nullptr) {
-            return entt::null;
-        }
-        *outDocked = docked;
-        return entity;
-    }
-    return entt::null;
-}
-
 // The entity currently carrying PlayerLocation (architecture.md 12.30.1 -- exactly one per
 // registry), or entt::null if OnEnter hasn't placed a player.
 entt::entity PlayerShell(const entt::registry& registry) {
@@ -66,6 +52,31 @@ entt::entity PlayerShell(const entt::registry& registry) {
 }
 
 }  // namespace
+
+entt::entity DockedStation(const entt::registry& registry) {
+    const entt::entity shell = PlayerShell(registry);
+    if (shell == entt::null) {
+        return entt::null;
+    }
+
+    // Standing inside a facility hardpoint (a screen): its ParentRig::root IS the station --
+    // exactly what the derived PlayerControlled already resolves to (architecture.md 12.30.1),
+    // read directly here instead so this keeps working even though PlayerControlled itself never
+    // carries Docked in this state.
+    if (registry.all_of<FacilityRef>(shell)) {
+        const ParentRig* parent = registry.try_get<ParentRig>(shell);
+        return parent != nullptr ? parent->root : entt::null;
+    }
+
+    // Aboard a vessel -- the player's own cockpit (self-referential, no ParentRig) or a boarded
+    // hull (architecture.md 12.30.2's Board). Docked lives on the rig root either way.
+    entt::entity root = shell;
+    if (const ParentRig* parent = registry.try_get<ParentRig>(shell)) {
+        root = parent->root;
+    }
+    const Docked* docked = registry.try_get<Docked>(root);
+    return docked != nullptr ? docked->station : entt::null;
+}
 
 std::string_view ToString(ScreenId value) {
     switch (value) {
@@ -156,13 +167,12 @@ void SelectTab(entt::registry& registry, entt::entity shell, std::span<const Bri
 }
 
 void Update(entt::registry& registry) {
-    const Docked* docked = nullptr;
-    const entt::entity controller = DockedController(registry, &docked);
-    if (controller == entt::null) {
+    const entt::entity station = DockedStation(registry);
+    if (station == entt::null) {
         return;
     }
 
-    const std::vector<BridgeTab> tabs = AvailableTabs(registry, docked->station);
+    const std::vector<BridgeTab> tabs = AvailableTabs(registry, station);
     const sr::ui::UiInput input{GetMousePosition(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
                                 GetMouseWheelMove()};
     if (!input.clicked) {
@@ -184,13 +194,12 @@ void Update(entt::registry& registry) {
 }
 
 void Draw(const entt::registry& registry) {
-    const Docked* docked = nullptr;
-    const entt::entity controller = DockedController(registry, &docked);
-    if (controller == entt::null) {
+    const entt::entity station = DockedStation(registry);
+    if (station == entt::null) {
         return;
     }
 
-    const std::vector<BridgeTab> tabs = AvailableTabs(registry, docked->station);
+    const std::vector<BridgeTab> tabs = AvailableTabs(registry, station);
     const Rectangle content = sr::ui::DrawPanelFrame(PanelBounds());
 
     std::vector<std::string> labels;
