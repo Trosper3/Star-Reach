@@ -49,6 +49,7 @@ add_executable(sr_tests
     unit/MiningSystemTests.cpp
     unit/ResearchRecordTests.cpp
     unit/ResearchSystemTests.cpp
+    unit/ResearchScreenTests.cpp
     unit/TemplateMarketSystemTests.cpp
     unit/ModuleAttachmentTests.cpp
     unit/CargoViewTests.cpp

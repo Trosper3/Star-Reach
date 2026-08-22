@@ -16,9 +16,11 @@
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "modes/space/ui/FlightControls.h"
+#include "modes/space/ui/ResearchScreen.h"
 #include "modes/space/ui/SystemMenu.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
+#include "shared/components/NetworkOwner.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Warp.h"
 
@@ -84,7 +86,11 @@ void SpaceFlight::OnEnter() {
     const Vec2 spawnPosition =
         spawn_system::ResolveSpawnPlacement(world_.Registry(), faction, Vec2{0.0f, 0.0f})
             .value_or(Vec2{0.0f, 0.0f});
-    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{});
+    // A fresh network for a fresh save -- there is no prior NetworkOwner to carry forward the way
+    // WarpToSystem's own call below does (architecture.md 12.30.6: "the player's network is
+    // bootstrapped once per save").
+    const KnowledgeNetworkId network = knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
+    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{}, network);
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
@@ -111,6 +117,10 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
     ui::avionics_menu::Update(registry);
     ui::bridge_view::Update(registry);
+    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
+    // (section 2.3), and this screen needs both "is this station mine" and the knowledge store's
+    // already-known check (architecture.md 12.30.6).
+    ui::research_screen::Update(registry, player_record_system::FactionOf(registry), knowledge_);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -172,7 +182,8 @@ void SpaceFlight::PopulateWorld(const std::string& targetSystemId) {
 }
 
 void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& faction,
-                                Vec2 spawnPosition, float spawnRotation, Wallet wallet) {
+                                Vec2 spawnPosition, float spawnRotation, Wallet wallet,
+                                KnowledgeNetworkId network) {
     const rig_factory::SpawnResult spawned = rig_factory::Spawn(
         world_, content_,
         rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
@@ -191,6 +202,9 @@ void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& f
     // damage/refits already don't carry over for the identical reason (this class's own doc
     // comment on WarpToSystem).
     arriving.emplace<Wallet>(spawned.root, wallet);
+    // Carried over exactly like Wallet above -- see this method's own header comment on why
+    // creating a fresh network here instead would orphan the player's prior unlocks.
+    arriving.emplace<NetworkOwner>(spawned.root, NetworkOwner{network});
     // Not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole source of
     // truth and PlayerControlled a derived tag (P4-01) -- writing both here would let them
     // disagree about where the player is. Self-referential for a fighter: there is no separate
@@ -223,6 +237,10 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     const FactionId faction = departing.get<FactionRef>(player).id;
     const Wallet wallet =
         departing.all_of<Wallet>(player) ? departing.get<Wallet>(player) : Wallet{};
+    // Carried over, never re-Create()'d -- SpawnPlayerAt's header comment explains why.
+    const KnowledgeNetworkId network = departing.all_of<NetworkOwner>(player)
+                                            ? departing.get<NetworkOwner>(player).network
+                                            : knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
 
     // Demote every DeathWreck left behind (architecture.md section 12.5) -- collected first,
     // since CollapseDeathWreck destroys the entity it's given and destroying mid-iteration over
@@ -241,7 +259,7 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     world_ = SystemWorld(targetSystemId);
 
     PopulateWorld(targetSystemId);
-    SpawnPlayerAt(blueprint, faction, spawnPosition, spawnRotation, wallet);
+    SpawnPlayerAt(blueprint, faction, spawnPosition, spawnRotation, wallet, network);
 
     // Promote every wreck this system is owed back into an entity now that it's resident again.
     entt::registry& arriving = world_.Registry();
@@ -280,6 +298,7 @@ void SpaceFlight::Draw() const {
     ui::cockpit_hud::Draw(world_.Registry());
     ui::avionics_menu::Draw(world_.Registry());
     ui::bridge_view::Draw(world_.Registry());
+    ui::research_screen::Draw(registry, player_record_system::FactionOf(registry), knowledge_);
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
     ui::system_menu::Draw(world_.Registry());

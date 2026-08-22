@@ -52,6 +52,15 @@ struct BridgeTab {
 // entt::null.
 std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entity rigRoot);
 
+// The station rig root the player is currently docked at, found via PlayerLocation rather than
+// the derived PlayerControlled -- so this keeps resolving once a tab moves PlayerLocation off the
+// player's own vessel and onto one of the station's facility hardpoints (architecture.md 12.30.1:
+// PlayerControlled there is the station itself, which never carries Docked, only a visiting
+// vessel does). entt::null while flying, or once undocked. Shared by every docked screen that
+// needs "which station is this" without depending on a specific FacilityKind hardpoint --
+// architecture.md 12.30.3's Storage half is the first with no hardpoint of its own to anchor on.
+entt::entity DockedStation(const entt::registry& registry);
+
 // Pure -- the tab-selection half of the router (architecture.md 12.30.1: "selecting a tab is
 // moving into that hardpoint"). Moves PlayerLocation from `shell` onto `tabs[tabIndex].hardpoint`
 // and nothing else; PlayerControlled is derived elsewhere (modes/space/systems/
