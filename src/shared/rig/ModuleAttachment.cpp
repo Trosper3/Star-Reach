@@ -273,6 +273,21 @@ float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity 
     return max > 0.0f ? current / max : 0.0f;
 }
 
+entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
+                           const MountId& mount) {
+    const Rig* rig = registry.try_get<Rig>(root);
+    if (rig == nullptr) {
+        return entt::null;
+    }
+    for (const entt::entity child : rig->children) {
+        const MountRef* ref = registry.try_get<MountRef>(child);
+        if (ref != nullptr && ref->id == mount) {
+            return child;
+        }
+    }
+    return entt::null;
+}
+
 entt::entity CreateBareHardpoint(entt::registry& registry, entt::entity root,
                                  const MountBlueprint& mount, const ShellDef& shell) {
     const entt::entity hardpoint = registry.create();

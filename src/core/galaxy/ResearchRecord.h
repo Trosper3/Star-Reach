@@ -19,6 +19,9 @@ struct ResearchRecord {
     float progress = 0.0f;
     float durationSeconds = 0.0f;
     KnowledgeNetworkId targetNetwork;
+    // Mirrors ResearchJob::facility (shared/components/Research.h) -- promotion must restore the
+    // job onto the same lab it demoted from, not just any Research hardpoint on the station.
+    MountId facility;
 };
 
 // Galaxy-wide store of demoted research jobs (Law 8 -- core/galaxy/, not any one registry), the

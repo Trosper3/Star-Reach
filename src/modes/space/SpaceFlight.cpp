@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "modes/space/factories/RigFactory.h"
@@ -20,6 +21,7 @@
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ModulesMenu.h"
 #include "modes/space/ui/RepairScreen.h"
+#include "modes/space/ui/ResearchScreen.h"
 #include "modes/space/ui/StorageMenu.h"
 #include "modes/space/ui/StorageScreen.h"
 #include "modes/space/ui/SystemMenu.h"
@@ -27,6 +29,7 @@
 #include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
+#include "shared/components/NetworkOwner.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Warp.h"
@@ -127,7 +130,11 @@ void SpaceFlight::OnEnter() {
     const Vec2 spawnPosition =
         spawn_system::ResolveSpawnPlacement(world_.Registry(), faction, Vec2{0.0f, 0.0f})
             .value_or(Vec2{0.0f, 0.0f});
-    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{});
+    // A fresh network for a fresh save -- there is no prior NetworkOwner to carry forward the way
+    // WarpToSystem's own call below does (architecture.md 12.30.6: "the player's network is
+    // bootstrapped once per save").
+    const KnowledgeNetworkId network = knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
+    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{}, network);
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
@@ -152,27 +159,28 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
+    //
     // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
-    // (section 2.3), and both files below need "is this hull mine" (architecture.md 12.30.2).
+    // (section 2.3), and every docked screen below needs "is this station/hull mine"
+    // (architecture.md 12.30.2/12.30.3/12.30.4/12.30.5/12.30.6), research_screen's own
+    // knowledge-store check besides.
     const FactionId playerFaction = player_record_system::FactionOf(registry);
     ui::avionics_menu::Update(registry, playerFaction);
     ui::bridge_view::Update(registry);
-    ui::engineering_screen::Update(registry, player_record_system::FactionOf(registry), content_);
-    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
-    // (section 2.3), and this screen needs "is this station mine" (architecture.md 12.30.3).
-    ui::repair_screen::Update(registry, player_record_system::FactionOf(registry));
-    ui::storage_screen::Update(registry, player_record_system::FactionOf(registry));
+    ui::bay_view::Update(registry, playerFaction);
+    ui::storage_screen::Update(registry, playerFaction);
+    ui::repair_screen::Update(registry, playerFaction);
+    ui::engineering_screen::Update(registry, playerFaction, content_);
+    ui::research_screen::Update(registry, playerFaction, knowledge_);
     // architecture.md 12.30.7: available everywhere, gated on nothing -- both run whether the
     // player is flying or docked over any screen (features.md 3.10), never facility-gated the
     // way bridge_view's own tabs are. PlayerVesselRoot, not PlayerLocation's own shell, since
     // standing on a facility hardpoint while docked must still resolve to the player's own ship.
     {
-        const entt::entity vesselRoot =
-            PlayerVesselRoot(registry, player_record_system::FactionOf(registry));
+        const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Update(registry, vesselRoot);
         ui::modules_menu::Update(registry, vesselRoot);
     }
-    ui::bay_view::Update(registry, playerFaction);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -238,7 +246,8 @@ void SpaceFlight::PopulateWorld(const std::string& targetSystemId) {
 }
 
 void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& faction,
-                                Vec2 spawnPosition, float spawnRotation, Wallet wallet) {
+                                Vec2 spawnPosition, float spawnRotation, Wallet wallet,
+                                KnowledgeNetworkId network) {
     const rig_factory::SpawnResult spawned = rig_factory::Spawn(
         world_, content_,
         rig_factory::SpawnParams{blueprint, faction, spawnPosition, spawnRotation});
@@ -257,6 +266,9 @@ void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& f
     // damage/refits already don't carry over for the identical reason (this class's own doc
     // comment on WarpToSystem).
     arriving.emplace<Wallet>(spawned.root, wallet);
+    // Carried over exactly like Wallet above -- see this method's own header comment on why
+    // creating a fresh network here instead would orphan the player's prior unlocks.
+    arriving.emplace<NetworkOwner>(spawned.root, NetworkOwner{std::move(network)});
     // Not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole source of
     // truth and PlayerControlled a derived tag (P4-01) -- writing both here would let them
     // disagree about where the player is. Self-referential for a fighter: there is no separate
@@ -289,6 +301,11 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     const FactionId faction = departing.get<FactionRef>(player).id;
     const Wallet wallet =
         departing.all_of<Wallet>(player) ? departing.get<Wallet>(player) : Wallet{};
+    // Carried over, never re-Create()'d -- SpawnPlayerAt's header comment explains why.
+    const KnowledgeNetworkId network =
+        departing.all_of<NetworkOwner>(player)
+            ? departing.get<NetworkOwner>(player).network
+            : knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
 
     // Demote every DeathWreck left behind (architecture.md section 12.5) -- collected first,
     // since CollapseDeathWreck destroys the entity it's given and destroying mid-iteration over
@@ -307,7 +324,7 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     world_ = SystemWorld(targetSystemId);
 
     PopulateWorld(targetSystemId);
-    SpawnPlayerAt(blueprint, faction, spawnPosition, spawnRotation, wallet);
+    SpawnPlayerAt(blueprint, faction, spawnPosition, spawnRotation, wallet, network);
 
     // Promote every wreck this system is owed back into an entity now that it's resident again.
     entt::registry& arriving = world_.Registry();
@@ -347,20 +364,19 @@ void SpaceFlight::Draw() const {
     ui::cockpit_hud::Draw(world_.Registry());
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     ui::bridge_view::Draw(world_.Registry());
-    ui::repair_screen::Draw(registry, player_record_system::FactionOf(registry));
-    ui::engineering_screen::Draw(world_.Registry(), player_record_system::FactionOf(registry),
-                                 content_);
-    ui::storage_screen::Draw(registry, player_record_system::FactionOf(registry));
+    ui::bay_view::Draw(world_.Registry(), playerFaction);
+    ui::storage_screen::Draw(registry, playerFaction);
+    ui::repair_screen::Draw(registry, playerFaction);
+    ui::engineering_screen::Draw(world_.Registry(), playerFaction, content_);
+    ui::research_screen::Draw(registry, playerFaction, knowledge_);
     // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
     // is also showing (features.md 3.10's "an overlay is defined by being over something, not by
     // what it is over") -- after bridge_view, never gated on it.
     {
-        const entt::entity vesselRoot =
-            PlayerVesselRoot(registry, player_record_system::FactionOf(registry));
+        const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Draw(registry, vesselRoot);
         ui::modules_menu::Draw(registry, vesselRoot);
     }
-    ui::bay_view::Draw(world_.Registry(), playerFaction);
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
     ui::system_menu::Draw(world_.Registry());

@@ -3,6 +3,7 @@
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
 
+#include "shared/blueprints/Ids.h"
 #include "shared/blueprints/ModuleDef.h"
 #include "shared/blueprints/RigBlueprint.h"
 #include "shared/blueprints/ShellDef.h"
@@ -71,6 +72,13 @@ inline constexpr float kStructuralFailureThreshold = 0.30f;
 // systems/).
 float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity rigRoot);
 
+// Resolves a rig's hardpoint by its stable mount id, or entt::null. The (NetworkId, MountId)
+// pair is how a hardpoint is addressed across a save or the wire -- an entt::entity never is.
+// Lives here rather than RigFactory (its original home) because it is a lookup over an
+// already-built rig, not construction: modes/space/systems/ may not include factories/ (section
+// 2.3), but ResearchSystem needs exactly this to resolve a job back to its bench. RigFactory.h
+// re-exports it under rig_factory:: for its own established callers.
+entt::entity FindHardpoint(const entt::registry& registry, entt::entity root, const MountId& mount);
 // Creates the bare hardpoint entity `mount` describes on `root`: MountRef, ParentRig, ShellRole,
 // HitRadius, MountTraverse, LocalTransform/WorldTransform/PreviousTransform, DrawLayer,
 // HardpointMass and Health -- everything RigFactory::CreateHardpoint does at construction time

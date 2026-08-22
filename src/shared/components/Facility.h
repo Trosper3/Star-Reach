@@ -18,10 +18,11 @@ struct FacilityRef {
     // Copied from ModuleDef::facility.grade at attach time. Meaningful only for
     // FacilityKind::Engineering -- see ModuleDef.h's FacilityStats::grade comment.
     int grade = 1;
-    // Copied from ModuleDef::facility.capacity at attach time (architecture.md 12.30.2). First
-    // reader is DockingSystem's bay-occupancy filter; 0 means unlimited, matching
-    // CargoHold::capacity's existing convention so one number does not mean two things in two
-    // components.
+    // Copied from ModuleDef::facility.capacity at attach time (architecture.md 12.30.2, .6).
+    // First reader is docking-bay occupancy; ResearchSystem's concurrent-job cap is the second,
+    // and the same meaning both times -- "how many units of work this facility holds at once." 0
+    // means unlimited, matching CargoHold::capacity's existing convention so one number does not
+    // mean two things in two components.
     int capacity = 0;
 };
 

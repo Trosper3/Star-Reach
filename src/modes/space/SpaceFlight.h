@@ -95,13 +95,18 @@ private:
     // entities -- before a rig exists to place.
     void PopulateWorld(const std::string& targetSystemId);
 
-    // Spawns the player's rig via `rig_factory::Spawn` and emplaces `Wallet` + `PlayerLocation` on
-    // it -- the shared body `OnEnter` and `WarpToSystem` both need (architecture.md 12.24 step 1).
-    // Not `PlayerControlled`: architecture.md 12.30.1 makes `PlayerLocation` the sole source of
-    // truth and `PlayerControlled` derived from it (P4-01) -- emplacing both here would let the
-    // two disagree about where the player is. Assumes `world_` is already populated.
+    // Spawns the player's rig via `rig_factory::Spawn` and emplaces `Wallet` + `NetworkOwner` +
+    // `PlayerLocation` on it -- the shared body `OnEnter` and `WarpToSystem` both need
+    // (architecture.md 12.24 step 1). Not `PlayerControlled`: architecture.md 12.30.1 makes
+    // `PlayerLocation` the sole source of truth and `PlayerControlled` derived from it (P4-01) --
+    // emplacing both here would let the two disagree about where the player is. `network` is
+    // carried over exactly like `wallet`: `OnEnter` mints a fresh id via `knowledge_.Create()`,
+    // `WarpToSystem` reads the departing player's existing `NetworkOwner::network` and passes it
+    // straight through -- creating a new one on every warp would orphan the old network's unlocks
+    // in `knowledge_` for good (architecture.md 12.30.6's "player's network is bootstrapped once
+    // per save"). Assumes `world_` is already populated.
     void SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& faction, Vec2 spawnPosition,
-                       float spawnRotation, Wallet wallet);
+                       float spawnRotation, Wallet wallet, KnowledgeNetworkId network);
 
     // Tears down `world_` and stands up `targetSystemId`'s in its place: demotes every DeathWreck
     // left behind into wreckLedger_ (#80), re-spawns the player from their BlueprintRef/FactionRef
