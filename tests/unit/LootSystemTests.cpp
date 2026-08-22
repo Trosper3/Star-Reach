@@ -32,6 +32,7 @@ using sr::ElementStack;
 using sr::Health;
 using sr::ItemKind;
 using sr::ItemStack;
+using sr::JettisonRequest;
 using sr::LootDrop;
 using sr::ModuleId;
 using sr::MountedModules;
@@ -237,6 +238,80 @@ TEST_CASE("LootSystem despawns a LootDrop once its lifetime expires unclaimed", 
     loot_system::Tick(MakeContext(world, intents, content, 1.0f));
 
     CHECK_FALSE(registry.valid(drop));
+}
+
+TEST_CASE("A JettisonRequest for a held Module withdraws it and spawns a collectible LootDrop",
+          "[loot]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity rig = MakeCollector(registry, Vec2{100.0f, 50.0f}, 50.0f);
+    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 14.0f});
+    registry.emplace<JettisonRequest>(rig, JettisonRequest{ItemKind::Module, "pulse_cannon_i", 1});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<JettisonRequest>(rig));
+    CHECK(cargo_view::Merged(registry, rig).empty());  // Withdrawn from the rig's own hold.
+
+    entt::entity drop = entt::null;
+    for (const entt::entity entity : registry.view<LootDrop>()) {
+        drop = entity;
+    }
+    REQUIRE((drop != entt::null));  // Appears as a pickup -- same LootDrop TickLootDrops collects.
+    CHECK(registry.get<LootDrop>(drop).moduleId == ModuleId("pulse_cannon_i"));
+    REQUIRE(registry.all_of<WorldTransform>(drop));
+    CHECK(registry.get<WorldTransform>(drop).position.x == 100.0f);
+    CHECK(registry.get<WorldTransform>(drop).position.y == 50.0f);
+}
+
+TEST_CASE(
+    "A JettisonRequest for held Elements withdraws exactly the requested quantity and spawns an "
+    "ElementDrop",
+    "[loot]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity rig = MakeCollector(registry, Vec2{0.0f, 0.0f}, 50.0f);
+    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    registry.emplace<JettisonRequest>(rig, JettisonRequest{ItemKind::Element, "Fe", 2});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    const std::vector<ItemStack> remaining = cargo_view::Merged(registry, rig);
+    REQUIRE(remaining.size() == 1);
+    CHECK(remaining.front().quantity == 3);  // 5 held, 2 jettisoned.
+
+    entt::entity drop = entt::null;
+    for (const entt::entity entity : registry.view<ElementDrop>()) {
+        drop = entity;
+    }
+    REQUIRE((drop != entt::null));
+    CHECK(registry.get<ElementDrop>(drop).elementId == "Fe");
+    CHECK(registry.get<ElementDrop>(drop).quantity == 2);
+}
+
+TEST_CASE("A JettisonRequest for more than is held is refused and drops nothing", "[loot]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity rig = MakeCollector(registry, Vec2{0.0f, 0.0f}, 50.0f);
+    cargo_view::Deposit(registry, rig, ItemStack{ItemKind::Element, "Fe", 2, 2.0f});
+    registry.emplace<JettisonRequest>(rig, JettisonRequest{ItemKind::Element, "Fe", 5});
+
+    loot_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<JettisonRequest>(rig));
+    const std::vector<ItemStack> remaining = cargo_view::Merged(registry, rig);
+    REQUIRE(remaining.size() == 1);
+    CHECK(remaining.front().quantity == 2);  // Untouched -- refused, not partially withdrawn.
+    CHECK(registry.view<ElementDrop>().empty());
 }
 
 TEST_CASE("LootSystem merges repeated ElementDrop pickups of the same element into one stack",
