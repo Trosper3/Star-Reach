@@ -22,4 +22,17 @@ struct MergeModulesRequest {
     ModuleId secondary;
 };
 
+// architecture.md 12.30.5's Deconstruct: breaks down one owned module in the requester's own
+// CargoHold, at the docked Engineering facility's grade-scaled recovery. Set by input/UI on the
+// docked rig root; consumed and cleared by EngineerSystem the same tick, the same idiom as
+// MergeModulesRequest above.
+//
+// §12.19's Recipe (what an item is "made of") does not exist yet, so the recovery this yields is
+// a flat credits-scaled placeholder, the same honesty RefactorSystem's rebuild verb already
+// applies to its own cost -- the gate and the consume-one-item rule are what this verb is for
+// until Recipe lands and it can yield real materials instead.
+struct DeconstructModuleRequest {
+    ModuleId module;
+};
+
 }  // namespace sr
