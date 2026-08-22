@@ -60,7 +60,9 @@ Layout ComputeLayout(Rectangle bounds) {
     return layout;
 }
 
-std::string FormatMass(float mass) { return std::to_string(static_cast<int>(mass)); }
+std::string FormatMass(float mass) {
+    return std::to_string(static_cast<int>(mass));
+}
 
 }  // namespace
 
@@ -106,7 +108,7 @@ TransferItemRequest BuildWithdrawRequest(const StorageRow& row) {
 }
 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction) {
+                           const FactionId& playerFaction) {
     for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
         if (docked.station == station && faction.id == playerFaction) {
             return vessel;

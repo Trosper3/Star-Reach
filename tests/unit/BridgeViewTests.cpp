@@ -236,9 +236,10 @@ TEST_CASE("DockedStation resolves via Docked while PlayerLocation is still on th
     CHECK(DockedStation(registry) == station);
 }
 
-TEST_CASE("DockedStation resolves via ParentRig once PlayerLocation moves onto a facility "
-          "hardpoint",
-          "[bridge-view]") {
+TEST_CASE(
+    "DockedStation resolves via ParentRig once PlayerLocation moves onto a facility "
+    "hardpoint",
+    "[bridge-view]") {
     // architecture.md 12.30.1: PlayerControlled while standing in a facility is the station
     // itself, which never carries Docked -- only a visiting vessel does. DockedStation must keep
     // resolving anyway, or the router's tab strip goes dark the moment a screen is entered.
@@ -252,9 +253,10 @@ TEST_CASE("DockedStation resolves via ParentRig once PlayerLocation moves onto a
     CHECK(DockedStation(registry) == station);
 }
 
-TEST_CASE("DockedStation resolves after boarding a different owned hull still docked at the "
-          "station",
-          "[bridge-view]") {
+TEST_CASE(
+    "DockedStation resolves after boarding a different owned hull still docked at the "
+    "station",
+    "[bridge-view]") {
     entt::registry registry;
     const entt::entity station = registry.create();
     const entt::entity boardedHull = registry.create();

@@ -48,17 +48,17 @@ TransferItemRequest BuildDepositRequest(const StorageRow& row);
 TransferItemRequest BuildWithdrawRequest(const StorageRow& row);
 
 // The station carrying a CargoHold that Deposit/Withdraw currently apply to: DockedStation's
-// result, gated on a living CargoHold-carrying child and FactionRef == playerFaction (architecture.md
-// 12.30.3's ownership table -- Deposit/Withdraw is the "Yours" row's warehouse pair). entt::null
-// otherwise, including "not yours" -- the screen simply does not appear, matching the table's
-// "None" outcome for every case this issue ships.
+// result, gated on a living CargoHold-carrying child and FactionRef == playerFaction
+// (architecture.md 12.30.3's ownership table -- Deposit/Withdraw is the "Yours" row's warehouse
+// pair). entt::null otherwise, including "not yours" -- the screen simply does not appear, matching
+// the table's "None" outcome for every case this issue ships.
 entt::entity ActiveStation(const entt::registry& registry, const FactionId& playerFaction);
 
 // The player's own vessel (FactionRef == playerFaction) currently Docked at `station`, or
 // entt::null if none. At most one exists today -- parking a second hull is not yet a shippable
 // path (architecture.md 12.30.2's parked-hull gap, blocked on RigState/P10-01).
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction);
+                           const FactionId& playerFaction);
 
 // Reads this frame's input and, while ActiveStation resolves, hit-tests both ListViews -- a click
 // on a row performs a whole-stack transfer in that row's direction. No-op otherwise, or with no

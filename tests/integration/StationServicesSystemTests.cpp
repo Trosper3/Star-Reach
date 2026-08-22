@@ -478,9 +478,8 @@ TEST_CASE("Transfer refuses whole when the source does not hold the item",
     CHECK(cargo_view::Merged(registry, requester).empty());
 }
 
-TEST_CASE(
-    "Transfer refuses whole and undoes the withdrawal when the destination has no room",
-    "[station-services][integration][transfer]") {
+TEST_CASE("Transfer refuses whole and undoes the withdrawal when the destination has no room",
+          "[station-services][integration][transfer]") {
     // architecture.md 12.30.3: "every transfer checks the destination and is refused whole,
     // never partially applied."
     const ContentLibrary content = Content();
