@@ -28,13 +28,6 @@ SellItemRequest BuildSellRequest(const ModuleId& module, int value) {
     return request;
 }
 
-RepairRequest BuildRepairRequest(float fraction, int costForFullRepair) {
-    RepairRequest request;
-    request.fraction = fraction;
-    request.costForFullRepair = costForFullRepair;
-    return request;
-}
-
 void Draw(const Rectangle& bounds, const std::vector<ModuleId>& stationStock) {
     const Rectangle content = sr::ui::DrawPanelFrame(bounds);
 

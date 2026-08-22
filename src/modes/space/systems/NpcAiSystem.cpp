@@ -10,6 +10,7 @@
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
+#include "shared/components/StationServices.h"
 #include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
@@ -219,6 +220,13 @@ void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazar
                 FleeFrom(xf, *threatXf, thrust);
             }
         }
+        // architecture.md 12.30.4: Flee is the disengagement; this gives it a destination.
+        // DockPrompt is already computed fresh this tick by DockingSystem, which runs earlier in
+        // TickSchedule -- requesting the same bay it names is the same DockRequest idiom
+        // AvionicsMenu uses for the player. DockRequest had zero producers anywhere before this.
+        if (const DockPrompt* prompt = registry.try_get<DockPrompt>(self)) {
+            registry.emplace_or_replace<DockRequest>(self, prompt->bay);
+        }
         return;
     }
 
@@ -230,6 +238,26 @@ void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazar
     }
 
     Engage(registry, behavior, self, target, xf, thrust);
+}
+
+// architecture.md 12.30.4: "who pays when the repaired rig is not the player's" -- an NPC's
+// other half. Any docked, damaged, non-player rig orders its own full repair against
+// StationServicesSystem (which resolves the payer: Wallet if it has one, ctx.economy otherwise).
+// get_or_emplace-shaped, not emplace_or_replace: overwriting an in-progress order every tick
+// would wipe RepairOrder::creditRemainder and restart billing from a rounding loss.
+void EmitNpcRepairOrders(entt::registry& registry) {
+    for (auto [self, docked, rig] :
+         registry.view<Docked, Rig>(entt::exclude<PlayerLocation>).each()) {
+        (void)docked;
+        (void)rig;
+        if (registry.all_of<RepairOrder>(self)) {
+            continue;
+        }
+        if (rig_attachment::AggregateStructuralIntegrity(registry, self) >= 1.0f) {
+            continue;
+        }
+        registry.emplace<RepairOrder>(self, RepairOrder{self, entt::null, 1.0f, 0.0f});
+    }
 }
 
 }  // namespace
@@ -244,10 +272,9 @@ void Tick(const SystemContext& ctx) {
     // finding H).
     //
     // exclude<PlayerLocation>, not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation
-    // the sole source of truth today, and nothing derives PlayerControlled yet (P4-01, still
-    // open) -- a PlayerControlled-gated exclusion here was a no-op, so this loop was zeroing the
-    // player's own ThrustInput and stripping their FireIntent every tick, right before
-    // WeaponSystem read it.
+    // the sole source of truth, and PlayerControlled is derived from it -- excluding the derived
+    // tag here would miss the tick it lags behind, so this excludes PlayerLocation's entity
+    // directly, the same entity every other write in this system already keys off.
     //
     // exclude<Uncrewed>: features.md 3.2's uncrewed hull -- a rig whose living control-shell crew
     // is gone has nothing left to steer or shoot with, so it coasts rather than the AI flying and
@@ -258,6 +285,8 @@ void Tick(const SystemContext& ctx) {
                                                .each()) {
         HandleRig(registry, hazards, self, target, xf, thrust);
     }
+
+    EmitNpcRepairOrders(registry);
 }
 
 }  // namespace sr::space::npc_ai_system
