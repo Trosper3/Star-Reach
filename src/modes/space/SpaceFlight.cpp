@@ -19,8 +19,8 @@
 #include "modes/space/ui/EngineeringScreen.h"
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ModulesMenu.h"
-#include "modes/space/ui/ResearchScreen.h"
 #include "modes/space/ui/RepairScreen.h"
+#include "modes/space/ui/ResearchScreen.h"
 #include "modes/space/ui/StorageMenu.h"
 #include "modes/space/ui/StorageScreen.h"
 #include "modes/space/ui/SystemMenu.h"
@@ -161,20 +161,16 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     //
     // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
     // (section 2.3), and every docked screen below needs "is this station/hull mine"
-    // (architecture.md 12.30.2/12.30.3/12.30.5/12.30.6), research_screen's own knowledge-store
-    // check besides.
+    // (architecture.md 12.30.2/12.30.3/12.30.4/12.30.5/12.30.6), research_screen's own
+    // knowledge-store check besides.
     const FactionId playerFaction = player_record_system::FactionOf(registry);
     ui::avionics_menu::Update(registry, playerFaction);
     ui::bridge_view::Update(registry);
     ui::bay_view::Update(registry, playerFaction);
     ui::storage_screen::Update(registry, playerFaction);
+    ui::repair_screen::Update(registry, playerFaction);
     ui::engineering_screen::Update(registry, playerFaction, content_);
     ui::research_screen::Update(registry, playerFaction, knowledge_);
-    ui::engineering_screen::Update(registry, player_record_system::FactionOf(registry), content_);
-    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
-    // (section 2.3), and this screen needs "is this station mine" (architecture.md 12.30.3).
-    ui::repair_screen::Update(registry, player_record_system::FactionOf(registry));
-    ui::storage_screen::Update(registry, player_record_system::FactionOf(registry));
     // architecture.md 12.30.7: available everywhere, gated on nothing -- both run whether the
     // player is flying or docked over any screen (features.md 3.10), never facility-gated the
     // way bridge_view's own tabs are. PlayerVesselRoot, not PlayerLocation's own shell, since
@@ -369,12 +365,9 @@ void SpaceFlight::Draw() const {
     ui::bridge_view::Draw(world_.Registry());
     ui::bay_view::Draw(world_.Registry(), playerFaction);
     ui::storage_screen::Draw(registry, playerFaction);
+    ui::repair_screen::Draw(registry, playerFaction);
     ui::engineering_screen::Draw(world_.Registry(), playerFaction, content_);
     ui::research_screen::Draw(registry, playerFaction, knowledge_);
-    ui::repair_screen::Draw(registry, player_record_system::FactionOf(registry));
-    ui::engineering_screen::Draw(world_.Registry(), player_record_system::FactionOf(registry),
-                                 content_);
-    ui::storage_screen::Draw(registry, player_record_system::FactionOf(registry));
     // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
     // is also showing (features.md 3.10's "an overlay is defined by being over something, not by
     // what it is over") -- after bridge_view, never gated on it.
