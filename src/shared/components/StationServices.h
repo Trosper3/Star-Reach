@@ -1,8 +1,10 @@
 #pragma once
 
 #include <entt/entity/entity.hpp>
+#include <string>
 
 #include "shared/blueprints/Ids.h"
+#include "shared/components/Loot.h"
 
 // Components are plain-old-data (Law 1): no virtual methods, no inheritance, no owning pointers,
 // and no std::vector where a child entity would do (Law 4). Anything that looks like behavior
@@ -48,6 +50,20 @@ struct RepairOrder {
     // Sub-credit carry: billing is whole credits per tick, and the fractional remainder that
     // would otherwise round to zero every tick -- making repair free again -- accumulates here.
     float creditRemainder = 0.0f;
+};
+
+// architecture.md 12.30.3's Storage half: a transfer within one owner, free of charge -- distinct
+// from Buy/Sell, which cross an ownership boundary and cost credits (the Market half, P6-08). Set
+// by input/UI on the requester -- the vessel root the player arrived in (Docking.h's Docked), NOT
+// PlayerControlled, which while docked is the station itself (architecture.md 12.30.1's first
+// consequence; 12.30.3 names this trap explicitly). Consumed and cleared by
+// StationServicesSystem the same tick.
+struct TransferItemRequest {
+    ItemKind kind = ItemKind::Element;
+    std::string id;
+    int quantity = 0;
+    // true: vessel -> station (Deposit). false: station -> vessel (Withdraw).
+    bool toStation = true;
 };
 
 // architecture.md 12.10 also names MergeModuleRequest{ ModuleId a, b }, deliberately not defined

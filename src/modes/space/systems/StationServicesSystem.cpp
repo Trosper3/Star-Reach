@@ -89,6 +89,63 @@ void ProcessSellRequests(entt::registry& registry, const core::ContentLibrary& c
     }
 }
 
+// The unit mass of an existing (kind, id) stack already held by `rigRoot`, or a negative value if
+// no such stack exists there. A transfer moves an already-resolved stack, never a fresh deposit,
+// so this reads mass off the source rather than re-resolving through ContentLibrary the way
+// Buy/Sell must (shared/ may not include core/ -- architecture.md 2.3).
+float ResolveUnitMass(const entt::registry& registry, entt::entity rigRoot, ItemKind kind,
+                      const std::string& id) {
+    for (const ItemStack& stack : cargo_view::Merged(registry, rigRoot)) {
+        if (stack.kind == kind && stack.id == id) {
+            return stack.unitMass;
+        }
+    }
+    return -1.0f;
+}
+
+// architecture.md 12.30.3's ownership answer: a transfer within one owner is free; the station's
+// CargoHold has exactly one owner, and Deposit/Withdraw are offered only when that owner is the
+// requester. Buy/Sell (crossing an ownership boundary, at a price) is the Market half, P6-08.
+void ProcessTransferRequests(entt::registry& registry) {
+    std::vector<entt::entity> consumed;
+    for (auto [self, request] : registry.view<TransferItemRequest>().each()) {
+        consumed.push_back(self);
+
+        const entt::entity station = DockedStation(registry, self);
+        const FactionRef* stationFaction =
+            station == entt::null ? nullptr : registry.try_get<FactionRef>(station);
+        const FactionRef* requesterFaction = registry.try_get<FactionRef>(self);
+        if (station == entt::null || stationFaction == nullptr || requesterFaction == nullptr ||
+            stationFaction->id != requesterFaction->id || request.quantity <= 0) {
+            continue;
+        }
+
+        const entt::entity source = request.toStation ? self : station;
+        const entt::entity destination = request.toStation ? station : self;
+
+        const float unitMass = ResolveUnitMass(registry, source, request.kind, request.id);
+        if (unitMass < 0.0f) {
+            continue;  // The source does not hold it -- refused whole, nothing moves.
+        }
+        if (!cargo_view::Withdraw(registry, source, request.kind, request.id, request.quantity)) {
+            continue;
+        }
+
+        const ItemStack stack{request.kind, request.id, request.quantity, unitMass};
+        if (cargo_view::Deposit(registry, destination, stack) !=
+            cargo_view::DepositResult::Deposited) {
+            // The destination has no room -- undo the withdrawal rather than lose the stack.
+            // architecture.md 12.30.3: "every transfer checks the destination and is refused
+            // whole, never partially applied."
+            cargo_view::Deposit(registry, source, stack);
+            continue;
+        }
+    }
+    for (const entt::entity self : consumed) {
+        registry.remove<TransferItemRequest>(self);
+    }
+}
+
 // The docked station's living Repair-kind hardpoint, or entt::null if there isn't one.
 // architecture.md 13.3 finding I: the paid repair path used DockedStation only as a docked-ness
 // check and never actually looked for a Repair facility, which made the free heal in
@@ -303,6 +360,8 @@ void Tick(const SystemContext& ctx) {
     ProcessBuyRequests(registry, ctx.content);
     ProcessSellRequests(registry, ctx.content);
     ProcessRepairOrders(ctx);
+    ProcessTransferRequests(registry);
+    ProcessRepairRequests(ctx);
 }
 
 }  // namespace sr::space::station_services_system

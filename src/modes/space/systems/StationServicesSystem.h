@@ -34,6 +34,19 @@ namespace sr::space::station_services_system {
 // on undock, when its subject/hardpoint is no longer valid, or once its facility is destroyed;
 // it merely stalls -- billing nothing, healing nothing, staying in place -- while its payer
 // cannot currently afford the tick's cost.
+// Transfer (architecture.md 12.30.3's Storage half): Deposit/Withdraw, free of charge, offered
+// only when the station's FactionRef equals the requester's own -- a transfer within one owner,
+// never across the ownership boundary Buy/Sell cross. Refused whole, never partially applied: the
+// source is withdrawn from first, and a destination with no room gets the withdrawal undone
+// rather than losing the stack.
+//
+// Repair: refused unless the docked station has a living FacilityKind::Repair hardpoint
+// (architecture.md 13.3 finding I -- deleted DockingSystem's unconditional free heal, so this is
+// now the only gate). The requested `fraction` is capped by how much the facility's authored
+// FacilityStats::ratePerSecond can deliver this tick; spend = round(cappedFraction *
+// costForFullRepair), so a capped tick is never billed for hull it did not restore. Restores the
+// (possibly capped) fraction of each living hardpoint's missing hull across the requester's own
+// Rig -- a Destroyed hardpoint is never healed.
 //
 // MergeModuleRequest is not implemented here -- see shared/components/StationServices.h's
 // comment on why.

@@ -36,6 +36,7 @@ using sr::ParentRig;
 using sr::RepairOrder;
 using sr::Rig;
 using sr::SellItemRequest;
+using sr::TransferItemRequest;
 using sr::Wallet;
 using sr::core::ContentLibrary;
 using sr::core::economy::FactionEconomy;
@@ -608,6 +609,140 @@ TEST_CASE("A repair spanning many ticks charges a total, not zero -- the roundin
     // 100 ticks * 0.1 HP == 10.0 HP restored; costPerHp(grade 1) == 2 -> 20 credits total.
     CHECK(registry.get<Health>(hardpoint).current == Approx(60.0f));
     CHECK(registry.get<Wallet>(rig).credits == 80);
+}
+
+TEST_CASE("Deposit moves a stack from the requester's cargo to the station's, free of charge",
+          "[station-services][integration][transfer]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);
+    cargo_view::Deposit(registry, requester, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/true});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<TransferItemRequest>(requester));
+    CHECK(cargo_view::Merged(registry, requester).empty());
+    const std::vector<ItemStack> stationCargo = cargo_view::Merged(registry, station);
+    REQUIRE(stationCargo.size() == 1);
+    CHECK(stationCargo.front().id == "Fe");
+    CHECK(stationCargo.front().quantity == 5);
+}
+
+TEST_CASE("Withdraw moves a stack from the station's cargo to the requester's",
+          "[station-services][integration][transfer]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    cargo_view::Deposit(registry, station, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/false});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<TransferItemRequest>(requester));
+    CHECK(cargo_view::Merged(registry, station).empty());
+    const std::vector<ItemStack> requesterCargo = cargo_view::Merged(registry, requester);
+    REQUIRE(requesterCargo.size() == 1);
+    CHECK(requesterCargo.front().id == "Fe");
+    CHECK(requesterCargo.front().quantity == 5);
+}
+
+TEST_CASE("Transfer refuses across different owners and moves nothing",
+          "[station-services][integration][transfer]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("kore"));  // Not the requester's faction.
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);
+    cargo_view::Deposit(registry, requester, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/true});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<TransferItemRequest>(requester));
+    CHECK(cargo_view::Merged(registry, station).empty());
+    CHECK(cargo_view::Merged(registry, requester).size() == 1);
+}
+
+TEST_CASE("Transfer refuses whole when the source does not hold the item",
+          "[station-services][integration][transfer]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);  // Empty -- nothing to withdraw from.
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/true});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<TransferItemRequest>(requester));
+    CHECK(cargo_view::Merged(registry, station).empty());
+    CHECK(cargo_view::Merged(registry, requester).empty());
+}
+
+TEST_CASE("Transfer refuses whole and undoes the withdrawal when the destination has no room",
+          "[station-services][integration][transfer]") {
+    // architecture.md 12.30.3: "every transfer checks the destination and is refused whole,
+    // never partially applied."
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = registry.create();
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    const entt::entity stationBay = registry.create();
+    registry.emplace<ParentRig>(stationBay, station);
+    registry.emplace<CargoHold>(stationBay, std::vector<ItemStack>{}, 1, 1.0f);  // Barely any room.
+    registry.emplace<Rig>(station, std::vector<entt::entity>{stationBay});
+
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);
+    cargo_view::Deposit(registry, requester, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/true});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<TransferItemRequest>(requester));
+    CHECK(cargo_view::Merged(registry, station).empty());
+    const std::vector<ItemStack> requesterCargo = cargo_view::Merged(registry, requester);
+    REQUIRE(requesterCargo.size() == 1);
+    CHECK(requesterCargo.front().quantity == 5);  // Round-tripped, not lost.
 }
 
 TEST_CASE("Requests are refused when the requester is not Docked",
