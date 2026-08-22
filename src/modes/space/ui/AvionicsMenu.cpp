@@ -5,9 +5,12 @@
 #include <algorithm>
 #include <array>
 
+#include "modes/space/ui/BayView.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Power.h"
+#include "shared/components/Rig.h"
 #include "shared/ui/HudTheme.h"
 
 namespace sr::space::ui::avionics_menu {
@@ -110,13 +113,31 @@ void UpdatePower(entt::registry& registry, entt::entity player) {
     wasCtrlDown = ctrlDown;
 }
 
+// architecture.md 12.30.2's "R while docked means board and launch": `player` (PlayerLocation's
+// entity) standing inside a facility hardpoint is not itself Docked -- the derived
+// PlayerControlled is the station (12.30.1) -- so a naive UndockRequest there does nothing. This
+// resolves the vessel that shortcut would launch: the player's own hull Docked at the station
+// `player`'s ParentRig names, or entt::null if `player` is not a facility hardpoint or no such
+// hull exists.
+entt::entity ResolveOwnedDockedHull(const entt::registry& registry, entt::entity player,
+                                    const FactionId& playerFaction) {
+    if (!registry.all_of<FacilityRef>(player)) {
+        return entt::null;
+    }
+    const ParentRig* parent = registry.try_get<ParentRig>(player);
+    if (parent == nullptr) {
+        return entt::null;
+    }
+    return space::ui::bay_view::OwnedVesselAt(registry, parent->root, playerFaction);
+}
+
 }  // namespace
 
 // PlayerLocation, not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole
-// source of truth today, and nothing derives PlayerControlled yet (P4-01, still open) -- a
-// PlayerControlled-gated view here was permanently empty, so pressing R has never done anything
-// for anyone, and "[R] DOCK" has never once drawn, regardless of range or faction.
-void Update(entt::registry& registry) {
+// source of truth, and PlayerControlled is derived from it (modes/space/systems/
+// PlayerLocationSystem.h) rather than read directly here -- this file only ever needs to know
+// where the player is actually standing, which PlayerLocation already answers directly.
+void Update(entt::registry& registry, const FactionId& playerFaction) {
     entt::entity player = entt::null;
     for (auto [entity, location] : registry.view<PlayerLocation>().each()) {
         (void)location;
@@ -132,13 +153,19 @@ void Update(entt::registry& registry) {
             registry.emplace_or_replace<DockRequest>(player, prompt->bay);
         } else if (registry.all_of<Docked>(player)) {
             registry.emplace_or_replace<UndockRequest>(player);
+        } else if (const entt::entity hull =
+                       ResolveOwnedDockedHull(registry, player, playerFaction);
+                   hull != entt::null) {
+            registry.remove<PlayerLocation>(player);
+            registry.emplace<PlayerLocation>(hull, PlayerLocation{hull});
+            registry.emplace_or_replace<UndockRequest>(hull);
         }
     }
 
     UpdatePower(registry, player);
 }
 
-void Draw(const entt::registry& registry) {
+void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     for (auto [entity, location] : registry.view<PlayerLocation>().each()) {
         (void)location;
         const char* label = nullptr;
@@ -146,6 +173,8 @@ void Draw(const entt::registry& registry) {
             label = "[R] DOCK";
         } else if (registry.all_of<Docked>(entity)) {
             label = "[R] UNDOCK";
+        } else if (ResolveOwnedDockedHull(registry, entity, playerFaction) != entt::null) {
+            label = "[R] LAUNCH";
         }
         if (label == nullptr) {
             return;
