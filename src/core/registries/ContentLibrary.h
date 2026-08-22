@@ -54,8 +54,9 @@ public:
     // absorb-or-bypass row (architecture.md 12.33).
     DamageTypeEffect LookupDamageTypeEffect(DamageType type) const;
 
-    // Registers a module built at runtime rather than loaded from JSON -- architecture.md 12.12's
-    // EngineerMenu, which merges two owned modules into a new one. The merged ModuleDef is
+    // Registers a module built at runtime rather than loaded from JSON -- architecture.md
+    // 12.30.5's Engineering screen, which merges two owned modules into a new one. The merged
+    // ModuleDef is
     // player-generated content, not authored content, the same distinction CustomizeMenu's
     // Template draft already makes (architecture.md 12.9): its caller builds it by plain
     // declaration and field assignment rather than an initializer, so Law 10's

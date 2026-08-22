@@ -3,38 +3,27 @@
 #include <optional>
 #include <vector>
 
-#include "shared/components/Docking.h"
 #include "shared/components/Engineer.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Loot.h"
-#include "shared/components/Rig.h"
 #include "shared/rig/CargoView.h"
+#include "shared/rig/DockedFacility.h"
 
 namespace sr::space::engineer_system {
 namespace {
 
-// Returns the docked station's living Engineering facility level, or nullopt if the requester
-// isn't docked or the station has none. "Living" excludes a Destroyed hardpoint -- a facility
-// whose hardpoint died no longer grants the ability it was providing.
+// The docked Engineering facility's authored grade, or nullopt if `requester` is not currently
+// standing in one. Reads docked_facility::DockedFacility -- PlayerLocation, not a first-found
+// Rig::children scan -- so a station with two benches of different grade uses whichever one the
+// requester is actually standing in (architecture.md 12.30.5: "duplicate facilities are not
+// fungible").
 std::optional<int> DockedEngineeringLevel(const entt::registry& registry, entt::entity requester) {
-    const Docked* docked = registry.try_get<Docked>(requester);
-    if (docked == nullptr || !registry.valid(docked->station)) {
+    const entt::entity facility =
+        docked_facility::DockedFacility(registry, requester, FacilityKind::Engineering);
+    if (facility == entt::null) {
         return std::nullopt;
     }
-    const Rig* stationRig = registry.try_get<Rig>(docked->station);
-    if (stationRig == nullptr) {
-        return std::nullopt;
-    }
-    for (const entt::entity hardpoint : stationRig->children) {
-        if (registry.all_of<Destroyed>(hardpoint)) {
-            continue;
-        }
-        const FacilityRef* facility = registry.try_get<FacilityRef>(hardpoint);
-        if (facility != nullptr && facility->kind == FacilityKind::Engineering) {
-            return facility->grade;
-        }
-    }
-    return std::nullopt;
+    return registry.get<FacilityRef>(facility).grade;
 }
 
 // primaryValue + secondaryValue * (level * 0.1) -- architecture.md 12.12's formula, applied
@@ -158,10 +147,52 @@ void ProcessMergeRequests(const SystemContext& ctx) {
     }
 }
 
+// architecture.md 12.30.5: what a deconstruct returns pending §12.19's Recipe (the "what is this
+// made of" answer deconstruction is meant to read backwards) -- a flat fraction of the module's
+// own mass converted to credits, scaled toward the facility grade's real recovery band
+// (features.md 2.4: "20-45% ... 80-100%") without pretending to compute it from a recipe that
+// does not exist yet. Grade runs 1 (Common) to 7 (Mythic), the same ladder
+// ModuleAttachment.cpp's kGradeTimeFactor already uses.
+constexpr float kDeconstructCreditsPerMass = 4.0f;
+
+int DeconstructYield(const ModuleDef& module, int grade) {
+    const float recoveryFraction = 0.2f + 0.1f * static_cast<float>(grade);
+    return static_cast<int>(module.mass * kDeconstructCreditsPerMass * recoveryFraction);
+}
+
+void ProcessDeconstructRequests(const SystemContext& ctx) {
+    entt::registry& registry = ctx.Registry();
+    std::vector<entt::entity> consumed;
+
+    for (auto [self, request] : registry.view<DeconstructModuleRequest>().each()) {
+        consumed.push_back(self);
+
+        const std::optional<int> grade = DockedEngineeringLevel(registry, self);
+        if (!grade.has_value()) {
+            continue;
+        }
+        const ModuleDef* module = ctx.content.FindModule(request.module);
+        if (module == nullptr) {
+            continue;
+        }
+        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, request.module.str(), 1)) {
+            continue;
+        }
+        if (Wallet* wallet = registry.try_get<Wallet>(self); wallet != nullptr) {
+            wallet->credits += DeconstructYield(*module, *grade);
+        }
+    }
+
+    for (const entt::entity self : consumed) {
+        registry.remove<DeconstructModuleRequest>(self);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
     ProcessMergeRequests(ctx);
+    ProcessDeconstructRequests(ctx);
 }
 
 }  // namespace sr::space::engineer_system
