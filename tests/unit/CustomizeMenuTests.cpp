@@ -2,7 +2,6 @@
 
 #include <unordered_map>
 
-#include "core/events/IntentQueue.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "modes/space/ui/CustomizeMenu.h"
 
@@ -141,36 +140,6 @@ TEST_CASE("BuildSaveRequest carries the actor, network, and blueprint through",
     CHECK(intent.blueprint.rig.mounts.size() == draft.rig.mounts.size());
 }
 
-TEST_CASE("ConsumeSaveTemplateRequests grants a valid draft into its target network",
-          "[customize-menu]") {
-    const FakeLibrary library = MakeLibrary();
-    sr::core::knowledge::KnowledgeStore knowledge;
-    const sr::KnowledgeNetworkId network =
-        knowledge.Create(sr::core::knowledge::NetworkOwnerKind::Player);
-
-    sr::core::IntentQueue intents;
-    intents.Push(customize_menu::BuildSaveRequest(sr::ActorId{1}, network, MakeValidDraft()));
-
-    customize_menu::ConsumeSaveTemplateRequests(intents, knowledge, library);
-
-    REQUIRE(knowledge.Get(network) != nullptr);
-    CHECK(knowledge.Get(network)->savedTemplates.count("player_design") == 1);
-}
-
-TEST_CASE("ConsumeSaveTemplateRequests never grants an invalid draft", "[customize-menu]") {
-    const FakeLibrary library = MakeLibrary();
-    sr::core::knowledge::KnowledgeStore knowledge;
-    const sr::KnowledgeNetworkId network =
-        knowledge.Create(sr::core::knowledge::NetworkOwnerKind::Player);
-
-    sr::ShipBlueprint invalid = customize_menu::NewDraft();
-    invalid.id = sr::BlueprintId("broken_design");
-
-    sr::core::IntentQueue intents;
-    intents.Push(customize_menu::BuildSaveRequest(sr::ActorId{1}, network, invalid));
-
-    customize_menu::ConsumeSaveTemplateRequests(intents, knowledge, library);
-
-    REQUIRE(knowledge.Get(network) != nullptr);
-    CHECK(knowledge.Get(network)->savedTemplates.empty());
-}
+// ConsumeSaveTemplateRequests moved to modes/space/systems/ConstructionSystem.cpp
+// (architecture.md 12.30.8) -- its tests now live in ConstructionSystemTests.cpp, next to the
+// concrete core::ContentLibrary the Template overlay needs.
