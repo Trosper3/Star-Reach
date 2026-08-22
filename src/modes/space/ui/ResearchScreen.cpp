@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <unordered_set>
@@ -38,7 +39,7 @@ float DurationSeconds(int facilityGrade) {
 }
 
 std::string FormatSeconds(float seconds) {
-    const int whole = static_cast<int>(seconds + 0.5f);
+    const int whole = static_cast<int>(std::lround(seconds));
     if (whole < 60) {
         return std::to_string(whole) + "s";
     }

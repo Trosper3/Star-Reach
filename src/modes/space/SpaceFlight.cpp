@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "modes/space/factories/RigFactory.h"
@@ -267,7 +268,7 @@ void SpaceFlight::SpawnPlayerAt(const BlueprintId& blueprint, const FactionId& f
     arriving.emplace<Wallet>(spawned.root, wallet);
     // Carried over exactly like Wallet above -- see this method's own header comment on why
     // creating a fresh network here instead would orphan the player's prior unlocks.
-    arriving.emplace<NetworkOwner>(spawned.root, NetworkOwner{network});
+    arriving.emplace<NetworkOwner>(spawned.root, NetworkOwner{std::move(network)});
     // Not PlayerControlled: architecture.md 12.30.1 makes PlayerLocation the sole source of
     // truth and PlayerControlled a derived tag (P4-01) -- writing both here would let them
     // disagree about where the player is. Self-referential for a fighter: there is no separate
