@@ -1,5 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
 
@@ -217,9 +217,10 @@ TEST_CASE("Selling refuses when the seller does not hold the module",
     CHECK(cargo_view::Merged(registry, station).empty());
 }
 
-TEST_CASE("RepairOrder heals toward its target, capped by the facility's rate this tick, "
-          "billing whole credits for hull actually restored",
-          "[station-services][integration][repair]") {
+TEST_CASE(
+    "RepairOrder heals toward its target, capped by the facility's rate this tick, "
+    "billing whole credits for hull actually restored",
+    "[station-services][integration][repair]") {
     // architecture.md 13.3 finding I / 13.4 decision 1: the rate DockingSystem's deleted free
     // heal used to apply moves to FacilityStats::ratePerSecond instead of dying with it -- this
     // is that field's reader. A slow facility can only deliver rate * dt this tick.
@@ -241,14 +242,15 @@ TEST_CASE("RepairOrder heals toward its target, capped by the facility's rate th
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
-    REQUIRE(registry.all_of<RepairOrder>(rig));  // Target not yet reached.
+    REQUIRE(registry.all_of<RepairOrder>(rig));                       // Target not yet reached.
     CHECK(registry.get<Health>(hardpoint).current == Approx(51.0f));  // +1.0 HP this tick
     CHECK(registry.get<Wallet>(rig).credits == 98);  // costPerHp(grade 1) == 2; 1.0 HP * 2 == 2
 }
 
-TEST_CASE("RepairOrder's rate is multiplied by the docked STATION's own crew, not the "
-          "requester's",
-          "[station-services][integration][repair][crew]") {
+TEST_CASE(
+    "RepairOrder's rate is multiplied by the docked STATION's own crew, not the "
+    "requester's",
+    "[station-services][integration][repair][crew]") {
     // features.md 2.7's Repair role: an officer multiplies the facility they are stationed
     // aboard, never whoever is being repaired -- CrewRepairBonus lives on the station root
     // (shared/rig/ModuleAttachment.cpp's RecomputeRigTotals), read here via the facility
@@ -287,7 +289,8 @@ TEST_CASE("RepairOrder completes and stops billing once its target fraction is r
     sr::core::IntentQueue intents;
 
     const entt::entity station = MakeStation(registry, {});
-    AddRepairFacility(registry, content, station, 6000.0f);  // fast enough to reach target in 1 tick
+    AddRepairFacility(registry, content, station,
+                      6000.0f);  // fast enough to reach target in 1 tick
     const entt::entity hardpoint = registry.create();
     registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
 
@@ -308,9 +311,10 @@ TEST_CASE("RepairOrder completes and stops billing once its target fraction is r
     CHECK(registry.get<Wallet>(rig).credits == 80);
 }
 
-TEST_CASE("RepairOrder does not heal a Destroyed hardpoint even under Repair All, and charges "
-          "nothing for it",
-          "[station-services][integration][repair]") {
+TEST_CASE(
+    "RepairOrder does not heal a Destroyed hardpoint even under Repair All, and charges "
+    "nothing for it",
+    "[station-services][integration][repair]") {
     // architecture.md 12.30.7's Destroyed sweep: a permanently dead hardpoint stays dead --
     // features.md 3.9's colour-is-condition schematic would otherwise draw it green after this.
     ContentLibrary content = Content();
@@ -339,9 +343,10 @@ TEST_CASE("RepairOrder does not heal a Destroyed hardpoint even under Repair All
     CHECK(registry.get<Wallet>(rig).credits == 0);  // 50 HP * costPerHp(2) == 100, all from living
 }
 
-TEST_CASE("RepairOrder stalls -- heals nothing, bills nothing, stays in place -- when the "
-          "wallet cannot afford this tick's cost",
-          "[station-services][integration][repair]") {
+TEST_CASE(
+    "RepairOrder stalls -- heals nothing, bills nothing, stays in place -- when the "
+    "wallet cannot afford this tick's cost",
+    "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -466,9 +471,10 @@ TEST_CASE("A station the requester owns is a valid subject and its own hardpoint
     CHECK(registry.get<Wallet>(rig).credits == 0);  // 50 HP * costPerHp(2) == 100
 }
 
-TEST_CASE("RepairOrder is invalidated when its subject is neither the requester nor an owned "
-          "station",
-          "[station-services][integration][repair]") {
+TEST_CASE(
+    "RepairOrder is invalidated when its subject is neither the requester nor an owned "
+    "station",
+    "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -490,7 +496,8 @@ TEST_CASE("RepairOrder is invalidated when its subject is neither the requester 
     CHECK(registry.get<Wallet>(rig).credits == 100);
 }
 
-TEST_CASE("An NPC with no Wallet repairs against ctx.economy", "[station-services][integration][repair]") {
+TEST_CASE("An NPC with no Wallet repairs against ctx.economy",
+          "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -517,9 +524,10 @@ TEST_CASE("An NPC with no Wallet repairs against ctx.economy", "[station-service
     CHECK(economy.Stock(FactionId("reavers")) == 900);  // 50 HP * costPerHp(2) == 100
 }
 
-TEST_CASE("An NPC's repair is refused when its faction's stock cannot afford it, and heals "
-          "nothing",
-          "[station-services][integration][repair]") {
+TEST_CASE(
+    "An NPC's repair is refused when its faction's stock cannot afford it, and heals "
+    "nothing",
+    "[station-services][integration][repair]") {
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();

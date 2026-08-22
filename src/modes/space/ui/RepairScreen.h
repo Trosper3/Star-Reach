@@ -53,7 +53,7 @@ int FacilityGrade(const entt::registry& registry, entt::entity facilityHardpoint
 // entt::null if none. At most one exists today -- parking a second hull is not yet a shippable
 // path (architecture.md 12.30.2's parked-hull gap, blocked on RigState/P10-01).
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction);
+                           const FactionId& playerFaction);
 
 // Reads this frame's input and, while the player stands on a living Repair hardpoint, hit-tests
 // every subject section's rows and Repair All button -- a click toggles that target's order: off

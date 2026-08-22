@@ -190,6 +190,40 @@ std::vector<entt::entity> RepairableHardpoints(const entt::registry& registry, e
     return result;
 }
 
+// Bills `self` for `totalHp` of repair at `facility`'s grade-based rate, preferring self's own
+// Wallet, else the requester's FactionRef stock against ctx.economy. Returns false, leaving
+// `order` untouched, when nothing affordable exists to pay from -- the caller stalls rather than
+// drops the order.
+bool ChargeRepairCost(const SystemContext& ctx, entt::entity self, entt::entity facility,
+                      float totalHp, RepairOrder& order) {
+    entt::registry& registry = ctx.Registry();
+    const FacilityRef* facilityRef = registry.try_get<FacilityRef>(facility);
+    const int grade = facilityRef != nullptr ? facilityRef->grade : 1;
+    const int costPerHp = core::economy::RepairCostPerHp(grade);
+    const float owed = totalHp * static_cast<float>(costPerHp) + order.creditRemainder;
+    const int spend = static_cast<int>(std::floor(owed));
+
+    // architecture.md 12.30.4: "Wallet on a rig that has one, ctx.economy otherwise" -- billed
+    // against the REQUESTER (self), never the subject: an NPC always repairs itself (self ==
+    // subject), but a player repairing their own station still pays from their own Wallet, not
+    // one the station does not carry.
+    bool afforded = false;
+    if (Wallet* wallet = registry.try_get<Wallet>(self); wallet != nullptr) {
+        afforded = wallet->credits >= spend;
+        if (afforded) {
+            wallet->credits -= spend;
+        }
+    } else if (ctx.economy != nullptr) {
+        if (const FactionRef* faction = registry.try_get<FactionRef>(self); faction != nullptr) {
+            afforded = ctx.economy->Spend(faction->id, spend);
+        }
+    }
+    if (afforded) {
+        order.creditRemainder = owed - static_cast<float>(spend);
+    }
+    return afforded;
+}
+
 void ProcessRepairOrders(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
     std::vector<entt::entity> toRemove;
@@ -248,32 +282,10 @@ void ProcessRepairOrders(const SystemContext& ctx) {
             continue;  // The facility's rate delivers nothing this tick -- stalls, not gone.
         }
 
-        const FacilityRef* facilityRef = registry.try_get<FacilityRef>(facility);
-        const int grade = facilityRef != nullptr ? facilityRef->grade : 1;
-        const int costPerHp = core::economy::RepairCostPerHp(grade);
-        const float owed = totalHp * static_cast<float>(costPerHp) + order.creditRemainder;
-        const int spend = static_cast<int>(std::floor(owed));
-
-        // architecture.md 12.30.4: "Wallet on a rig that has one, ctx.economy otherwise" --
-        // billed against the REQUESTER (self), never the subject: an NPC always repairs itself
-        // (self == subject), but a player repairing their own station still pays from their own
-        // Wallet, not one the station does not carry.
-        bool afforded = false;
-        if (Wallet* wallet = registry.try_get<Wallet>(self); wallet != nullptr) {
-            afforded = wallet->credits >= spend;
-            if (afforded) {
-                wallet->credits -= spend;
-            }
-        } else if (ctx.economy != nullptr) {
-            if (const FactionRef* faction = registry.try_get<FactionRef>(self); faction != nullptr) {
-                afforded = ctx.economy->Spend(faction->id, spend);
-            }
-        }
-        if (!afforded) {
+        if (!ChargeRepairCost(ctx, self, facility, totalHp, order)) {
             continue;  // Stalls where the money ran out -- nothing owed, nothing refunded.
         }
 
-        order.creditRemainder = owed - static_cast<float>(spend);
         for (const Pending& p : pending) {
             registry.get<Health>(p.hardpoint).current += p.amount;
         }

@@ -73,8 +73,7 @@ TEST_CASE("Rows marks exactly the hardpoint a single-target order names as order
     }
 }
 
-TEST_CASE("Rows marks every living hardpoint ordered under a whole-rig order",
-          "[repair-screen]") {
+TEST_CASE("Rows marks every living hardpoint ordered under a whole-rig order", "[repair-screen]") {
     entt::registry registry;
     const entt::entity subject = registry.create();
     const entt::entity a = registry.create();

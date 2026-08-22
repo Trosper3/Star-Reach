@@ -247,7 +247,7 @@ void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazar
 // would wipe RepairOrder::creditRemainder and restart billing from a rounding loss.
 void EmitNpcRepairOrders(entt::registry& registry) {
     for (auto [self, docked, rig] :
-        registry.view<Docked, Rig>(entt::exclude<PlayerLocation>).each()) {
+         registry.view<Docked, Rig>(entt::exclude<PlayerLocation>).each()) {
         (void)docked;
         (void)rig;
         if (registry.all_of<RepairOrder>(self)) {

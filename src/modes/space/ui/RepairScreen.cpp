@@ -164,7 +164,7 @@ int FacilityGrade(const entt::registry& registry, entt::entity facilityHardpoint
 }
 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction) {
+                           const FactionId& playerFaction) {
     for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
         if (docked.station == station && faction.id == playerFaction) {
             return vessel;
@@ -190,13 +190,13 @@ std::vector<entt::entity> Subjects(const entt::registry& registry, entt::entity 
 
 void ToggleOrder(entt::registry& registry, entt::entity requester, entt::entity subject,
                  entt::entity hardpoint, const RepairOrder* current) {
-    const bool alreadyActive = current != nullptr && current->subject == subject &&
-                               current->hardpoint == hardpoint;
+    const bool alreadyActive =
+        current != nullptr && current->subject == subject && current->hardpoint == hardpoint;
     if (alreadyActive) {
         registry.remove<RepairOrder>(requester);
     } else {
         registry.emplace_or_replace<RepairOrder>(requester,
-                                                  RepairOrder{subject, hardpoint, 1.0f, 0.0f});
+                                                 RepairOrder{subject, hardpoint, 1.0f, 0.0f});
     }
 }
 
@@ -238,8 +238,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
 
         const std::vector<RepairRow> rows =
             Rows(registry, subject, hasOrder, hasOrder ? order->hardpoint : entt::null, costPerHp);
-        const std::optional<int> hit = sr::ui::ListViewRowAt(
-            section.list, static_cast<int>(rows.size()), 0.0f, input.cursor);
+        const std::optional<int> hit =
+            sr::ui::ListViewRowAt(section.list, static_cast<int>(rows.size()), 0.0f, input.cursor);
         if (hit.has_value() && *hit < static_cast<int>(rows.size())) {
             const RepairRow& row = rows[static_cast<std::size_t>(*hit)];
             if (!row.destroyed) {
@@ -272,15 +272,14 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
         facilityName = name->value;
     }
     const Health* facilityHealth = registry.try_get<Health>(facility);
-    const float facilityIntegrity =
-        facilityHealth != nullptr && facilityHealth->max > 0.0f
-            ? facilityHealth->current / facilityHealth->max
-            : 1.0f;
+    const float facilityIntegrity = facilityHealth != nullptr && facilityHealth->max > 0.0f
+                                        ? facilityHealth->current / facilityHealth->max
+                                        : 1.0f;
     DrawText(facilityName.c_str(), static_cast<int>(layout.header.x),
              static_cast<int>(layout.header.y), 18, sr::ui::kValueBright);
     const Color gaugeColor = facilityIntegrity > 0.5f   ? sr::ui::kStatusGood
                              : facilityIntegrity > 0.2f ? sr::ui::kStatusCaution
-                                                         : sr::ui::kStatusCritical;
+                                                        : sr::ui::kStatusCritical;
     const Rectangle gaugeBounds{layout.header.x + layout.header.width * 0.5f, layout.header.y,
                                 layout.header.width * 0.5f, 20.0f};
     sr::ui::DrawGauge(gaugeBounds, "FACILITY INTEGRITY", facilityIntegrity, gaugeColor);
