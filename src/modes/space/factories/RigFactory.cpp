@@ -207,19 +207,4 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     return {root, world.Track(root)};
 }
 
-entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
-                           const MountId& mount) {
-    const Rig* rig = registry.try_get<Rig>(root);
-    if (rig == nullptr) {
-        return entt::null;
-    }
-    for (const entt::entity child : rig->children) {
-        const MountRef* ref = registry.try_get<MountRef>(child);
-        if (ref != nullptr && ref->id == mount) {
-            return child;
-        }
-    }
-    return entt::null;
-}
-
 }  // namespace sr::space::rig_factory

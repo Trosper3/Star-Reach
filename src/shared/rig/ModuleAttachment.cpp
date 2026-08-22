@@ -6,6 +6,7 @@
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
@@ -49,9 +50,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                                                 stats.fireIntervalSeconds, stats.projectileSpeed,
                                                 stats.rangeUnits, stats.spreadRadians,
                                                 stats.projectilesPerShot, 0.0f);
-            // A FireControl module may already be mounted on this hardpoint -- mount.modules'
-            // authored order is not guaranteed -- in which case its rate applies immediately
-            // instead of the kPi un-augmented baseline (a manually slaved turret's traverse).
+            // A FireControl module may already be mounted here (mount.modules' order isn't
+            // guaranteed), in which case its rate applies immediately instead of the kPi baseline.
             const auto* fireControl = registry.try_get<FireControl>(hardpoint);
             const float turnRate = fireControl != nullptr ? fireControl->turnRatePerSecond : kPi;
             registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, turnRate);
@@ -77,9 +77,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                 hardpoint, propulsion.thrustNewtons, propulsion.turnTorque, propulsion.maxSpeed);
             break;
         case ModuleKind::Facility:
-            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind,
-                                                     module.facility.grade,
-                                                     module.facility.capacity);
+            registry.emplace_or_replace<FacilityRef>(
+                hardpoint, module.facility.kind, module.facility.grade, module.facility.capacity);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }
@@ -270,6 +269,21 @@ float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity 
         }
     }
     return max > 0.0f ? current / max : 0.0f;
+}
+
+entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
+                           const MountId& mount) {
+    const Rig* rig = registry.try_get<Rig>(root);
+    if (rig == nullptr) {
+        return entt::null;
+    }
+    for (const entt::entity child : rig->children) {
+        const MountRef* ref = registry.try_get<MountRef>(child);
+        if (ref != nullptr && ref->id == mount) {
+            return child;
+        }
+    }
+    return entt::null;
 }
 
 }  // namespace sr::rig_attachment

@@ -120,7 +120,7 @@ Layout ComputeLayout() {
 }  // namespace
 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction) {
+                           const FactionId& playerFaction) {
     for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
         if (docked.station == station && faction.id == playerFaction) {
             return vessel;
@@ -151,23 +151,22 @@ std::vector<CandidateRow> Candidates(const entt::registry& registry, entt::entit
 
         CandidateRow entry;
         entry.item = ModuleId(stack.id);
-        entry.alreadyKnown =
-            network != nullptr && network->unlockedBlueprints.count(stack.id) != 0;
+        entry.alreadyKnown = network != nullptr && network->unlockedBlueprints.count(stack.id) != 0;
         entry.noSlots = full;
         entry.alreadyQueued =
             stationFacility != nullptr &&
             std::any_of(stationFacility->researchJobs.begin(), stationFacility->researchJobs.end(),
-                       [&](const ResearchJob& job) {
-                           return job.facility == mount && job.item == entry.item;
-                       });
+                        [&](const ResearchJob& job) {
+                            return job.facility == mount && job.item == entry.item;
+                        });
 
         entry.row.label = stack.id;
         entry.row.glyph[0] = static_cast<char>(std::toupper(stack.id.empty() ? '?' : stack.id[0]));
         entry.row.style.disabled = entry.alreadyKnown || entry.noSlots || entry.alreadyQueued;
-        entry.row.value = entry.alreadyKnown  ? "ALREADY KNOWN"
+        entry.row.value = entry.alreadyKnown    ? "ALREADY KNOWN"
                           : entry.alreadyQueued ? "QUEUED"
-                          : entry.noSlots        ? "NO SLOTS"
-                                                  : FormatSeconds(DurationSeconds(grade));
+                          : entry.noSlots       ? "NO SLOTS"
+                                                : FormatSeconds(DurationSeconds(grade));
         rows.push_back(std::move(entry));
     }
     return rows;
@@ -197,7 +196,7 @@ std::vector<sr::ui::Row> QueueRows(const entt::registry& registry, entt::entity 
 }
 
 void Update(entt::registry& registry, const FactionId& playerFaction,
-           const core::knowledge::KnowledgeStore& knowledge) {
+            const core::knowledge::KnowledgeStore& knowledge) {
     const entt::entity shell = PlayerShell(registry);
     const entt::entity facility = CurrentFacility(registry, shell);
     if (facility == entt::null) {
@@ -224,7 +223,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
 
     const std::vector<CandidateRow> candidates =
         Candidates(registry, requester, facility, station, network, queuedCount,
-                  FacilityCapacity(registry, facility));
+                   FacilityCapacity(registry, facility));
 
     const Layout layout = ComputeLayout();
     const std::optional<int> hit = sr::ui::ListViewRowAt(
@@ -242,7 +241,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
 }
 
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
-         const core::knowledge::KnowledgeStore& knowledge) {
+          const core::knowledge::KnowledgeStore& knowledge) {
     const entt::entity shell = PlayerShell(registry);
     const entt::entity facility = CurrentFacility(registry, shell);
     if (facility == entt::null) {
@@ -264,19 +263,19 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     const MountId mount = FacilityMount(registry, facility);
     int queuedCount = 0;
     if (stationFacility != nullptr) {
-        queuedCount = static_cast<int>(
-            std::count_if(stationFacility->researchJobs.begin(), stationFacility->researchJobs.end(),
-                          [&](const ResearchJob& job) { return job.facility == mount; }));
+        queuedCount = static_cast<int>(std::count_if(
+            stationFacility->researchJobs.begin(), stationFacility->researchJobs.end(),
+            [&](const ResearchJob& job) { return job.facility == mount; }));
     }
-    const std::string slots = capacity == 0 ? (std::to_string(queuedCount) + " / UNLIMITED")
-                                            : (std::to_string(queuedCount) + " / " +
-                                               std::to_string(capacity));
+    const std::string slots =
+        capacity == 0 ? (std::to_string(queuedCount) + " / UNLIMITED")
+                      : (std::to_string(queuedCount) + " / " + std::to_string(capacity));
 
     DrawText((labName + "  GRADE " + std::to_string(grade)).c_str(),
-            static_cast<int>(layout.header.x), static_cast<int>(layout.header.y), 18,
-            sr::ui::kValueBright);
+             static_cast<int>(layout.header.x), static_cast<int>(layout.header.y), 18,
+             sr::ui::kValueBright);
     DrawText(("SLOTS " + slots).c_str(), static_cast<int>(layout.header.x),
-            static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
+             static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
 
     const Health* facilityHealth = registry.try_get<Health>(facility);
     if (facilityHealth != nullptr) {
@@ -284,16 +283,16 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
             facilityHealth->max > 0.0f ? facilityHealth->current / facilityHealth->max : 1.0f;
         const Color gaugeColor = integrity > 0.5f   ? sr::ui::kStatusGood
                                  : integrity > 0.2f ? sr::ui::kStatusCaution
-                                                     : sr::ui::kStatusCritical;
+                                                    : sr::ui::kStatusCritical;
         const Rectangle gaugeBounds{layout.header.x + layout.header.width * 0.5f, layout.header.y,
                                     layout.header.width * 0.5f, 20.0f};
         sr::ui::DrawGauge(gaugeBounds, "FACILITY INTEGRITY", integrity, gaugeColor);
     }
 
     DrawText("CARGO -- CANDIDATE SAMPLES", static_cast<int>(layout.candidateLabel.x),
-            static_cast<int>(layout.candidateLabel.y), 14, sr::ui::kLabelDim);
-    const NetworkOwner* owner = requester != entt::null ? registry.try_get<NetworkOwner>(requester)
-                                                        : nullptr;
+             static_cast<int>(layout.candidateLabel.y), 14, sr::ui::kLabelDim);
+    const NetworkOwner* owner =
+        requester != entt::null ? registry.try_get<NetworkOwner>(requester) : nullptr;
     const core::knowledge::KnowledgeNetwork* network =
         owner != nullptr ? knowledge.Get(owner->network) : nullptr;
     const std::vector<CandidateRow> candidates =
@@ -306,7 +305,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     sr::ui::DrawListView(layout.candidateList, candidateWidgetRows, 0.0f, "NOTHING TO RESEARCH");
 
     DrawText("QUEUE", static_cast<int>(layout.queueLabel.x), static_cast<int>(layout.queueLabel.y),
-            14, sr::ui::kLabelDim);
+             14, sr::ui::kLabelDim);
     const std::vector<sr::ui::Row> queueRows = QueueRows(registry, station, facility);
     sr::ui::DrawListView(layout.queueList, queueRows, 0.0f, "NO ACTIVE RESEARCH");
 }

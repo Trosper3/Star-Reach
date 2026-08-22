@@ -6,6 +6,7 @@
 #include "modes/space/data/SystemWorld.h"
 #include "shared/blueprints/Ids.h"
 #include "shared/math/Vec2.h"
+#include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::rig_factory {
 
@@ -42,8 +43,8 @@ struct SpawnResult {
 SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
                   const SpawnParams& params);
 
-// Resolves a rig's hardpoint by its stable mount id. The (NetworkId, MountId) pair is how a
-// hardpoint is addressed across a save or the wire -- an entt::entity never is.
-entt::entity FindHardpoint(const entt::registry& registry, entt::entity root, const MountId& mount);
+// Re-exported from shared/rig/ModuleAttachment.h, FindHardpoint's real home -- a rig lookup, not
+// construction, so systems/ (which may not include this header) can reach it directly there.
+using sr::rig_attachment::FindHardpoint;
 
 }  // namespace sr::space::rig_factory

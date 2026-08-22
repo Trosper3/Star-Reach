@@ -54,10 +54,10 @@ entt::entity MakeFacility(entt::registry& registry, const MountId& mount, int gr
 TEST_CASE("Candidates lists distinct Module ids held in the requester's CargoHold",
           "[research-screen]") {
     entt::registry registry;
-    const entt::entity requester = MakeCargoRequester(
-        registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 2, 1.0f},
-                  ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f},
-                  ItemStack{ItemKind::Element, "iron", 5, 1.0f}});
+    const entt::entity requester =
+        MakeCargoRequester(registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 2, 1.0f},
+                                      ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f},
+                                      ItemStack{ItemKind::Element, "iron", 5, 1.0f}});
     const entt::entity station = registry.create();
     const entt::entity facility = MakeFacility(registry, MountId("lab"));
 
@@ -69,11 +69,10 @@ TEST_CASE("Candidates lists distinct Module ids held in the requester's CargoHol
     CHECK_FALSE(rows[0].row.style.disabled);
 }
 
-TEST_CASE("Candidates disables a row already unlocked in the target network",
-          "[research-screen]") {
+TEST_CASE("Candidates disables a row already unlocked in the target network", "[research-screen]") {
     entt::registry registry;
-    const entt::entity requester = MakeCargoRequester(
-        registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
+    const entt::entity requester =
+        MakeCargoRequester(registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
     const entt::entity station = registry.create();
     const entt::entity facility = MakeFacility(registry, MountId("lab"));
 
@@ -90,8 +89,8 @@ TEST_CASE("Candidates disables a row already unlocked in the target network",
 TEST_CASE("Candidates disables every row once the facility's queue is at capacity",
           "[research-screen]") {
     entt::registry registry;
-    const entt::entity requester = MakeCargoRequester(
-        registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
+    const entt::entity requester =
+        MakeCargoRequester(registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
     const entt::entity station = registry.create();
     const entt::entity facility = MakeFacility(registry, MountId("lab"), /*grade=*/1,
                                                /*capacity=*/1);
@@ -105,8 +104,8 @@ TEST_CASE("Candidates disables every row once the facility's queue is at capacit
 
 TEST_CASE("Candidates disables a row already queued at this facility", "[research-screen]") {
     entt::registry registry;
-    const entt::entity requester = MakeCargoRequester(
-        registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
+    const entt::entity requester =
+        MakeCargoRequester(registry, {ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 1.0f}});
     const entt::entity station = registry.create();
     const MountId lab("lab");
     const entt::entity facility = MakeFacility(registry, lab);
@@ -131,8 +130,8 @@ TEST_CASE("QueueRows lists only jobs whose facility matches this hardpoint's mou
     const entt::entity facility = MakeFacility(registry, thisLab);
 
     StationFacility stationFacility;
-    stationFacility.researchJobs.push_back(
-        ResearchJob{ModuleId("pulse_cannon_i"), 3.0f, 10.0f, sr::KnowledgeNetworkId("net"), thisLab});
+    stationFacility.researchJobs.push_back(ResearchJob{ModuleId("pulse_cannon_i"), 3.0f, 10.0f,
+                                                       sr::KnowledgeNetworkId("net"), thisLab});
     stationFacility.researchJobs.push_back(
         ResearchJob{ModuleId("shield_mk1"), 1.0f, 10.0f, sr::KnowledgeNetworkId("net"), otherLab});
     registry.emplace<StationFacility>(station, stationFacility);

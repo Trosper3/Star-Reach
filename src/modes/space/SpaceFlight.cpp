@@ -238,9 +238,10 @@ void SpaceFlight::WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosi
     const Wallet wallet =
         departing.all_of<Wallet>(player) ? departing.get<Wallet>(player) : Wallet{};
     // Carried over, never re-Create()'d -- SpawnPlayerAt's header comment explains why.
-    const KnowledgeNetworkId network = departing.all_of<NetworkOwner>(player)
-                                            ? departing.get<NetworkOwner>(player).network
-                                            : knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
+    const KnowledgeNetworkId network =
+        departing.all_of<NetworkOwner>(player)
+            ? departing.get<NetworkOwner>(player).network
+            : knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
 
     // Demote every DeathWreck left behind (architecture.md section 12.5) -- collected first,
     // since CollapseDeathWreck destroys the entity it's given and destroying mid-iteration over

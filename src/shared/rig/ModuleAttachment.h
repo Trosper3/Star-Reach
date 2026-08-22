@@ -3,6 +3,7 @@
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
 
+#include "shared/blueprints/Ids.h"
 #include "shared/blueprints/ModuleDef.h"
 
 // shared/rig/ -- the minimal attach/detach logic RigFactory::AttachModule and
@@ -68,5 +69,13 @@ inline constexpr float kStructuralFailureThreshold = 0.30f;
 // (architecture.md 2.3: modes/space/systems/ may not include sibling ui/, and ui/ may not include
 // systems/).
 float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity rigRoot);
+
+// Resolves a rig's hardpoint by its stable mount id, or entt::null. The (NetworkId, MountId)
+// pair is how a hardpoint is addressed across a save or the wire -- an entt::entity never is.
+// Lives here rather than RigFactory (its original home) because it is a lookup over an
+// already-built rig, not construction: modes/space/systems/ may not include factories/ (section
+// 2.3), but ResearchSystem needs exactly this to resolve a job back to its bench. RigFactory.h
+// re-exports it under rig_factory:: for its own established callers.
+entt::entity FindHardpoint(const entt::registry& registry, entt::entity root, const MountId& mount);
 
 }  // namespace sr::rig_attachment

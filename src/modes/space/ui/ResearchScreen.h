@@ -60,17 +60,17 @@ std::vector<sr::ui::Row> QueueRows(const entt::registry& registry, entt::entity 
 // docked-screen issue branches off main independently) rather than shared with the other
 // screens' own copies.
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction);
+                           const FactionId& playerFaction);
 
 // Reads this frame's input and, while the player stands on a living Research hardpoint,
 // hit-tests the candidate list -- a click on an enabled row places a StartResearchRequest naming
 // that item and this hardpoint's MountId on the requester. No-op on a disabled row.
 void Update(entt::registry& registry, const FactionId& playerFaction,
-           const core::knowledge::KnowledgeStore& knowledge);
+            const core::knowledge::KnowledgeStore& knowledge);
 
 // Draws the Research screen: header (lab name, grade, integrity, slots), the candidate ListView,
 // and the running-job queue ListView.
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
-         const core::knowledge::KnowledgeStore& knowledge);
+          const core::knowledge::KnowledgeStore& knowledge);
 
 }  // namespace sr::space::ui::research_screen

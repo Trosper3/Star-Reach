@@ -48,8 +48,8 @@ const MountId kLab("lab");
 
 // Attaches a living FacilityKind::Research hardpoint to `station`, the gate ResearchSystem::Tick
 // now requires before it will advance any of that station's jobs.
-entt::entity GiveResearchFacility(entt::registry& registry, entt::entity station,
-                                  int grade = 1, int capacity = 0) {
+entt::entity GiveResearchFacility(entt::registry& registry, entt::entity station, int grade = 1,
+                                  int capacity = 0) {
     const entt::entity hardpoint = registry.create();
     registry.emplace<ParentRig>(hardpoint, station);
     registry.emplace<FacilityRef>(hardpoint, FacilityKind::Research, grade, capacity);
@@ -102,7 +102,8 @@ TEST_CASE("ResearchSystem grants exactly once on completion and clears the job",
     const entt::entity station = registry.create();
     GiveResearchFacility(registry, station);
     StationFacility facility;
-    facility.researchJobs.push_back(ResearchJob{ModuleId("pulse_cannon_i"), 9.0f, 10.0f, network, kLab});
+    facility.researchJobs.push_back(
+        ResearchJob{ModuleId("pulse_cannon_i"), 9.0f, 10.0f, network, kLab});
     registry.emplace<StationFacility>(station, facility);
 
     research_system::Tick(MakeContext(world, intents, content, &knowledge, 2.0f));
@@ -206,8 +207,10 @@ TEST_CASE("ResearchSystem advances two concurrent jobs at the same station indep
     const entt::entity station = registry.create();
     GiveResearchFacility(registry, station);
     StationFacility facility;
-    facility.researchJobs.push_back(ResearchJob{ModuleId("pulse_cannon_i"), 9.0f, 10.0f, network, kLab});
-    facility.researchJobs.push_back(ResearchJob{ModuleId("shield_mk1"), 0.0f, 10.0f, network, kLab});
+    facility.researchJobs.push_back(
+        ResearchJob{ModuleId("pulse_cannon_i"), 9.0f, 10.0f, network, kLab});
+    facility.researchJobs.push_back(
+        ResearchJob{ModuleId("shield_mk1"), 0.0f, 10.0f, network, kLab});
     registry.emplace<StationFacility>(station, facility);
 
     research_system::Tick(MakeContext(world, intents, content, &knowledge, 2.0f));
@@ -255,9 +258,10 @@ TEST_CASE("DurationSeconds derives from facility grade against features.md 2.4's
     CHECK(research_system::DurationSeconds(99) == 18.0f);  // Clamped down to grade 7.
 }
 
-TEST_CASE("StartResearchRequest at a living lab grants exactly one unlock into the actor's "
-          "network",
-          "[research-system]") {
+TEST_CASE(
+    "StartResearchRequest at a living lab grants exactly one unlock into the actor's "
+    "network",
+    "[research-system]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -328,7 +332,7 @@ TEST_CASE("Concurrent research jobs cap at FacilityRef::capacity", "[research-sy
     // The second request is refused -- the one slot is already spoken for.
     CHECK(registry.get<StationFacility>(station).researchJobs.size() == 1);
     CHECK(registry.get<StationFacility>(station).researchJobs.front().item ==
-         ModuleId("pulse_cannon_i"));
+          ModuleId("pulse_cannon_i"));
 }
 
 TEST_CASE("A second StartResearchRequest for an item already queued at this station is refused",

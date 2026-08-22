@@ -3,13 +3,13 @@
 #include <algorithm>
 
 #include "core/knowledge/KnowledgeNetwork.h"
-#include "modes/space/factories/RigFactory.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/NetworkOwner.h"
 #include "shared/components/Research.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::research_system {
 namespace {
@@ -25,7 +25,7 @@ constexpr float kGradeTimeFactor[7] = {1.00f, 0.88f, 0.76f, 0.64f, 0.52f, 0.40f,
 // may hold more than one lab, and destroying one must not freeze a sibling's jobs.
 entt::entity ResolveResearchFacility(const entt::registry& registry, entt::entity station,
                                      const MountId& mount) {
-    const entt::entity hardpoint = rig_factory::FindHardpoint(registry, station, mount);
+    const entt::entity hardpoint = rig_attachment::FindHardpoint(registry, station, mount);
     if (hardpoint == entt::null || registry.all_of<Destroyed>(hardpoint)) {
         return entt::null;
     }
@@ -79,7 +79,7 @@ void ProcessStartRequests(const SystemContext& ctx) {
         const bool alreadyQueued =
             existing != nullptr &&
             std::any_of(existing->researchJobs.begin(), existing->researchJobs.end(),
-                       [&](const ResearchJob& job) { return job.item == request.item; });
+                        [&](const ResearchJob& job) { return job.item == request.item; });
         if (alreadyQueued) {
             continue;
         }
@@ -96,7 +96,8 @@ void ProcessStartRequests(const SystemContext& ctx) {
         }
 
         const FacilityRef& facilityRef = registry.get<FacilityRef>(hardpoint);
-        const int queued = existing != nullptr ? static_cast<int>(existing->researchJobs.size()) : 0;
+        const int queued =
+            existing != nullptr ? static_cast<int>(existing->researchJobs.size()) : 0;
         // FacilityStats::capacity's second reader (architecture.md 12.30.6): "how many units of
         // work a facility holds at once." 0 remains unlimited, matching DockingSystem's own.
         if (facilityRef.capacity != 0 && queued >= facilityRef.capacity) {
