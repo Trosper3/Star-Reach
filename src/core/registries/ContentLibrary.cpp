@@ -110,8 +110,21 @@ DamageTypeEffect ContentLibrary::LookupDamageTypeEffect(DamageType type) const {
 }
 
 const ShipBlueprint* ContentLibrary::FindShip(const BlueprintId& id) const {
+    const auto crafted = craftedShips_.find(id.str());
+    if (crafted != craftedShips_.end()) {
+        return &crafted->second;
+    }
     const auto it = ships_.find(id.str());
     return it == ships_.end() ? nullptr : &it->second;
+}
+
+bool ContentLibrary::IsDraftedTemplate(const BlueprintId& id) const {
+    return craftedShips_.count(id.str()) != 0;
+}
+
+void ContentLibrary::RegisterDraftedTemplate(ShipBlueprint blueprint) {
+    const std::string id = blueprint.id.str();
+    craftedShips_[id] = std::move(blueprint);
 }
 
 std::vector<BlueprintId> ContentLibrary::ShipIds() const {
