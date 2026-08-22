@@ -415,6 +415,6 @@ TEST_CASE(
     CHECK_FALSE(registry.all_of<UnmountModuleRequest>(root));
     REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);  // Still mounted.
     CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("pulse_cannon_i"));
-    CHECK(registry.all_of<sr::Weapon>(mount));               // Live components untouched.
+    CHECK(registry.all_of<sr::Weapon>(mount));              // Live components untouched.
     CHECK(cargo_view::Merged(registry, root).size() == 1);  // The bay's original stack, unmoved.
 }

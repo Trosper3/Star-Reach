@@ -103,9 +103,10 @@ TEST_CASE("ModulesMenu::IsOpen is false with no singleton entity at all", "[modu
     CHECK_FALSE(modules_menu::IsOpen(registry));
 }
 
-TEST_CASE("ModulesMenu::IsOpen reads FlightOverlayState::loadoutOpen, independent of "
-          "StorageMenu's own inventoryOpen flag",
-          "[modules-menu]") {
+TEST_CASE(
+    "ModulesMenu::IsOpen reads FlightOverlayState::loadoutOpen, independent of "
+    "StorageMenu's own inventoryOpen flag",
+    "[modules-menu]") {
     entt::registry registry;
     const entt::entity singleton = registry.create();
     registry.emplace<FlightOverlayStateSingleton>(singleton);

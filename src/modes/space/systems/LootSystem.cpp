@@ -344,8 +344,7 @@ void ProcessJettisonRequests(entt::registry& registry) {
         // ItemStack's own comment: a Module stack's quantity is always 1 -- LootDrop has no
         // quantity field to spill a merged stack back out through, so a Module request can only
         // ever jettison one.
-        const int quantity =
-            request.kind == ItemKind::Module ? 1 : std::max(1, request.quantity);
+        const int quantity = request.kind == ItemKind::Module ? 1 : std::max(1, request.quantity);
         if (!cargo_view::Withdraw(registry, self, request.kind, request.id, quantity)) {
             continue;  // Not held, or not enough held -- nothing dropped.
         }

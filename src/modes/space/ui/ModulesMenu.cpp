@@ -165,8 +165,8 @@ void Update(entt::registry& registry, entt::entity rigRoot) {
     FlightOverlayState& state = registry.get<FlightOverlayState>(EnsureSingleton(registry));
 
     const std::vector<ModuleId> held = HeldModules(registry, rigRoot);
-    const std::optional<int> holdHit = sr::ui::ListViewRowAt(
-        layout.holdList, static_cast<int>(held.size()), 0.0f, input.cursor);
+    const std::optional<int> holdHit =
+        sr::ui::ListViewRowAt(layout.holdList, static_cast<int>(held.size()), 0.0f, input.cursor);
     if (holdHit.has_value() && *holdHit < static_cast<int>(held.size())) {
         state.pendingModule = held[static_cast<std::size_t>(*holdHit)];
         return;
@@ -189,8 +189,8 @@ void Update(entt::registry& registry, entt::entity rigRoot) {
         return;
     }
     if (!state.pendingModule.empty()) {
-        registry.emplace_or_replace<MountModuleRequest>(rigRoot,
-                                                        BuildMountRequest(state.pendingModule, mount));
+        registry.emplace_or_replace<MountModuleRequest>(
+            rigRoot, BuildMountRequest(state.pendingModule, mount));
         state.pendingModule = ModuleId();
     }
 }
@@ -209,8 +209,8 @@ void Draw(const entt::registry& registry, entt::entity rigRoot) {
                                  : ModuleId();
 
     DrawText(pending.empty() ? "HOLD -- CLICK TO SELECT" : ("SELECTED: " + pending.str()).c_str(),
-            static_cast<int>(layout.header.x), static_cast<int>(layout.header.y), 14,
-            sr::ui::kLabelDim);
+             static_cast<int>(layout.header.x), static_cast<int>(layout.header.y), 14,
+             sr::ui::kLabelDim);
 
     std::vector<sr::ui::Row> holdRows;
     for (const ModuleId& id : HeldModules(registry, rigRoot)) {

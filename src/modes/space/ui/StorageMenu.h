@@ -1,8 +1,8 @@
 #pragma once
 
+#include <raylib.h>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
-#include <raylib.h>
 #include <string>
 #include <vector>
 

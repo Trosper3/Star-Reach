@@ -190,6 +190,14 @@ void SpaceFlight::Update(float realDeltaSeconds) {
         cameraTarget_ = world_.Registry().get<WorldTransform>(player).position;
     }
 
+    ProcessWarpRequests();
+
+    // Drained after the whole schedule, never mid-list: a system's view of this tick's input
+    // must not depend on its position in the order.
+    intents_.Clear();
+}
+
+void SpaceFlight::ProcessWarpRequests() {
     // Copied out before WarpToSystem runs, never read from `request` after: WarpToSystem replaces
     // world_'s registry, which is exactly what `request` lives in.
     bool warpRequested = false;
@@ -206,10 +214,6 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     if (warpRequested) {
         WarpToSystem(targetSystemId, spawnPosition, spawnRotation);
     }
-
-    // Drained after the whole schedule, never mid-list: a system's view of this tick's input
-    // must not depend on its position in the order.
-    intents_.Clear();
 }
 
 void SpaceFlight::PopulateWorld(const std::string& targetSystemId) {

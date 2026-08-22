@@ -115,8 +115,8 @@ void Update(entt::registry& registry, entt::entity rigRoot) {
     }
 
     const ItemStack& stack = ordered[static_cast<std::size_t>(*hit)];
-    registry.emplace_or_replace<JettisonRequest>(rigRoot,
-                                                 JettisonRequest{stack.kind, stack.id, stack.quantity});
+    registry.emplace_or_replace<JettisonRequest>(
+        rigRoot, JettisonRequest{stack.kind, stack.id, stack.quantity});
 }
 
 void Draw(const entt::registry& registry, entt::entity rigRoot) {
@@ -132,9 +132,9 @@ void Draw(const entt::registry& registry, entt::entity rigRoot) {
     const std::string header = "MASS " + std::to_string(static_cast<int>(mass)) + " / " +
                                std::to_string(static_cast<int>(capacity));
     DrawText(header.c_str(), static_cast<int>(content.x), static_cast<int>(content.y), 16,
-            sr::ui::kValueBright);
+             sr::ui::kValueBright);
     DrawText("CLICK A ROW TO JETTISON", static_cast<int>(content.x),
-            static_cast<int>(content.y + 18.0f), 12, sr::ui::kLabelDim);
+             static_cast<int>(content.y + 18.0f), 12, sr::ui::kLabelDim);
 
     std::vector<sr::ui::Row> rows;
     for (const ItemStack& stack : OrderedStacks(stacks)) {
