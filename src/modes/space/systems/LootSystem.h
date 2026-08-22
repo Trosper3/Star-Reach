@@ -31,6 +31,9 @@ namespace sr::space::loot_system {
 //     whichever of the collector's living cargo bays has room; DerelictWreck salvage lands in its
 //     Wallet. A collector with no CargoBay hardpoint collects no items (it still has no CargoHold
 //     anywhere to deposit into) but still banks DerelictWreck credits.
+//   - Jettison (architecture.md 12.30.7): a JettisonRequest on a rig root withdraws one ItemStack
+//     from its own cargo bays (cargo_view::Withdraw) and spawns exactly one LootDrop/ElementDrop
+//     at the rig's own WorldTransform -- LootDrop/ElementDrop's first producer (13.3 finding T).
 //   - The producer half: a cargo-bay hardpoint tagged Destroyed spills exactly its own stacks as
 //     recoverable LootDrop/ElementDrop entities and empties, rather than its contents simply
 //     vanishing with it (architecture.md 12.23's "shoot the bay, lose what was in it" -- as

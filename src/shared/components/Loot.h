@@ -107,4 +107,18 @@ struct Wallet {
     int credits = 0;
 };
 
+// architecture.md 12.30.7: the inventory overlay's one verb. Set by input/UI on the rig root
+// jettisoning cargo; consumed and cleared by LootSystem the same tick, the same idiom as
+// Docking.h's DockRequest. `id`/`kind` name an ItemStack the same way cargo_view::Withdraw's own
+// parameters do -- there is no ItemId type yet (architecture.md 12.19 is unbuilt) for a request
+// type to carry instead. `quantity` is meaningful only for ItemKind::Element; a Module stack's
+// quantity is always 1 (ItemStack's own comment), so a Module request jettisons exactly one.
+// LootDrop/ElementDrop's first producer (architecture.md 13.3 finding T) -- LootSystem already
+// collects both and owns their lifetimes; nothing anywhere creates one.
+struct JettisonRequest {
+    ItemKind kind = ItemKind::Element;
+    std::string id;
+    int quantity = 1;
+};
+
 }  // namespace sr

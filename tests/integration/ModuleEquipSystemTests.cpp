@@ -11,6 +11,7 @@
 #include "shared/components/Equip.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Loot.h"
+#include "shared/components/Physics.h"
 #include "shared/components/Power.h"
 #include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
@@ -18,6 +19,7 @@
 #include "shared/components/Transform.h"
 #include "shared/rig/CargoView.h"
 
+using sr::BodyMass;
 using sr::CargoHold;
 using sr::DeleteHardpointRequest;
 using sr::Destroyed;
@@ -338,4 +340,81 @@ TEST_CASE("A runtime-mounted module is never refunded twice across unmount and s
     refactor_system::Tick(ctx);
     CHECK_FALSE(registry.valid(mount));
     CHECK(cargo_view::Merged(registry, root).size() == 1);  // Still exactly one copy.
+}
+
+TEST_CASE("A refit mid-flight changes the rig's aggregate mass on the next tick",
+          "[module-equip][integration]") {
+    // architecture.md 12.30.7: "live refit is now sanctioned combat play, so a swap that does not
+    // change how the hull flies is the mechanic broken." RecomputeRigTotals is called at the end
+    // of ProcessMountRequests -- this proves the effect is real, not just invoked.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity root = registry.create();
+    // RecomputeRigTotals recomputes mass fully from living hardpoints' own HardpointMass each
+    // call (never adds to whatever BodyMass held before) -- an initial 0.0f is what a bare
+    // Chassis-only rig with no modules yet actually starts at, not an arbitrary baseline.
+    registry.emplace<BodyMass>(root, 0.0f);
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount});
+    AddCargoBay(registry, root);  // Appends to Rig::children itself.
+    StockModule(registry, root, content, sr::ModuleId("pulse_cannon_i"));
+    registry.emplace<MountModuleRequest>(root,
+                                         MountModuleRequest{sr::ModuleId("pulse_cannon_i"), mount});
+
+    const float before = registry.get<BodyMass>(root).kilograms;
+    module_equip_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<BodyMass>(root).kilograms > before);
+}
+
+TEST_CASE(
+    "Unmounting into a full hold refuses the refund for a named reason and leaves the module "
+    "mounted",
+    "[module-equip][integration]") {
+    // architecture.md 12.30.7: "the only drain in the entire game is selling" -- unmount must not
+    // be a second one when there is nowhere to put the module back. "Says why": the refusal
+    // corresponds to a named cargo_view::DepositResult, confirmed independently below, not a
+    // silent, undiagnosable no-op.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon,
+                                std::vector<sr::ModuleKind>{sr::ModuleKind::Weapon});
+    registry.emplace<MountedModules>(mount, MountedModules{{sr::ModuleId("pulse_cannon_i")}});
+    registry.emplace<sr::Weapon>(mount, 15.0f);
+
+    // One slot, already occupied by something else -- no room for the refund.
+    const entt::entity bay = registry.create();
+    registry.emplace<ParentRig>(bay, root);
+    registry.emplace<CargoHold>(
+        bay, std::vector<ItemStack>{ItemStack{ItemKind::Module, "shield_mk1", 1, 5.0f}}, 1,
+        1000.0f);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{mount, bay});
+
+    // The exact deposit ProcessUnmountRequests will attempt, probed independently -- "whole or
+    // nothing" (CargoView.h) means a refused probe writes nothing, so this is safe to run first.
+    const auto reason = cargo_view::Deposit(
+        registry, root, ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 14.0f});
+    CHECK(reason == cargo_view::DepositResult::NoFreeSlot);
+    REQUIRE(cargo_view::Merged(registry, root).size() == 1);  // Untouched by the probe.
+
+    registry.emplace<UnmountModuleRequest>(root, UnmountModuleRequest{mount});
+    module_equip_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<UnmountModuleRequest>(root));
+    REQUIRE(registry.get<MountedModules>(mount).ids.size() == 1);  // Still mounted.
+    CHECK(registry.get<MountedModules>(mount).ids.front() == sr::ModuleId("pulse_cannon_i"));
+    CHECK(registry.all_of<sr::Weapon>(mount));               // Live components untouched.
+    CHECK(cargo_view::Merged(registry, root).size() == 1);  // The bay's original stack, unmoved.
 }

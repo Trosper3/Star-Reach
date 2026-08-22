@@ -1,8 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "modes/space/ui/ModulesMenu.h"
+#include "shared/components/FlightOverlay.h"
 #include "shared/components/Rig.h"
 
+using sr::FlightOverlayState;
+using sr::FlightOverlayStateSingleton;
 using sr::MountedModules;
 using sr::Rig;
 using sr::ShellRole;
@@ -93,4 +96,20 @@ TEST_CASE("BuildMountRequest/BuildUnmountRequest carry their fields through", "[
 
     const auto unmountRequest = modules_menu::BuildUnmountRequest(mount);
     CHECK(unmountRequest.mount == mount);
+}
+
+TEST_CASE("ModulesMenu::IsOpen is false with no singleton entity at all", "[modules-menu]") {
+    entt::registry registry;
+    CHECK_FALSE(modules_menu::IsOpen(registry));
+}
+
+TEST_CASE("ModulesMenu::IsOpen reads FlightOverlayState::loadoutOpen, independent of "
+          "StorageMenu's own inventoryOpen flag",
+          "[modules-menu]") {
+    entt::registry registry;
+    const entt::entity singleton = registry.create();
+    registry.emplace<FlightOverlayStateSingleton>(singleton);
+    registry.emplace<FlightOverlayState>(singleton, FlightOverlayState{false, true, {}});
+
+    CHECK(modules_menu::IsOpen(registry));
 }
