@@ -13,14 +13,20 @@
 #include "modes/space/systems/SpawnSystem.h"
 #include "modes/space/systems/SystemSchedule.h"
 #include "modes/space/ui/AvionicsMenu.h"
+#include "modes/space/ui/BayView.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ResearchScreen.h"
+#include "modes/space/ui/ModulesMenu.h"
+#include "modes/space/ui/StorageMenu.h"
 #include "modes/space/ui/SystemMenu.h"
+#include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/NetworkOwner.h"
+#include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Warp.h"
 
@@ -39,6 +45,40 @@ entt::entity FindPlayer(const entt::registry& registry) {
         return entity;
     }
     return entt::null;
+}
+
+// The player's own vessel root, regardless of where they are currently standing -- unlike
+// FindPlayer/PlayerLocation's own shell, this always resolves to the ship itself: self-
+// referential while flying (no ParentRig), ParentRig::root while boarded on a different owned
+// hull (architecture.md 12.30.2's Board), and -- while standing on a facility hardpoint, which
+// belongs to the STATION, not the player (architecture.md 12.30.1) -- whichever of the player's
+// own vessels is Docked there. entt::null if OnEnter hasn't placed a player, or (rare) none is
+// found. Resolved once here and threaded into both flight overlays (architecture.md 12.30.7),
+// the same "caller resolves shared context once" rule RepairScreen's playerFaction threading
+// already follows -- modes/*/ui/ may not include systems/ (section 2.3), so this cannot live in
+// either overlay file itself.
+entt::entity PlayerVesselRoot(const entt::registry& registry, const FactionId& playerFaction) {
+    const entt::entity shell = FindPlayer(registry);
+    if (shell == entt::null) {
+        return entt::null;
+    }
+    if (registry.all_of<FacilityRef>(shell)) {
+        const ParentRig* parent = registry.try_get<ParentRig>(shell);
+        const entt::entity station = parent != nullptr ? parent->root : entt::null;
+        if (station == entt::null) {
+            return entt::null;
+        }
+        for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
+            if (docked.station == station && faction.id == playerFaction) {
+                return vessel;
+            }
+        }
+        return entt::null;
+    }
+    if (const ParentRig* parent = registry.try_get<ParentRig>(shell)) {
+        return parent->root;
+    }
+    return shell;
 }
 
 }  // namespace
@@ -115,12 +155,26 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
-    ui::avionics_menu::Update(registry);
+    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
+    // (section 2.3), and both files below need "is this hull mine" (architecture.md 12.30.2).
+    const FactionId playerFaction = player_record_system::FactionOf(registry);
+    ui::avionics_menu::Update(registry, playerFaction);
     ui::bridge_view::Update(registry);
     // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
     // (section 2.3), and this screen needs both "is this station mine" and the knowledge store's
     // already-known check (architecture.md 12.30.6).
     ui::research_screen::Update(registry, player_record_system::FactionOf(registry), knowledge_);
+    // architecture.md 12.30.7: available everywhere, gated on nothing -- both run whether the
+    // player is flying or docked over any screen (features.md 3.10), never facility-gated the
+    // way bridge_view's own tabs are. PlayerVesselRoot, not PlayerLocation's own shell, since
+    // standing on a facility hardpoint while docked must still resolve to the player's own ship.
+    {
+        const entt::entity vesselRoot =
+            PlayerVesselRoot(registry, player_record_system::FactionOf(registry));
+        ui::storage_menu::Update(registry, vesselRoot);
+        ui::modules_menu::Update(registry, vesselRoot);
+    }
+    ui::bay_view::Update(registry, playerFaction);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -151,6 +205,14 @@ void SpaceFlight::Update(float realDeltaSeconds) {
         cameraTarget_ = world_.Registry().get<WorldTransform>(player).position;
     }
 
+    ProcessWarpRequests();
+
+    // Drained after the whole schedule, never mid-list: a system's view of this tick's input
+    // must not depend on its position in the order.
+    intents_.Clear();
+}
+
+void SpaceFlight::ProcessWarpRequests() {
     // Copied out before WarpToSystem runs, never read from `request` after: WarpToSystem replaces
     // world_'s registry, which is exactly what `request` lives in.
     bool warpRequested = false;
@@ -167,10 +229,6 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     if (warpRequested) {
         WarpToSystem(targetSystemId, spawnPosition, spawnRotation);
     }
-
-    // Drained after the whole schedule, never mid-list: a system's view of this tick's input
-    // must not depend on its position in the order.
-    intents_.Clear();
 }
 
 void SpaceFlight::PopulateWorld(const std::string& targetSystemId) {
@@ -296,10 +354,21 @@ void SpaceFlight::Draw() const {
     render::DrawAimReticle(registry, camera);
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
+    const FactionId playerFaction = player_record_system::FactionOf(registry);
     ui::cockpit_hud::Draw(world_.Registry());
-    ui::avionics_menu::Draw(world_.Registry());
+    ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     ui::bridge_view::Draw(world_.Registry());
     ui::research_screen::Draw(registry, player_record_system::FactionOf(registry), knowledge_);
+    // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
+    // is also showing (features.md 3.10's "an overlay is defined by being over something, not by
+    // what it is over") -- after bridge_view, never gated on it.
+    {
+        const entt::entity vesselRoot =
+            PlayerVesselRoot(registry, player_record_system::FactionOf(registry));
+        ui::storage_menu::Draw(registry, vesselRoot);
+        ui::modules_menu::Draw(registry, vesselRoot);
+    }
+    ui::bay_view::Draw(world_.Registry(), playerFaction);
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
     ui::system_menu::Draw(world_.Registry());

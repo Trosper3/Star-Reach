@@ -1,5 +1,6 @@
 #include "modes/space/systems/LootSystem.h"
 
+#include <algorithm>
 #include <entt/entity/entity.hpp>
 #include <vector>
 
@@ -329,6 +330,42 @@ void HandleCombatKills(entt::registry& registry) {
     }
 }
 
+// architecture.md 12.30.7: the inventory overlay's one verb, and LootDrop/ElementDrop's first
+// producer (13.3 finding T) -- LootSystem already collects both and owns their lifetimes, but
+// nothing anywhere creates one. Withdraws from the requester's own cargo bays (cargo_view, the
+// one write path) and spawns exactly the drop kind SpillCargoHold already uses for the same
+// ItemStack shape, at the requester's own WorldTransform rather than any one bay's.
+void ProcessJettisonRequests(entt::registry& registry) {
+    std::vector<entt::entity> consumed;
+
+    for (auto [self, request] : registry.view<JettisonRequest>().each()) {
+        consumed.push_back(self);
+
+        // ItemStack's own comment: a Module stack's quantity is always 1 -- LootDrop has no
+        // quantity field to spill a merged stack back out through, so a Module request can only
+        // ever jettison one.
+        const int quantity = request.kind == ItemKind::Module ? 1 : std::max(1, request.quantity);
+        if (!cargo_view::Withdraw(registry, self, request.kind, request.id, quantity)) {
+            continue;  // Not held, or not enough held -- nothing dropped.
+        }
+
+        const auto* xf = registry.try_get<WorldTransform>(self);
+        const Vec2 position = xf != nullptr ? xf->position : Vec2{};
+
+        const entt::entity drop = registry.create();
+        registry.emplace<WorldTransform>(drop, position, 0.0f);
+        if (request.kind == ItemKind::Module) {
+            registry.emplace<LootDrop>(drop, ModuleId(request.id));
+        } else {
+            registry.emplace<ElementDrop>(drop, request.id, quantity);
+        }
+    }
+
+    for (const entt::entity self : consumed) {
+        registry.remove<JettisonRequest>(self);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -340,6 +377,7 @@ void Tick(const SystemContext& ctx) {
     HandlePlayerDeath(registry, ctx.content);
     HandleCombatKills(registry);
     SpillDestroyedBays(registry);
+    ProcessJettisonRequests(registry);
 }
 
 void SpillCargoHold(entt::registry& registry, entt::entity hardpoint) {

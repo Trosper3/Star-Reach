@@ -117,6 +117,11 @@ private:
     // work); the player's rig comes back in its pristine, freshly-spawned state every time.
     void WarpToSystem(const std::string& targetSystemId, Vec2 spawnPosition, float spawnRotation);
 
+    // Reads this frame's SystemWarpRequest (if any) and drives WarpToSystem, then returns --
+    // split out of Update purely to keep it under architecture.md 2.2's function-length cap; no
+    // independent meaning outside that caller.
+    void ProcessWarpRequests();
+
     SystemWorld world_;
     core::IntentQueue intents_;
     core::ContentLibrary& content_;
