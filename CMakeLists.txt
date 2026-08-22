@@ -268,6 +268,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
     src/modes/space/ui/StationServicesMenu.cpp
+    src/modes/space/ui/StorageScreen.cpp
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/ui/ResearchScreen.cpp

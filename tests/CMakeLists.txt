@@ -56,6 +56,7 @@ add_executable(sr_tests
     unit/CargoViewTests.cpp
     unit/ModuleEquipSystemTests.cpp
     unit/StorageMenuTests.cpp
+    unit/StorageScreenTests.cpp
     unit/ModulesMenuTests.cpp
     unit/CommanderSystemTests.cpp
     unit/WorldGenSeedCommandersTests.cpp
