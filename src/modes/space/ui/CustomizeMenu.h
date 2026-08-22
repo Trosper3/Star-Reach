@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/events/Intent.h"
-#include "core/events/IntentQueue.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "shared/blueprints/ShipBlueprint.h"
 #include "shared/blueprints/Validation.h"
@@ -40,21 +39,16 @@ bool CanSave(const ShipBlueprint& draft, const DefLibrary& library);
 
 // Builds the Intent CustomizeMenu's Save action pushes onto the IntentQueue. Does not itself
 // check CanSave -- callers should, so the UI can report which rule failed before ever building
-// this; ConsumeSaveTemplateRequests below re-checks regardless (defense in depth against a stale
-// or modified client).
+// this; ConstructionSystem's consumer re-checks regardless (defense in depth against a stale or
+// modified client).
 core::SaveTemplateIntent BuildSaveRequest(ActorId actor, const KnowledgeNetworkId& targetNetwork,
                                           const ShipBlueprint& draft);
 
-// The consumer architecture.md 12.9 names: "a store call, not a tick, so no new system owns it."
-// Grants every pending SaveTemplateIntent whose blueprint still validates against `library` into
-// its targetNetwork; silently drops one that does not (the draft simply never round-trips into
-// the network -- there is no UI channel here to report back to, since this runs off the shared
-// IntentQueue rather than a per-menu callback). Called once per frame alongside this menu's
-// Draw/Update, the same way BridgeView's Draw is -- not from SystemSchedule.cpp, because Law 8
-// store access is not a tick (architecture.md section 4).
-void ConsumeSaveTemplateRequests(const core::IntentQueue& intents,
-                                 core::knowledge::KnowledgeStore& knowledge,
-                                 const DefLibrary& library);
+// SaveTemplateIntent's consumer moved to modes/space/systems/ConstructionSystem.cpp
+// (architecture.md 12.30.8) -- it registers the blueprint body into ContentLibrary's Template
+// overlay before granting the network entry, which needs the concrete ContentLibrary (Law 9: a
+// UI file may not mutate core/ state itself, and DefLibrary's interface has no such registration
+// method regardless).
 
 // Draws the wizard: current mounts, validation errors, and a Save button gated on CanSave.
 void Draw(const ShipBlueprint& draft, const DefLibrary& library);

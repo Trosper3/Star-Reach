@@ -26,6 +26,20 @@ std::vector<entt::entity> EquippedMounts(const entt::registry& registry, entt::e
 MountModuleRequest BuildMountRequest(const ModuleId& module, entt::entity mount);
 UnmountModuleRequest BuildUnmountRequest(entt::entity mount);
 
-void Draw(const Rectangle& bounds, const entt::registry& registry, entt::entity rigRoot);
+// architecture.md 12.30.7: true once the overlay's own toggle key has been pressed an odd
+// number of times. Same FlightOverlayState singleton the inventory overlay shares
+// (shared/components/FlightOverlay.h).
+bool IsOpen(const entt::registry& registry);
+
+// Toggles open/closed on its own key and, while open, drives the "select, then target" refit
+// flow: a click on a held module selects it as FlightOverlayState::pendingModule; a click on an
+// empty/Destroyed-excluded mount with a pending selection commits a MountModuleRequest and
+// clears it; a click on an occupied mount commits an UnmountModuleRequest directly (one click --
+// there is only one module there to remove). No drag-and-drop (architecture.md 12.30.7: a drag
+// is retained state spanning frames, which the widget layer forbids).
+void Update(entt::registry& registry, entt::entity rigRoot);
+
+// Draws the overlay when open; a no-op otherwise.
+void Draw(const entt::registry& registry, entt::entity rigRoot);
 
 }  // namespace sr::space::ui::modules_menu

@@ -5,8 +5,11 @@
 #include <utility>
 #include <vector>
 
+#include <unordered_map>
+
 #include "core/diplomacy/DiplomacyMatrix.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
@@ -33,15 +36,44 @@ bool CanDock(const core::diplomacy::DiplomacyMatrix* diplomacy, const FactionId&
     return diplomacy->Get(seeker, station) > core::diplomacy::Relation::Distrustful;
 }
 
-// Nearest living DockingBay hardpoint belonging to a different rig this seeker may dock at,
-// within range. entt::null if nothing qualifies. exclude<Destroyed>: a destroyed bay still
+// Occupancy of every living DockingBay this tick, counted once rather than once per candidate
+// inside FindEligibleBay -- architecture.md 12.30.2's perf note: O(rigs + bays), not
+// O(rigs * bays).
+std::unordered_map<entt::entity, int> BayOccupancy(const entt::registry& registry) {
+    std::unordered_map<entt::entity, int> counts;
+    for (auto [self, docked] : registry.view<Docked>().each()) {
+        (void)self;
+        if (docked.bay != entt::null) {
+            ++counts[docked.bay];
+        }
+    }
+    return counts;
+}
+
+// A full bay is not an eligible bay (architecture.md 12.30.2): FacilityRef::capacity of 0 means
+// unlimited, matching CargoHold::capacity's convention; otherwise a bay already at capacity is
+// skipped exactly as one out of range or of the wrong faction is.
+bool HasRoom(const entt::registry& registry, entt::entity bay,
+             const std::unordered_map<entt::entity, int>& occupancy) {
+    const FacilityRef* facility = registry.try_get<FacilityRef>(bay);
+    if (facility == nullptr || facility->capacity == 0) {
+        return true;
+    }
+    const auto it = occupancy.find(bay);
+    const int occupied = it == occupancy.end() ? 0 : it->second;
+    return occupied < facility->capacity;
+}
+
+// Nearest living, non-full DockingBay hardpoint belonging to a different rig this seeker may dock
+// at, within range. entt::null if nothing qualifies. exclude<Destroyed>: a destroyed bay still
 // carries DockingBay/ParentRig/WorldTransform (DamageSystem only tags Destroyed, never strips
 // components), so without this a wrecked bay kept prompting "[R] DOCK" and would actually dock
 // the player onto it -- found during #133's M1 verification pass.
 entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
                              const FactionId& faction,
                              const core::diplomacy::DiplomacyMatrix* diplomacy,
-                             const Vec2& position, float maxRange) {
+                             const Vec2& position, float maxRange,
+                             const std::unordered_map<entt::entity, int>& occupancy) {
     entt::entity best = entt::null;
     float bestDist = std::numeric_limits<float>::max();
     for (auto [bay, parent, bayXf] :
@@ -53,6 +85,9 @@ entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
         if (stationFaction == nullptr || !CanDock(diplomacy, faction, stationFaction->id)) {
             continue;
         }
+        if (!HasRoom(registry, bay, occupancy)) {
+            continue;
+        }
         const float dist = Distance(position, bayXf.position);
         if (dist <= maxRange && dist < bestDist) {
             bestDist = dist;
@@ -62,14 +97,24 @@ entt::entity FindEligibleBay(const entt::registry& registry, entt::entity self,
     return best;
 }
 
+// The entity PlayerLocation currently names, or entt::null if OnEnter hasn't placed a player.
+// Exactly one PlayerLocation entity per registry (architecture.md 12.30.1).
+entt::entity PlayerShell(const entt::registry& registry) {
+    for (const entt::entity entity : registry.view<PlayerLocation>()) {
+        return entity;
+    }
+    return entt::null;
+}
+
 void UpdatePromptsAndRequests(entt::registry& registry,
                               const core::diplomacy::DiplomacyMatrix* diplomacy) {
+    const std::unordered_map<entt::entity, int> occupancy = BayOccupancy(registry);
     std::vector<std::pair<entt::entity, entt::entity>> toDock;  // (rig root, bay)
 
     for (auto [self, xf, faction] :
          registry.view<WorldTransform, FactionRef, Targetable>(entt::exclude<Docked>).each()) {
-        const entt::entity nearestBay =
-            FindEligibleBay(registry, self, faction.id, diplomacy, xf.position, kDockRangeUnits);
+        const entt::entity nearestBay = FindEligibleBay(registry, self, faction.id, diplomacy,
+                                                        xf.position, kDockRangeUnits, occupancy);
 
         if (nearestBay != entt::null) {
             registry.emplace_or_replace<DockPrompt>(self, nearestBay);
@@ -85,11 +130,22 @@ void UpdatePromptsAndRequests(entt::registry& registry,
         }
     }
 
+    const entt::entity playerShell = PlayerShell(registry);
     for (const auto& [self, bay] : toDock) {
         const entt::entity station = registry.get<ParentRig>(bay).root;
         registry.emplace<Docked>(self, station, bay);
         registry.remove<Targetable>(self);
         registry.remove<DockPrompt>(self);
+
+        // architecture.md 12.30.2: "PlayerLocation resolves to Docked.bay on arrival" -- lands
+        // the player on the Bay screen by default rather than leaving PlayerLocation on their own
+        // cockpit until they click a router tab. `self` is the player's own shell only while
+        // flying (no ParentRig yet moved it elsewhere), which is exactly the state a rig is in the
+        // moment it docks.
+        if (self == playerShell) {
+            registry.remove<PlayerLocation>(self);
+            registry.emplace<PlayerLocation>(bay, PlayerLocation{bay});
+        }
     }
 }
 

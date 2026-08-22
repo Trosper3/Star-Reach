@@ -43,18 +43,6 @@ core::SaveTemplateIntent BuildSaveRequest(ActorId actor, const KnowledgeNetworkI
     return intent;
 }
 
-void ConsumeSaveTemplateRequests(const core::IntentQueue& intents,
-                                 core::knowledge::KnowledgeStore& knowledge,
-                                 const DefLibrary& library) {
-    intents.ForEach<core::SaveTemplateIntent>([&](const core::SaveTemplateIntent& request) {
-        if (!CanSave(request.blueprint, library)) {
-            return;
-        }
-        knowledge.Grant(request.targetNetwork, core::knowledge::NetworkEntryKind::SavedTemplate,
-                        request.blueprint.id.str());
-    });
-}
-
 void Draw(const ShipBlueprint& draft, const DefLibrary& library) {
     const ValidationResult result = Validate(draft, library);
 
