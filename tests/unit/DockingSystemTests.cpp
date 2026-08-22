@@ -373,8 +373,7 @@ TEST_CASE("DockingSystem does not prompt a rig toward a bay already at capacity"
     CHECK_FALSE(registry.all_of<DockPrompt>(ship));
 }
 
-TEST_CASE("DockingSystem prompts again once a full bay's docked vessel has launched",
-          "[docking]") {
+TEST_CASE("DockingSystem prompts again once a full bay's docked vessel has launched", "[docking]") {
     // Occupancy is counted at the top of the tick a launch is processed in, so the bay reads
     // full through that same tick (Tick() runs UpdatePromptsAndRequests, which snapshots
     // occupancy, before ImmobilizeDocked consumes the UndockRequest) -- capacity frees up as of

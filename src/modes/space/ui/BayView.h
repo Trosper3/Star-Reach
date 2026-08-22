@@ -49,7 +49,7 @@ std::vector<entt::entity> SiblingBays(const entt::registry& registry, entt::enti
 // to disambiguate between two simultaneously-docked owned hulls yet. Shared by the roster's
 // owned/occupied split and AvionicsMenu's "R = board and launch" shortcut.
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction);
+                           const FactionId& playerFaction);
 
 // Moves PlayerLocation onto `vessel`'s cockpit (self-referential -- SpaceFlight::SpawnPlayerAt's
 // own comment notes there is no separate cockpit hardpoint entity yet). One write; the derived

@@ -113,8 +113,8 @@ void UpdatePromptsAndRequests(entt::registry& registry,
 
     for (auto [self, xf, faction] :
          registry.view<WorldTransform, FactionRef, Targetable>(entt::exclude<Docked>).each()) {
-        const entt::entity nearestBay = FindEligibleBay(
-            registry, self, faction.id, diplomacy, xf.position, kDockRangeUnits, occupancy);
+        const entt::entity nearestBay = FindEligibleBay(registry, self, faction.id, diplomacy,
+                                                        xf.position, kDockRangeUnits, occupancy);
 
         if (nearestBay != entt::null) {
             registry.emplace_or_replace<DockPrompt>(self, nearestBay);

@@ -145,7 +145,7 @@ std::vector<entt::entity> SiblingBays(const entt::registry& registry, entt::enti
 }
 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                          const FactionId& playerFaction) {
+                           const FactionId& playerFaction) {
     for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
         if (docked.station == station && faction.id == playerFaction) {
             return vessel;
@@ -191,9 +191,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
     const Layout layout = ComputeLayout(PanelBounds(), siblings.size() > 1);
 
     if (siblings.size() > 1) {
-        const std::optional<int> hit =
-            sr::ui::TabStripHitTest(layout.siblingStrip, static_cast<int>(siblings.size()),
-                                    input.cursor);
+        const std::optional<int> hit = sr::ui::TabStripHitTest(
+            layout.siblingStrip, static_cast<int>(siblings.size()), input.cursor);
         if (hit.has_value()) {
             const entt::entity target = siblings[static_cast<std::size_t>(*hit)];
             if (target != thisBay) {
@@ -256,21 +255,21 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     const std::string occupancy =
         capacity == 0 ? (std::to_string(occupied) + " / UNLIMITED")
                       : (std::to_string(occupied) + " / " + std::to_string(capacity));
-    DrawText(bayName.c_str(), static_cast<int>(layout.header.x),
-             static_cast<int>(layout.header.y), 18, sr::ui::kValueBright);
+    DrawText(bayName.c_str(), static_cast<int>(layout.header.x), static_cast<int>(layout.header.y),
+             18, sr::ui::kValueBright);
     DrawText(occupancy.c_str(), static_cast<int>(layout.header.x),
              static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
 
     float integrityFraction = 1.0f;
-    if (const Health* health = registry.try_get<Health>(thisBay); health != nullptr &&
-        health->max > 0.0f) {
+    if (const Health* health = registry.try_get<Health>(thisBay);
+        health != nullptr && health->max > 0.0f) {
         integrityFraction = health->current / health->max;
     }
     const Rectangle gaugeBounds{layout.header.x + layout.header.width * 0.5f, layout.header.y,
                                 layout.header.width * 0.5f, 20.0f};
     const Color gaugeColor = integrityFraction > 0.5f   ? sr::ui::kStatusGood
                              : integrityFraction > 0.2f ? sr::ui::kStatusCaution
-                                                         : sr::ui::kStatusCritical;
+                                                        : sr::ui::kStatusCritical;
     sr::ui::DrawGauge(gaugeBounds, "BAY INTEGRITY", integrityFraction, gaugeColor);
 
     // Sibling selector: one TabStrip entry per living Docking hardpoint on the host, absent when

@@ -11,8 +11,8 @@
 using sr::BlueprintId;
 using sr::BlueprintRef;
 using sr::Destroyed;
-using sr::Docked;
 using sr::DisplayName;
+using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionId;

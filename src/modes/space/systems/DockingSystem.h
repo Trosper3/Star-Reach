@@ -21,9 +21,9 @@ namespace sr::space::docking_system {
 //     same idiom as Combat.h's FireIntent) tags the requester Docked and removes Targetable --
 //     Targeting.h already documents "a docked player is untargetable" as this system's rule to
 //     enforce. If the docking rig is the player's own (PlayerLocation.shell names it directly),
-//     PlayerLocation also moves onto `bay` this same tick -- architecture.md 12.30.2's "PlayerLocation
-//     resolves to Docked.bay on arrival," landing the player on the Bay screen by default rather
-//     than leaving them stood in their own cockpit until they click a router tab.
+//     PlayerLocation also moves onto `bay` this same tick -- architecture.md 12.30.2's
+//     "PlayerLocation resolves to Docked.bay on arrival," landing the player on the Bay screen by
+//     default rather than leaving them stood in their own cockpit until they click a router tab.
 //   - Undock: an UndockRequest on a Docked rig clears Docked and restores Targetable.
 //   - Immobile while docked: Velocity and ThrustInput are zeroed every tick a rig is Docked.
 //     PhysicsSystem runs earlier in TickSchedule than NpcAiSystem, so whatever ThrustInput

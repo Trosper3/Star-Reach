@@ -49,9 +49,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                                                 stats.fireIntervalSeconds, stats.projectileSpeed,
                                                 stats.rangeUnits, stats.spreadRadians,
                                                 stats.projectilesPerShot, 0.0f);
-            // A FireControl module may already be mounted on this hardpoint -- mount.modules'
-            // authored order is not guaranteed -- in which case its rate applies immediately
-            // instead of the kPi un-augmented baseline (a manually slaved turret's traverse).
+            // A FireControl module may already be mounted here (mount.modules' order isn't
+            // guaranteed), in which case its rate applies immediately instead of the kPi baseline.
             const auto* fireControl = registry.try_get<FireControl>(hardpoint);
             const float turnRate = fireControl != nullptr ? fireControl->turnRatePerSecond : kPi;
             registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, turnRate);
@@ -77,9 +76,8 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                 hardpoint, propulsion.thrustNewtons, propulsion.turnTorque, propulsion.maxSpeed);
             break;
         case ModuleKind::Facility:
-            registry.emplace_or_replace<FacilityRef>(hardpoint, module.facility.kind,
-                                                     module.facility.grade,
-                                                     module.facility.capacity);
+            registry.emplace_or_replace<FacilityRef>(
+                hardpoint, module.facility.kind, module.facility.grade, module.facility.capacity);
             if (module.facility.kind == FacilityKind::Docking) {
                 registry.emplace_or_replace<DockingBay>(hardpoint);
             }

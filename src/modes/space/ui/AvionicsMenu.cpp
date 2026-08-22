@@ -153,8 +153,9 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
             registry.emplace_or_replace<DockRequest>(player, prompt->bay);
         } else if (registry.all_of<Docked>(player)) {
             registry.emplace_or_replace<UndockRequest>(player);
-        } else if (const entt::entity hull = ResolveOwnedDockedHull(registry, player, playerFaction);
-                  hull != entt::null) {
+        } else if (const entt::entity hull =
+                       ResolveOwnedDockedHull(registry, player, playerFaction);
+                   hull != entt::null) {
             registry.remove<PlayerLocation>(player);
             registry.emplace<PlayerLocation>(hull, PlayerLocation{hull});
             registry.emplace_or_replace<UndockRequest>(hull);
