@@ -361,7 +361,6 @@ void Tick(const SystemContext& ctx) {
     ProcessSellRequests(registry, ctx.content);
     ProcessRepairOrders(ctx);
     ProcessTransferRequests(registry);
-    ProcessRepairRequests(ctx);
 }
 
 }  // namespace sr::space::station_services_system
