@@ -1,5 +1,6 @@
 #pragma once
 
+#include <entt/entity/entity.hpp>
 #include <string>
 
 #include "shared/blueprints/Ids.h"
@@ -28,9 +29,27 @@ struct SellItemRequest {
     int value = 0;
 };
 
-struct RepairRequest {
-    float fraction = 0.0f;
-    int costForFullRepair = 0;
+// architecture.md 12.30.4: an ORDER, not a request -- a deliberate exception to the same-tick
+// idiom every other intent in this file follows. Repair takes many ticks by construction, so
+// this persists until met, stopped, undocked, or invalidated (its facility destroyed). Name it
+// and comment it, or the next contributor "fixes" it into the same-tick pattern and silently
+// makes repair instant again.
+struct RepairOrder {
+    // The rig actually being healed: the requester's own vessel, or the station it is standing
+    // in when that station's FactionRef is the requester's own (architecture.md 12.30.3's
+    // ownership test -- "a station with a repair bay repairs itself"). Lives on the docked
+    // requester regardless of which one this names -- the same reason a screen must never place
+    // a request on PlayerControlled (12.30.3's named trap): while docked inside a facility,
+    // PlayerControlled is the station, not the vessel the player arrived in.
+    entt::entity subject = entt::null;
+    // entt::null means the whole rig ("Repair All"); otherwise one specific hardpoint of subject.
+    entt::entity hardpoint = entt::null;
+    // Stop once this hardpoint (or every hardpoint, for the whole-rig case) reaches this
+    // fraction of its own max -- never above it, and never instantly regardless of value.
+    float targetFraction = 1.0f;
+    // Sub-credit carry: billing is whole credits per tick, and the fractional remainder that
+    // would otherwise round to zero every tick -- making repair free again -- accumulates here.
+    float creditRemainder = 0.0f;
 };
 
 // architecture.md 12.30.3's Storage half: a transfer within one owner, free of charge -- distinct

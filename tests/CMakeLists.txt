@@ -67,6 +67,8 @@ add_executable(sr_tests
     unit/DockedFacilityTests.cpp
     unit/EngineeringScreenTests.cpp
     unit/StationServicesMenuTests.cpp
+    unit/RepairScreenTests.cpp
+    unit/PricingTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
     unit/ContractSystemTests.cpp

@@ -10,10 +10,14 @@
 // modes/space/ui/StationServicesMenu -- architecture.md 12.10, the ordinary-commerce case:
 // docking at any station, including one the player does not own. Distinct from BridgeView
 // (features.md section 4's command surface for a station the player owns). modes/*/ui/ must not
-// include systems/ (section 2.3); this builds BuyItemRequest/SellItemRequest/RepairRequest
+// include systems/ (section 2.3); this builds BuyItemRequest/SellItemRequest
 // (shared/components/StationServices.h) for the caller to place on the docked requester, the
 // same DockRequest idiom AvionicsMenu already uses, and never calls
 // modes/space/systems/StationServicesSystem itself.
+//
+// Repair moved to modes/space/ui/RepairScreen.h (architecture.md 12.30.4): RepairOrder is a
+// persistent order, not a same-tick request, and needs the router's PlayerLocation gating this
+// file predates -- this file keeps only the two verbs that are still same-tick requests.
 //
 // Draw renders through shared/ui/Widgets.h's PanelFrame + ListView (architecture.md 12.30) --
 // the shared widget layer this file's row rendering was one of the four hand-rolled clones of.
@@ -28,7 +32,6 @@ std::vector<ModuleId> AffordableModules(const std::vector<ModuleId>& stationStoc
 
 BuyItemRequest BuildBuyRequest(const ModuleId& module, int cost);
 SellItemRequest BuildSellRequest(const ModuleId& module, int value);
-RepairRequest BuildRepairRequest(float fraction, int costForFullRepair);
 
 void Draw(const Rectangle& bounds, const std::vector<ModuleId>& stationStock);
 
