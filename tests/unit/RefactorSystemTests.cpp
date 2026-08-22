@@ -3,6 +3,7 @@
 #include "modes/space/systems/RefactorSystem.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
 
@@ -13,6 +14,8 @@ using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::MountedModules;
 using sr::ParentRig;
+using sr::PlayerLocation;
+using sr::RebuildMountRequest;
 using sr::Rig;
 using sr::StructuralAttachment;
 using sr::space::SystemContext;
@@ -26,11 +29,15 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
     return SystemContext{world, intents, content, 1.0f / 60.0f, 0};
 }
 
+// Also stands the player in the bench it creates -- shared/rig/DockedFacility.h reads
+// PlayerLocation, not a Rig::children scan.
 entt::entity MakeEngineeringStation(entt::registry& registry) {
     const entt::entity hardpoint = registry.create();
     registry.emplace<FacilityRef>(hardpoint, FacilityKind::Engineering, 1);
     const entt::entity station = registry.create();
+    registry.emplace<ParentRig>(hardpoint, station);
     registry.emplace<Rig>(station, std::vector<entt::entity>{hardpoint});
+    registry.emplace<PlayerLocation>(hardpoint, PlayerLocation{hardpoint});
     return station;
 }
 

@@ -10,6 +10,7 @@
 #include "shared/components/Docking.h"
 #include "shared/components/Equip.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Power.h"
@@ -33,6 +34,7 @@ using sr::MountedModules;
 using sr::MountModuleRequest;
 using sr::MountTraverse;
 using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::Projectile;
 using sr::Rig;
 using sr::ShellRole;
@@ -306,7 +308,10 @@ TEST_CASE("A runtime-mounted module is never refunded twice across unmount and s
     const entt::entity engineeringHardpoint = registry.create();
     registry.emplace<FacilityRef>(engineeringHardpoint, FacilityKind::Engineering, 1);
     const entt::entity station = registry.create();
+    registry.emplace<ParentRig>(engineeringHardpoint, station);
     registry.emplace<Rig>(station, std::vector<entt::entity>{engineeringHardpoint});
+    // shared/rig/DockedFacility.h reads PlayerLocation, not a Rig::children scan.
+    registry.emplace<PlayerLocation>(engineeringHardpoint, PlayerLocation{engineeringHardpoint});
 
     const entt::entity root = registry.create();
     const entt::entity mount = registry.create();

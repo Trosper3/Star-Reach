@@ -12,7 +12,9 @@
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
+#include "shared/math/Vec2.h"
 
 namespace sr::rig_attachment {
 namespace {
@@ -284,6 +286,28 @@ entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
         }
     }
     return entt::null;
+entt::entity CreateBareHardpoint(entt::registry& registry, entt::entity root,
+                                 const MountBlueprint& mount, const ShellDef& shell) {
+    const entt::entity hardpoint = registry.create();
+
+    registry.emplace<MountRef>(hardpoint, mount.id);
+    registry.emplace<ParentRig>(hardpoint, root);
+    registry.emplace<ShellRole>(hardpoint, shell.kind, shell.acceptsKinds);
+    registry.emplace<HitRadius>(hardpoint, shell.radius);
+    registry.emplace<MountTraverse>(hardpoint, mount.traverseRadians);
+    registry.emplace<LocalTransform>(hardpoint, mount.localOffset, mount.localRotation);
+    registry.emplace<DrawLayer>(
+        hardpoint, mount.drawLayerOverride != 0 ? mount.drawLayerOverride : shell.drawLayer);
+
+    const WorldTransform& rootXf = registry.get<WorldTransform>(root);
+    const Vec2 world = rootXf.position + Rotated(mount.localOffset, rootXf.rotation);
+    registry.emplace<WorldTransform>(hardpoint, world, rootXf.rotation + mount.localRotation);
+    registry.emplace<PreviousTransform>(hardpoint, world, rootXf.rotation + mount.localRotation);
+
+    registry.emplace<HardpointMass>(hardpoint, shell.mass);
+    registry.emplace<MountedModules>(hardpoint);
+    registry.emplace<Health>(hardpoint, shell.hull, shell.hull);
+    return hardpoint;
 }
 
 }  // namespace sr::rig_attachment

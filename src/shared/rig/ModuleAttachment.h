@@ -5,6 +5,8 @@
 
 #include "shared/blueprints/Ids.h"
 #include "shared/blueprints/ModuleDef.h"
+#include "shared/blueprints/RigBlueprint.h"
+#include "shared/blueprints/ShellDef.h"
 
 // shared/rig/ -- the minimal attach/detach logic RigFactory::AttachModule and
 // modes/space/systems/ModuleEquipSystem both need, extracted per architecture.md 12.11's Option
@@ -77,5 +79,20 @@ float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity 
 // 2.3), but ResearchSystem needs exactly this to resolve a job back to its bench. RigFactory.h
 // re-exports it under rig_factory:: for its own established callers.
 entt::entity FindHardpoint(const entt::registry& registry, entt::entity root, const MountId& mount);
+// Creates the bare hardpoint entity `mount` describes on `root`: MountRef, ParentRig, ShellRole,
+// HitRadius, MountTraverse, LocalTransform/WorldTransform/PreviousTransform, DrawLayer,
+// HardpointMass and Health -- everything RigFactory::CreateHardpoint does at construction time
+// EXCEPT attaching any of `mount.modules`. Lives here rather than RigFactory (its blueprint-time
+// twin) because architecture.md 12.30.5's rebuild verb needs it and modes/space/systems/ may not
+// include factories/ (section 2.3) -- the same split this file already makes for a single
+// module's attach/detach. `root` must already carry a WorldTransform.
+//
+// The returned hardpoint carries an empty MountedModules: "a rebuilt mount comes back bare"
+// (architecture.md 12.30.5) -- restoring `mount.modules` here would print a second copy of
+// whatever RefactorSystem's delete already refunded to CargoHold. Pushing the result onto
+// Rig::children, resolving its StructuralAttachment, and calling RecomputeRigTotals afterward are
+// all the caller's job -- this only builds the entity.
+entt::entity CreateBareHardpoint(entt::registry& registry, entt::entity root,
+                                 const MountBlueprint& mount, const ShellDef& shell);
 
 }  // namespace sr::rig_attachment

@@ -3,37 +3,16 @@
 #include <algorithm>
 #include <vector>
 
-#include "shared/components/Docking.h"
+#include "core/registries/ContentLibrary.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Refactor.h"
 #include "shared/components/Rig.h"
+#include "shared/rig/DockedFacility.h"
+#include "shared/rig/ModuleAttachment.h"
 
 namespace sr::space::refactor_system {
 namespace {
-
-// Same gate EngineerSystem uses -- both menus require a living Engineering facility at the
-// docked station. Duplicated locally rather than shared across the two system files: it is a
-// dozen lines each, and the two systems have no other reason to depend on one another.
-bool DockedAtEngineeringFacility(const entt::registry& registry, entt::entity requester) {
-    const Docked* docked = registry.try_get<Docked>(requester);
-    if (docked == nullptr || !registry.valid(docked->station)) {
-        return false;
-    }
-    const Rig* stationRig = registry.try_get<Rig>(docked->station);
-    if (stationRig == nullptr) {
-        return false;
-    }
-    for (const entt::entity hardpoint : stationRig->children) {
-        if (registry.all_of<Destroyed>(hardpoint)) {
-            continue;
-        }
-        const FacilityRef* facility = registry.try_get<FacilityRef>(hardpoint);
-        if (facility != nullptr && facility->kind == FacilityKind::Engineering) {
-            return true;
-        }
-    }
-    return false;
-}
 
 bool HasDependentChild(const entt::registry& registry, entt::entity rigRoot,
                        entt::entity hardpoint) {
@@ -65,7 +44,8 @@ void ProcessDeleteRequests(const SystemContext& ctx) {
         const ParentRig* parent =
             registry.valid(hardpoint) ? registry.try_get<ParentRig>(hardpoint) : nullptr;
         if (rig == nullptr || parent == nullptr || parent->root != self ||
-            !DockedAtEngineeringFacility(registry, self)) {
+            docked_facility::DockedFacility(registry, self, FacilityKind::Engineering) ==
+                entt::null) {
             continue;
         }
         if (rig->children.size() <= 1) {
@@ -99,10 +79,81 @@ void ProcessDeleteRequests(const SystemContext& ctx) {
     }
 }
 
+// The hardpoint in `rig` carrying MountRef::id == `mount`, or entt::null -- present whether it is
+// living or Destroyed. A Destroyed hardpoint is not "absent": Delete must remove it first before
+// the same mount id becomes rebuildable.
+entt::entity FindMount(const entt::registry& registry, const Rig& rig, const MountId& mount) {
+    for (const entt::entity child : rig.children) {
+        const MountRef* ref = registry.try_get<MountRef>(child);
+        if (ref != nullptr && ref->id == mount) {
+            return child;
+        }
+    }
+    return entt::null;
+}
+
+void ProcessRebuildRequests(const SystemContext& ctx) {
+    entt::registry& registry = ctx.Registry();
+    std::vector<entt::entity> consumed;
+
+    for (auto [self, request] : registry.view<RebuildMountRequest>().each()) {
+        consumed.push_back(self);
+
+        if (docked_facility::DockedFacility(registry, self, FacilityKind::Engineering) ==
+            entt::null) {
+            continue;
+        }
+        Rig* rig = registry.try_get<Rig>(self);
+        const BlueprintRef* blueprintRef = registry.try_get<BlueprintRef>(self);
+        if (rig == nullptr || blueprintRef == nullptr) {
+            continue;
+        }
+        const ShipBlueprint* blueprint = ctx.content.FindShip(blueprintRef->id);
+        if (blueprint == nullptr) {
+            continue;
+        }
+        const MountBlueprint* mount = blueprint->rig.Find(request.mount);
+        if (mount == nullptr) {
+            continue;  // Not an authored mount -- cannot rebuild what was never there.
+        }
+        if (FindMount(registry, *rig, request.mount) != entt::null) {
+            continue;  // Already live, or Destroyed and awaiting Delete -- not a true gap.
+        }
+
+        // Rebuild works root-outward, the opposite direction Delete's HasDependentChild works
+        // leaves-inward: you cannot hang a wing off a hull that is not there.
+        entt::entity parentHardpoint = entt::null;
+        if (!mount->attachedTo.empty()) {
+            parentHardpoint = FindMount(registry, *rig, mount->attachedTo);
+            if (parentHardpoint == entt::null || registry.all_of<Destroyed>(parentHardpoint)) {
+                continue;
+            }
+        }
+
+        const ShellDef* shell = ctx.content.FindShell(mount->shell);
+        if (shell == nullptr) {
+            continue;
+        }
+
+        const entt::entity hardpoint =
+            rig_attachment::CreateBareHardpoint(registry, self, *mount, *shell);
+        registry.emplace<StructuralAttachment>(hardpoint, parentHardpoint);
+        rig->children.push_back(hardpoint);
+        // Folds the restored hardpoint's mass/propulsion/sensor contribution back into the rig's
+        // aggregates -- an engine mount rebuilt bare still restores nothing without this.
+        rig_attachment::RecomputeRigTotals(registry, self);
+    }
+
+    for (const entt::entity self : consumed) {
+        registry.remove<RebuildMountRequest>(self);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
     ProcessDeleteRequests(ctx);
+    ProcessRebuildRequests(ctx);
 }
 
 }  // namespace sr::space::refactor_system
