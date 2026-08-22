@@ -72,8 +72,9 @@ enum class FacilityKind : std::uint8_t {
     // hardpoint at all. Was FacilityKind::Storage before P4-01; that name described a container
     // the component already is.
     Trade,
-    // Grants EngineerMenu (module merging) and RefactorMenu (hardpoint deletion) at whatever
-    // station/ship carries this facility. FacilityStats::grade (ModuleDef.h) is only meaningful
+    // Grants the Engineering screen's Merge/Deconstruct/Delete/Rebuild verbs (architecture.md
+    // 12.30.5) at whatever station/ship carries this facility. FacilityStats::grade (ModuleDef.h)
+    // is only meaningful
     // for this kind -- the engineer's skill tier, scales EngineerSystem's merge formula.
     Engineering,
 };

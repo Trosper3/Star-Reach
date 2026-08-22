@@ -15,6 +15,7 @@
 #include "modes/space/ui/AvionicsMenu.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
+#include "modes/space/ui/EngineeringScreen.h"
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/SystemMenu.h"
 #include "shared/components/Identity.h"
@@ -111,6 +112,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
     ui::avionics_menu::Update(registry);
     ui::bridge_view::Update(registry);
+    ui::engineering_screen::Update(registry, player_record_system::FactionOf(registry), content_);
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
 
@@ -280,6 +282,8 @@ void SpaceFlight::Draw() const {
     ui::cockpit_hud::Draw(world_.Registry());
     ui::avionics_menu::Draw(world_.Registry());
     ui::bridge_view::Draw(world_.Registry());
+    ui::engineering_screen::Draw(world_.Registry(), player_record_system::FactionOf(registry),
+                                 content_);
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
     ui::system_menu::Draw(world_.Registry());

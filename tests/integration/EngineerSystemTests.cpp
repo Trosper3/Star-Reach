@@ -8,12 +8,14 @@
 #include "shared/components/Docking.h"
 #include "shared/components/Engineer.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
 #include "shared/rig/CargoView.h"
 
 using Catch::Approx;
 using sr::CargoHold;
+using sr::DeconstructModuleRequest;
 using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
@@ -21,7 +23,9 @@ using sr::ItemKind;
 using sr::ItemStack;
 using sr::MergeModulesRequest;
 using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::Rig;
+using sr::Wallet;
 using sr::core::ContentLibrary;
 using sr::space::SystemContext;
 using sr::space::SystemWorld;
@@ -46,11 +50,16 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
     return ctx;
 }
 
+// Also stands the player in the bench it creates -- DockedFacility (shared/rig/DockedFacility.h)
+// reads PlayerLocation, not a Rig::children scan, the same "bench you selected is the bench used"
+// fix BridgeView::SelectTab's real write performs in-game.
 entt::entity MakeEngineeringStation(entt::registry& registry, int level) {
     const entt::entity hardpoint = registry.create();
     registry.emplace<FacilityRef>(hardpoint, FacilityKind::Engineering, level);
     const entt::entity station = registry.create();
+    registry.emplace<ParentRig>(hardpoint, station);
     registry.emplace<Rig>(station, std::vector<entt::entity>{hardpoint});
+    registry.emplace<PlayerLocation>(hardpoint, PlayerLocation{hardpoint});
     return station;
 }
 
@@ -212,4 +221,94 @@ TEST_CASE("Merging the same module id with itself requires two distinct owned co
 
         CHECK(cargo_view::Merged(registry, requester).size() == 1);
     }
+}
+
+TEST_CASE("A merge at a Grade-3 bench differs from one at a Grade-1 bench on the same station",
+          "[engineer]") {
+    // architecture.md 12.30.5: "duplicate facilities are not fungible" -- two Engineering
+    // hardpoints of different grade on ONE station must use whichever one PlayerLocation names,
+    // not the first found walking Rig::children.
+    ContentLibrary content = Content();
+
+    auto MergedDamageAt = [&](int gradeOfStandingBench) {
+        SystemWorld world("sol");
+        entt::registry& registry = world.Registry();
+        sr::core::IntentQueue intents;
+
+        const entt::entity gradeOne = registry.create();
+        registry.emplace<FacilityRef>(gradeOne, FacilityKind::Engineering, 1);
+        const entt::entity gradeThree = registry.create();
+        registry.emplace<FacilityRef>(gradeThree, FacilityKind::Engineering, 3);
+        const entt::entity station = registry.create();
+        registry.emplace<ParentRig>(gradeOne, station);
+        registry.emplace<ParentRig>(gradeThree, station);
+        registry.emplace<Rig>(station, std::vector<entt::entity>{gradeOne, gradeThree});
+
+        const entt::entity standingBench = gradeOfStandingBench == 1 ? gradeOne : gradeThree;
+        registry.emplace<PlayerLocation>(standingBench, PlayerLocation{standingBench});
+
+        const entt::entity requester = registry.create();
+        registry.emplace<Docked>(requester, station, entt::null);
+        GiveCargoBay(registry, requester);
+        StockModules(registry, requester, content,
+                     {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
+        registry.emplace<MergeModulesRequest>(
+            requester,
+            MergeModulesRequest{sr::ModuleId("pulse_cannon_i"), sr::ModuleId("autocannon_i")});
+
+        engineer_system::Tick(MakeContext(world, intents, content));
+
+        const std::vector<ItemStack> cargo = cargo_view::Merged(registry, requester);
+        REQUIRE(cargo.size() == 1);
+        const sr::ModuleDef* merged = content.FindModule(sr::ModuleId(cargo.front().id));
+        REQUIRE(merged != nullptr);
+        return merged->weapon.damage;
+    };
+
+    CHECK(MergedDamageAt(1) != Approx(MergedDamageAt(3)));
+}
+
+TEST_CASE("A successful deconstruct removes the module and credits the requester's Wallet",
+          "[engineer]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeEngineeringStation(registry, 3);
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<Wallet>(requester, Wallet{0});
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content, {sr::ModuleId("pulse_cannon_i")});
+    registry.emplace<DeconstructModuleRequest>(
+        requester, DeconstructModuleRequest{sr::ModuleId("pulse_cannon_i")});
+
+    engineer_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.all_of<DeconstructModuleRequest>(requester));
+    CHECK(cargo_view::Merged(registry, requester).empty());
+    CHECK(registry.get<Wallet>(requester).credits > 0);
+}
+
+TEST_CASE(
+    "Deconstruction is refused when the requester is not standing in a living Engineering "
+    "facility",
+    "[engineer]") {
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity requester = registry.create();
+    registry.emplace<Wallet>(requester, Wallet{0});
+    GiveCargoBay(registry, requester);
+    StockModules(registry, requester, content, {sr::ModuleId("pulse_cannon_i")});
+    registry.emplace<DeconstructModuleRequest>(
+        requester, DeconstructModuleRequest{sr::ModuleId("pulse_cannon_i")});
+
+    engineer_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(cargo_view::Merged(registry, requester).size() == 1);
+    CHECK(registry.get<Wallet>(requester).credits == 0);
 }

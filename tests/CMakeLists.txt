@@ -62,8 +62,8 @@ add_executable(sr_tests
     unit/CaptureSystemTests.cpp
     unit/BuildMenuTests.cpp
     unit/RefactorSystemTests.cpp
-    unit/EngineerMenuTests.cpp
-    unit/RefactorMenuTests.cpp
+    unit/DockedFacilityTests.cpp
+    unit/EngineeringScreenTests.cpp
     unit/StationServicesMenuTests.cpp
     unit/WarpSystemTests.cpp
     unit/CommsSystemTests.cpp
@@ -83,6 +83,7 @@ add_executable(sr_tests
     integration/EngineerSystemTests.cpp
     integration/ModuleEquipSystemTests.cpp
     integration/NpcFactoryTests.cpp
+    integration/RefactorSystemTests.cpp
     integration/StationFactoryTests.cpp
     integration/StationServicesSystemTests.cpp
     integration/WorldGenTests.cpp
