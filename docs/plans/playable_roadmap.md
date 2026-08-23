@@ -2742,11 +2742,11 @@ reads.
 | P4-07 | Screen 5 — Manufacturing, Draft half | #205 |  |
 | P4-08 | The two flight overlays | #206 |  |
 | P4-09 | M3 verification pass | #207 |  |
-| P4-10 | Router — gate a tab on its screen shipping |  |  |
-| P4-11 | Storage — sibling-hold selection |  |  |
-| P4-12 | Engineering — editing the station's own rig |  |  |
-| P4-13 | Research — the Codex |  |  |
-| P4-14 | NPC logistics — spreading stock across holds |  |  |
+| P4-10 | Router — gate a tab on its screen shipping | #219 |  |
+| P4-11 | Storage — sibling-hold selection | #220 |  |
+| P4-12 | Engineering — editing the station's own rig | #221 |  |
+| P4-13 | Research — the Codex | #222 |  |
+| P4-14 | NPC logistics — spreading stock across holds | #223 (design issue, not build) |  |
 | P5-01 | The status display |  |  |
 | P5-02 | The flight HUD |  |  |
 | P5-03 | The comms surface |  |  |
