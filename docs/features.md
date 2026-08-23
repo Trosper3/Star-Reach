@@ -826,6 +826,20 @@ consuming materials, keeping its position and mounted modules.* This is the cohe
 analogue of merging and it is appealing, but it is a new mechanic in `RefactorSystem` territory
 rather than a reuse of an existing one. Deferred; research and deconstruction cover the need first.
 
+❓ *Open, raised 2026-08-23, related but not identical to the item above:* whether a shell **acquired
+as an item** — this section's own *"found through exploration and salvage, or obtained by dealing with
+factions that already hold them"* — can be **carried in a `CargoHold` and installed at a mount**,
+replacing whichever shell is there, at an Engineering facility. Not a grade upgrade of the same shell
+(the item above); a swap to a **different, already-owned** shell. Not a reopening of §2's settled
+two-tier model (`architecture.md` §12.12 item 7) — no third authored type, `ShellDef` stays what gets
+carried and installed. Two concrete gaps found verifying this against `src/`: `ItemKind`
+(`shared/components/Loot.h`) has only `{Module, Element}`, no `Shell` case, so nothing can represent a
+carried shell yet; and `MountBlueprint` (`shared/blueprints/RigBlueprint.h`) authors exactly one
+`ShellId` per mount with no notion of which *other* shells would fit there — a compatibility model
+(by module-slot count, by a socket-size tag, or something else) does not exist and would need
+inventing before this is buildable. Deferred alongside the item above; see `architecture.md` §12.30.5
+for where it would land in the UI once decided.
+
 ❓ *Open, and it is load-bearing:* **nothing manufactures a module.** Research's stated payoff is
 that an item becomes "manufacturable," and there is no manufacturing mechanic, system, or menu anywhere in
 the design or the codebase — `ConstructionSystem` builds ships and stations from blueprints, not
