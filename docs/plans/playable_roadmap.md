@@ -24,7 +24,7 @@ end. Nine menu files handle no input and are referenced by nothing but their own
 `data/base_game/` holds three JSON files. 424 tests pass — they exercise systems in isolation, which
 is exactly why the wiring gaps survived.
 
-**The work is overwhelmingly wiring and content, not new systems.** Of the 108 tasks below, ten
+**The work is overwhelmingly wiring and content, not new systems.** Of the 113 tasks below, ten
 introduce a new system or store.
 
 ### How to use it
@@ -34,7 +34,7 @@ introduce a new system or store.
   `architecture.md` §11.3).
 - **`Depends on:` names tasks in this file.** Before starting, confirm the dependency has *merged to
   `main`* — `architecture.md` §11.9's rule, and it applies here unchanged.
-- **⚡ = startable today**, nothing blocking — **and it means it**: 21 of the 108 tasks carry it, and
+- **⚡ = startable today**, nothing blocking — **and it means it**: 21 of the 113 tasks carry it, and
   no task carrying it declares a dependency (audited 2026-08-11, when six did). Enough parallel work
   is always available, and the mark can be trusted when picking the next thing up.
 - Branch prefix follows the issue label: `feature/`, `fix/`, `docs/`, `chore/`.
@@ -53,7 +53,7 @@ For whoever converts this file into a GitHub tracker:
    spec into the issue** — the issue points at the spec, it does not replace it, and the specs are
    revised more often than this file is.
 3. **Maintain the id → issue-number map** — the table at the bottom of this file, pre-populated with
-   all 108 ids and awaiting only the numbers. Fill in each row as you file, and tick **Merged** only
+   all 113 ids and awaiting only the numbers. Fill in each row as you file, and tick **Merged** only
    when the PR lands on `main`. Without it, §11.9's rule (*confirm the dependency has actually merged
    to `main`*) has nothing to check against, and dependencies degrade into prose.
 4. **Label** from the task's `Label:` line, which also picks the branch prefix (`feature/`, `fix/`,
@@ -90,14 +90,14 @@ gh label create chore   --repo Trosper3/Star-Reach --color FBCA04 \
 ⚠️ **Do not delete the stock labels they overlap** (`bug`, `documentation`, `enhancement`). Deleting
 a label strips it from every issue already carrying it, and the history predates this file.
 
-**③ File in phase order, in batches — not all 108 at once.** The order in this file *is* dependency
+**③ File in phase order, in batches — not all 113 at once.** The order in this file *is* dependency
 order, so `Depends on: #NN` can always name an issue that already exists, with the three exceptions
 in the table below.
 
 | Batch | Tasks | Why stop there |
 |---|:---:|---|
 | **First** | **Phase 0 + Phase 1** | **24 issues** — everything needed to reach M1, containing most of the ⚡ set, and a tracker a person can still read end to end |
-| Then | One phase at a time | Phase 0 will teach you things that revise later task text. Filing 108 up front freezes wording this file's own note says gets revised more often than the roadmap does |
+| Then | One phase at a time | Phase 0 will teach you things that revise later task text. Filing 113 up front freezes wording this file's own note says gets revised more often than the roadmap does |
 
 **The three forward dependencies**, which name a task filed in a *later* batch. File the issue with
 the dependency written as the **id**, then backfill the `#NN` when the target exists:
@@ -162,7 +162,7 @@ tracks; the phase numbers are a recommended order, not a lock.
 | **1** | The micro loop | Start Game → a visible system with a player, a station, NPCs → fly, shoot, dock, respawn, quit to menu, start again cleanly | 8 |
 | **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 11 |
 | **3** | Faction state | Relations exist at runtime, are seeded, are read by combat/docking/pricing, and are written by gameplay | 5 |
-| **4** | The docked screens | Six of §12.30's seven screens reachable through the router — **Market is the seventh and ships in P6-08**, because a price needs `Pricing.h`; both flight overlays work | 9 |
+| **4** | The docked screens | Six of §12.30's seven screens reachable through the router — **Market is the seventh and ships in P6-08**, because a price needs `Pricing.h`; both flight overlays work | 14 |
 | **5** | Legibility | Status display, flight HUD, comms, navigation map, tutorial | 6 |
 | **6** | Items and economy | Elements → Materials → Modules manufacture and price themselves | 13 |
 | **7** | Knowledge and templates | Reverse-engineer, draft, pitch, collect royalties | 5 |
@@ -1324,6 +1324,86 @@ system on the following tick.
 
 Play the meso loop: dock → repair → engineer → research → draft → store → refit → launch. File what
 it finds.
+
+---
+
+*Five tasks added 2026-08-23, from a UI design pass over the router and four of the six shipped
+screens. All follow-ons to already-merged work, not revisions of it — none blocks P4-09.*
+
+### P4-10 · Router — gate a tab on its screen shipping, not just its hardpoint living 🔗
+**Docs:** §12.30 "A tab needs a working screen behind it, not just a living hardpoint"
+**Depends on:** P4-01 — **Label:** `fix`
+
+- **Home:** `modes/space/ui/BridgeView.{h,cpp}`.
+- **Types:** a small `ScreenId → bool` shipped-table, compile-time, no new component.
+- **Systems:** `AvailableTabs` gates each candidate on the shipped-table entry in addition to the
+  existing living-hardpoint check. Starts `{Bay, Storage, Repair, Engineering, Research}` true,
+  `{Market, Manufacturing}` false; flips one entry per screen as it ships (P6-08 for Market;
+  Manufacturing's Queue half between P4-07 and P6-03/P6-06).
+- **Tests:** a station with a living `Trade` hardpoint shows no Market tab before the entry flips;
+  flipping it is the only change its landing task needs to make the tab reachable.
+
+---
+
+### P4-11 · Storage — sibling-hold selection 🔗
+**Docs:** §12.30.3 "Sibling holds — a chosen destination, not an auto-routed one"
+**Depends on:** P4-03 — **Label:** `feature`
+
+- **Home:** `modes/space/ui/` (Storage screen), `shared/components/Loot.h`, `shared/rig/CargoView.{h,cpp}`.
+- **Types:** `ItemStack` gains a bay/hardpoint identity field.
+- **Systems:** a sibling selector over every living `CargoHold` hardpoint (§12.30.2's `TabStrip`
+  pattern, generalised), each pill showing that hold's own integrity; `cargo_view::Deposit` gains a
+  destination-choosing overload alongside its existing auto-routed one, which stays the default for
+  non-screen callers.
+- **Tests:** depositing with a hold selected always lands there, not the emptiest one; destroying one
+  hold loses only that hold's stacks, verified against a row that names which hold it came from.
+
+---
+
+### P4-12 · Engineering — editing the station's own rig 🔗
+**Docs:** §12.30.5 "Editing the station's own rig, when it is yours"
+**Depends on:** P4-05 — **Label:** `feature`
+
+- **Home:** `modes/space/ui/` (Engineering screen).
+- **Systems:** the same dual-subject shape §12.30.4's Repair screen already ships — a second section,
+  present only when the docked station's `FactionRef` matches the player's, editing the station's own
+  `RigBlueprint` through the same Delete/Rebuild (and Merge/Deconstruct once their gates pass) verbs.
+  No new mechanism — `DockedStation` is already resolved by this screen; this reuses it as a second
+  subject the way `OwnedVesselAt` already is the first.
+- **Tests:** the station section is absent when the docked station is not the player's; Delete/Rebuild
+  on the station's own hardpoints behaves identically to the vessel's.
+
+---
+
+### P4-13 · Research — the Codex 🔗
+**Docs:** §12.30.6 "The Codex — browsing what is already unlocked"
+**Depends on:** P4-06 — **Label:** `feature`
+
+- **Home:** `modes/space/ui/` (new screen or overlay, reached by a button on the Research screen).
+- **Systems:** a read-only browse of the player's `NetworkOwner` unlocks, three sections by item kind
+  (Modules, Shells, Materials), each row resolved against `ContentLibrary` for its display fields and
+  tagged by faction and grade/tier; faction/grade filter chips and search over the combined set. No
+  new component, no new request — a pure read.
+- **Deliberately not a tech tree.** `features.md` §9's tech-tree shape is still 📋 unspecified; this
+  stays a flat filterable list, not a graph.
+- **Tests:** an item present in `NetworkOwner` but not `ContentLibrary` is impossible by construction
+  and asserted as such; the filter chips narrow the combined set without touching the underlying data.
+
+---
+
+### P4-14 · NPC logistics — spreading stock across holds 🔗
+**Docs:** §12.30.3 "Sibling holds," the NPC-parity paragraph
+**Depends on:** P4-11 — **Label:** `feature`
+
+- **Home:** wherever the faction command-economy's stock-allocation logic actually lives today
+  (`FactionEconomy::Spend`'s callers — audit before starting, this file does not yet name the exact
+  system).
+- **Systems:** once P4-11 makes hold placement a real player choice, NPC factions reasoning about
+  their own stock only in aggregate is a strictly worse version of the same game the player now
+  plays. Scope is deliberately open pending that audit — this task exists to hold the slot, not to
+  fully specify the mechanic; **file this one as a design issue first (Appendix D shape), not a build
+  issue, if the audit finds no existing per-hold hook to extend.**
+- **Tests:** TBD, pending the audit above.
 
 ---
 
@@ -2510,6 +2590,7 @@ settled.
 | **2** | **Does the strategic layer stay bridge-gated** while tactical command travels with the player? | Nothing today — it blocks the *shape* of P8-05, not its start | §12.27 "What is deliberately not here" |
 | **3** | **Time-to-milestone pacing** — first custom Template, first capital, first owned system. Deliberately left to be **read off `tools/economy_sim`'s derived curve**, not declared in advance | Balance passes, not construction | `features.md` §9 |
 | **4** | **Whether §9's multiverse expansion ever gets a lore hook.** Decided: base game is one galaxy, multiverse is real future scope. `lore.md` needs no change *now* | Nothing | `features.md` §9 |
+| **5** | **Whether a carried shell item can be installed at a mount, swapping in a different already-owned shell.** Raised 2026-08-23. Related to but distinct from the existing shell-grade-upgrade question above it in `features.md` §2.4 — this is a swap, not an upgrade. Needs a compatibility model for which shells fit which mounts (none exists — `MountBlueprint` authors exactly one `ShellId` per mount today) and a new `ItemKind::Shell` before it is buildable | A future Engineering task (would extend P4-12) | `features.md` §2.4 · `architecture.md` §12.30.5 "Shell items — an open question, distinct from the closed one" |
 
 **Not open, despite appearances:** capture/ownership transfer (settled as boarding-in-place
 2026-08-11 — `features.md` §9's entry is stale, see P11-07), the save model, the damage-type roster,
@@ -2582,7 +2663,7 @@ was in the core loops.*
 | 1 | 8 | 2 (`PlayerInputSystem`, `SystemMenu`) | Wiring built code |
 | 2 | 11 | 0 | Changing built systems |
 | 3 | 5 | 0 | Pointers and predicates |
-| 4 | 9 | 0 | UI over built systems |
+| 4 | 14 | 0 | UI over built systems |
 | 5 | 6 | 0 | UI |
 | 6 | 13 | 2 (`ManufacturingSystem`, `Pricing`) | Types, content, derivation |
 | 7 | 5 | 0 | Wiring built systems together |
@@ -2591,7 +2672,7 @@ was in the core loops.*
 | 10 | 6 | 1 (`RigState`) | Serialization |
 | 11 | 9 | 1 (`AudioSystem`) | Authoring, plus audio and assets |
 | QA | 5 | 0 | Tools and gates |
-| **Total** | **108** | **10** | |
+| **Total** | **113** | **10** | |
 
 **Ten new systems or stores across the whole roadmap.** Everything else is a caller, a producer, a
 predicate, a component on a factory, or a JSON file — which is exactly what §13's audit predicted:
@@ -2661,6 +2742,11 @@ reads.
 | P4-07 | Screen 5 — Manufacturing, Draft half | #205 |  |
 | P4-08 | The two flight overlays | #206 |  |
 | P4-09 | M3 verification pass | #207 |  |
+| P4-10 | Router — gate a tab on its screen shipping |  |  |
+| P4-11 | Storage — sibling-hold selection |  |  |
+| P4-12 | Engineering — editing the station's own rig |  |  |
+| P4-13 | Research — the Codex |  |  |
+| P4-14 | NPC logistics — spreading stock across holds |  |  |
 | P5-01 | The status display |  |  |
 | P5-02 | The flight HUD |  |  |
 | P5-03 | The comms surface |  |  |

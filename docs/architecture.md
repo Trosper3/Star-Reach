@@ -4983,6 +4983,31 @@ The pure half is testable headless today, with no window and no world:
   §12.24 names as *"the assertion the nine menus have never had"*: **the request a screen builds lands
   on the docked requester and is consumed by its system on the following tick.**
 
+##### A tab needs a working screen behind it, not just a living hardpoint
+
+*Raised by the project owner 2026-08-23, during a UI design pass over the router; decided the same
+day.* Line 4978's own test asserts `AvailableTabs` returns all six `FacilityKind`s whenever all six
+are **living** — with no consideration of whether the screen behind that `ScreenId` has shipped.
+This is not hypothetical: **§12.30 already schedules Market after Storage** (`core/economy/Pricing.h`
+is not group 4b), so a station carrying a living `Trade` hardpoint produces a Market tab with nothing
+behind it for the entire span between the router landing and P6-08. The same gap reopens for
+Manufacturing's Queue half between P4-07 (Draft only) and P6-03/P6-06.
+
+**Fix:** `AvailableTabs` (or its caller in `BridgeView::Draw`) gates each candidate tab on a second,
+purely-static predicate — *is there a built screen for this `ScreenId` yet* — alongside the existing
+*is the hardpoint living* check. Concretely, a small compile-time table (`ScreenId` → `bool shipped`)
+that starts `{Bay, Storage, Repair, Engineering, Research}` true and `{Market, Manufacturing}` false,
+and flips one entry the day its screen's `Draw` is wired into `SpaceFlight.cpp`. **A tab with no
+screen simply does not appear** — no greyed-out placeholder, no "coming soon" state, nothing to click
+that does nothing. This was considered and rejected in favor of the simpler rule: a tab the player can
+select is a tab that does something, full stop; a station's *capabilities* (what hardpoints it has)
+and the *game's* readiness (what screens exist yet) are two different questions, and only the first
+one belongs to `AvailableTabs`'s existing per-hardpoint logic.
+
+**Tests:** a station with a living `Trade` hardpoint shows no Market tab until the shipped-table entry
+flips; flipping it is the only change P6-08 needs to make the tab reachable — no `AvailableTabs`
+edit at that point, since the hardpoint check was already correct.
+
 ---
 
 #### 12.30.1 `PlayerLocation` is the source of truth; `PlayerControlled` is derived
@@ -5678,6 +5703,42 @@ capacity, the row model, and the transfer path all exercisable before a single p
 - **No repair.** It is Screen 3 (§12.30.4), behind its own `FacilityKind`, and §13.3 I already
   records that docking grants free unlimited repair today regardless.
 
+##### Sibling holds — a chosen destination, not an auto-routed one
+
+*Raised by the project owner 2026-08-23; decided the same day, scoped as a follow-on to this screen
+rather than a revision of it.* A rig can already carry more than one `CargoHold` — `shared/components/
+Loot.h` puts the hold on the bay hardpoint, not the rig root, specifically so *"destroying one bay
+loses exactly that bay's stacks."* That already makes hold placement strategic (spreading stock so one
+lost bay is not a total loss); what is missing is a player's ability to **choose** the placement.
+`cargo_view::Deposit` auto-picks the emptiest bay today, and `ItemStack` carries no bay identity for a
+caller to display or target.
+
+**This screen gains a sibling selector**, the same `TabStrip` pattern §12.30.2's Bay screen already
+establishes for multiple docking bays — already generalised to every screen by the note above §12.30.1
+("The Docking tab is the one whose identity matters"): *"the sibling selector generalises to every
+tab; Docking is simply where it was noticed first."* One pill per living `CargoHold` hardpoint here,
+each showing that hold's own integrity, Deposit targeting whichever is selected.
+
+⚠️ **Two gaps this needs, neither of which exists today:**
+
+- `ItemStack` (`shared/components/Loot.h`) needs a bay/hardpoint identity field — today's `Merged()`
+  deliberately does *not* merge same-id stacks across bays *"to not hide which bay a given unit
+  actually lives in,"* but the row it produces still cannot say which bay that is.
+- `cargo_view::Deposit` needs a destination-choosing overload alongside its existing auto-routed one —
+  the auto-pick stays the default for withdraw-side and non-screen callers, the screen is the one
+  caller that names a specific hold.
+
+**NPC parity, flagged here rather than decided:** NPC factions already run their own faceless
+command-economy (repair/build/expand, all resource-gated via `FactionEconomy::Spend`) with no
+per-hold reasoning at all — stock is spent against the faction's aggregate. **Decided by the project
+owner 2026-08-23: NPC logistics should factor in spreading stock across holds too**, once this
+screen's mechanic exists — a faction that keeps its whole stockpile in one hold is exposed to the
+exact single-point-of-loss risk the player can now choose to avoid, and an AI that does not reason
+about it is playing a strictly worse version of its own game. **Not yet scoped**: this needs a look at
+`NpcAiSystem`/the faction command-economy's actual stock-allocation logic (wherever
+`FactionEconomy::Spend`'s callers decide what to build and where) before it is buildable — filed as
+P4-14 below, blocked on P4-11 (this section's own sibling-hold task) landing first.
+
 #### 12.30.4 Screen 3 — Repair
 
 *Settled 2026-08-10. Verified against `src/` by grepping for readers and callers. **This screen has
@@ -6348,6 +6409,38 @@ the Market behind the item model.
   loadout overlay; a second equip surface behind a facility gate would re-create the gate §12.30
   deleted.
 
+##### Editing the station's own rig, when it is yours
+
+*Raised by the project owner 2026-08-23; decided the same day.* §12.30.4's Repair screen already
+establishes the pattern this needs: *"a station with a repair bay repairs itself"* — one subject
+section per valid subject, drawn without new retained "which subject is selected" state, one when the
+station is not yours, two when it is. **Engineering gains the same second section**: when the docked
+station's `FactionRef` matches the player's, its own rig's mounts become editable through this screen
+exactly as the docked vessel's are — same two verbs (Delete, Rebuild; Merge and Deconstruct follow the
+same gates as above), same two-list layout, the station's `RigBlueprint` in place of the vessel's.
+**No new mechanism** — this is `OwnedVesselAt`'s existing pattern applied to the subject the screen
+already has a handle on (`DockedStation`), the same way Repair's dual-subject section works today.
+
+##### Shell items — an open question, distinct from the closed one
+
+**Not what §12.12 item 7 already settled.** That decision withdrew a proposed `ComponentDef` third
+authoring tier — *"shell and component are two names for the same thing"* — and remains correct and
+final: `ShellDef`/`ModuleDef` stay the complete authored set, and nothing here reopens it.
+
+**What is actually open, raised by the project owner 2026-08-23:** whether a shell, once *acquired* as
+an item (`features.md` §2.4 already says *"high-grade shells are found through exploration and
+salvage, or obtained by dealing with factions that already hold them"* — shells are already
+world-obtainable objects), can be **carried in a `CargoHold` and installed at a mount**, replacing
+whatever shell was there — a narrower question than `features.md` §2.4's existing ❓ *"shell upgraded
+in place, consuming materials"* (deferred there as *"a new mechanic in `RefactorSystem` territory"*):
+that open item is a **grade upgrade of the same shell**; this one is **swapping in a physically
+different, already-owned shell**. Related, not identical — both live in `RefactorSystem` territory,
+neither is decided. See `features.md` §2.4 for the design-level open question and the two concrete
+code gaps it would need (`ItemKind` has no `Shell` case; `MountBlueprint` authors exactly one `ShellId`
+per mount with no compatibility model for a different one). Rebuild, as specified above, is unaffected
+either way — it restores the mount's own authored shell and stays that operation regardless of how
+this question resolves.
+
 #### 12.30.6 Screen 6 — Research
 
 *Settled 2026-08-10. Verified against `src/`. **Taken before Screen 5**, because Manufacturing is
@@ -6641,6 +6734,20 @@ code, and the freeze fix is one more.
   so there is no order to change.
 - **No espionage or network theft.** §5.10's defection path copies a network with
   `KnowledgeStore::Copy` and belongs to that feature, not to a bench.
+
+##### The Codex — browsing what is already unlocked
+
+*Raised by the project owner 2026-08-23; decided the same day.* Distinct from the queue above, which
+is what to research *next*; the Codex is a read-only browse of everything the player's `NetworkOwner`
+already grants, reached by a button on this screen (not a new tab — it has no facility gate of its
+own, the same shape §12.30.7's overlays have, but opened from Research rather than available
+everywhere). **Three sections, by item kind** — Modules, Shells, Materials — each row tagged
+by faction and grade/tier, with faction and grade filter chips and a search field over the combined
+set. Purely a read of existing state (`KnowledgeNetwork`, the same source `ALREADY KNOWN` already
+checks against) plus the `ContentLibrary` defs each unlocked id resolves to for its display fields —
+no new component, no new request type, no system it needs to call. **Deliberately not a tech-tree
+view**: `features.md` §9's tech-tree structure is still 📋 *"agreed in principle, not yet specified"* —
+there is no shape to draw yet, so the Codex stays a flat, filterable list rather than a graph.
 
 #### 12.30.7 The two flight overlays — inventory and loadout
 
