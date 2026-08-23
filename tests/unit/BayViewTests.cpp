@@ -83,13 +83,13 @@ TEST_CASE("Roster marks a foreign-faction vessel unowned, with no verb offered",
     CHECK(roster[0].row.value.empty());
 }
 
-TEST_CASE("Roster marks the PlayerControlled vessel occupied, showing Launch", "[bay-view]") {
+TEST_CASE("Roster marks the occupied vessel occupied, showing Launch", "[bay-view]") {
     entt::registry registry;
     const entt::entity station = registry.create();
     const entt::entity bay = MakeBay(registry, station);
     const entt::entity vessel = MakeDockedVessel(registry, station, bay, "aegis");
 
-    const auto roster = Roster(registry, bay, /*playerControlled=*/vessel, FactionId("aegis"));
+    const auto roster = Roster(registry, bay, /*occupiedVessel=*/vessel, FactionId("aegis"));
     REQUIRE(roster.size() == 1);
     CHECK(roster[0].occupied);
     CHECK(roster[0].row.value == "LAUNCH");

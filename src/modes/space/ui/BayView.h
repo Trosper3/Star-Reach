@@ -22,8 +22,8 @@ namespace sr::space::ui::bay_view {
 
 // One roster row: a vessel currently Docked at `bay` (architecture.md 12.30.2's "view<Docked>
 // filtered on docked.bay == thisBay", no new component). `owned` is FactionRef == playerFaction;
-// `occupied` is `vessel == playerControlled` (architecture.md 12.30.1's derived tag) -- the one
-// row, if any, that shows Launch instead of Board. Pure -- no raylib -- so unit-testable.
+// `occupied` is `vessel == occupiedVessel` -- the one row, if any, that shows Launch instead of
+// Board. Pure -- no raylib -- so unit-testable.
 struct BayRosterEntry {
     entt::entity vessel = entt::null;
     sr::ui::Row row;
@@ -32,9 +32,13 @@ struct BayRosterEntry {
 };
 
 // The roster for one bay: every rig whose Docked.bay == `bay`, in Docked-component discovery
-// order. A vessel in a sibling bay of the same station is never included.
+// order. A vessel in a sibling bay of the same station is never included. `occupiedVessel` is the
+// vessel the player currently occupies at this station (OwnedVesselAt below) -- NOT
+// registry.view<PlayerControlled>(), which while PlayerLocation names any facility hardpoint
+// (this bay included) resolves to the station itself, never the docked vessel (architecture.md
+// 12.30.1); passing that in here means the roster's own row never shows Launch.
 std::vector<BayRosterEntry> Roster(const entt::registry& registry, entt::entity bay,
-                                   entt::entity playerControlled, const FactionId& playerFaction);
+                                   entt::entity occupiedVessel, const FactionId& playerFaction);
 
 // Every living FacilityKind::Docking hardpoint on `station`, in Rig::children order -- every
 // sibling bay, unlike bridge_view::AvailableTabs which collapses to the first one. A one-element

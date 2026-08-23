@@ -98,7 +98,7 @@ Rectangle PanelBounds() {
 }  // namespace
 
 std::vector<BayRosterEntry> Roster(const entt::registry& registry, entt::entity bay,
-                                   entt::entity playerControlled, const FactionId& playerFaction) {
+                                   entt::entity occupiedVessel, const FactionId& playerFaction) {
     std::vector<BayRosterEntry> entries;
     for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
         if (docked.bay != bay) {
@@ -107,7 +107,7 @@ std::vector<BayRosterEntry> Roster(const entt::registry& registry, entt::entity 
         BayRosterEntry entry;
         entry.vessel = vessel;
         entry.owned = faction.id == playerFaction;
-        entry.occupied = vessel == playerControlled;
+        entry.occupied = vessel == occupiedVessel;
 
         if (const DisplayName* name = registry.try_get<DisplayName>(vessel)) {
             entry.row.label = name->value;
@@ -174,12 +174,11 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         return;
     }
     const entt::entity station = registry.get<ParentRig>(thisBay).root;
-    const entt::entity playerControlled = [&registry]() -> entt::entity {
-        for (auto [entity] : registry.view<PlayerControlled>().each()) {
-            return entity;
-        }
-        return entt::null;
-    }();
+    // Not registry.view<PlayerControlled>() -- while PlayerLocation names any facility hardpoint,
+    // including this bay, the derived PlayerControlled IS the station (architecture.md 12.30.1),
+    // never the docked vessel, so that view can never equal a roster row's `vessel`. OwnedVesselAt
+    // is what every other docked screen already uses to resolve "the hull the player arrived in."
+    const entt::entity occupiedVessel = OwnedVesselAt(registry, station, playerFaction);
 
     const sr::ui::UiInput input{GetMousePosition(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
                                 GetMouseWheelMove()};
@@ -204,7 +203,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
     }
 
     const std::vector<BayRosterEntry> roster =
-        Roster(registry, thisBay, playerControlled, playerFaction);
+        Roster(registry, thisBay, occupiedVessel, playerFaction);
     const std::optional<int> hit =
         sr::ui::ListViewRowAt(layout.roster, static_cast<int>(roster.size()), 0.0f, input.cursor);
     if (!hit.has_value() || *hit >= static_cast<int>(roster.size())) {
@@ -225,12 +224,9 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
         return;
     }
     const entt::entity station = registry.get<ParentRig>(thisBay).root;
-    const entt::entity playerControlled = [&registry]() -> entt::entity {
-        for (auto [entity] : registry.view<PlayerControlled>().each()) {
-            return entity;
-        }
-        return entt::null;
-    }();
+    // See the matching comment in Update() above -- PlayerControlled is the station here, not the
+    // vessel.
+    const entt::entity occupiedVessel = OwnedVesselAt(registry, station, playerFaction);
 
     const std::vector<entt::entity> siblings = SiblingBays(registry, station);
     const bool showSiblingStrip = siblings.size() > 1;
@@ -290,7 +286,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     // Roster: view<Docked> filtered on docked.bay == thisBay. Your own vessel is a row like any
     // other, marked via `value` ("LAUNCH" if you occupy it, "BOARD" if you own it and don't).
     const std::vector<BayRosterEntry> roster =
-        Roster(registry, thisBay, playerControlled, playerFaction);
+        Roster(registry, thisBay, occupiedVessel, playerFaction);
     std::vector<sr::ui::Row> rows;
     rows.reserve(roster.size());
     for (const BayRosterEntry& entry : roster) {
