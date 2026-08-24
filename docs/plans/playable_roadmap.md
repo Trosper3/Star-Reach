@@ -2298,7 +2298,9 @@ is built by P6-12/T-02 and the dependency is listed.
 **Docs:** `features.md` §2.10 · §14.2 · `architecture.md` §12.19 "Validation and CI"
 **Depends on:** P6-03, P6-12, T-02 — **Label:** `feature`
 
-- **Home:** `data/base_game/elements.json` (does not exist today), `tools/element_check/`.
+- **Home:** `data/base_game/elements.json` (exists today with a 4-entry starter roster — iron,
+  carbon, silica, titanium; the 41-element roster below is not yet authored into it),
+  `tools/element_check/`.
 - **Content:** **41 elements** — the count §2.10 settles explicitly, not a target to approach — each
   with a real density, its **periodic abbreviation**, and **eight attributes scored 0–3**.
   **No rarity tiers, no authored price, no authored mass**: all three derive (§12.19's three-axis
@@ -2465,14 +2467,17 @@ is built by P6-12/T-02 and the dependency is listed.
 - **Home:** `docs/features.md`, `docs/architecture.md`, `docs/plans/playable_roadmap.md`.
 - **Content —** small, and worth doing once the above lands so the docs stop disagreeing with
   themselves:
-  - `features.md` §9's **"Capture"** entry still reads as open; `architecture.md` §13.5 records
-    ownership transfer as **settled 2026-08-11 (boarding-in-place)**. One of the two is stale.
+  - ~~`features.md` §9's **"Capture"** entry still reads as open; `architecture.md` §13.5 records
+    ownership transfer as **settled 2026-08-11 (boarding-in-place)**. One of the two is stale.~~
+    **Fixed** — §9 now points to §3.2 and no longer contradicts it.
   - `features.md`'s Status Legend line *"Nothing in this document is ✅ yet"* needs re-reading after
     every phase gate here.
   - `architecture.md` §13.5's group list should gain pointers to this file's phase numbers so the two
     do not drift.
-  - Law 4's wording still describes a `Shell → Component → Module` model; `features.md` §2 settled
-    **`Shell → Module`, two tiers**, and explicitly says nothing needs to be added to close it.
+  - ~~Law 4's wording still describes a `Shell → Component → Module` model; `features.md` §2 settled
+    **`Shell → Module`, two tiers**, and explicitly says nothing needs to be added to close it.~~
+    **Stale bullet, drop it** — Law 4 already reads `Shell → Module` (corrected 2026-08-07, four days
+    before this roadmap was compiled). §12.14 item 7 has the record of that fix.
   - `architecture.md` §12.6, §12.8 and §12.12 are cited by **no task in this file**. §12.8 is the
     constraints section every implementer should read and is now referenced from *Before implementing
     any task*; §12.6 and §12.12 look superseded by §12.35 and §12.30.x — mark them so, or cite them.
@@ -2593,7 +2598,7 @@ settled.
 | **5** | **Whether a carried shell item can be installed at a mount, swapping in a different already-owned shell.** Raised 2026-08-23. Related to but distinct from the existing shell-grade-upgrade question above it in `features.md` §2.4 — this is a swap, not an upgrade. Needs a compatibility model for which shells fit which mounts (none exists — `MountBlueprint` authors exactly one `ShellId` per mount today) and a new `ItemKind::Shell` before it is buildable | A future Engineering task (would extend P4-12) | `features.md` §2.4 · `architecture.md` §12.30.5 "Shell items — an open question, distinct from the closed one" |
 
 **Not open, despite appearances:** capture/ownership transfer (settled as boarding-in-place
-2026-08-11 — `features.md` §9's entry is stale, see P11-07), the save model, the damage-type roster,
+2026-08-11 — `features.md` §9's entry was stale and has been fixed, see P11-07), the save model, the damage-type roster,
 deconstruction yield, the rarity ladder, the quantity-per-grade multiplier, recovery-run parameters,
 sub-commander recruitment, network raiding, and royalty scale.
 

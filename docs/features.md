@@ -152,12 +152,11 @@ or wipes the transponder and launches unaligned**. Choosing a faction is a diege
 world, not a menu on a title screen, and the ten profiles are best read when the player has just
 learned the galaxy has ten of them.
 
-> ⚠️ **This retires `lore.md` §4's amnesia framing, and the two cannot both stand.** §4 has the
-> player wake with *total amnesia* in an escape pod and learn the world from scratch; §1 has them
-> fly the prologue and watch the collapse happen. A player who was there remembers it. **§1 wins** —
-> it is the version that makes the prologue worth playing — and §4's surviving contribution is the
-> faction registry beat above. `lore.md` §4 should be rewritten to describe the *arrival*, not an
-> awakening.
+> ⚠️ **This retired `lore.md` §4's amnesia framing.** §4 used to have the player wake with *total
+> amnesia* in an escape pod and learn the world from scratch; that contradicted this section, where
+> the player flies the prologue and watches the collapse happen — a player who was there remembers
+> it. §4 has been rewritten to describe the *arrival* instead, with the faction registry beat as its
+> surviving contribution.
 
 #### Rules that apply to both acts
 
@@ -216,11 +215,11 @@ authored type.*
 > further toward the mean, which is the mechanism §2.10's attribute system depends on. A tier that
 > adds no decision and costs signal is friction.
 >
-> **This adds authored content that does not exist yet.** `data/base_game/` holds `modules.json`,
-> `shells.json`, and `ships.json` — there is no `elements.json`, no `elements.json`, and no
-> `ElementId`/`ItemId` in `shared/blueprints/Ids.h`. `architecture.md` §12.15 item 21 already
-> tripped over the edge of this, typing `ResearchJob::item` as `ModuleId` because no item type
-> exists. Manufacturing (§2.8) needs all of it.
+> **Part of this landed since this section was written; part is still missing.** `data/base_game/`
+> now holds `elements.json` alongside `modules.json`, `shells.json`, and `ships.json`, and
+> `shared/blueprints/Ids.h` now has `ElementId`. There is still no `materials.json` and no `ItemId`.
+> `architecture.md` §12.15 item 21 already tripped over the edge of this, typing `ResearchJob::item`
+> as `ModuleId` because no item type exists. Manufacturing (§2.8) needs the rest of it.
 >
 > ⚠️ **This is not a third *rig* tier.** Rig composition remains **Shell → Module**, two tiers. The
 > Element → Material → Module chain is a *manufacturing input* axis and is orthogonal to it. Do not
@@ -2190,9 +2189,9 @@ would spam Mythic production fishing for a 5.0 roll; each attempt costing a full
 pipeline run is the brake.
 
 ❓ *Open, and deliberately deferred: the actual numbers.* Material quantities, Material recipes, and the
-time curve per grade all depend on the Elements and Materials content pass that has not happened yet —
-`data/base_game/` has no `elements.json` or `materials.json` at all (§2). Specify the recipe base
-first, then the scaling; doing it the other way round produces numbers with nothing to multiply.
+time curve per grade all depend on the Elements and Materials content pass that has not fully happened
+yet — `data/base_game/` has a starter `elements.json` but no `materials.json` (§2). Specify the recipe
+base first, then the scaling; doing it the other way round produces numbers with nothing to multiply.
 
 
 #### The time curve 📋
@@ -8936,8 +8935,10 @@ stopping short) on real densities with **no rarity tiers at all**, eight attribu
 added 2026-08-12) weighted by attribute *role* rather than by named element and carrying **no
 faction specificity at all** — exclusivity lives at the module/shell/vessel design level instead —
 and both mass and base price deriving from the recipe. See §2.10. **What remains is authoring plus
-one tool** — `elements.json` and `materials.json` do not exist, and `tools/element_check` is what
-would re-verify the final roster in CI rather than by hand.
+one tool** — `elements.json` now exists with a four-entry starter roster (iron, carbon, silica,
+titanium); the full 41-element roster above is not yet authored into it. `materials.json` still
+does not exist, and `tools/element_check` is what would re-verify the final roster in CI rather
+than by hand.
 
 **Recovery-run parameters — ✅ decided 2026-08-11, in full at §3.3 Tier 2.** Short in-game
 (simulated-time, not wall-clock) window, wreck marked on the navigation map for its duration. See
@@ -8969,19 +8970,20 @@ knowledge networks. See §8.3.
 ruling made a *craft* a crafted intermediate and a vessel a *vessel*, which fixed the collision but
 left a jargon noun. **The supply chain is now `Element → Material → Module`** (§2): the periodic table
 at the bottom, manufactured intermediates in the middle, and *craft* used for nothing. A proposed
-fourth `Compound` tier was rejected in the same pass. This adds `elements.json`, `elements.json`, and
-an `ItemId` to a content set that has none of them.
+fourth `Compound` tier was rejected in the same pass. `elements.json` and `ElementId` have since
+landed; `materials.json` and an `ItemId` are still missing from the content set.
 
 **The rarity ladder — ✅ settled 2026-08-07/08.** Seven tiers, one ladder for shells and modules,
 with a quality band supplying every capability stat and a distributed budget deciding how a roll is
 spent. See §2.7. Still absent from the codebase; it is construction work, not a design question.
 
-**Capture.** §3.2 — the uncrewed hull is now a real state, and nothing says how a hull changes
-owner. Fly-to-and-hold, a boarding action, a module installed on the capturing vessel? And can an AI
-faction capture the player's uncrewed hull on the same terms (§6.3 says it must)? *Disabling is
-worth shipping before this is answered — a hull that goes dead and adrift is already a complete
-mechanic without an ownership transfer behind it.* **Ion (§3.1) is now the intended route in:** strip
-shields, suppress power, kill the crew shell, take the hull.
+**Capture — ✅ settled, see §3.2.** No longer open: §3.2 answers ownership transfer in full —
+shields down, cannot flee, cannot resist, then a Troop Bay-carrying vessel holds position adjacent
+for a duration (scaled by capacity vs. hull class) to flip `FactionRef` (✅ settled 2026-08-11,
+boarding-in-place). Ion is **one tool among several** for "cannot resist," not the intended route in
+— that framing was retired 2026-08-09 in favor of the fuller multi-condition mechanic. An AI faction
+runs the identical check against the player's own uncrewed hull, satisfying §6.3's symmetry
+requirement for free.
 
 **Does the player die with their crew shell? — ✅ settled 2026-08-08.** Yes, and it is not a special
 case: the player is always associated with exactly one shell, whether flying or aboard a station, and
@@ -9123,7 +9125,8 @@ same galaxy. The save model underneath it is still open.
 per-item faction stock is stored and kept efficient. What is unestimated is how many distinct item
 ids the content set will actually reach once modules, shells, and vessels are authored across seven
 grades — which is the input to whether the sparse ledger stays comfortably small or wants a second
-look. Cheap to measure once `elements.json` and `materials.json` exist; do not guess it now.
+look. Cheap to measure once `materials.json` exists alongside the now-landed `elements.json`; do not
+guess it now.
 
 **Faction heads.** §6.5 settles that a boss encounter is any commanded fleet, which needs no new
 system. Whether a *faction head* — §5.1's other Leadership pillar holder — is simply a commander of

@@ -141,7 +141,7 @@ real ordering. Read §12 before §11.3's recipe, not after.
   (`core/time/`), **`SystemWorld`** and the **system contract** (`modes/space/`).
 - ✅ **Factories** — `RigFactory`, `NpcFactory`, `StationFactory`, `WorldGen`
   (`modes/space/factories/`).
-- ✅ **All twenty-two of the §4 systems** registered in `SystemSchedule.cpp`, plus
+- ✅ **Thirty of the §4 systems** registered in `SystemSchedule.cpp` (§13.1), plus
   `core/ai/FactionDecisionEngine` — the tier-3 decision engine §4 lists as `FactionDecisionSystem`.
   It lives in `core/ai/` rather than `modes/space/systems/` because it reads and writes
   `core/economy/`/`core/diplomacy/` state directly rather than taking a per-tick `SystemContext`.
@@ -666,11 +666,10 @@ StarReach/
 │       ├── space/
 │       │   ├── SpaceFlight.cpp/.h   # ✅ Lifecycle + routing ONLY. 6 members, cap 25 (Law 6)
 │       │   ├── data/               # ✅ SystemWorld — owns the registry + NetworkId mapping
-│       │   ├── systems/            # ✅ System.h (the contract) + all 22 systems in §4,
-│       │   │                       #    registered in SystemSchedule.cpp
-│       │   │                       # 📋 ResearchSystem, CommanderSystem, TemplateMarketSystem
-│       │   │                       #    (§12.1-12.2, 12.7); StationServicesSystem,
-│       │   │                       #    ModuleEquipSystem, ConstructionSystem (§12.10-12.12)
+│       │   ├── systems/            # ✅ System.h (the contract) + all 30 scheduled systems in §4,
+│       │   │                       #    registered in SystemSchedule.cpp (§13.1)
+│       │   │                       # 📋 ManufacturingSystem, HazardSystem (§12.18, §12.28) —
+│       │   │                       #    designed, not yet written
 │       │   ├── factories/          # ✅ WorldGen, NpcFactory, StationFactory, RigFactory
 │       │   ├── render/             # ✅ WorldRenderer, LightingPass, IconRenderer
 │       │   │                       # 📋 IconRenderer gains the §12.6 map icon bake
@@ -1888,7 +1887,7 @@ tier becomes real, and mass/power recomputation stops being scoped out. Nothing 
 | 8 | Shells add mass; modules add mass + power; both recomputed on every change (§2.2) | **Yes** | `ModuleAttachment`, `ModuleEquipSystem`, `RefactorSystem` |
 | 9 | A shell cannot be removed while it holds modules (§2.2) | **Yes** | `RefactorSystem` — **reverses existing behaviour** |
 | 10 | Skill is a crew module mounted in a shell (§2.7) | **No — not yet** | content first; §2.4 forbids the unread abstraction |
-| 11 | Docked craft cannot be shot, but die with their host (§3.4) | **Yes** | `DockingSystem` / `DamageSystem` |
+| 11 | Docked craft cannot be shot, but die with their host (§3.4) | **No — not yet** *(§15.1 findings 2–3: neither half is implemented; fix specified in §12.34)* | `DockingSystem` / `DamageSystem` |
 | 12 | Engineering merge scales with facility level (§2.4) | **No** | ratifies `FacilityRef::level`, already built |
 | 13 | Manufacturing modules is not `ConstructionSystem`'s job (§2.8) | **Yes** | new system |
 | 14 | Crew modules draw zero power (§2.7) | **No** | a value in `modules.json`, not a `PowerSystem` carve-out |
@@ -4756,7 +4755,7 @@ another bay of the same station is not listed: §3.4's "movement is instant" gov
 moving, not whether every hull on a station is reachable from one list, and a station-scoped roster
 would make this tab a station-wide vessel manager, which is the shape the Bridge is for.
 
-â ï¸ **Bay-scoping collides with the tab dedupe, and the collision has to be resolved here.** If
+⚠️ **Bay-scoping collides with the tab dedupe, and the collision has to be resolved here.** If
 `AvailableTabs` returns the *first living* hardpoint of each kind, a station with two docking bays
 shows one Docking tab, and the vessels in the second bay are **unreachable**. Two corrections, both
 using information the components already carry:
@@ -4764,13 +4763,13 @@ using information the components already carry:
 - **On arrival, the Docking tab resolves to `Docked.bay`, not to the first living bay.** The player is
   standing in the bay they actually docked at, and `Docked` has recorded which one since it was
   written. `AvailableTabs`'s first-living rule is the fallback for a player who is aboard without
-  having flown in â not the normal path.
+  having flown in — not the normal path.
 - **Sibling bays are a selector inside the screen**, drawn with the `TabStrip` the widget set already
   carries for Market/Storage and Merge/Refactor. One tab, *n* bays behind it.
 
 **`Docking` is therefore the one kind where the deduped tab is not the whole story**, and it is worth
-naming rather than discovering: every other `FacilityKind` is fungible across duplicates â any living
-Repair bay repairs identically â while a docking bay's *identity* is the whole point, because it is
+naming rather than discovering: every other `FacilityKind` is fungible across duplicates — any living
+Repair bay repairs identically — while a docking bay's *identity* is the whole point, because it is
 where a specific hull is parked.
 
 > ⚠️ **The fungibility half is superseded by §12.30.5**, later the same day. **It is already false for
@@ -5249,14 +5248,14 @@ half is a copy of a path that works.
 
 ##### The record needs a capability the codebase does not have
 
-ð **A hull left behind is destroyed by the world teardown, and so is the player's own damage.**
+🐛 **A hull left behind is destroyed by the world teardown, and so is the player's own damage.**
 `WarpToSystem` re-spawns the player from their `BlueprintRef`, so every jump is a free full repair and
-a full loadout rollback. Recorded as finding Â§13.3 AC and **specified in Â§12.31** â which also settles
+a full loadout rollback. Recorded as finding §13.3 AC and **specified in §12.31** — which also settles
 that the state form must *not* be a `ShipBlueprint`.
 
 **Four features wait on that one capability**, so it is scoped there rather than special-cased here:
-parked hulls, warp damage persistence, cross-system refit (`features.md` Â§2.7), and Â§13.3 Y's world
-save. **None of it blocks this screen** â Board and Launch against hulls in the *current* system need
+parked hulls, warp damage persistence, cross-system refit (`features.md` §2.7), and §13.3 Y's world
+save. **None of it blocks this screen** — Board and Launch against hulls in the *current* system need
 none of it.
 
 #### 12.30.3 Screen 2 — Market and Storage
@@ -8035,7 +8034,7 @@ producer.**
 | **`WorldRenderer`** | ✅ | — | ✅ | ⚠️ placeholder shapes, no art | ❌ **draws only rig roots, hardpoints and projectiles** — no sun, planets, asteroids, drops or wrecks |
 | **`LightingPass`** | ✅ `WorldGen`'s `LightSource` | ✅ `WorldRenderer` | ✅ | ✅ | ✅ |
 | **`IconRenderer`** | ✅ | ⚠️ `DrawMapMarker` called only by the uncalled `NavigationMap` | ✅ reticle | — | ❌ **renders the auto-lock §3.2 forbids** (§13.3 Q); no camera-AABB cull or icon substitution (§9.1 requires both) |
-| **`FactionDecisionEngine`** | — | ❌ **zero callers in `src/`** — not scheduled, not called from any mode | ❌ | — | ❌ §0 lists it as built beside the 22 systems; §4 names it `FactionDecisionSystem`. It is a tested library with no invocation path |
+| **`FactionDecisionEngine`** | — | ❌ **zero callers in `src/`** — not scheduled, not called from any mode | ❌ | — | ❌ §0 lists it as built beside the thirty scheduled systems; §4 names it `FactionDecisionSystem`. It is a tested library with no invocation path |
 | **`core/serialization/`** | — | ❌ **zero callers outside its own directory and tests** — `SaveFile`, `SaveMigrator`, `BlueprintSerialization`, `KnowledgeSerialization` | ❌ no save, no load, no menu entry | — | ❌ **and it could not save a game if called** (§13.3 Y) |
 | **`main.cpp`'s mode loop** | — | ✅ | ❌ **the transition to `SpaceFlight` is one-way** — `QuitRequested()` is only checked while the menu is active, so the only exit is closing the window | — | ❌ `features.md` §3.6 already specifies a pause menu on `Esc` (§12.29) |
 | **`core::diplomacy::Territory`** | — | ❌ zero users outside `core/` | ❌ | — | ❌ |
