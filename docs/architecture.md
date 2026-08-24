@@ -6291,6 +6291,18 @@ Merge is a two-selection verb — pick a primary, pick a secondary — so the le
 primary, secondary)` already takes exactly those two ids and no list at all, which is the whole of its
 current UI.
 
+⚠️ **Settled 2026-08-23 — Merge becomes drag-and-drop, matching §12.30.7's reversal.** Drag one
+module in the left list onto a second module in the same list; releasing on a compatible target
+emits `MergeModulesRequest` for the pair. This is the same reasoning §12.30.7 already settles for
+the loadout overlay — the retained drag state is screen-owned (on this screen's own UI-state
+field, replacing the two-click primary/secondary selection), not widget-owned, so it costs the
+widget layer nothing. **Deconstruct, Delete and Rebuild stay click-to-act** — each is a single-
+target action with no second thing to drop onto, so there's nothing for a drag to do that a click
+doesn't already do better. Note this screen is docked-only, not flown-in-combat like the loadout
+overlay — §12.30.7's "harder under fire is an intentional skill gate" argument doesn't transfer
+here the same way; this adopts drag-and-drop for Merge on interaction-consistency grounds (one
+screen, one input language), not as a deliberate combat-friction lever.
+
 ##### The verbs
 
 | Selection | Verb | Mechanism | Blocked on |
