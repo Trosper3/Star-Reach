@@ -160,10 +160,10 @@ tracks; the phase numbers are a recommended order, not a lock.
 |:---:|---|---|:---:|
 | **0** | Headless foundations | The world is drawable and shootable; the widget layer exists; the audit's one-line defects are gone, **and the schedule that runs every system is under test**. All verifiable by `sr_tests` with no window | 16 |
 | **1** | The micro loop | Start Game → a visible system with a player, a station, NPCs → fly, shoot, dock, respawn, quit to menu, start again cleanly | 8 |
-| **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 11 |
+| **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 12 |
 | **3** | Faction state | Relations exist at runtime, are seeded, are read by combat/docking/pricing, and are written by gameplay | 5 |
 | **4** | The docked screens | Six of §12.30's seven screens reachable through the router — **Market is the seventh and ships in P6-08**, because a price needs `Pricing.h`; both flight overlays work | 14 |
-| **5** | Legibility | Status display, flight HUD, comms, navigation map, tutorial | 6 |
+| **5** | Legibility | Status display, flight HUD, comms, navigation map, tutorial, signature/detection | 7 |
 | **6** | Items and economy | Elements → Materials → Modules manufacture and price themselves | 13 |
 | **7** | Knowledge and templates | Reverse-engineer, draft, pitch, collect royalties | 5 |
 | **8** | Command | Local command, construction, parties, sub-commanders, the bridge | 6 |
@@ -766,6 +766,38 @@ because its commander is alive.**
 
 ---
 
+### P2-12 · Directional ECM — click-and-hold jamming 🔗
+**Docs:** `features.md` §8.3 "Sensor ghosts and ECM — two roles, passive area and directional" · §3.6
+**Depends on:** P2-07, P5-07 — **Label:** `feature`
+
+*Revised 2026-08-24 — the original version of this task rode the Ion weapon's damage-type machinery.
+That was wrong: jamming does not damage anything, so it does not belong on a `DamageType`. It is now
+`ModuleKind::ECM`'s Directional role, mechanically identical to P2-07's Tractor Beam — aim, hold, no
+projectile, no hit roll.*
+
+- **Home:** `modes/space/systems/{TargetingSystem,CommsSystem}.cpp`, `core/knowledge/KnowledgeNetwork.*`
+  (P5-07 supplies the fabricated/degraded-entry capability this reads), new input handling for `U`
+  (§3.6).
+- **Types:** no new `DamageType`. A held-effect state on the carrier (which target is locked, held
+  since when), mirroring however P2-07 tracks an active Tractor Beam contest.
+- **Systems:** while `U` is held with a valid target under the cursor and the carrier's ECM hardpoint
+  is alive and powered, each tick: writes a ghost or degrades a real entry in the target's
+  `KnowledgeNetwork` (P5-07's write path), and suppresses the target's effective `commsRange` for the
+  duration — cutting command authority, hailing, and sensor datalink to comms-linked allies
+  identically to a destroyed `Comms` hardpoint, without the hardpoint dying. The hold breaks on
+  release, on the hardpoint dying, or on the target leaving range/line-of-sight — same shape as
+  Tractor Beam, no new rule. **Runs simultaneously with weapon fire and with Tractor Beam** (§3.6): all
+  three read the same cursor-designated target.
+- **Content:** one authored `ModuleKind::ECM` def (Directional role) is enough for this task; a
+  Passive Area def ships alongside it from P5-07.
+- **Tests:** a held target's `commsRange` reads suppressed and a jammed ship cannot hail while held,
+  restoring the instant `U` is released; a jammed fleet member stops both contributing to and
+  receiving its formation's shared sensor coverage for the hold's duration; holding `K`, `U`, and
+  left-click on the same target at once succeeds at all three; jamming never reduces `Health` or
+  triggers a structural-integrity check.
+
+---
+
 ### P2-09 · What a kill leaves behind — the wreck path and the reaper 🔗
 **Docs:** `features.md` §2.7 "Drop rates" · §3.3 · §2.10 "Gathering" · `architecture.md` §12.5
 **Depends on:** P0-01 — **Label:** `feature`
@@ -920,14 +952,21 @@ because its commander is alive.**
 **Depends on:** P2-06 — **Label:** `feature`
 
 - **Home:** `modes/space/systems/DockingSystem.cpp` or a boarding path beside it; `FactionRef`
-  reassignment.
-- **Systems:** ownership transfer of an uncrewed hull, boarding-in-place (settled 2026-08-11). **Ion
-  is the intended route in:** strip shields, suppress power, kill the crew shell, take the hull. §6.3
-  requires the same terms for an AI faction capturing the player's uncrewed hull.
+  reassignment; new `Troop Bay` and `Tractor Beam` hardpoint modules (`data/base_game/modules.json`).
+- **Systems:** a hull is capturable when shields are down (any damage type), it cannot flee (engines
+  destroyed, hyperdrive destroyed, or **held by a Tractor Beam**), and it cannot resist (crew shell
+  destroyed or power suppressed — Ion is **one tool among several** here, not the intended route, per
+  `features.md` §3.2's 2026-08-09 correction). Ownership transfer is boarding-in-place: a Troop
+  Bay-carrying vessel holds position adjacent for a duration (scaled by capacity vs. hull class) to
+  flip `FactionRef`. **Tractor Beam is the non-destructive "cannot flee" path** — pull force contested
+  against `BodyMass` × `Propulsion::thrustNewtons`, resolved every tick in the physics integrator
+  while the player holds `K` (§3.6) — every other path to "cannot flee" means shooting the engines
+  off, which damages the prize. §6.3 requires the same terms for an AI faction capturing the player's
+  uncrewed hull.
 - **Tests:** a crewed hull cannot be captured; a captured hull's crew, network included, transfers
   wholesale (this is also §2.5's network-raiding mechanic, at no extra cost); an AI faction can
-  capture the player's uncrewed hull.
-- **Note:** `features.md` §9's "Capture" entry still reads as open and is stale — flag with P11-07.
+  capture the player's uncrewed hull; releasing `K` before the hold completes drops the tractor and
+  the target regains its own thrust immediately.
 
 ---
 
@@ -1518,6 +1557,43 @@ galaxy from the screen alone.
 
 > **The tutorial is the prologue, not an overlay of hint boxes.** `lore.md` line 4 already made this
 > canon and it never became mechanics; `features.md` §1.2 is now the spec.
+
+---
+
+### P5-07 · Signature, detection, and Passive Area ECM 🔗
+**Docs:** `features.md` §8.3 "The signature / detection model" and "Sensor ghosts and ECM — two
+roles, passive area and directional"
+**Depends on:** P0-09, P3-05 — **Label:** `feature`
+
+*Directional ECM (click-and-hold, single-target) is P2-12, not this task — it needs P2-07's
+Tractor-Beam-shaped contest mechanic and belongs beside it. This task owns the base detection math,
+the `KnowledgeNetwork` fabricated/degraded-entry capability both roles read, and Passive Area, the
+simpler of the two.*
+
+- **Home:** `modes/space/systems/{TargetingSystem,DiscoverySystem}.cpp`,
+  `core/knowledge/KnowledgeNetwork.*`, `data/base_game/modules.json` (one `ModuleKind::ECM` def,
+  Passive Area role).
+- **Types:** no new stored component for signature — it is derived every read, never authored, per
+  this document's derive-never-store default. `KnowledgeNetwork` gains the ability to hold a
+  fabricated or confidence-degraded entry alongside a real one (a flag, not a second entry kind) —
+  P2-12's Directional role reuses this same capability.
+- **Systems:**
+  - **Signature** is computed from a rig's mass, current power draw (`PowerSource`/`PowerLoad`), and
+    its `§2.10` material composition — unchanged from the 2026-08-09 model. **Sensor strength** is
+    computed from a rig's Optical + Semiconductive element contributions (§2.10). `DiscoverySystem`
+    compares the two across distance to decide whether a contact is detected, replacing today's flat
+    hardcoded `SensorRange == 2000` check.
+  - **Passive Area ECM**: always active while the hardpoint is mounted and powered, no player input.
+    Every tick, reduces effective sensor strength for every hostile rig within its radius — range
+    suppression only, weaker than Directional's full effect list (P2-12), the tradeoff for costing no
+    player attention and no dedicated key.
+  - **No auto-lock anywhere in this task.** Degraded readings only ever change what
+    `NavigationMap`/edge indicators render — never what `TargetingSystem` offers as a lock candidate
+    (§3.2).
+- **Tests:** a heavy, high-power rig is detected at greater range than a light, power-idle rig with
+  identical sensor strength on the observer; toggling a power category to Offline (§2.9) measurably
+  lowers a rig's signature; a hostile rig inside a Passive Area ECM radius reads reduced sensor
+  strength, and one outside it does not; destroying the ECM hardpoint ends the effect immediately.
 
 ---
 
@@ -2591,7 +2667,7 @@ settled.
 
 | # | Question | Blocks | Where |
 |:---:|---|---|---|
-| **1** | **The signature / detection model.** Sensors carry only a range, hardcoded to 2000; there is nothing to detect *against*. Agreed in principle 2026-08-09, **never specified.** This is a system, not a module | ECM (§2.11), cloak/stealth (§2.11), §8.3's per-viewer fog at full fidelity, §2.9's "run silent", §2.10's Optical and Semiconductive attributes | §11.9's dependency table |
+| **1** | **The signature / detection model — mostly specified 2026-08-24.** Sensors carry only a range, hardcoded to 2000; the base model (signature from mass/power/materials, sensor strength from Optical+Semiconductive) plus ECM/sensor-ghosts and directional jamming are now spec'd in `features.md` §8.3, tasked as P5-07 and P2-12. **Cloak/stealth (§2.11) and the exact detection-comparison formula remain open** | Cloak/stealth (§2.11), §8.3's per-viewer fog at full fidelity (already built, P3-05) | §11.9's dependency table · P5-07 (#255) · P2-12 (#256) |
 | **2** | **Does the strategic layer stay bridge-gated** while tactical command travels with the player? | Nothing today — it blocks the *shape* of P8-05, not its start | §12.27 "What is deliberately not here" |
 | **3** | **Time-to-milestone pacing** — first custom Template, first capital, first owned system. Deliberately left to be **read off `tools/economy_sim`'s derived curve**, not declared in advance | Balance passes, not construction | `features.md` §9 |
 | **4** | **Whether §9's multiverse expansion ever gets a lore hook.** Decided: base game is one galaxy, multiverse is real future scope. `lore.md` needs no change *now* | Nothing | `features.md` §9 |
@@ -2729,6 +2805,7 @@ reads.
 | P2-04 | Structural integrity and honest hit resolution | #169 |  |
 | P2-05 | Object scale, `hullRadius` and draw layers | #170 |  |
 | P2-06 | The crew shell | #171 |  |
+| P2-12 | Directional jamming — an Ion sub-role | #256 |  |
 | P2-07 | Capture — boarding in place | #172 |  |
 | P2-08 | Power allocation — the half the player commands | #173 |  |
 | P2-10 | The opposition state machine | #174 | ✅ |
@@ -2758,6 +2835,7 @@ reads.
 | P5-04 | Multi-scale territory navigation | #236 |  |
 | P5-05 | Icon culling and substitution | #237 |  |
 | P5-06 | Act I — the prologue | #238 |  |
+| P5-07 | Signature, detection, and ECM | #255 |  |
 | P6-01 | `Grade` in the taxonomy (§12.19a) | #240 |  |
 | P6-02 | Stat pools and rolled quality (§12.21) | #241 |  |
 | P6-03 | The item model (§12.19c) | #242 |  |

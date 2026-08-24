@@ -4280,17 +4280,27 @@ means a station and a fighter reach that view identically, which is correct, and
 wrong for one of them. There is no vessel-type flag to branch on, and §12.25 is deleting the one
 flag that came closest.
 
-**Make the silhouette emergent instead**, from the same living-hardpoint capability §12.25 makes
-`Propulsion` express: **a rig root draws as a nose-forward triangle when its `Propulsion` is
-non-zero, and as a disc when it is not.** Three lines, no new data, correct both before and after
-§12.25 (a station has no `Propulsion` component at all today, and a zeroed one after). It also
-means **shooting a ship's engines out visibly turns it into a hulk** — §3.2's stated consequence,
-rendered, for free.
+> 🔄 **This section originally proposed making the silhouette emergent by reshaping the hull —
+> triangle when `Propulsion` is non-zero, a disc when it is not — and that was withdrawn the very
+> next day.** `features.md`'s "Collision shape, and drawing what you test" (settled 2026-08-09)
+> retracts exactly this idea: swapping the drawn shape made the drawn hull disagree with the tested
+> hit shape (`ProjectileSystem` tests circles; the triangle's flanks cut inside it, so shots could
+> pass through drawn hull). **A ship must keep the shape it is actually tested against, whether its
+> engines are live or dead — it is disabled, not transformed into a different kind of object.**
+
+**The corrected mechanism: render the hit shape, and show heading separately.** `DrawShips` draws
+each rig root as its real hit shape — a circle sized by `CollisionRadius` today, `ShellDef`'s
+optional baked collision polygon once §3.5/§6 land — and a **nose marker** is drawn on top of it,
+present when `Propulsion` is non-zero and absent when it is zero (the same living-hardpoint capability
+§12.25 makes `Propulsion` express). This still answers the station-vs-fighter bug above — a station's
+circle no longer looks like a pointed fighter — and still shows "engines destroyed" at a glance,
+without lying about the hitbox or reshaping the hull into something structurally different from what
+it still is.
 
 *This is a placeholder shape either way — `WorldRenderer`'s own header notes every shape here dies
-when the asset pipeline lands (§6) and §3.5 settles what replaces it. It is worth the three lines
-now because the micro loop (§12.24 steps 1–3) has to be judged by eye, and a system full of
-identical arrowheads is not judgeable.*
+when the asset pipeline lands (§6) and §3.5 settles what replaces it. It is worth the few lines now
+because the micro loop (§12.24 steps 1–3) has to be judged by eye, and a system full of identical
+arrowheads is not judgeable.*
 
 **`MiningSystem` / `LootSystem`** — every drop and wreck they create gains
 `WorldBody{radius, BodyKind::Drop | Wreck}`. They are currently spawned with a bare
@@ -4416,10 +4426,11 @@ Headless; `HazardSystem` takes a bare `SystemContext` with no window.
   every entity it creates carrying `WorldTransform` also carries `WorldBody`. **This is the
   assertion that would have caught finding A**, and it is worth writing as a blanket invariant
   rather than three specific checks.
-- A rig with non-zero `Propulsion` reports a different root silhouette than one with zero, and a
-  rig whose last engine hardpoint is destroyed changes from the first to the second — the
-  regression test for the emergent silhouette, and it needs no window if the shape choice is
-  factored into a small pure predicate the test can call.
+- A rig with non-zero `Propulsion` draws its nose marker and one with zero does not, and a rig
+  whose last engine hardpoint is destroyed loses the marker on that same tick — the regression test
+  for the corrected mechanism above — while the rig's drawn hit shape itself never changes between
+  the two states. It needs no window if marker-presence is factored into a small pure predicate the
+  test can call.
 ### 12.29 The System Menu And Returning To The Main Menu — §13.3 Y
 
 *Settled 2026-08-09. Almost none of this is new design: `features.md` §3.6 **already** binds this
