@@ -106,10 +106,21 @@ Comms Archetype: Low, gravelly, menacing. ("Your hull bears the scent of weaknes
 Behavioral Driver: Systemic Unmaking.
 Decision Logic: Their AI/behavioral loop targets complexity and structural density rather than standard diplomacy. They hunt high-value population hubs, trade networks, and dense station infrastructure, bypassing isolated or derelict sectors.
 Relationship Rationale: They do not engage in standard diplomacy. Allied, if the word even applies, with the Pyre Ascendancy — who read being spared as a blessing the Reapers never agreed to give. The Aegis Directorate, The Forgotten, and AI Concordance sit hardest in their path: their dense infrastructure and population hubs are exactly what the hunt targets, so they absorb the most pressure. Baseline hostility extends to every faction not named here.
-4. The Amnesia & Tutorial Narrative Hook
-The Awakening: The player wakes up with total amnesia in a basic, unbranded escape pod drifting within a lawless frontier debris field.
-The Comm-Relay Discovery: The player performs basic survival tasks (repairing thrusters, mining raw materials) before fixing a derelict comm-relay satellite.
-The Global Faction Register: Interfacing with the relay downloads the inter-system public registry. The player reviews all 10 faction profiles through the system terminal and selects a provisional alignment code—or wipes the transponder clean to launch as an unaligned independent entity.
+4. The Arrival & Tutorial Narrative Hook
+The player is not amnesiac — they were there. On the last day of the Golden Age, the player rides
+with a fleet of their faction's ships to investigate an anomaly; reaching it triggers the gate
+network's collapse, the fleet is lost, and the player is thrown 177 years forward to a random system
+in the same galaxy — the Diaspora, experienced rather than read, not learned secondhand.
+The Frontier Arrival: The player surfaces adrift in an unfamiliar system, 177 years late to a galaxy
+that moved on without them. A local station hails within a short window and offers to walk them
+through what has changed, teaching gathering, docking and trade, customization, construction, and
+warp along the way.
+The Global Faction Register: Near the end of that walkthrough, the station uploads the inter-system
+public registry. The player reviews all 10 faction profiles through the system terminal and selects
+a provisional alignment code—or wipes the transponder clean to launch as an unaligned independent
+entity.
+(`features.md` §1.2 is the mechanical spec for this opening — timing, costs, and the exact teaching
+beats of both acts.)
 5. Simulation Decision Engine & Mechanics
 The 4 Operational Facets
 Every turn or macro-tick, a faction evaluates its star systems through four primary operational facets, dictating its priorities, resource spending, and war-or-peace algorithms:

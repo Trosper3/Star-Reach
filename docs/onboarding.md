@@ -146,7 +146,10 @@ rate, which matters because Law 2's "fast-forward a system you're not currently 
 
 Each tick, `SpaceFlight` (the mode orchestrator) calls `RunTick(ctx)` in
 `modes/space/systems/SystemSchedule.cpp`, which runs every scheduled system in a fixed, documented
-order — currently 31 of them, from `WarpSystem` first down through `TemplateMarketSystem` last. The
+order — currently 30 of them, from `WarpSystem` first down through `TemplateMarketSystem` last. A
+31st system, `FactionDecisionSystem`, is built (as `core/ai/FactionDecisionEngine`) but has its own
+separate entry point rather than a slot in this schedule, and nothing calls it yet (architecture.md
+§13.2/§13.3 L) — it does not tick here. The
 order is not arbitrary; `SystemSchedule.cpp`'s header comment is ~90 lines explaining exactly why
 `HierarchySystem` must run after `PhysicsSystem` (a hardpoint's world position is derived from its
 root's this-tick position), why `DamageSystem` must run last among combat systems (destruction is
@@ -253,11 +256,14 @@ Ninja generator otherwise picks up MSYS2's `g++` if it's on `PATH` and produces 
 against vcpkg's MSVC triplet. `CMakeLists.txt`/`tests/CMakeLists.txt` list source files explicitly
 (no glob) — a new `.cpp` needs both a list edit and a reconfigure, not just a rebuild.
 
-What actually fails a build, beyond a compile error: a file over 600 lines or a function over 80
-(`check_sizes.py`); an include crossing a layer boundary backward (`check_layers.py`); constructing
-a `ModuleDef`/`ShellDef`/`ShipBlueprint` anywhere outside `core/registries/`, `tests/`, or `tools/`
-(`check_content_pipeline.py`); an empty `src/` subdirectory (`check_dead_dirs.py`); unformatted code
-(`clang-format --Werror`); and any authored blueprint that fails `Validate()` (`ctest`).
+What actually fails a build, beyond a compile error: a file over 600 lines, a function over 80, or a
+mode class over 25 members (`check_sizes.py`) — that last one is Law 6's enforcement, the mechanism
+that caps a mode orchestrator's state to prevent another `StarReach2`-style god object (`SpaceFlight.h`
+had grown to 466 members there); an include crossing a layer boundary backward (`check_layers.py`);
+constructing a `ModuleDef`/`ShellDef`/`ShipBlueprint` anywhere outside `core/registries/`, `tests/`,
+or `tools/` (`check_content_pipeline.py`); an empty `src/` subdirectory (`check_dead_dirs.py`);
+unformatted code (`clang-format --Werror`); and any authored blueprint that fails `Validate()`
+(`ctest`).
 
 ---
 
