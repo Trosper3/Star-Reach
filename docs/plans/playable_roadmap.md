@@ -2753,19 +2753,19 @@ reads.
 | P5-04 | Multi-scale territory navigation | #236 |  |
 | P5-05 | Icon culling and substitution | #237 |  |
 | P5-06 | Act I — the prologue | #238 |  |
-| P6-01 | `Grade` in the taxonomy (§12.19a) |  |  |
-| P6-02 | Stat pools and rolled quality (§12.21) |  |  |
-| P6-03 | The item model (§12.19c) |  |  |
-| P6-04 | The widening (§12.19d) |  |  |
-| P6-05 | `core/economy/Pricing.h` |  |  |
-| P6-06 | `ManufacturingSystem` |  |  |
-| P6-07 | Manufacturing, Queue half |  |  |
-| P6-08 | Market — the trading half |  |  |
-| P6-09 | Per-item faction stock |  |  |
-| P6-10 | Vessel assembly takes time |  |  |
-| P6-11 | The gathering beam |  |  |
-| P6-13 | Act II — the frontier tutorial and the tithe |  |  |
-| P6-12 | Build `tools/element_check` — the four content checks |  |  |
+| P6-01 | `Grade` in the taxonomy (§12.19a) | #240 |  |
+| P6-02 | Stat pools and rolled quality (§12.21) | #241 |  |
+| P6-03 | The item model (§12.19c) | #242 |  |
+| P6-04 | The widening (§12.19d) | #243 |  |
+| P6-05 | `core/economy/Pricing.h` | #244 |  |
+| P6-06 | `ManufacturingSystem` | #248 |  |
+| P6-07 | Manufacturing, Queue half | #249 |  |
+| P6-08 | Market — the trading half | #251 |  |
+| P6-09 | Per-item faction stock | #245 |  |
+| P6-10 | Vessel assembly takes time | #250 |  |
+| P6-11 | The gathering beam | #246 |  |
+| P6-13 | Act II — the frontier tutorial and the tithe | #252 |  |
+| P6-12 | Build `tools/element_check` — the four content checks | #247 |  |
 | P7-01 | Knowledge networks reach gameplay |  |  |
 | P7-02 | Reverse engineering, end to end |  |  |
 | P7-03 | Template creation |  |  |
