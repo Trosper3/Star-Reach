@@ -766,27 +766,35 @@ because its commander is alive.**
 
 ---
 
-### P2-12 · Directional jamming — an Ion sub-role 🔗
-**Docs:** `features.md` §3.1 "Directional jamming"
-**Depends on:** P2-01, P5-03 — **Label:** `feature`
+### P2-12 · Directional ECM — click-and-hold jamming 🔗
+**Docs:** `features.md` §8.3 "Sensor ghosts and ECM — two roles, passive area and directional" · §3.6
+**Depends on:** P2-07, P5-07 — **Label:** `feature`
 
-- **Home:** `shared/components/Damage.h` (the Ion payload gains a suppression-target field),
-  `modes/space/systems/{DamageSystem,CommsSystem}.cpp`.
-- **Types:** the Ion `PendingDamage` payload gains an optional `commsSuppressedUntil`/
-  `sensorSuppressedUntil` duration, alongside its existing power-suppression effect from P2-01 — not
-  a new `DamageType`.
-- **Systems:** on a landed Ion hit, the payload may suppress the target's effective `commsRange`
-  and/or `SensorRange` for a duration instead of, or alongside, power. While suppressed, all three of
-  `commsRange`'s existing consumers (§12.27: command authority, hailing, sensor datalink to
-  comms-linked allies — "Sensor sharing is a comms link, not telepathy," `features.md` §8.3) read the
-  reduced range and fail identically to a destroyed `Comms` hardpoint, without the hardpoint actually
-  dying.
-- **Content:** one authored test weapon is enough for this task; folding a jam sub-role into the
-  55-weapon per-faction roster (§3.1's "The Weapon Roster") is separate content work for whichever
-  pass revisits that table, not part of this task's done-when.
-- **Tests:** a jammed ship cannot hail while suppressed and can again once the duration expires; a
-  jammed fleet member stops both contributing to and receiving its formation's shared sensor
-  coverage for the duration; jamming does not reduce `Health` or trigger structural-integrity checks.
+*Revised 2026-08-24 — the original version of this task rode the Ion weapon's damage-type machinery.
+That was wrong: jamming does not damage anything, so it does not belong on a `DamageType`. It is now
+`ModuleKind::ECM`'s Directional role, mechanically identical to P2-07's Tractor Beam — aim, hold, no
+projectile, no hit roll.*
+
+- **Home:** `modes/space/systems/{TargetingSystem,CommsSystem}.cpp`, `core/knowledge/KnowledgeNetwork.*`
+  (P5-07 supplies the fabricated/degraded-entry capability this reads), new input handling for `U`
+  (§3.6).
+- **Types:** no new `DamageType`. A held-effect state on the carrier (which target is locked, held
+  since when), mirroring however P2-07 tracks an active Tractor Beam contest.
+- **Systems:** while `U` is held with a valid target under the cursor and the carrier's ECM hardpoint
+  is alive and powered, each tick: writes a ghost or degrades a real entry in the target's
+  `KnowledgeNetwork` (P5-07's write path), and suppresses the target's effective `commsRange` for the
+  duration — cutting command authority, hailing, and sensor datalink to comms-linked allies
+  identically to a destroyed `Comms` hardpoint, without the hardpoint dying. The hold breaks on
+  release, on the hardpoint dying, or on the target leaving range/line-of-sight — same shape as
+  Tractor Beam, no new rule. **Runs simultaneously with weapon fire and with Tractor Beam** (§3.6): all
+  three read the same cursor-designated target.
+- **Content:** one authored `ModuleKind::ECM` def (Directional role) is enough for this task; a
+  Passive Area def ships alongside it from P5-07.
+- **Tests:** a held target's `commsRange` reads suppressed and a jammed ship cannot hail while held,
+  restoring the instant `U` is released; a jammed fleet member stops both contributing to and
+  receiving its formation's shared sensor coverage for the hold's duration; holding `K`, `U`, and
+  left-click on the same target at once succeeds at all three; jamming never reduces `Health` or
+  triggers a structural-integrity check.
 
 ---
 
@@ -944,14 +952,21 @@ because its commander is alive.**
 **Depends on:** P2-06 — **Label:** `feature`
 
 - **Home:** `modes/space/systems/DockingSystem.cpp` or a boarding path beside it; `FactionRef`
-  reassignment.
-- **Systems:** ownership transfer of an uncrewed hull, boarding-in-place (settled 2026-08-11). **Ion
-  is the intended route in:** strip shields, suppress power, kill the crew shell, take the hull. §6.3
-  requires the same terms for an AI faction capturing the player's uncrewed hull.
+  reassignment; new `Troop Bay` and `Tractor Beam` hardpoint modules (`data/base_game/modules.json`).
+- **Systems:** a hull is capturable when shields are down (any damage type), it cannot flee (engines
+  destroyed, hyperdrive destroyed, or **held by a Tractor Beam**), and it cannot resist (crew shell
+  destroyed or power suppressed — Ion is **one tool among several** here, not the intended route, per
+  `features.md` §3.2's 2026-08-09 correction). Ownership transfer is boarding-in-place: a Troop
+  Bay-carrying vessel holds position adjacent for a duration (scaled by capacity vs. hull class) to
+  flip `FactionRef`. **Tractor Beam is the non-destructive "cannot flee" path** — pull force contested
+  against `BodyMass` × `Propulsion::thrustNewtons`, resolved every tick in the physics integrator
+  while the player holds `K` (§3.6) — every other path to "cannot flee" means shooting the engines
+  off, which damages the prize. §6.3 requires the same terms for an AI faction capturing the player's
+  uncrewed hull.
 - **Tests:** a crewed hull cannot be captured; a captured hull's crew, network included, transfers
   wholesale (this is also §2.5's network-raiding mechanic, at no extra cost); an AI faction can
-  capture the player's uncrewed hull.
-- **Note:** `features.md` §9's "Capture" entry still reads as open and is stale — flag with P11-07.
+  capture the player's uncrewed hull; releasing `K` before the hold completes drops the tractor and
+  the target regains its own thrust immediately.
 
 ---
 
@@ -1545,32 +1560,40 @@ galaxy from the screen alone.
 
 ---
 
-### P5-07 · Signature, detection, and ECM 🔗
-**Docs:** `features.md` §8.3 "The signature / detection model" and "Sensor ghosts and ECM"
+### P5-07 · Signature, detection, and Passive Area ECM 🔗
+**Docs:** `features.md` §8.3 "The signature / detection model" and "Sensor ghosts and ECM — two
+roles, passive area and directional"
 **Depends on:** P0-09, P3-05 — **Label:** `feature`
 
+*Directional ECM (click-and-hold, single-target) is P2-12, not this task — it needs P2-07's
+Tractor-Beam-shaped contest mechanic and belongs beside it. This task owns the base detection math,
+the `KnowledgeNetwork` fabricated/degraded-entry capability both roles read, and Passive Area, the
+simpler of the two.*
+
 - **Home:** `modes/space/systems/{TargetingSystem,DiscoverySystem}.cpp`,
-  `core/knowledge/KnowledgeNetwork.*`, `data/base_game/modules.json` (one `ModuleKind::ECM` def).
+  `core/knowledge/KnowledgeNetwork.*`, `data/base_game/modules.json` (one `ModuleKind::ECM` def,
+  Passive Area role).
 - **Types:** no new stored component for signature — it is derived every read, never authored, per
   this document's derive-never-store default. `KnowledgeNetwork` gains the ability to hold a
-  fabricated or confidence-degraded entry alongside a real one (a flag, not a second entry kind).
+  fabricated or confidence-degraded entry alongside a real one (a flag, not a second entry kind) —
+  P2-12's Directional role reuses this same capability.
 - **Systems:**
   - **Signature** is computed from a rig's mass, current power draw (`PowerSource`/`PowerLoad`), and
     its `§2.10` material composition — unchanged from the 2026-08-09 model. **Sensor strength** is
     computed from a rig's Optical + Semiconductive element contributions (§2.10). `DiscoverySystem`
     compares the two across distance to decide whether a contact is detected, replacing today's flat
     hardcoded `SensorRange == 2000` check.
-  - `ModuleKind::ECM` writes into the target faction's `KnowledgeNetwork` through the same path
-    `DiscoverySystem` already writes true readings through: a fabricated ghost entry, a real entry
-    marked degraded/stale, or a temporary reduction to the target's own effective sensor strength.
-  - **No auto-lock anywhere in this task.** Ghosts and degraded readings only ever change what
+  - **Passive Area ECM**: always active while the hardpoint is mounted and powered, no player input.
+    Every tick, reduces effective sensor strength for every hostile rig within its radius — range
+    suppression only, weaker than Directional's full effect list (P2-12), the tradeoff for costing no
+    player attention and no dedicated key.
+  - **No auto-lock anywhere in this task.** Degraded readings only ever change what
     `NavigationMap`/edge indicators render — never what `TargetingSystem` offers as a lock candidate
     (§3.2).
 - **Tests:** a heavy, high-power rig is detected at greater range than a light, power-idle rig with
   identical sensor strength on the observer; toggling a power category to Offline (§2.9) measurably
-  lowers a rig's signature; an ECM-carrying rig can write a ghost into an enemy's `KnowledgeNetwork`
-  that the enemy's nav map then renders as a contact with no backing entity; a degraded real entry
-  renders with reduced confidence, not as a fresh accurate read.
+  lowers a rig's signature; a hostile rig inside a Passive Area ECM radius reads reduced sensor
+  strength, and one outside it does not; destroying the ECM hardpoint ends the effect immediately.
 
 ---
 

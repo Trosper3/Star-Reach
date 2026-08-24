@@ -3487,7 +3487,7 @@ armoured targets want punch.
 |---|---|---|
 | **Mining laser** | `MiningSystem` is built and scheduled and reads **no module stat** — mining rate is authored nowhere | Small — the same gap-closing shape as Sensor |
 | **Tractor / salvage** | `LootSystem::FindCollectorInRange` already takes an `extraRadius` parameter **that nothing supplies** | Small — the hook exists |
-| **ECM / jamming** | ✅ **Specified 2026-08-24** — §8.3's "Sensor ghosts and ECM" and "Directional jamming," tasked as `playable_roadmap.md` P5-07/P2-12. §8.3's fog of war is already built | Small mechanic, real depth |
+| **ECM / jamming** | ✅ **Specified 2026-08-24** — §8.3's "Sensor ghosts and ECM," two roles (Passive Area, Directional), tasked as `playable_roadmap.md` P5-07/P2-12. §8.3's fog of war is already built | Small mechanic, real depth |
 | **Cloak / stealth** | ⚠️ **The one on this list that is not a module.** Sensors carry only a range; there is nothing to *detect against*. Cloak needs a signature stat on every hull and a detection check — a system, not an attribute | Large |
 
 #### The Weapon Roster — per-faction and general 📋
@@ -6586,6 +6586,23 @@ for the player (`architecture.md` §12.24).
 | **Left mouse** | Fire every **enabled** weapon group — *and place, in build mode* | §3.2 |
 | **1 – 0** | Toggle weapon group 1–10 on/off | below |
 | **F / G / H / J** | Power: weapons · shields · **engines** · facilities. **Tap** = Boosted, **hold** = Offline | §2.9 |
+| **K** *(hold)* | **Tractor Beam** — pull force contested against the cursor's target while held, no projectile | §3.2 |
+| **U** *(hold)* | **Directional ECM** — jam the cursor's target while held, no projectile | §8.3 |
+
+> **`K` and `U` are separate keys, not a shared one, and that is deliberate.** Tractor Beam and
+> Directional ECM are different "weapon types" in every sense that matters for input — different
+> hardpoints, different effects, different cooldowns eventually — and §3.6's own weapon-group
+> precedent already establishes that distinct effects get distinct triggers so they can run
+> together. Both read the same cursor aim point (§3.2), and both can run **simultaneously with each
+> other and with left-click weapon fire** on the same target — hold `K` and `U` while left-clicking
+> is "tractor it, jam it, and shoot it," all at once, the same escalation the capture route (§3.2)
+> already wants.
+>
+> ⚠️ **`L` was the first choice and is already taken.** `ModulesMenu.cpp:21` hardcodes
+> `kToggleKey = KEY_L` for the Loadout overlay — shipped code, chosen while this input map was still
+> 📋 and reserved nothing (`StorageMenu.cpp`'s identical `KEY_I` note explains the pattern). `U` is
+> free; whoever implements P2-12 should double-check no third menu has claimed it the same way in
+> the meantime.
 
 ##### Command
 
@@ -8776,8 +8793,9 @@ convenient side effect — `SystemContext::discovery` disappears entirely, since
 commitment rather than a gap rediscovered later; the full treatment is a §12 entry nobody has
 written.*
 
-> ✅ **Two of the five consumers in the table below are now specified — see "Sensor ghosts and ECM"
-> and "Directional jamming" at the end of this section (§8.3, settled 2026-08-24).** The base model
+> ✅ **Two of the five consumers in the table below are now specified — see "Sensor ghosts and ECM —
+> two roles, passive area and directional" at the end of this section (§8.3, settled 2026-08-24,
+> revised same day).** The base model
 > below (signature derived from mass, power draw, and materials) is unchanged from 2026-08-09 — it
 > was reconsidered and deliberately kept as originally agreed, not replaced with a power-only
 > alternative. Cloak/stealth and the exact detection-comparison formula remain open.
@@ -8855,53 +8873,55 @@ link** — sharing sensors as a favour, a trade good, or a treaty term — is un
 needs a relation model, and `SystemContext::diplomacy` is `nullptr` until `architecture.md` §12.24
 step 6. **Deferred with a clear trigger rather than left as an oversight.**
 
-#### Sensor ghosts and ECM 📋
+#### Sensor ghosts and ECM — two roles, passive area and directional 📋
 
-*Settled 2026-08-24, closing half of §2.11's "ECM / jamming" planned kind against the signature/
-detection model above. Cloak/stealth is the other half of that planned-kinds row and stays open — it
-needs its own mechanic for reducing a hull's own signature, not covered here.*
+*Settled 2026-08-24, revised the same day after review — the first draft rode Ion's weapon machinery
+for the targeted half, which was wrong: jamming does not damage anything, so it does not belong on a
+`DamageType`. Both roles below are `ModuleKind::ECM` instead, closing §2.11's "ECM / jamming" planned
+kind. Cloak/stealth is that row's other half and stays open — it needs its own mechanic for reducing
+a hull's own signature, not covered here.*
 
-**`ModuleKind::ECM` writes into the target faction's knowledge network, not a new store.** §8.3 already
+**Both roles write into the target faction's knowledge network, not a new store.** §8.3 already
 settled that a viewer's picture is whatever their `KnowledgeNetwork` holds, and `DiscoverySystem`
-writes true readings into it today. ECM's whole job is writing *false or degraded* ones into an
-enemy's network instead, through the identical write path — no new storage mechanism.
+writes true readings into it today. ECM's whole job — either role — is writing *false, degraded, or
+suppressed* ones into an enemy's network instead, through the identical write path. No new storage
+mechanism either way.
 
-Three effects, none requiring new storage:
+| | **Passive Area** | **Directional** |
+|---|---|---|
+| **Player action** | None — always active while mounted and powered | **Click and hold** on one target — a dedicated input, its own key (§3.6), separate from weapon fire and from Tractor Beam's key |
+| **Scope** | An area around the carrier — everyone inside it, friend filtering aside | One locked target only |
+| **Strength** | Weaker — range suppression only | Much stronger — the full effect list below |
+| **Mechanism** | A standing modifier applied every tick the module is powered, like `PowerSource`'s own always-on generation | **Contested continuously while held**, the identical shape to §3.2's Tractor Beam — no projectile, no hit roll, no `DamageType` |
+| **Breaks when** | The hardpoint dies or loses power | The hardpoint dies, the target leaves range/line-of-sight, or the key is released — same break conditions as Tractor Beam, no new rule |
+
+**Directional's full effect list**, available to it and not to Passive Area:
 
 - **Ghosts.** A fabricated contact entry with no real entity behind it — the enemy's nav map and edge
   indicators (§3.10's "Sensor contacts") show a target that is not there, and their only way to tell
   is to close distance and get a real read.
 - **Degraded readings.** A real contact's entry is written with reduced confidence or a stale
   position — the enemy still knows *something* is there, not *what* or *where exactly*.
-- **Range suppression.** The already-planned effect (§2.11: *"suppresses enemy sensor range"*) —
-  lowers the target's own detection range against everyone, not just against the ECM carrier.
+- **Comms/sensor severing.** Suppresses the target's `commsRange` for the hold's duration, cutting
+  exactly the three things it already gates (§12.27, and "Sensor sharing is a comms link, not
+  telepathy" above): command authority, hailing, and sensor datalink to comms-linked allies. A held
+  target cannot issue or receive orders, cannot hail, and stops feeding or receiving its formation's
+  shared sensor picture — severed from its fleet without destroying anything, for as long as the hold
+  lasts.
+
+**Passive Area gets range suppression only** (§2.11's original planned effect: *"suppresses enemy
+sensor range"*) — broad and dumb rather than surgical, the tradeoff for costing no player attention.
 
 ⚠️ **None of this may grant or restore auto-lock.** §3.2's manual-aim rule and `architecture.md`
-§13.3 finding Q (`IconRenderer` rendering the auto-lock the design forbids) both apply unchanged —
-ghosts and degraded readings change what is *shown*, never what can be *selected as a firing
-solution*.
+§13.3 finding Q (`IconRenderer` rendering the auto-lock the design forbids) both apply unchanged to
+both roles — ghosts, degraded readings, and suppression change what is *shown*, never what can be
+*selected as a firing solution*.
 
-#### Directional jamming — an Ion sub-role 📋
-
-*Settled 2026-08-24. A targeted counterpart to ECM's area effect above — a weapon that reaches out
-and silences one specific ship, rather than degrading a whole formation's picture.*
-
-**Rides §3.1's existing Ion machinery as a payload effect, not a new damage type.** Ion already
-suppresses power on hit rather than reducing `Health` (§3.1: *"the only weapon that interacts with
-§2.9"*). Directional jamming is the same shape aimed at a different target: instead of, or alongside,
-power suppression, the payload suppresses the target's `commsRange` and/or `SensorRange` for a
-duration.
-
-**It cuts exactly the three things `commsRange` already gates** (§12.27, and confirmed above by
-"Sensor sharing is a comms link, not telepathy"): command authority, hailing, and sensor datalink to
-comms-linked allies. A jammed ship cannot issue or receive orders, cannot hail, and stops feeding or
-receiving its formation's shared sensor picture — severed from its fleet by a single well-aimed shot,
-without destroying anything.
-
-**Content, not a new mechanic:** this becomes a new Ion sub-role (`Ion — Jam`, alongside the existing
-`Ion — Disable (standard)`/`(heavy)` in §3.1's role table) once a faction's weapon roster is authored
-against it — content work for whichever pass revisits the 55-weapon roster, not a system to build
-here.
+**Firing weapons while holding Directional is allowed, and falls out for free.** §3.2's cursor is
+already the single aim point for weapon fire; Directional's own aim point is the same cursor. Holding
+the Directional key on a target while left-click fires enabled weapon groups at that same point needs
+no new aiming model — it is the capture-route flavor (`§3.2`'s Ion-suppress-then-board sequence)
+generalised: aim at one target, do several things to it at once, each on its own input.
 
 ---
 
