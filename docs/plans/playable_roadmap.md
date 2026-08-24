@@ -160,10 +160,10 @@ tracks; the phase numbers are a recommended order, not a lock.
 |:---:|---|---|:---:|
 | **0** | Headless foundations | The world is drawable and shootable; the widget layer exists; the audit's one-line defects are gone, **and the schedule that runs every system is under test**. All verifiable by `sr_tests` with no window | 16 |
 | **1** | The micro loop | Start Game → a visible system with a player, a station, NPCs → fly, shoot, dock, respawn, quit to menu, start again cleanly | 8 |
-| **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 11 |
+| **2** | Combat that reads true | Damage types, shields, structural failure, crew death and capture behave as `features.md` §3 specifies — **and the opposition fights back, dies, and leaves something behind** | 12 |
 | **3** | Faction state | Relations exist at runtime, are seeded, are read by combat/docking/pricing, and are written by gameplay | 5 |
 | **4** | The docked screens | Six of §12.30's seven screens reachable through the router — **Market is the seventh and ships in P6-08**, because a price needs `Pricing.h`; both flight overlays work | 14 |
-| **5** | Legibility | Status display, flight HUD, comms, navigation map, tutorial | 6 |
+| **5** | Legibility | Status display, flight HUD, comms, navigation map, tutorial, signature/detection | 7 |
 | **6** | Items and economy | Elements → Materials → Modules manufacture and price themselves | 13 |
 | **7** | Knowledge and templates | Reverse-engineer, draft, pitch, collect royalties | 5 |
 | **8** | Command | Local command, construction, parties, sub-commanders, the bridge | 6 |
@@ -763,6 +763,30 @@ because its commander is alive.**
 - **Tests:** a charged Kinetic shield absorbs a kinetic *shot* and not a *ram*; Ion passes both
   shield types and suppresses power; each type renders its own colour in projectile, shield shimmer
   and status display alike.
+
+---
+
+### P2-12 · Directional jamming — an Ion sub-role 🔗
+**Docs:** `features.md` §3.1 "Directional jamming"
+**Depends on:** P2-01, P5-03 — **Label:** `feature`
+
+- **Home:** `shared/components/Damage.h` (the Ion payload gains a suppression-target field),
+  `modes/space/systems/{DamageSystem,CommsSystem}.cpp`.
+- **Types:** the Ion `PendingDamage` payload gains an optional `commsSuppressedUntil`/
+  `sensorSuppressedUntil` duration, alongside its existing power-suppression effect from P2-01 — not
+  a new `DamageType`.
+- **Systems:** on a landed Ion hit, the payload may suppress the target's effective `commsRange`
+  and/or `SensorRange` for a duration instead of, or alongside, power. While suppressed, all three of
+  `commsRange`'s existing consumers (§12.27: command authority, hailing, sensor datalink to
+  comms-linked allies — "Sensor sharing is a comms link, not telepathy," `features.md` §8.3) read the
+  reduced range and fail identically to a destroyed `Comms` hardpoint, without the hardpoint actually
+  dying.
+- **Content:** one authored test weapon is enough for this task; folding a jam sub-role into the
+  55-weapon per-faction roster (§3.1's "The Weapon Roster") is separate content work for whichever
+  pass revisits that table, not part of this task's done-when.
+- **Tests:** a jammed ship cannot hail while suppressed and can again once the duration expires; a
+  jammed fleet member stops both contributing to and receiving its formation's shared sensor
+  coverage for the duration; jamming does not reduce `Health` or trigger structural-integrity checks.
 
 ---
 
@@ -1518,6 +1542,35 @@ galaxy from the screen alone.
 
 > **The tutorial is the prologue, not an overlay of hint boxes.** `lore.md` line 4 already made this
 > canon and it never became mechanics; `features.md` §1.2 is now the spec.
+
+---
+
+### P5-07 · Signature, detection, and ECM 🔗
+**Docs:** `features.md` §8.3 "The signature / detection model" and "Sensor ghosts and ECM"
+**Depends on:** P0-09, P3-05 — **Label:** `feature`
+
+- **Home:** `modes/space/systems/{TargetingSystem,DiscoverySystem}.cpp`,
+  `core/knowledge/KnowledgeNetwork.*`, `data/base_game/modules.json` (one `ModuleKind::ECM` def).
+- **Types:** no new stored component for signature — it is derived every read, never authored, per
+  this document's derive-never-store default. `KnowledgeNetwork` gains the ability to hold a
+  fabricated or confidence-degraded entry alongside a real one (a flag, not a second entry kind).
+- **Systems:**
+  - **Signature** is computed from a rig's mass, current power draw (`PowerSource`/`PowerLoad`), and
+    its `§2.10` material composition — unchanged from the 2026-08-09 model. **Sensor strength** is
+    computed from a rig's Optical + Semiconductive element contributions (§2.10). `DiscoverySystem`
+    compares the two across distance to decide whether a contact is detected, replacing today's flat
+    hardcoded `SensorRange == 2000` check.
+  - `ModuleKind::ECM` writes into the target faction's `KnowledgeNetwork` through the same path
+    `DiscoverySystem` already writes true readings through: a fabricated ghost entry, a real entry
+    marked degraded/stale, or a temporary reduction to the target's own effective sensor strength.
+  - **No auto-lock anywhere in this task.** Ghosts and degraded readings only ever change what
+    `NavigationMap`/edge indicators render — never what `TargetingSystem` offers as a lock candidate
+    (§3.2).
+- **Tests:** a heavy, high-power rig is detected at greater range than a light, power-idle rig with
+  identical sensor strength on the observer; toggling a power category to Offline (§2.9) measurably
+  lowers a rig's signature; an ECM-carrying rig can write a ghost into an enemy's `KnowledgeNetwork`
+  that the enemy's nav map then renders as a contact with no backing entity; a degraded real entry
+  renders with reduced confidence, not as a fresh accurate read.
 
 ---
 
@@ -2591,7 +2644,7 @@ settled.
 
 | # | Question | Blocks | Where |
 |:---:|---|---|---|
-| **1** | **The signature / detection model.** Sensors carry only a range, hardcoded to 2000; there is nothing to detect *against*. Agreed in principle 2026-08-09, **never specified.** This is a system, not a module | ECM (§2.11), cloak/stealth (§2.11), §8.3's per-viewer fog at full fidelity, §2.9's "run silent", §2.10's Optical and Semiconductive attributes | §11.9's dependency table |
+| **1** | **The signature / detection model — mostly specified 2026-08-24.** Sensors carry only a range, hardcoded to 2000; the base model (signature from mass/power/materials, sensor strength from Optical+Semiconductive) plus ECM/sensor-ghosts and directional jamming are now spec'd in `features.md` §8.3, tasked as P5-07 and P2-12. **Cloak/stealth (§2.11) and the exact detection-comparison formula remain open** | Cloak/stealth (§2.11), §8.3's per-viewer fog at full fidelity (already built, P3-05) | §11.9's dependency table · P5-07 (#255) · P2-12 (#256) |
 | **2** | **Does the strategic layer stay bridge-gated** while tactical command travels with the player? | Nothing today — it blocks the *shape* of P8-05, not its start | §12.27 "What is deliberately not here" |
 | **3** | **Time-to-milestone pacing** — first custom Template, first capital, first owned system. Deliberately left to be **read off `tools/economy_sim`'s derived curve**, not declared in advance | Balance passes, not construction | `features.md` §9 |
 | **4** | **Whether §9's multiverse expansion ever gets a lore hook.** Decided: base game is one galaxy, multiverse is real future scope. `lore.md` needs no change *now* | Nothing | `features.md` §9 |
@@ -2729,6 +2782,7 @@ reads.
 | P2-04 | Structural integrity and honest hit resolution | #169 |  |
 | P2-05 | Object scale, `hullRadius` and draw layers | #170 |  |
 | P2-06 | The crew shell | #171 |  |
+| P2-12 | Directional jamming — an Ion sub-role | #256 |  |
 | P2-07 | Capture — boarding in place | #172 |  |
 | P2-08 | Power allocation — the half the player commands | #173 |  |
 | P2-10 | The opposition state machine | #174 | ✅ |
@@ -2758,6 +2812,7 @@ reads.
 | P5-04 | Multi-scale territory navigation | #236 |  |
 | P5-05 | Icon culling and substitution | #237 |  |
 | P5-06 | Act I — the prologue | #238 |  |
+| P5-07 | Signature, detection, and ECM | #255 |  |
 | P6-01 | `Grade` in the taxonomy (§12.19a) | #240 |  |
 | P6-02 | Stat pools and rolled quality (§12.21) | #241 |  |
 | P6-03 | The item model (§12.19c) | #242 |  |
