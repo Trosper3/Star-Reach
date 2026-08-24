@@ -6912,19 +6912,49 @@ swap that does not change how the hull flies is the mechanic broken."*
 `ShellDef::acceptsKinds`. The overlay greys an illegal target either way; the only question is whether
 the rule is content or code, and §12.22 settled it as content.
 
-###### Select, then target. No drag-and-drop.
+###### Drag the module to the mount — a reversal, kept below for the reasoning trail
 
 §12.10's promotion note names legacy StarReach2's *"slot-rendering and trash-can widgets"*, which were
-a drag-and-drop grid. **Not carried forward**, and the reason is §12.30's own widget decision: a drag
-is **retained state spanning frames** — what is held, where the cursor took it, what it is over — and
-*"no retained tree, no widget-owned state"* is the one thing that decision forbids.
+a drag-and-drop grid. **Not carried forward at launch**, and the reason is §12.30's own widget
+decision: a drag is **retained state spanning frames** — what is held, where the cursor took it, what
+it is over — and *"no retained tree, no widget-owned state"* is the one thing that decision forbids.
 
 > **Click the module, then click the mount.** Two clicks, both stateless; the pending selection is one
 > more field on the UI-state singleton §12.24 already settled, exactly like a selected row index.
 
-It is also better under §4.4's no-pause rule: a drag demands sustained precise attention for its whole
-duration, which is the class of interaction §4.4 disqualifies during combat — and combat is precisely
-when §2.7 legalised refit.
+⚠️ **Corrected 2026-08-23 — the combat-friction argument was inverted.** An earlier version of this
+section cited §4.4's no-pause rule as a *reason to reject* drag-and-drop, reasoning that sustained
+precise input during combat is bad UX. **That reads backwards.** Live refit is sanctioned combat play
+(§2.7) precisely so that skill and speed matter under fire, and a drag that is genuinely risky to
+pull off mid-fight is exactly the kind of friction that *should* gate it — the intent is that
+switching loadouts mid-fight demands something from the player, not that it happens for free. §4.4
+plays no part in why click-then-target ships first; **the widget-layer's statelessness rule above is
+the entire reason**, and it is the only one.
+
+⚠️ **Settled 2026-08-23, later the same day — not left open after all.** The project owner wants
+drag-and-drop for this screen, and it **replaces click-then-target entirely** rather than sitting
+beside it as an alternative. The "sanctioned exception" this section asked for turns out to be
+smaller than it looked: the retained drag state (which module is lifted, where it started) is
+**screen-owned state on the same `FlightOverlayState` singleton `pendingModule` already lives on**
+— not widget-owned state. `ListView` stays exactly as pure as it is today; it is only ever asked
+"what row is under this point," the same question it already answers for click-then-target. The
+widget-layer rule this section opened with is not being broken, and never needed to be — it was
+never a rule against a *screen* holding a pending drag, only against `ListView`/`Button`/etc.
+holding one themselves.
+
+> **Mouse down on a held module, drag it over the mount list, release on a target.** A release over
+> a compatible, unoccupied mount emits `MountModuleRequest`; a release over an *occupied* mount,
+> dragged back out and released over the hold list, is the unmount gesture — it emits
+> `UnmountModuleRequest`. A release anywhere else — an incompatible mount, empty space, back where
+> it started — cancels with no request emitted, exactly as a mis-click refuses today.
+> `FlightOverlayState` gains `draggedModule` and `draggedFromMount` (mutually exclusive — whichever
+> list the drag started in) in place of `pendingModule`: one screen-state swap, not a new category
+> of state.
+
+This still needs a **ghost** — something drawn at the cursor while a drag is live, since the module
+being carried has to stay visible mid-drag. That is the one genuinely new draw call this adds: a
+`Row`-shaped label following the cursor, styled exactly like the row it was picked up from.
+`ListView` and `Button` gain nothing.
 
 ###### Layout, and the schematic it becomes
 
@@ -6933,24 +6963,26 @@ when §2.7 legalised refit.
 | **Header** | Rig name · aggregate integrity · **mass and power**, both live against the pending swap |
 | **Left `ListView`** | Your hold, filtered to modules mountable *somewhere* on this rig |
 | **Right `ListView`** | Every hardpoint on the rig — living, empty, and `Destroyed` |
-| **Footer** | **Mount** / **Unmount** for the current pair |
+| **Footer** | Removed — the drop itself performs the mount/unmount, there is no separate confirm step |
 
 The right-hand rows are three states again, and §3.10's degrade-never-remove decides all three:
 occupied (its module, integrity gradient), **empty** (outline, `EMPTY`), and **destroyed** (disabled,
-`DESTROYED — REBUILD AT ENGINEERING`, §12.30.5).
+`DESTROYED — REBUILD AT ENGINEERING`, §12.30.5). A `Destroyed` mount also refuses as a drop target,
+same as it refused a click.
 
-⚠️ **The header numbers change with the *pending* selection, before the click.** §2.2's puzzle is mass
-against thrust and draw against generation, and a refit screen that shows the consequence only
-afterwards is asking the player to guess at the one decision the game is built around. This costs
-nothing — `RecomputeRigTotals` is the same function, run against a hypothetical.
+⚠️ **The header numbers change while the drag is live and hovering a valid target, before the
+drop.** §2.2's puzzle is mass against thrust and draw against generation, and a refit screen that
+shows the consequence only afterwards is asking the player to guess at the one decision the game is
+built around. This costs nothing — `RecomputeRigTotals` is the same function, run against a
+hypothetical.
 
 > **When §3.9's status projection lands (§13.5 group 2e), it becomes this overlay's second selector.**
 > §3.9 promises *"the same object for the player's own ship, for the current target, and — degraded —
 > for a map marker. Not three designs."* **A loadout screen is the fourth use and the most obviously
-> spatial one**: which mount, and where on the hull. §3.9 already permits *"a single click to expand a
-> section"*, and the hit test is the same pure function `ListView` uses —
-> `HardpointAtPoint(projection, cursor) -> index` — over the **same selection state**, so the list does
-> not go away and nothing is re-modelled.
+> spatial one**: which mount, and where on the hull. The hit test is the same pure function
+> `ListView` uses — `HardpointAtPoint(projection, cursor) -> index` — now answering "what am I
+> hovering while dragging" instead of "what did I click," over the **same drag state**, so the list
+> does not go away and nothing is re-modelled.
 
 **Ship the list in 4b; the projection is an addition, not a prerequisite.** Recorded here so 2e knows
 it has a consumer waiting, and so nobody builds a second hardpoint-selection model when it lands.
@@ -6959,6 +6991,9 @@ it has a consumer waiting, and so nobody builds a second hardpoint-selection mod
 
 - **No new component.** `MountModuleRequest` and `UnmountModuleRequest` are built and correct; what is
   wrong is the predicate that decides which mounts to offer.
+- **`FlightOverlayState.pendingModule` is replaced by `draggedModule`/`draggedFromMount`** — screen-
+  owned singleton state, same as the field it replaces; no widget-layer change (see the drag note
+  above).
 - **`EquippedModule` is deleted** (§13.4 decision 2), and `EquippableMounts`/`EquippedMounts` are
   rewritten against `MountedModules`.
 - `ModuleEquipSystem` gains the **`Destroyed` refusal**, a real **`MountTraverse`** (§13.3 D), and a
@@ -6989,7 +7024,9 @@ it has a consumer waiting, and so nobody builds a second hardpoint-selection mod
 - Mounting onto a `Destroyed` hardpoint is refused and consumes nothing.
 - A runtime-mounted weapon **fires** — the `MountTraverse` regression (§13.3 D).
 - Mounting a heavier engine changes `BodyMass` and `Propulsion` the same tick (§12.23), and the
-  header's pending numbers match what the rig has after the click.
+  header's pending numbers match what the rig has after the drop.
+- A drag released outside any mount, or back where it started, cancels: no request is emitted and
+  the module is still in the hold.
 - An illegal module/shell pair is greyed in the list and refused by the system — the UI is not
   authority.
 
@@ -7010,7 +7047,6 @@ and the failure looks like a UI bug.
 
 ##### What is deliberately not here
 
-- **No drag-and-drop**, per the widget decision above.
 - **No loadout presets or saved fits.** That is `CustomizeMenu`'s Template (§12.9) — a *design*, not a
   live rig, and §12.31 is emphatic about not letting the two types converge.
 - **No repair or rebuild from the loadout list.** They are §12.30.4 and §12.30.5, both facility-gated;
