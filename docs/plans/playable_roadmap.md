@@ -2747,12 +2747,12 @@ reads.
 | P4-12 | Engineering — editing the station's own rig | #221 |  |
 | P4-13 | Research — the Codex | #222 |  |
 | P4-14 | NPC logistics — spreading stock across holds | #223 (design issue, not build) |  |
-| P5-01 | The status display |  |  |
-| P5-02 | The flight HUD |  |  |
-| P5-03 | The comms surface |  |  |
-| P5-04 | Multi-scale territory navigation |  |  |
-| P5-05 | Icon culling and substitution |  |  |
-| P5-06 | Act I — the prologue |  |  |
+| P5-01 | The status display | #233 |  |
+| P5-02 | The flight HUD | #234 |  |
+| P5-03 | The comms surface | #235 |  |
+| P5-04 | Multi-scale territory navigation | #236 |  |
+| P5-05 | Icon culling and substitution | #237 |  |
+| P5-06 | Act I — the prologue | #238 |  |
 | P6-01 | `Grade` in the taxonomy (§12.19a) |  |  |
 | P6-02 | Stat pools and rolled quality (§12.21) |  |  |
 | P6-03 | The item model (§12.19c) |  |  |
