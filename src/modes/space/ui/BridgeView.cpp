@@ -21,6 +21,23 @@ namespace {
 
 constexpr std::size_t kFacilityKindCount = static_cast<std::size_t>(FacilityKind::Engineering) + 1;
 
+// architecture.md 12.30's "a tab needs a working screen behind it, not just a living hardpoint"
+// fix: compile-time, flips one entry the day its screen's Draw is wired into SpaceFlight.cpp.
+// Market ships with P6-08; Manufacturing's Queue half ships between P4-07 (Draft only, already
+// landed) and P6-03/P6-06.
+bool IsScreenShipped(ScreenId screen) {
+    switch (screen) {
+        case ScreenId::Bay:
+        case ScreenId::Storage:
+        case ScreenId::Repair:
+        case ScreenId::Engineering:
+        case ScreenId::Research: return true;
+        case ScreenId::Market:
+        case ScreenId::Manufacturing: return false;
+    }
+    return false;
+}
+
 ScreenId ScreenIdFor(FacilityKind kind) {
     switch (kind) {
         case FacilityKind::Docking: return ScreenId::Bay;
@@ -118,36 +135,40 @@ std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entit
 
     // ScreenId declaration order, not discovery order (matches the old kAllKinds contract) --
     // the tab list must not reshuffle as hardpoints are destroyed and rebuilt across a session.
+    // Each candidate is gated on IsScreenShipped in addition to the hardpoint (or CargoHold)
+    // living -- architecture.md 12.30's "a tab needs a working screen behind it" fix. A station's
+    // capabilities and the game's readiness are two different questions; only the first belongs
+    // to the per-hardpoint checks above.
     std::vector<BridgeTab> tabs;
     const entt::entity docking = firstByKind[static_cast<std::size_t>(FacilityKind::Docking)];
-    if (docking != entt::null) {
+    if (docking != entt::null && IsScreenShipped(ScreenId::Bay)) {
         tabs.push_back({ScreenId::Bay, docking});
     }
     const entt::entity trade = firstByKind[static_cast<std::size_t>(FacilityKind::Trade)];
-    if (trade != entt::null) {
+    if (trade != entt::null && IsScreenShipped(ScreenId::Market)) {
         tabs.push_back({ScreenId::Market, trade});
     }
-    if (hasCargoHold) {
+    if (hasCargoHold && IsScreenShipped(ScreenId::Storage)) {
         // No FacilityKind, no hardpoint identity -- architecture.md 12.30.3: stands alone on a
         // station with a CargoHold and no Trade hardpoint, rides the Market tab otherwise.
         tabs.push_back({ScreenId::Storage, entt::null});
     }
     const entt::entity repair = firstByKind[static_cast<std::size_t>(FacilityKind::Repair)];
-    if (repair != entt::null) {
+    if (repair != entt::null && IsScreenShipped(ScreenId::Repair)) {
         tabs.push_back({ScreenId::Repair, repair});
     }
     const entt::entity engineering =
         firstByKind[static_cast<std::size_t>(FacilityKind::Engineering)];
-    if (engineering != entt::null) {
+    if (engineering != entt::null && IsScreenShipped(ScreenId::Engineering)) {
         tabs.push_back({ScreenId::Engineering, engineering});
     }
     const entt::entity manufacturing =
         firstByKind[static_cast<std::size_t>(FacilityKind::Manufacturing)];
-    if (manufacturing != entt::null) {
+    if (manufacturing != entt::null && IsScreenShipped(ScreenId::Manufacturing)) {
         tabs.push_back({ScreenId::Manufacturing, manufacturing});
     }
     const entt::entity research = firstByKind[static_cast<std::size_t>(FacilityKind::Research)];
-    if (research != entt::null) {
+    if (research != entt::null && IsScreenShipped(ScreenId::Research)) {
         tabs.push_back({ScreenId::Research, research});
     }
     return tabs;
