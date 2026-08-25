@@ -2,7 +2,10 @@
 
 #include <raylib.h>
 
+#include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstddef>
 #include <optional>
 #include <string>
 
@@ -20,9 +23,33 @@
 namespace sr::space::ui::bay_view {
 namespace {
 
-constexpr float kHeaderHeight = 44.0f;
+constexpr float kHeaderHeight = 54.0f;
 constexpr float kSiblingStripHeight = 28.0f;
-constexpr float kRosterHeight = 260.0f;
+constexpr float kRosterLabelHeight = 22.0f;
+constexpr float kRosterListHeight = 260.0f;
+constexpr float kSectionGap = 10.0f;
+
+// Reference: the "Bay" artboard on the Docking Screens Redesign canvas (issue #224) names sibling
+// bays ALPHA/BRAVO/... rather than the bare ordinal BayView drew before -- purely a display label,
+// the underlying index into `siblings` is still what SelectTab/TabStripHitTest key on.
+constexpr std::array<const char*, 10> kPhoneticNames = {
+    "ALPHA", "BRAVO", "CHARLIE", "DELTA", "ECHO", "FOXTROT", "GOLF", "HOTEL", "INDIA", "JULIET"};
+
+std::string BayLabel(std::size_t index) {
+    if (index < kPhoneticNames.size()) {
+        return std::string("BAY ") + kPhoneticNames[index];
+    }
+    return "BAY " + std::to_string(index + 1);
+}
+
+// features.md 3.9's status triad, the same three-stop thresholds BayView's gauge and RepairScreen's
+// gauge both already used -- pulled out so the header stat line and the (now gauge-free) integrity
+// readout agree on one rule.
+Color IntegrityStatusColor(float fraction) {
+    return fraction > 0.5f   ? sr::ui::kStatusGood
+           : fraction > 0.2f ? sr::ui::kStatusCaution
+                             : sr::ui::kStatusCritical;
+}
 
 // First two uppercased, alphanumeric characters of a BlueprintId -- the same "no per-shell art
 // exists yet" placeholder shape RefactorMenu.cpp's ShellGlyph uses.
@@ -77,21 +104,32 @@ struct Layout {
     Rectangle content{};
     Rectangle header{};
     Rectangle siblingStrip{};  // Zero height when there is only one bay.
-    Rectangle roster{};
+    Rectangle rosterPanel{};   // The bracket-bordered box wrapping rosterLabel + roster.
+    Rectangle rosterLabel{};   // "ROSTER -- BAY ALPHA" / slot count, inside rosterPanel.
+    Rectangle roster{};        // The ListView content rect -- what Update() hit-tests against.
 };
 
 // `content` is bridge_view::FrameContentRect() -- already inset by the router's one bezel, so this
-// lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+// lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect,
+// except for rosterPanel's own interior, which gets exactly one nested inset (the roster is the
+// one section framed as its own sub-panel, per issue #224's reference).
 Layout ComputeLayout(Rectangle content, bool showSiblingStrip) {
     Layout layout;
     layout.content = content;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
-    float y = content.y + kHeaderHeight;
+    float y = content.y + kHeaderHeight + kSectionGap;
     if (showSiblingStrip) {
         layout.siblingStrip = {content.x, y, content.width, kSiblingStripHeight};
-        y += kSiblingStripHeight;
+        y += kSiblingStripHeight + kSectionGap;
     }
-    layout.roster = {content.x, y, content.width, kRosterHeight};
+
+    const float panelHeight = kRosterLabelHeight + kRosterListHeight + sr::ui::kPanelPadding * 2.0f;
+    layout.rosterPanel = {content.x, y, content.width, panelHeight};
+    const Rectangle rosterContent = sr::ui::PanelContentRect(layout.rosterPanel);
+    layout.rosterLabel = {rosterContent.x, rosterContent.y, rosterContent.width,
+                          kRosterLabelHeight};
+    layout.roster = {rosterContent.x, rosterContent.y + kRosterLabelHeight, rosterContent.width,
+                     kRosterListHeight};
     return layout;
 }
 
@@ -237,8 +275,10 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     const bool showSiblingStrip = siblings.size() > 1;
     const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), showSiblingStrip);
 
-    // Header: bay name, occupancy, this bay hardpoint's integrity -- features.md 3.4's mandatory
-    // per-screen facility-health readout.
+    // Header: bay name (large, the screen's own identity) over one consolidated stat line --
+    // slots, occupancy, and this bay hardpoint's integrity (features.md 3.4's mandatory per-screen
+    // health readout) -- rather than a name/occupancy pair of lines plus a half-width gauge bar.
+    // Closer to issue #224's reference, which reads the three facts as one line under the title.
     std::string bayName = "BAY";
     if (const DisplayName* stationName = registry.try_get<DisplayName>(station)) {
         bayName = stationName->value;
@@ -252,34 +292,38 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     }
     const FacilityRef* facility = registry.try_get<FacilityRef>(thisBay);
     const int capacity = facility != nullptr ? facility->capacity : 0;
-    const std::string occupancy =
-        capacity == 0 ? (std::to_string(occupied) + " / UNLIMITED")
-                      : (std::to_string(occupied) + " / " + std::to_string(capacity));
-    DrawText(bayName.c_str(), static_cast<int>(layout.header.x), static_cast<int>(layout.header.y),
-             18, sr::ui::kValueBright);
-    DrawText(occupancy.c_str(), static_cast<int>(layout.header.x),
-             static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
+    const std::string slots =
+        capacity == 0 ? "UNLIMITED SLOTS" : (std::to_string(capacity) + " SLOTS");
 
     float integrityFraction = 1.0f;
     if (const Health* health = registry.try_get<Health>(thisBay);
         health != nullptr && health->max > 0.0f) {
         integrityFraction = health->current / health->max;
     }
-    const Rectangle gaugeBounds{layout.header.x + layout.header.width * 0.5f, layout.header.y,
-                                layout.header.width * 0.5f, 20.0f};
-    const Color gaugeColor = integrityFraction > 0.5f   ? sr::ui::kStatusGood
-                             : integrityFraction > 0.2f ? sr::ui::kStatusCaution
-                                                        : sr::ui::kStatusCritical;
-    sr::ui::DrawGauge(gaugeBounds, "BAY INTEGRITY", integrityFraction, gaugeColor);
+    const Color integrityColor = IntegrityStatusColor(integrityFraction);
+    const std::string integrityPct =
+        std::to_string(static_cast<int>(integrityFraction * 100.0f + 0.5f)) + "%";
+
+    DrawText(bayName.c_str(), static_cast<int>(layout.header.x), static_cast<int>(layout.header.y),
+             24, sr::ui::kValueBright);
+
+    const int statY = static_cast<int>(layout.header.y + 30.0f);
+    int statX = static_cast<int>(layout.header.x);
+    const std::string statPrefix =
+        slots + " | " + std::to_string(occupied) + " OCCUPIED | INTEGRITY ";
+    DrawText(statPrefix.c_str(), statX, statY, 14, sr::ui::kLabelDim);
+    statX += MeasureText(statPrefix.c_str(), 14);
+    DrawText(integrityPct.c_str(), statX, statY, 14, integrityColor);
 
     // Sibling selector: one TabStrip entry per living Docking hardpoint on the host, absent when
-    // there is only one bay.
+    // there is only one bay. Labelled phonetically (BAY ALPHA/BRAVO/...) to match the reference,
+    // rather than the bare ordinal this screen drew before.
     if (showSiblingStrip) {
         std::vector<std::string> labels;
         labels.reserve(siblings.size());
         int selected = -1;
         for (std::size_t i = 0; i < siblings.size(); ++i) {
-            labels.push_back("BAY " + std::to_string(i + 1));
+            labels.push_back(BayLabel(i));
             if (siblings[i] == thisBay) {
                 selected = static_cast<int>(i);
             }
@@ -287,8 +331,24 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
         sr::ui::DrawTabStrip(layout.siblingStrip, labels, selected);
     }
 
-    // Roster: view<Docked> filtered on docked.bay == thisBay. Your own vessel is a row like any
-    // other, marked via `value` ("LAUNCH" if you occupy it, "BOARD" if you own it and don't).
+    // Roster: view<Docked> filtered on docked.bay == thisBay, framed as its own bracket-bordered
+    // sub-panel (the reference's "ROSTER -- BAY ALPHA" box) with a label row naming the bay and
+    // its slot count. Your own vessel is a row like any other, marked via `value` ("LAUNCH" if you
+    // occupy it, "BOARD" if you own it and don't) -- unchanged from before, out of this issue's
+    // scope.
+    const auto siblingIt = std::find(siblings.begin(), siblings.end(), thisBay);
+    const std::size_t thisBayIndex =
+        siblingIt != siblings.end() ? static_cast<std::size_t>(siblingIt - siblings.begin()) : 0;
+    sr::ui::DrawBracketPanel(layout.rosterPanel, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f,
+                             2.0f);
+    const std::string rosterTitle = "ROSTER -- " + BayLabel(thisBayIndex);
+    DrawText(rosterTitle.c_str(), static_cast<int>(layout.rosterLabel.x),
+             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kValueBright);
+    const int slotsWidth = MeasureText(slots.c_str(), 14);
+    DrawText(slots.c_str(),
+             static_cast<int>(layout.rosterLabel.x + layout.rosterLabel.width - slotsWidth),
+             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kLabelDim);
+
     const std::vector<BayRosterEntry> roster =
         Roster(registry, thisBay, occupiedVessel, playerFaction);
     std::vector<sr::ui::Row> rows;
