@@ -36,6 +36,15 @@ struct ShellDef {
     std::string displayName;
     ShellKind kind = ShellKind::Armor;
 
+    // Empty for unfactioned/universal content -- ModuleDef.h's `faction` field carries the same
+    // meaning and the same "Codex is the only reader today" caveat.
+    FactionId faction;
+
+    // ModuleDef.h's `tier` field, mirrored here for the same reason: the Codex tags every
+    // ContentLibrary def uniformly (architecture.md 12.30.6), and a shell needs the same field a
+    // module has or the Codex's Shells section has nothing to tag rows with.
+    int tier = 1;
+
     // Hull of the hardpoint entity itself, before module bonuses. When this reaches zero the
     // hardpoint entity is destroyed and its capability is gone permanently
     // (features.md section 3.2) -- the engine shell dying is what stalls the ship.

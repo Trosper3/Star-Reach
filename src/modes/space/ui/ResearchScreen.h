@@ -27,6 +27,12 @@
 // ever routes to the first). The candidate list below reads CargoHold for "what do you actually
 // have to research" without withdrawing anything -- research here costs time and a slot, not the
 // item itself.
+//
+// The header's CODEX button (architecture.md 12.30.6's own Codex subsection) opens
+// modes/space/ui/CodexScreen.h -- a separate, ungated read-only browse of everything the
+// player's NetworkOwner already unlocks. This header owns hit-testing that one button; the panel
+// it opens is entirely CodexScreen's own file, the same one-button coupling direction
+// BridgeView's tabs have with the screens they route to.
 namespace sr::space::ui::research_screen {
 
 // One candidate row: a distinct ModuleId held somewhere in the requester's CargoHold. Pure -- no

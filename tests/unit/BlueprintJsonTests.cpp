@@ -8,6 +8,7 @@
 #include "core/registries/JsonReader.h"
 
 using sr::FacilityKind;
+using sr::FactionId;
 using sr::ModuleDef;
 using sr::core::JsonReader;
 using sr::core::LoadReport;
@@ -96,4 +97,37 @@ TEST_CASE("A facility module's authored grade is parsed and forwarded", "[bluepr
 
     CHECK(report.ok());
     CHECK(def.facility.grade == 4);
+}
+
+TEST_CASE("A module authoring no faction/tier defaults to unfactioned tier 1", "[blueprint-json]") {
+    const nlohmann::json node = {
+        {"id", "pulse_cannon_i"},
+        {"displayName", "Pulse Cannon I"},
+        {"kind", "weapon"},
+    };
+    LoadReport report;
+    const ModuleDef def = Parse(node, report);
+
+    CHECK(report.ok());
+    CHECK(def.faction == FactionId());
+    CHECK(def.tier == 1);
+}
+
+TEST_CASE(
+    "A module's authored faction/tier are parsed and forwarded, distinct from "
+    "FacilityStats::grade",
+    "[blueprint-json]") {
+    const nlohmann::json node = {
+        {"id", "pulse_cannon_ii"},
+        {"displayName", "Pulse Cannon II"},
+        {"kind", "weapon"},
+        {"faction", "aegis"},
+        {"tier", 3},
+    };
+    LoadReport report;
+    const ModuleDef def = Parse(node, report);
+
+    CHECK(report.ok());
+    CHECK(def.faction == FactionId("aegis"));
+    CHECK(def.tier == 3);
 }

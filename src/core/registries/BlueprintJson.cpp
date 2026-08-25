@@ -138,6 +138,12 @@ ModuleDef ParseModuleDef(const JsonReader& reader) {
     reader.Optional("powerDraw", def.powerDraw);
     reader.Optional("powerGeneration", def.powerGeneration);
     reader.Optional("hullBonus", def.hullBonus);
+
+    std::string faction;
+    reader.Optional("faction", faction);
+    def.faction = FactionId(faction);
+    reader.Optional("tier", def.tier);
+
     ParsePowerLevels(reader, def.powerLevels);
 
     ParseWeaponStats(reader, def.weapon);
@@ -160,6 +166,11 @@ ElementDef ParseElementDef(const JsonReader& reader) {
 
     reader.Require("displayName", def.displayName);
     reader.Optional("mass", def.mass);
+
+    std::string faction;
+    reader.Optional("faction", faction);
+    def.faction = FactionId(faction);
+    reader.Optional("tier", def.tier);
     return def;
 }
 
@@ -179,6 +190,11 @@ ShellDef ParseShellDef(const JsonReader& reader) {
     reader.Optional("radius", def.radius);
     reader.Optional("hullRadius", def.hullRadius);
     reader.Optional("spriteLayer", def.spriteLayer);
+
+    std::string faction;
+    reader.Optional("faction", faction);
+    def.faction = FactionId(faction);
+    reader.Optional("tier", def.tier);
 
     // Content may author an explicit 1-5 draw layer; when it doesn't, fall back to the
     // per-ShellKind default (features.md section 3.5) so a live ShellDef always carries a valid
