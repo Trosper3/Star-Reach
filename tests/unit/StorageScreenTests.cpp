@@ -25,7 +25,9 @@ using sr::space::ui::storage_screen::ActiveStation;
 using sr::space::ui::storage_screen::BuildDepositRequest;
 using sr::space::ui::storage_screen::BuildWithdrawRequest;
 using sr::space::ui::storage_screen::OwnedVesselAt;
+using sr::space::ui::storage_screen::ResolveSelectedHold;
 using sr::space::ui::storage_screen::Rows;
+using sr::space::ui::storage_screen::SiblingHolds;
 using sr::space::ui::storage_screen::StorageRow;
 
 namespace {
@@ -81,11 +83,12 @@ TEST_CASE("BuildDepositRequest carries the row's stack toward the station", "[st
     row.id = "Fe";
     row.quantity = 5;
 
-    const auto request = BuildDepositRequest(row);
+    const auto request = BuildDepositRequest(row, entt::null);
     CHECK(request.kind == ItemKind::Element);
     CHECK(request.id == "Fe");
     CHECK(request.quantity == 5);
     CHECK(request.toStation);
+    CHECK((request.targetHold == entt::null));
 }
 
 TEST_CASE("BuildWithdrawRequest carries the row's stack toward the vessel", "[storage-screen]") {
@@ -94,11 +97,89 @@ TEST_CASE("BuildWithdrawRequest carries the row's stack toward the vessel", "[st
     row.id = "pulse_cannon_i";
     row.quantity = 1;
 
-    const auto request = BuildWithdrawRequest(row);
+    const auto request = BuildWithdrawRequest(row, entt::null);
     CHECK(request.kind == ItemKind::Module);
     CHECK(request.id == "pulse_cannon_i");
     CHECK(request.quantity == 1);
     CHECK_FALSE(request.toStation);
+    CHECK((request.targetHold == entt::null));
+}
+
+TEST_CASE("BuildDepositRequest/BuildWithdrawRequest forward the chosen sibling hold",
+          "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity chosenHold = registry.create();
+    StorageRow row;
+    row.kind = ItemKind::Element;
+    row.id = "Fe";
+    row.quantity = 5;
+
+    CHECK(BuildDepositRequest(row, chosenHold).targetHold == chosenHold);
+    CHECK(BuildWithdrawRequest(row, chosenHold).targetHold == chosenHold);
+}
+
+TEST_CASE("SiblingHolds lists every living CargoHold hardpoint, skipping Destroyed ones",
+          "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity bayA = GiveCargoBay(registry, root, 4, 100.0f);
+    // GiveCargoBay overwrites Rig::children, so build the multi-bay rig by hand here.
+    const entt::entity bayB = registry.create();
+    registry.emplace<ParentRig>(bayB, root);
+    registry.emplace<CargoHold>(bayB, std::vector<ItemStack>{}, 4, 100.0f);
+    const entt::entity deadBay = registry.create();
+    registry.emplace<ParentRig>(deadBay, root);
+    registry.emplace<CargoHold>(deadBay, std::vector<ItemStack>{}, 4, 100.0f);
+    registry.emplace<sr::Destroyed>(deadBay);
+    registry.replace<Rig>(root, std::vector<entt::entity>{bayA, bayB, deadBay});
+
+    const auto siblings = SiblingHolds(registry, root);
+
+    REQUIRE(siblings.size() == 2);
+    CHECK(siblings[0] == bayA);
+    CHECK(siblings[1] == bayB);
+}
+
+TEST_CASE("SiblingHolds is empty for a rig with no CargoHold hardpoint", "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+
+    CHECK(SiblingHolds(registry, root).empty());
+}
+
+TEST_CASE("ResolveSelectedHold keeps the stored pick when it is still a living sibling",
+          "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity a = registry.create();
+    const entt::entity b = registry.create();
+
+    CHECK(ResolveSelectedHold({a, b}, b) == b);
+}
+
+TEST_CASE("ResolveSelectedHold falls back to the first sibling when nothing is stored yet",
+          "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity a = registry.create();
+    const entt::entity b = registry.create();
+
+    CHECK(ResolveSelectedHold({a, b}, entt::null) == a);
+}
+
+TEST_CASE(
+    "ResolveSelectedHold falls back to the first sibling once the stored pick dies or "
+    "moves out of view",
+    "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity a = registry.create();
+    const entt::entity b = registry.create();
+    const entt::entity destroyedElsewhere = registry.create();
+
+    CHECK(ResolveSelectedHold({a, b}, destroyedElsewhere) == a);
+}
+
+TEST_CASE("ResolveSelectedHold is null with no siblings at all", "[storage-screen]") {
+    CHECK((ResolveSelectedHold({}, entt::null) == entt::null));
 }
 
 TEST_CASE("ActiveStation resolves for an owned, CargoHold-carrying docked station",

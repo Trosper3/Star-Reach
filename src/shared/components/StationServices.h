@@ -64,6 +64,24 @@ struct TransferItemRequest {
     int quantity = 0;
     // true: vessel -> station (Deposit). false: station -> vessel (Withdraw).
     bool toStation = true;
+    // architecture.md 12.30.3's "Sibling holds" follow-on (P4-11): the destination-side
+    // CargoHold hardpoint the Storage screen's sibling selector chose. entt::null keeps the
+    // pre-P4-11 auto-routed (emptiest-bay-first) placement -- StationServicesSystem forwards
+    // this straight to cargo_view::Deposit's destination-choosing overload when set.
+    entt::entity targetHold = entt::null;
+};
+
+// The Storage screen's own chosen destination on each side -- architecture.md 12.30.3's "Sibling
+// holds" follow-on. Unlike EngineeringScreen's sibling selector, which repurposes PlayerLocation
+// because that screen is itself hardpoint-gated, Storage "is a companion panel" with no
+// hardpoint of its own for PlayerLocation to name (StorageScreen.h's own header comment) -- so
+// selection needs its own tiny singleton, the same FlightOverlayState precedent. entt::null on
+// either side means "nothing explicitly picked yet"; StorageScreen resolves that (and a
+// selection that died or moved out of view) to the first living sibling every frame.
+struct StorageScreenStateSingleton {};
+struct StorageScreenState {
+    entt::entity selectedVesselHold = entt::null;
+    entt::entity selectedStationHold = entt::null;
 };
 
 // architecture.md 12.10 also names MergeModuleRequest{ ModuleId a, b }, deliberately not defined

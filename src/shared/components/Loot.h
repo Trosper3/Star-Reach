@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <entt/entity/entity.hpp>
 #include <string>
 #include <vector>
 
@@ -86,6 +87,14 @@ struct ItemStack {
     std::string id;
     int quantity = 0;
     float unitMass = 0.0f;
+    // Which cargo-bay hardpoint this stack lives in -- entt::null while stored inside that bay's
+    // own CargoHold::stacks (the vector it sits in already says which bay, so storing it there
+    // too would be redundant state, Law 4). Only cargo_view::Merged sets this, stamping each
+    // flattened copy on its way out -- the one place bay identity would otherwise be lost
+    // (architecture.md 12.30.3's "Sibling holds": Merged deliberately never merges same-id
+    // stacks across bays "to not hide which bay a given unit actually lives in," but until this
+    // field existed the row it produced still could not say which bay that was).
+    entt::entity hardpoint = entt::null;
 };
 
 // One cargo bay's contents. Lives on the cargo-bay hardpoint that carries it (architecture.md

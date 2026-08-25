@@ -2,11 +2,13 @@
 
 #include <raylib.h>
 
+#include <algorithm>
 #include <optional>
 #include <string>
 
 #include "modes/space/ui/BridgeView.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
@@ -21,8 +23,35 @@ namespace {
 constexpr float kPanelWidth = 640.0f;
 constexpr float kPanelTop = 520.0f;  // Below BayView's panel -- both are visible while docked.
 constexpr float kHeaderHeight = 44.0f;
+constexpr float kSiblingStripHeight = 28.0f;
 constexpr float kListHeight = 220.0f;
 constexpr float kColumnGap = 12.0f;
+
+// System.h's "one legitimate cache" exception (Law 6) -- duplicated locally per screen file on
+// purpose, the same StorageMenu.cpp/EngineeringScreen.cpp precedent (architecture.md 12.30's
+// established rule: each of this batch's files stays independently buildable).
+entt::entity EnsureStateSingleton(entt::registry& registry) {
+    for (auto [entity] : registry.view<StorageScreenStateSingleton>().each()) {
+        return entity;
+    }
+    const entt::entity singleton = registry.create();
+    registry.emplace<StorageScreenStateSingleton>(singleton);
+    registry.emplace<StorageScreenState>(singleton);
+    return singleton;
+}
+
+entt::entity FindStateSingleton(const entt::registry& registry) {
+    for (auto [entity] : registry.view<StorageScreenStateSingleton>().each()) {
+        return entity;
+    }
+    return entt::null;
+}
+
+StorageScreenState ReadState(const entt::registry& registry) {
+    const entt::entity singleton = FindStateSingleton(registry);
+    return singleton == entt::null ? StorageScreenState{}
+                                   : registry.get<StorageScreenState>(singleton);
+}
 
 bool HasCargoHold(const entt::registry& registry, entt::entity station) {
     const Rig* rig = registry.try_get<Rig>(station);
@@ -39,22 +68,34 @@ bool HasCargoHold(const entt::registry& registry, entt::entity station) {
 
 struct Layout {
     Rectangle header{};
+    Rectangle leftStrip{};  // Zero height unless the vessel has more than one living hold.
     Rectangle left{};
+    Rectangle rightStrip{};  // Zero height unless the station has more than one living hold.
     Rectangle right{};
 };
 
-Rectangle PanelBounds() {
+Rectangle PanelBounds(bool showStripRow) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float height = kHeaderHeight + kListHeight + 2.0f * sr::ui::kPanelPadding;
+    const float height = kHeaderHeight + (showStripRow ? kSiblingStripHeight : 0.0f) + kListHeight +
+                         2.0f * sr::ui::kPanelPadding;
     return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
 }
 
-Layout ComputeLayout(Rectangle bounds) {
+// `showStripRow` reserves one shared strip row so both columns' lists stay vertically aligned --
+// a side without its own sibling strip (one hold, or none) simply leaves that half blank rather
+// than the two columns starting at different heights.
+Layout ComputeLayout(Rectangle bounds, bool showStripRow) {
     const Rectangle content = sr::ui::PanelContentRect(bounds);
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     const float columnWidth = (content.width - kColumnGap) * 0.5f;
-    const float y = content.y + kHeaderHeight;
+    float y = content.y + kHeaderHeight;
+    if (showStripRow) {
+        layout.leftStrip = {content.x, y, columnWidth, kSiblingStripHeight};
+        layout.rightStrip = {content.x + columnWidth + kColumnGap, y, columnWidth,
+                             kSiblingStripHeight};
+        y += kSiblingStripHeight;
+    }
     layout.left = {content.x, y, columnWidth, kListHeight};
     layout.right = {content.x + columnWidth + kColumnGap, y, columnWidth, kListHeight};
     return layout;
@@ -62,6 +103,37 @@ Layout ComputeLayout(Rectangle bounds) {
 
 std::string FormatMass(float mass) {
     return std::to_string(static_cast<int>(mass));
+}
+
+// "HOLD 2  74%" -- integrity folded into the label text (architecture.md 12.30.3's "each pill
+// showing that hold's own integrity"), since TabStrip draws label strings only and has no
+// per-tab colour channel of its own. Missing Health reads as full, the same default every other
+// screen's own integrity readout uses.
+std::string HoldPillLabel(const entt::registry& registry, entt::entity hold, std::size_t index) {
+    std::string label = "HOLD " + std::to_string(index + 1);
+    if (const Health* health = registry.try_get<Health>(hold);
+        health != nullptr && health->max > 0.0f) {
+        const int percent = static_cast<int>(100.0f * health->current / health->max);
+        label += "  " + std::to_string(percent) + "%";
+    }
+    return label;
+}
+
+void DrawSiblingStrip(const entt::registry& registry, Rectangle bounds,
+                      const std::vector<entt::entity>& holds, entt::entity selected) {
+    if (holds.size() <= 1) {
+        return;
+    }
+    std::vector<std::string> labels;
+    labels.reserve(holds.size());
+    int selectedIndex = -1;
+    for (std::size_t i = 0; i < holds.size(); ++i) {
+        labels.push_back(HoldPillLabel(registry, holds[i], i));
+        if (holds[i] == selected) {
+            selectedIndex = static_cast<int>(i);
+        }
+    }
+    sr::ui::DrawTabStrip(bounds, labels, selectedIndex);
 }
 
 }  // namespace
@@ -92,19 +164,44 @@ std::vector<StorageRow> Rows(const entt::registry& registry, entt::entity rigRoo
     return rows;
 }
 
-TransferItemRequest BuildDepositRequest(const StorageRow& row) {
+TransferItemRequest BuildDepositRequest(const StorageRow& row, entt::entity targetHold) {
     TransferItemRequest request;
     request.kind = row.kind;
     request.id = row.id;
     request.quantity = row.quantity;
     request.toStation = true;
+    request.targetHold = targetHold;
     return request;
 }
 
-TransferItemRequest BuildWithdrawRequest(const StorageRow& row) {
-    TransferItemRequest request = BuildDepositRequest(row);
+TransferItemRequest BuildWithdrawRequest(const StorageRow& row, entt::entity targetHold) {
+    TransferItemRequest request = BuildDepositRequest(row, targetHold);
     request.toStation = false;
     return request;
+}
+
+std::vector<entt::entity> SiblingHolds(const entt::registry& registry, entt::entity rigRoot) {
+    std::vector<entt::entity> holds;
+    const Rig* rig = registry.try_get<Rig>(rigRoot);
+    if (rig == nullptr) {
+        return holds;
+    }
+    for (const entt::entity child : rig->children) {
+        if (!registry.all_of<Destroyed>(child) && registry.all_of<CargoHold>(child)) {
+            holds.push_back(child);
+        }
+    }
+    return holds;
+}
+
+entt::entity ResolveSelectedHold(const std::vector<entt::entity>& siblings, entt::entity stored) {
+    if (siblings.empty()) {
+        return entt::null;
+    }
+    if (std::find(siblings.begin(), siblings.end(), stored) != siblings.end()) {
+        return stored;
+    }
+    return siblings.front();
 }
 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
@@ -145,7 +242,31 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         return;
     }
 
-    const Layout layout = ComputeLayout(PanelBounds());
+    const std::vector<entt::entity> vesselHolds = SiblingHolds(registry, vessel);
+    const std::vector<entt::entity> stationHolds = SiblingHolds(registry, station);
+    const bool showStripRow = vesselHolds.size() > 1 || stationHolds.size() > 1;
+    const Layout layout = ComputeLayout(PanelBounds(showStripRow), showStripRow);
+
+    StorageScreenState& state = registry.get<StorageScreenState>(EnsureStateSingleton(registry));
+    state.selectedVesselHold = ResolveSelectedHold(vesselHolds, state.selectedVesselHold);
+    state.selectedStationHold = ResolveSelectedHold(stationHolds, state.selectedStationHold);
+
+    if (vesselHolds.size() > 1) {
+        if (const std::optional<int> hit = sr::ui::TabStripHitTest(
+                layout.leftStrip, static_cast<int>(vesselHolds.size()), input.cursor);
+            hit.has_value()) {
+            state.selectedVesselHold = vesselHolds[static_cast<std::size_t>(*hit)];
+            return;
+        }
+    }
+    if (stationHolds.size() > 1) {
+        if (const std::optional<int> hit = sr::ui::TabStripHitTest(
+                layout.rightStrip, static_cast<int>(stationHolds.size()), input.cursor);
+            hit.has_value()) {
+            state.selectedStationHold = stationHolds[static_cast<std::size_t>(*hit)];
+            return;
+        }
+    }
 
     const std::vector<StorageRow> yours = Rows(registry, vessel, station);
     if (const std::optional<int> hit =
@@ -153,7 +274,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         hit.has_value() && *hit < static_cast<int>(yours.size())) {
         const StorageRow& row = yours[static_cast<std::size_t>(*hit)];
         if (row.fits) {
-            registry.emplace_or_replace<TransferItemRequest>(vessel, BuildDepositRequest(row));
+            registry.emplace_or_replace<TransferItemRequest>(
+                vessel, BuildDepositRequest(row, state.selectedStationHold));
         }
         return;
     }
@@ -164,7 +286,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         hit.has_value() && *hit < static_cast<int>(theirs.size())) {
         const StorageRow& row = theirs[static_cast<std::size_t>(*hit)];
         if (row.fits) {
-            registry.emplace_or_replace<TransferItemRequest>(vessel, BuildWithdrawRequest(row));
+            registry.emplace_or_replace<TransferItemRequest>(
+                vessel, BuildWithdrawRequest(row, state.selectedVesselHold));
         }
     }
 }
@@ -179,8 +302,22 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
         return;  // No owned hull docked here yet to trade with.
     }
 
-    const Layout layout = ComputeLayout(PanelBounds());
-    sr::ui::DrawPanelFrame(PanelBounds());
+    const std::vector<entt::entity> vesselHolds = SiblingHolds(registry, vessel);
+    const std::vector<entt::entity> stationHolds = SiblingHolds(registry, station);
+    const bool showStripRow = vesselHolds.size() > 1 || stationHolds.size() > 1;
+    const StorageScreenState state = ReadState(registry);
+    const entt::entity selectedVesselHold =
+        ResolveSelectedHold(vesselHolds, state.selectedVesselHold);
+    const entt::entity selectedStationHold =
+        ResolveSelectedHold(stationHolds, state.selectedStationHold);
+
+    const Layout layout = ComputeLayout(PanelBounds(showStripRow), showStripRow);
+    sr::ui::DrawPanelFrame(PanelBounds(showStripRow));
+
+    if (showStripRow) {
+        DrawSiblingStrip(registry, layout.leftStrip, vesselHolds, selectedVesselHold);
+        DrawSiblingStrip(registry, layout.rightStrip, stationHolds, selectedStationHold);
+    }
 
     std::string stationName = "STATION";
     if (const DisplayName* name = registry.try_get<DisplayName>(station)) {

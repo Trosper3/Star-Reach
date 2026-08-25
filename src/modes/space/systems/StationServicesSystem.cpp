@@ -132,8 +132,11 @@ void ProcessTransferRequests(entt::registry& registry) {
         }
 
         const ItemStack stack{request.kind, request.id, request.quantity, unitMass};
-        if (cargo_view::Deposit(registry, destination, stack) !=
-            cargo_view::DepositResult::Deposited) {
+        const cargo_view::DepositResult depositResult =
+            request.targetHold != entt::null
+                ? cargo_view::Deposit(registry, destination, request.targetHold, stack)
+                : cargo_view::Deposit(registry, destination, stack);
+        if (depositResult != cargo_view::DepositResult::Deposited) {
             // The destination has no room -- undo the withdrawal rather than lose the stack.
             // architecture.md 12.30.3: "every transfer checks the destination and is refused
             // whole, never partially applied."
