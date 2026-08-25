@@ -87,8 +87,10 @@ void Update(entt::registry& registry, const FactionId& playerFaction);
 // Draws the Storage screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
 // drew the one bezel around the whole window, so this does not draw its own): header (station
 // name, both holds' mass used/capacity), each side's sibling strip when it has more than one
-// living hold, your hold on the left, the station's on the right. No-op unless
-// bridge_view::IsStorageSelected and ActiveStation both resolve.
+// living hold, then your hold and the station's each framed as their own bracket-bordered panel
+// (issue #225's visual-chrome pass) -- a label naming the selected hold and its owner, a
+// deposit/withdraw hint, and the ListView itself. No-op unless bridge_view::IsStorageSelected and
+// ActiveStation both resolve.
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::storage_screen

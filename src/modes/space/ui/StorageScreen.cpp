@@ -3,6 +3,7 @@
 #include <raylib.h>
 
 #include <algorithm>
+#include <cctype>
 #include <optional>
 #include <string>
 
@@ -20,10 +21,12 @@
 namespace sr::space::ui::storage_screen {
 namespace {
 
-constexpr float kHeaderHeight = 44.0f;
+constexpr float kHeaderHeight = 54.0f;
 constexpr float kSiblingStripHeight = 28.0f;
+constexpr float kListLabelHeight = 22.0f;
 constexpr float kListHeight = 220.0f;
 constexpr float kColumnGap = 12.0f;
+constexpr float kSectionGap = 10.0f;
 
 // System.h's "one legitimate cache" exception (Law 6) -- duplicated locally per screen file on
 // purpose, the same StorageMenu.cpp/EngineeringScreen.cpp precedent (architecture.md 12.30's
@@ -67,8 +70,13 @@ bool HasCargoHold(const entt::registry& registry, entt::entity station) {
 struct Layout {
     Rectangle header{};
     Rectangle leftStrip{};  // Zero height unless the vessel has more than one living hold.
-    Rectangle left{};
+    Rectangle leftPanel{};  // The bracket-bordered box wrapping leftLabel + left.
+    Rectangle
+        leftLabel{};   // "YOUR HOLD -- VANGUARD" / "Click a row to deposit ->", inside leftPanel.
+    Rectangle left{};  // The ListView content rect -- what Update() hit-tests against.
     Rectangle rightStrip{};  // Zero height unless the station has more than one living hold.
+    Rectangle rightPanel{};
+    Rectangle rightLabel{};
     Rectangle right{};
 };
 
@@ -76,25 +84,68 @@ struct Layout {
 // a side without its own sibling strip (one hold, or none) simply leaves that half blank rather
 // than the two columns starting at different heights. `content` is
 // bridge_view::FrameContentRect() -- already inset by the router's one bezel, so this lays
-// sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+// sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect, except
+// for each panel's own interior, which gets exactly one nested inset (each hold is framed as its
+// own sub-panel, per issue #225's reference).
 Layout ComputeLayout(Rectangle content, bool showStripRow) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     const float columnWidth = (content.width - kColumnGap) * 0.5f;
-    float y = content.y + kHeaderHeight;
+    float y = content.y + kHeaderHeight + kSectionGap;
     if (showStripRow) {
         layout.leftStrip = {content.x, y, columnWidth, kSiblingStripHeight};
         layout.rightStrip = {content.x + columnWidth + kColumnGap, y, columnWidth,
                              kSiblingStripHeight};
-        y += kSiblingStripHeight;
+        y += kSiblingStripHeight + kSectionGap;
     }
-    layout.left = {content.x, y, columnWidth, kListHeight};
-    layout.right = {content.x + columnWidth + kColumnGap, y, columnWidth, kListHeight};
+
+    const float panelHeight = kListLabelHeight + kListHeight + sr::ui::kPanelPadding * 2.0f;
+    layout.leftPanel = {content.x, y, columnWidth, panelHeight};
+    layout.rightPanel = {content.x + columnWidth + kColumnGap, y, columnWidth, panelHeight};
+    const Rectangle leftContent = sr::ui::PanelContentRect(layout.leftPanel);
+    layout.leftLabel = {leftContent.x, leftContent.y, leftContent.width, kListLabelHeight};
+    layout.left = {leftContent.x, leftContent.y + kListLabelHeight, leftContent.width, kListHeight};
+    const Rectangle rightContent = sr::ui::PanelContentRect(layout.rightPanel);
+    layout.rightLabel = {rightContent.x, rightContent.y, rightContent.width, kListLabelHeight};
+    layout.right = {rightContent.x, rightContent.y + kListLabelHeight, rightContent.width,
+                    kListHeight};
     return layout;
 }
 
 std::string FormatMass(float mass) {
     return std::to_string(static_cast<int>(mass));
+}
+
+// First two uppercase alphanumeric characters of a stack's id -- the same "no per-item art exists
+// yet" placeholder shape BayView.cpp's BlueprintGlyph / RepairScreen.cpp's ShellGlyph use.
+void ItemGlyph(const std::string& id, char (&out)[3]) {
+    out[0] = '\0';
+    out[1] = '\0';
+    out[2] = '\0';
+    int written = 0;
+    for (const char c : id) {
+        if (!std::isalnum(static_cast<unsigned char>(c))) {
+            continue;
+        }
+        out[written] = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        ++written;
+        if (written == 2) {
+            break;
+        }
+    }
+}
+
+// "YOUR HOLD" / "STATION HOLD" when that side has exactly one living hold, else the selected
+// hold's own ordinal ("HOLD 2") -- mirrors HoldPillLabel's numbering without repeating the
+// percentage the sibling strip above already shows.
+std::string PanelTitle(const std::string& genericLabel, const std::vector<entt::entity>& holds,
+                       entt::entity selected) {
+    if (holds.size() <= 1) {
+        return genericLabel;
+    }
+    const auto it = std::find(holds.begin(), holds.end(), selected);
+    const std::size_t index = it != holds.end() ? static_cast<std::size_t>(it - holds.begin()) : 0;
+    return "HOLD " + std::to_string(index + 1);
 }
 
 // "HOLD 2  74%" -- integrity folded into the label text (architecture.md 12.30.3's "each pill
@@ -128,6 +179,44 @@ void DrawSiblingStrip(const entt::registry& registry, Rectangle bounds,
     sr::ui::DrawTabStrip(bounds, labels, selectedIndex);
 }
 
+// architecture.md 2.2's function-length cap -- split out of Draw() below, one section each.
+
+// Station name (large, the screen's own identity) over one consolidated stat line -- both holds'
+// mass used/capacity -- rather than a name/occupancy pair of lines with no unit. Closer to issue
+// #225's reference, which reads both figures as one line under the title.
+void DrawHeader(Rectangle header, const std::string& stationName, float vesselUsed,
+                float vesselCapacity, float stationUsed, float stationCapacity) {
+    DrawText(stationName.c_str(), static_cast<int>(header.x), static_cast<int>(header.y), 24,
+             sr::ui::kValueBright);
+
+    int x = static_cast<int>(header.x);
+    const int y = static_cast<int>(header.y + 30.0f);
+    auto DrawStat = [&](const std::string& label, float used, float capacity) {
+        DrawText(label.c_str(), x, y, 14, sr::ui::kLabelDim);
+        x += MeasureText(label.c_str(), 14);
+        const std::string value = FormatMass(used) + "/" + FormatMass(capacity) + " KG";
+        DrawText(value.c_str(), x, y, 14, sr::ui::kValueBright);
+        x += MeasureText(value.c_str(), 14);
+    };
+    DrawStat("YOUR HOLD ", vesselUsed, vesselCapacity);
+    DrawText("    ", x, y, 14, sr::ui::kLabelDim);
+    x += MeasureText("    ", 14);
+    DrawStat("STATION HOLD ", stationUsed, stationCapacity);
+}
+
+// The reference's "YOUR HOLD -- VANGUARD" / "Click a row to deposit ->" box: a bracket panel plus
+// a label row naming this side's selected hold and its owner, and a right-aligned hint for which
+// way a click sends a stack. Drawn around (but not including) the ListView itself.
+void DrawSidePanel(Rectangle panel, Rectangle label, const std::string& title,
+                   const std::string& hint) {
+    sr::ui::DrawBracketPanel(panel, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
+    DrawText(title.c_str(), static_cast<int>(label.x), static_cast<int>(label.y), 14,
+             sr::ui::kValueBright);
+    const int hintWidth = MeasureText(hint.c_str(), 14);
+    DrawText(hint.c_str(), static_cast<int>(label.x + label.width - hintWidth),
+             static_cast<int>(label.y), 14, sr::ui::kLabelDim);
+}
+
 }  // namespace
 
 std::vector<StorageRow> Rows(const entt::registry& registry, entt::entity rigRoot,
@@ -146,6 +235,7 @@ std::vector<StorageRow> Rows(const entt::registry& registry, entt::entity rigRoo
         entry.fits = destRoom >= static_cast<float>(stack.quantity) * stack.unitMass;
 
         entry.row.label = stack.id;
+        ItemGlyph(stack.id, entry.row.glyph);
         entry.row.value = std::to_string(stack.quantity);
         entry.row.style.disabled = !entry.fits;
         if (!entry.fits) {
@@ -316,25 +406,30 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
 
     const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), showStripRow);
 
+    std::string stationName = "STORAGE";
+    if (const DisplayName* name = registry.try_get<DisplayName>(station)) {
+        stationName = name->value;
+    }
+    std::string vesselName = "VESSEL";
+    if (const DisplayName* name = registry.try_get<DisplayName>(vessel)) {
+        vesselName = name->value;
+    }
+    DrawHeader(layout.header, stationName, cargo_view::TotalMass(registry, vessel),
+               cargo_view::Capacity(registry, vessel), cargo_view::TotalMass(registry, station),
+               cargo_view::Capacity(registry, station));
+
     if (showStripRow) {
         DrawSiblingStrip(registry, layout.leftStrip, vesselHolds, selectedVesselHold);
         DrawSiblingStrip(registry, layout.rightStrip, stationHolds, selectedStationHold);
     }
 
-    std::string stationName = "STATION";
-    if (const DisplayName* name = registry.try_get<DisplayName>(station)) {
-        stationName = name->value;
-    }
-    DrawText(stationName.c_str(), static_cast<int>(layout.header.x),
-             static_cast<int>(layout.header.y), 18, sr::ui::kValueBright);
-
-    const std::string subtitle =
-        "YOUR HOLD " + FormatMass(cargo_view::TotalMass(registry, vessel)) + "/" +
-        FormatMass(cargo_view::Capacity(registry, vessel)) + "    STATION HOLD " +
-        FormatMass(cargo_view::TotalMass(registry, station)) + "/" +
-        FormatMass(cargo_view::Capacity(registry, station));
-    DrawText(subtitle.c_str(), static_cast<int>(layout.header.x),
-             static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
+    DrawSidePanel(layout.leftPanel, layout.leftLabel,
+                  PanelTitle("YOUR HOLD", vesselHolds, selectedVesselHold) + " -- " + vesselName,
+                  "Click a row to deposit ->");
+    DrawSidePanel(
+        layout.rightPanel, layout.rightLabel,
+        PanelTitle("STATION HOLD", stationHolds, selectedStationHold) + " -- " + stationName,
+        "<- Click a row to withdraw");
 
     const std::vector<StorageRow> yours = Rows(registry, vessel, station);
     std::vector<sr::ui::Row> yourRows;
