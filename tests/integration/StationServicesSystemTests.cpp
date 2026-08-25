@@ -665,6 +665,36 @@ TEST_CASE("Withdraw moves a stack from the station's cargo to the requester's",
     CHECK(requesterCargo.front().quantity == 5);
 }
 
+TEST_CASE("Deposit with a targetHold set lands there, not the auto-picked emptiest bay",
+          "[station-services][integration][transfer]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = registry.create();
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    const entt::entity bayEmpty = GiveCargoBay(registry, station);
+    const entt::entity bayChosen = registry.create();
+    registry.emplace<ParentRig>(bayChosen, station);
+    registry.emplace<CargoHold>(bayChosen, std::vector<ItemStack>{}, 10, 1000.0f);
+    registry.replace<Rig>(station, std::vector<entt::entity>{bayEmpty, bayChosen});
+
+    const entt::entity requester = registry.create();
+    registry.emplace<Docked>(requester, station, entt::null);
+    registry.emplace<FactionRef>(requester, FactionId("aegis"));
+    GiveCargoBay(registry, requester);
+    cargo_view::Deposit(registry, requester, ItemStack{ItemKind::Element, "Fe", 5, 2.0f});
+    registry.emplace<TransferItemRequest>(
+        requester, TransferItemRequest{ItemKind::Element, "Fe", 5, /*toStation=*/true, bayChosen});
+
+    station_services_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<CargoHold>(bayEmpty).stacks.empty());  // The auto-pick was never reached.
+    REQUIRE(registry.get<CargoHold>(bayChosen).stacks.size() == 1);
+    CHECK(registry.get<CargoHold>(bayChosen).stacks.front().id == "Fe");
+}
+
 TEST_CASE("Transfer refuses across different owners and moves nothing",
           "[station-services][integration][transfer]") {
     const ContentLibrary content = Content();

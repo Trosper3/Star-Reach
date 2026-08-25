@@ -44,8 +44,23 @@ struct StorageRow {
 std::vector<StorageRow> Rows(const entt::registry& registry, entt::entity rigRoot,
                              entt::entity destination);
 
-TransferItemRequest BuildDepositRequest(const StorageRow& row);
-TransferItemRequest BuildWithdrawRequest(const StorageRow& row);
+// `targetHold` names the destination-side CargoHold hardpoint the sibling selector has chosen
+// (entt::entity, may be entt::null to keep the pre-P4-11 auto-routed placement) -- forwarded
+// verbatim onto TransferItemRequest::targetHold for StationServicesSystem to act on.
+TransferItemRequest BuildDepositRequest(const StorageRow& row, entt::entity targetHold);
+TransferItemRequest BuildWithdrawRequest(const StorageRow& row, entt::entity targetHold);
+
+// Every living CargoHold hardpoint under `rigRoot`'s Rig, in Rig::children order -- the sibling
+// selector's pill list for one side of this screen (architecture.md 12.30.3's "Sibling holds"
+// follow-on, generalising §12.30.2's TabStrip pattern: "the sibling selector generalises to
+// every tab; Docking is simply where it was noticed first"). Mirrors EngineeringScreen.h's
+// SiblingBenches / BayView.h's SiblingBays with a CargoHold gate in place of a FacilityKind.
+std::vector<entt::entity> SiblingHolds(const entt::registry& registry, entt::entity rigRoot);
+
+// `stored` when it is still one of `siblings`; otherwise `siblings.front()` -- the default pick
+// when nothing has been explicitly clicked yet, or the previous pick died or moved out of view.
+// entt::null if `siblings` is empty. Pure -- the fallback rule Update/Draw share.
+entt::entity ResolveSelectedHold(const std::vector<entt::entity>& siblings, entt::entity stored);
 
 // The station carrying a CargoHold that Deposit/Withdraw currently apply to: DockedStation's
 // result, gated on a living CargoHold-carrying child and FactionRef == playerFaction
@@ -60,13 +75,16 @@ entt::entity ActiveStation(const entt::registry& registry, const FactionId& play
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
                            const FactionId& playerFaction);
 
-// Reads this frame's input and, while ActiveStation resolves, hit-tests both ListViews -- a click
-// on a row performs a whole-stack transfer in that row's direction. No-op otherwise, or with no
-// owned vessel currently docked there (OwnedVesselAt).
+// Reads this frame's input and, while ActiveStation resolves, hit-tests each side's sibling strip
+// (a click there just changes that side's chosen destination hold) and both ListViews -- a click
+// on a row performs a whole-stack transfer in that row's direction, into whichever hold the
+// OTHER side's strip currently has selected. No-op otherwise, or with no owned vessel currently
+// docked there (OwnedVesselAt).
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
-// Draws the Storage screen: header (station name, both holds' mass used/capacity), your hold on
-// the left, the station's on the right. No-op unless ActiveStation resolves.
+// Draws the Storage screen: header (station name, both holds' mass used/capacity), each side's
+// sibling strip when it has more than one living hold, your hold on the left, the station's on
+// the right. No-op unless ActiveStation resolves.
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::storage_screen

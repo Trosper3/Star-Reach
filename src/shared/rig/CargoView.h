@@ -45,6 +45,18 @@ enum class DepositResult : std::uint8_t { Deposited, HoldFull, NoFreeSlot };
 // never Rig::children order), splitting across slots and bays as needed.
 DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, const ItemStack& stack);
 
+// The destination-choosing overload (architecture.md 12.30.3's "Sibling holds" follow-on,
+// P4-11): places into `targetHold` alone -- never falling back to another living bay of
+// `rigRoot`, which is the whole point of a chosen destination rather than an auto-routed one.
+// Whole or nothing, same as the auto-routed overload above, restricted to one bay's own room:
+// tops up a matching stack there first, then free slots there, splitting across `targetHold`'s
+// own slots as needed but never spilling into a sibling bay. NoFreeSlot if `targetHold` is not
+// presently one of `rigRoot`'s living CargoHold hardpoints (destroyed or already gone). The
+// auto-routed overload stays the default for every caller but the Storage screen, which is the
+// one place a player picks a specific hold.
+DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, entt::entity targetHold,
+                      const ItemStack& stack);
+
 // The other half of the one write path. Draws `quantity` of (kind, id) from rigRoot's living
 // bays, fullest matching slot first, so bays drift back toward even and empty slots reappear for
 // new item types. Whole or nothing: refuses and writes nothing if the rig does not hold at least
@@ -54,7 +66,8 @@ bool Withdraw(entt::registry& registry, entt::entity rigRoot, ItemKind kind, con
 
 // Every living bay's stacks, concatenated, for display (StorageMenu) -- deliberately NOT merged
 // across bays: collapsing two same-id stacks from different bays into one row would hide which
-// bay (and therefore which mass, on bay loss) a given unit actually lives in.
+// bay (and therefore which mass, on bay loss) a given unit actually lives in. Each returned copy
+// carries ItemStack::hardpoint set to the bay it came from, so a caller can name it.
 std::vector<ItemStack> Merged(const entt::registry& registry, entt::entity rigRoot);
 
 }  // namespace sr::cargo_view

@@ -179,6 +179,39 @@ DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, const Item
     return DepositResult::Deposited;
 }
 
+DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, entt::entity targetHold,
+                      const ItemStack& stack) {
+    if (stack.quantity <= 0) {
+        return DepositResult::Deposited;
+    }
+
+    const std::vector<entt::entity> living = LivingBays(registry, rigRoot);
+    if (std::find(living.begin(), living.end(), targetHold) == living.end()) {
+        return DepositResult::NoFreeSlot;  // Not a living hold of this rig -- nothing to target.
+    }
+    const std::vector<entt::entity> bays{targetHold};
+
+    int remaining = stack.quantity;
+    std::vector<TopUp> topUps;
+    std::vector<NewSlot> newSlots;
+    const bool sawMatchingStack = TopUpMatchingStacks(registry, bays, stack, remaining, topUps);
+    const bool sawFreeSlot = FillFreeSlots(registry, bays, stack, remaining, newSlots);
+
+    if (remaining > 0) {
+        return sawFreeSlot || sawMatchingStack ? DepositResult::HoldFull
+                                               : DepositResult::NoFreeSlot;
+    }
+
+    for (const TopUp& t : topUps) {
+        registry.get<CargoHold>(t.hardpoint).stacks[t.index].quantity += t.amount;
+    }
+    for (const NewSlot& n : newSlots) {
+        registry.get<CargoHold>(n.hardpoint)
+            .stacks.push_back(ItemStack{stack.kind, stack.id, n.amount, stack.unitMass});
+    }
+    return DepositResult::Deposited;
+}
+
 bool Withdraw(entt::registry& registry, entt::entity rigRoot, ItemKind kind, const std::string& id,
               int quantity) {
     if (quantity <= 0) {
@@ -237,8 +270,10 @@ bool Withdraw(entt::registry& registry, entt::entity rigRoot, ItemKind kind, con
 std::vector<ItemStack> Merged(const entt::registry& registry, entt::entity rigRoot) {
     std::vector<ItemStack> out;
     for (const entt::entity hardpoint : LivingBays(registry, rigRoot)) {
-        const std::vector<ItemStack>& stacks = registry.get<CargoHold>(hardpoint).stacks;
-        out.insert(out.end(), stacks.begin(), stacks.end());
+        for (ItemStack stack : registry.get<CargoHold>(hardpoint).stacks) {
+            stack.hardpoint = hardpoint;
+            out.push_back(stack);
+        }
     }
     return out;
 }
