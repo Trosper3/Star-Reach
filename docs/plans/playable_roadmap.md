@@ -2805,7 +2805,7 @@ reads.
 | P2-04 | Structural integrity and honest hit resolution | #169 |  |
 | P2-05 | Object scale, `hullRadius` and draw layers | #170 |  |
 | P2-06 | The crew shell | #171 |  |
-| P2-12 | Directional jamming — an Ion sub-role | #256 |  |
+| P2-12 | Directional ECM — click-and-hold jamming | #256 |  |
 | P2-07 | Capture — boarding in place | #172 |  |
 | P2-08 | Power allocation — the half the player commands | #173 |  |
 | P2-10 | The opposition state machine | #174 | ✅ |
