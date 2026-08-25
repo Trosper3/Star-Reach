@@ -60,8 +60,10 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
 // PlayerControlled follows next tick (modes/space/systems/PlayerLocationSystem.h).
 void Board(entt::registry& registry, entt::entity vessel);
 
-// Writes UndockRequest on `vessel` -- AvionicsMenu's existing DockingSystem-consumed path,
-// unchanged.
+// Boards `vessel` (Board above) and writes UndockRequest on it -- the click-path equivalent of
+// AvionicsMenu's "R = board and launch" shortcut. Boarding first matters: while the player is
+// standing on the bay hardpoint rather than aboard `vessel`, PlayerLocation would otherwise be
+// left on the hardpoint after DockingSystem clears Docked (#207's meso-loop trace).
 void Launch(entt::registry& registry, entt::entity vessel);
 
 // Reads this frame's input and, while PlayerLocation names a living Docking-kind facility
