@@ -18,8 +18,12 @@ using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
 using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::Rig;
+using sr::UndockRequest;
 using sr::space::ui::bay_view::BayRosterEntry;
+using sr::space::ui::bay_view::Board;
+using sr::space::ui::bay_view::Launch;
 using sr::space::ui::bay_view::OwnedVesselAt;
 using sr::space::ui::bay_view::Roster;
 using sr::space::ui::bay_view::SiblingBays;
@@ -167,6 +171,39 @@ TEST_CASE("OwnedVesselAt returns null with no owned vessel docked at the station
     MakeDockedVessel(registry, station, bay, "kore");
 
     CHECK((OwnedVesselAt(registry, station, FactionId("aegis")) == entt::null));
+}
+
+TEST_CASE("Board moves PlayerLocation off the bay hardpoint and onto the vessel", "[bay-view]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity bay = MakeBay(registry, station);
+    const entt::entity vessel = MakeDockedVessel(registry, station, bay, "aegis");
+    registry.emplace<PlayerLocation>(bay, PlayerLocation{bay});  // Standing on the bay hardpoint.
+
+    Board(registry, vessel);
+
+    CHECK_FALSE(registry.all_of<PlayerLocation>(bay));
+    REQUIRE(registry.all_of<PlayerLocation>(vessel));
+    CHECK(registry.get<PlayerLocation>(vessel).shell == vessel);
+}
+
+TEST_CASE("Launch boards the vessel before requesting undock, not just the undock alone",
+          "[bay-view]") {
+    // #207's meso-loop trace: clicking LAUNCH used to fire UndockRequest without boarding first,
+    // leaving PlayerLocation stranded on the bay hardpoint with nobody piloting the departing
+    // vessel -- the same "board and launch" pairing AvionicsMenu's R-key shortcut already does.
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity bay = MakeBay(registry, station);
+    const entt::entity vessel = MakeDockedVessel(registry, station, bay, "aegis");
+    registry.emplace<PlayerLocation>(bay, PlayerLocation{bay});
+
+    Launch(registry, vessel);
+
+    CHECK_FALSE(registry.all_of<PlayerLocation>(bay));
+    REQUIRE(registry.all_of<PlayerLocation>(vessel));
+    CHECK(registry.get<PlayerLocation>(vessel).shell == vessel);
+    CHECK(registry.all_of<UndockRequest>(vessel));
 }
 
 TEST_CASE("OwnedVesselAt ignores an owned vessel docked at a different station", "[bay-view]") {

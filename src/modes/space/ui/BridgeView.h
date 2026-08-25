@@ -18,9 +18,10 @@
 // direct, live function of which FacilityRef hardpoints the docked station has and has not lost
 // (shared/components/Facility.h, wired in RigFactory.cpp's AttachModule), plus a Storage tab
 // keyed on the host simply carrying a CargoHold (architecture.md 12.30.3 -- no facility
-// hardpoint at all). No tab has any screen CONTENT behind it yet -- each is its own future issue
-// (architecture.md 12.30.2-.8); this is the tab list, selection, and the PlayerLocation write
-// selecting one performs.
+// hardpoint at all). Five of the seven tabs (Bay, Storage, Repair, Engineering, Research) now
+// have shipped screen content behind them (architecture.md 12.30.2-.8); Market and Manufacturing
+// are still gated off by IsScreenShipped in BridgeView.cpp. This file itself is the tab list,
+// selection, and the PlayerLocation write selecting one performs.
 namespace sr::space::ui::bridge_view {
 
 // One entry in the router's tab strip. Every screen but Storage is exactly one FacilityKind

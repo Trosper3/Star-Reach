@@ -1358,11 +1358,35 @@ system on the following tick.
 
 ---
 
-### P4-09 · M3 verification pass 🔗
+### P4-09 · M3 verification pass ✅ **done 2026-08-25**
 **Depends on:** P4-01 … P4-08 — **Label:** `chore`
 
 Play the meso loop: dock → repair → engineer → research → draft → store → refit → launch. File what
 it finds.
+
+**Audited 2026-08-25 (#207) as a static code trace, not an in-game playthrough** — per this repo's
+own convention, Claude does not drive the GUI; the user verifies in-game. Findings:
+
+- 🐛 **Fixed: launching your own vessel from the Bay screen's roster soft-locked flight control.**
+  `BayView`'s `Launch()` fired `UndockRequest` alone, never moving `PlayerLocation` onto the vessel
+  first — the vessel undocked with nobody piloting it, and the player was left controlling the
+  station with no way back aboard. `AvionicsMenu`'s `R`-key shortcut already did this correctly
+  (board, then undock); `Launch()` now matches it. Full writeup and two new regression tests
+  (`BayViewTests.cpp`) at §12.30.2. **This was the loop's one severe break**, and it sat at exactly
+  the step this task's own name calls out ("launch").
+- ✅ Reconfirmed fixed (already landed, doc was stale): refit's `MountTraverse`/`RecomputeRigTotals`
+  wiring (§13.3 D) and Repair's three `ProcessRepairRequests` defects (§12.30.4) — both corrected in
+  the doc to stop reading as open bugs.
+- 📋 Reconfirmed still true, already tracked: Draft has no screen yet (`IsScreenShipped` gates
+  `ScreenId::Manufacturing` off, per P6-03/P6-06's own scheduling) — the loop as stated cannot be
+  walked end-to-end until Draft ships. Research's sample-cost/survival-roll mechanic is still entirely
+  unbuilt, matching §12.30.6's own 📋 flag.
+- 🐛 Minor, not fixed here: Repair's destroyed-row label ships as `"REBUILD (P4-05)"`, a leftover
+  issue-number placeholder rather than the `"DESTROYED — REBUILD AT ENGINEERING"` copy §12.30.7
+  already specifies for the same pattern — cosmetic, left for #226.
+- Engineering's rig-edit → Repair/refit consistency, Research → Storage/Manufacturing handoff,
+  Storage's sibling-hold deposit/withdraw, and the Bay-screen Launch fix downstream through
+  `DockingSystem` all traced clean.
 
 ---
 
@@ -2826,7 +2850,7 @@ reads.
 | P4-06 | Screen 6 — Research, and its five missing producers | #204 |  |
 | P4-07 | Screen 5 — Manufacturing, Draft half | #205 |  |
 | P4-08 | The two flight overlays | #206 |  |
-| P4-09 | M3 verification pass | #207 |  |
+| P4-09 | M3 verification pass | #207 | ✅ |
 | P4-10 | Router — gate a tab on its screen shipping | #219 |  |
 | P4-11 | Storage — sibling-hold selection | #220 |  |
 | P4-12 | Engineering — editing the station's own rig | #221 |  |

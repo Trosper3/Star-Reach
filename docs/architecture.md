@@ -1150,7 +1150,7 @@ store that does not exist means inventing a throwaway one:
 | §12.24 step 5 — `StationServicesMenu` | `StationFactory` emplacing `CargoHold` (§13.3 O) | Buy and sell both `try_get<CargoHold>(station)`; no station has one, so a routed menu still trades nothing |
 | Mining · tutorial · material loot | **§12.28's narrowed `FindHit` view** (§13.3 B) | Nothing in the codebase can damage an asteroid, so all three are unreachable behind one view predicate |
 | `EngineerSystem`'s merge scaling | `FacilityStats::level` being parsed and forwarded (§13.3 K) | Neither half of the path exists, so the merge is permanently level 1 |
-| Live refit (`features.md` §2.7) | **`MountTraverse`** (§13.3 D) · §12.23's `RecomputeRigTotals` | A runtime-mounted weapon gets a zero-width firing arc and never fires |
+| Live refit (`features.md` §2.7) | **`MountTraverse`** (§13.3 D) · §12.23's `RecomputeRigTotals` | ✅ Resolved — both landed; reconfirmed by #207 2026-08-25. Originally: a runtime-mounted weapon got a zero-width firing arc and never fired |
 | `FactionDecisionEngine` having any caller | **§1.1's coarse tick** (§13.3 L, M) | It is a tested library with no invocation path, and three `TickCoarse` functions have no driver |
 
 **Added 2026-08-10 by §12.30, the docked-screen pass:**
@@ -5108,13 +5108,31 @@ panel — it is the row you press *Launch* on.
 | Row is | Verb | Mechanism | Blocked on |
 |---|---|---|---|
 | A hull you own | **Board** | `PlayerLocation.shell` ← that hull's cockpit hardpoint. **One write.** The derived `PlayerControlled` follows | — |
-| The hull you occupy | **Launch** | `UndockRequest` on it — `AvionicsMenu`'s existing path, unchanged | — |
+| The hull you occupy | **Launch** | Boards, then `UndockRequest` on it — the same two-write sequence as `AvionicsMenu`'s "R = board and launch" shortcut below | — |
 | A hull you do not own | **Ask to purchase** | A buy against a *vessel*: `BuyItemRequest` carries a `ModuleId`, so this needs §12.19's `ItemId`/`ItemKind` | §12.19 |
 | A hull you do not own | **Ask to escort** | A UI-emitted intent consumed by `PartySystem` | §12.27 |
 
 **Boarding and switching ships are the same operation as taking a capital's bridge** (§12.24 step 5).
 Nothing is added for it; the Bay screen is simply the surface where the operation is offered against
 a *hull* rather than against a facility tab.
+
+**Bug found and fixed by #207 (P4-09, the M3 verification pass), 2026-08-25.** `BayView`'s
+`occupiedVessel` (what the roster calls "occupied," showing Launch instead of Board) is computed by
+`OwnedVesselAt` — faction ownership plus `Docked`, deliberately *not* `PlayerLocation`/
+`PlayerControlled`, because while standing on the bay hardpoint `PlayerControlled` resolves to the
+station, never the vessel (12.30.1). With at most one owned hull ever docked at a station today,
+`owned` and `occupied` are always the same vessel, so the roster shows every owned hull as already
+"occupied" — Launch, never Board — from the moment it docks, whether or not the player has actually
+boarded it. `Launch()` took that literally: it fired `UndockRequest` alone, the way this table
+described it before this fix ("unchanged" from `AvionicsMenu`'s existing path). But `AvionicsMenu`'s
+own path only reaches that `UndockRequest` *after* moving `PlayerLocation` onto the hull first — the
+"two writes behind one key" describes just above. `BayView`'s click path skipped that first write:
+clicking your own vessel's Launch row undocked it while `PlayerLocation` stayed on the bay hardpoint,
+so the departing vessel had no pilot and the player was left controlling the station, unable to
+re-board (the vessel is no longer `Docked`, so it drops out of every roster). Fixed by having
+`Launch()` call `Board()` before emplacing `UndockRequest`, matching the row above and `AvionicsMenu`'s
+sequence exactly; `BayViewTests.cpp` gained two regression cases (`Board` moving `PlayerLocation`
+directly, and `Launch` boarding before undocking).
 
 ⚠️ **`R` while docked means "board and launch," and that is two writes behind one key.** §3.6 binds
 dock/undock to `R`. Standing in a facility, the player's derived `PlayerControlled` is the station,
@@ -5786,6 +5804,13 @@ rather than a hold or a roster.
 
 ##### 🐛 Three defects in the one repair path that already exists
 
+✅ **All three RESOLVED by #212 (P4-04), reconfirmed by #207's meso-loop trace 2026-08-25.**
+`StationServicesSystem.cpp` now gates on a living `FacilityKind::Repair` hardpoint (`:167`), skips
+`Destroyed` hardpoints in both the target resolver and the heal loop (`:163`, `:245`), and prices
+through `core::economy::RepairCostPerHp(facilityGrade)` rather than a flat caller-supplied total —
+`RepairScreen.cpp` computes `costToFull` per row from `missing × costPerHp`. Kept below for the
+historical record of what shipping the screen fixed.
+
 `StationServicesSystem::ProcessRepairRequests` (`StationServicesSystem.cpp:83`) is built, tested, and
 scheduled. Verified 2026-08-10:
 
@@ -5895,6 +5920,14 @@ itself**, which is what a repair bay is.
 *The subject selector is also the answer to "can I repair another vessel parked in this bay?" —
 deliberately no, for now. Ownership of a hull is a §12.30.2 question and the roster is that screen;
 adding a third candidate here before the Bay screen answers it would fork the ownership test.*
+
+**Minor, found by #207's meso-loop trace 2026-08-25: the destroyed-row label ships the issue number,
+not the copy this doc specifies.** `RepairScreen.cpp` prints a destroyed hardpoint's row as
+`"<hull>  REBUILD (P4-05)"` — a leftover placeholder — rather than the `"DESTROYED — REBUILD AT
+ENGINEERING"` phrasing §12.30.7 already establishes for the same three-state pattern elsewhere. The
+row correctly refuses the click either way (`Update` skips `row.destroyed`), so this is cosmetic, not
+a wiring bug — left for whoever picks up #226 (Repair screen visual chrome) rather than fixed here,
+since it is exactly that issue's kind of change.
 
 ##### Layout
 
@@ -8139,6 +8172,13 @@ lifecycle. **Recommendation: keep `MountedModules` as the single record and dele
 one that must never diverge from what `RefactorSystem` refunds.
 
 #### D · Every runtime-mounted weapon gets a zero-width firing arc
+
+✅ **RESOLVED — `MountTraverse` shipped, reconfirmed by #207's meso-loop trace 2026-08-25.**
+`ModuleEquipSystem.cpp` now reads `registry.try_get<MountTraverse>(mount)` and forwards its
+`radians` (falling back to `0.0f`, "welded forward," only when the component is absent) into
+`AttachModuleComponents`, and calls `rig_attachment::RecomputeRigTotals` after every mount and
+unmount. A live-refitted weapon fires with its authored arc, the same as a factory-built one. The
+original finding is kept below for the historical record.
 
 `ModuleEquipSystem.cpp:50` calls `AttachModuleComponents(registry, mount, *module, 0.0f)` — the
 fourth argument is `mountTraverseRadians`, hardcoded. `RigFactory` passes the authored

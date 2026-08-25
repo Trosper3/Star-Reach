@@ -164,6 +164,11 @@ void Board(entt::registry& registry, entt::entity vessel) {
 }
 
 void Launch(entt::registry& registry, entt::entity vessel) {
+    // Board first: while standing on the bay hardpoint (not aboard `vessel`), PlayerLocation
+    // never moves on its own, so firing UndockRequest alone strands it on the hardpoint --
+    // DockingSystem's undock path clears Docked but never touches PlayerLocation. Mirrors
+    // AvionicsMenu's "R = board and launch" shortcut, found missing by #207's meso-loop trace.
+    Board(registry, vessel);
     registry.emplace_or_replace<UndockRequest>(vessel);
 }
 
