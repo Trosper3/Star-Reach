@@ -271,9 +271,9 @@ void Draw(const entt::registry& registry) {
     const bool storageSelected = IsStorageSelected(registry);
     int selected = -1;
     for (std::size_t i = 0; i < tabs.size(); ++i) {
-        const bool isThisTab = storageSelected
-                                   ? tabs[i].screen == ScreenId::Storage
-                                   : (tabs[i].hardpoint != entt::null && tabs[i].hardpoint == shell);
+        const bool isThisTab =
+            storageSelected ? tabs[i].screen == ScreenId::Storage
+                            : (tabs[i].hardpoint != entt::null && tabs[i].hardpoint == shell);
         if (isThisTab) {
             selected = static_cast<int>(i);
             break;
@@ -286,7 +286,8 @@ void Draw(const entt::registry& registry) {
 Rectangle FrameContentRect() {
     const Rectangle content = sr::ui::PanelContentRect(WindowBounds());
     const float top = content.y + kTabStripHeight + sr::ui::kPanelPadding;
-    return Rectangle{content.x, top, content.width, std::max(0.0f, content.y + content.height - top)};
+    return Rectangle{content.x, top, content.width,
+                     std::max(0.0f, content.y + content.height - top)};
 }
 
 bool IsStorageSelected(const entt::registry& registry) {

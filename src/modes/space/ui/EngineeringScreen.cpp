@@ -377,8 +377,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
     const std::vector<Subject> subjects = Subjects(registry, ctx, playerFaction, content);
     const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
-    const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), siblings.size() > 1,
-                                        showStationSection);
+    const Layout layout =
+        ComputeLayout(bridge_view::FrameContentRect(), siblings.size() > 1, showStationSection);
 
     if (siblings.size() > 1) {
         const std::optional<int> hit = sr::ui::TabStripHitTest(

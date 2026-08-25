@@ -246,9 +246,10 @@ TEST_CASE("IsStorageSelected is false until the Storage tab is clicked", "[bridg
     CHECK_FALSE(IsStorageSelected(registry));
 }
 
-TEST_CASE("SelectTab marks Storage selected -- architecture.md 12.30's frame: Storage is a real, "
-          "exclusively-shown tab tracked on this singleton rather than by hardpoint",
-          "[bridge-view]") {
+TEST_CASE(
+    "SelectTab marks Storage selected -- architecture.md 12.30's frame: Storage is a real, "
+    "exclusively-shown tab tracked on this singleton rather than by hardpoint",
+    "[bridge-view]") {
     entt::registry registry;
     const entt::entity shell = registry.create();
     registry.emplace<PlayerLocation>(shell, PlayerLocation{shell});
