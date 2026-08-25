@@ -12,6 +12,8 @@ using sr::Destroyed;
 using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
+using sr::FactionId;
+using sr::FactionRef;
 using sr::MountedModules;
 using sr::ParentRig;
 using sr::PlayerLocation;
@@ -195,4 +197,72 @@ TEST_CASE("Deletion is refused when the hardpoint does not belong to the request
     refactor_system::Tick(MakeContext(world, intents, content));
 
     CHECK(registry.valid(hardpoint));
+}
+
+TEST_CASE(
+    "Delete acts on the station's own rig when subject names it and the station's FactionRef "
+    "matches the requester's",
+    "[refactor]") {
+    // architecture.md 12.30.5's "Editing the station's own rig, when it is yours" -- DeleteHardpoint
+    // Request::subject names which rig to edit; entt::null (every other test in this file) means
+    // "the requester's own," matching the pre-P4-12 behavior unchanged.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = MakeEngineeringStation(registry);
+    registry.emplace<FactionRef>(station, FactionId("aegis_directorate"));
+
+    const entt::entity stationHardpoint = registry.create();
+    const entt::entity stationOtherHardpoint = registry.create();  // Keeps it from being "last".
+    registry.emplace<ParentRig>(stationHardpoint, station);
+    registry.emplace<ParentRig>(stationOtherHardpoint, station);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+    registry.get<Rig>(station).children.push_back(stationOtherHardpoint);
+
+    const entt::entity root = registry.create();
+    registry.emplace<FactionRef>(root, FactionId("aegis_directorate"));
+    registry.emplace<Rig>(root, std::vector<entt::entity>{});
+    registry.emplace<Docked>(root, station, entt::null);
+    registry.emplace<DeleteHardpointRequest>(root,
+                                             DeleteHardpointRequest{stationHardpoint, station});
+
+    refactor_system::Tick(MakeContext(world, intents, content));
+
+    CHECK_FALSE(registry.valid(stationHardpoint));
+    // MakeEngineeringStation's own facility hardpoint plus stationOtherHardpoint remain.
+    CHECK(registry.get<Rig>(station).children.size() == 2);
+}
+
+TEST_CASE(
+    "Delete against the station's rig is refused when the station's FactionRef does not match "
+    "the requester's",
+    "[refactor]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity station = MakeEngineeringStation(registry);
+    registry.emplace<FactionRef>(station, FactionId("scrappers"));
+
+    const entt::entity stationHardpoint = registry.create();
+    const entt::entity stationOtherHardpoint = registry.create();
+    registry.emplace<ParentRig>(stationHardpoint, station);
+    registry.emplace<ParentRig>(stationOtherHardpoint, station);
+    registry.get<Rig>(station).children.push_back(stationHardpoint);
+    registry.get<Rig>(station).children.push_back(stationOtherHardpoint);
+
+    const entt::entity root = registry.create();
+    registry.emplace<FactionRef>(root, FactionId("aegis_directorate"));
+    registry.emplace<Rig>(root, std::vector<entt::entity>{});
+    registry.emplace<Docked>(root, station, entt::null);
+    registry.emplace<DeleteHardpointRequest>(root,
+                                             DeleteHardpointRequest{stationHardpoint, station});
+
+    refactor_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.valid(stationHardpoint));
+    CHECK(registry.get<Rig>(station).children.size() == 3);
 }

@@ -14,6 +14,24 @@
 namespace sr::space::refactor_system {
 namespace {
 
+// architecture.md 12.30.5's station section: a rig you own, present here -- `self` (the
+// requester's own vessel), or `station` when its FactionRef matches `self`'s own (12.30.4's "a
+// station with a repair bay repairs itself," the same ownership test StationServicesSystem.cpp's
+// IsValidRepairSubject already applies to RepairOrder::subject). Nothing else is a valid subject.
+bool IsValidSubject(const entt::registry& registry, entt::entity self, entt::entity station,
+                    entt::entity subject) {
+    if (subject == self) {
+        return true;
+    }
+    if (subject != station) {
+        return false;
+    }
+    const FactionRef* stationFaction = registry.try_get<FactionRef>(station);
+    const FactionRef* selfFaction = registry.try_get<FactionRef>(self);
+    return stationFaction != nullptr && selfFaction != nullptr &&
+           stationFaction->id == selfFaction->id;
+}
+
 bool HasDependentChild(const entt::registry& registry, entt::entity rigRoot,
                        entt::entity hardpoint) {
     const Rig* rig = registry.try_get<Rig>(rigRoot);
@@ -39,19 +57,28 @@ void ProcessDeleteRequests(const SystemContext& ctx) {
     for (auto [self, request] : registry.view<DeleteHardpointRequest>().each()) {
         consumed.push_back(self);
 
+        const entt::entity facility =
+            docked_facility::DockedFacility(registry, self, FacilityKind::Engineering);
+        if (facility == entt::null) {
+            continue;
+        }
+        const entt::entity station = registry.get<ParentRig>(facility).root;
+        const entt::entity subject = request.subject != entt::null ? request.subject : self;
+        if (!IsValidSubject(registry, self, station, subject)) {
+            continue;
+        }
+
         const entt::entity hardpoint = request.hardpoint;
-        Rig* rig = registry.try_get<Rig>(self);
+        Rig* rig = registry.try_get<Rig>(subject);
         const ParentRig* parent =
             registry.valid(hardpoint) ? registry.try_get<ParentRig>(hardpoint) : nullptr;
-        if (rig == nullptr || parent == nullptr || parent->root != self ||
-            docked_facility::DockedFacility(registry, self, FacilityKind::Engineering) ==
-                entt::null) {
+        if (rig == nullptr || parent == nullptr || parent->root != subject) {
             continue;
         }
         if (rig->children.size() <= 1) {
             continue;  // At least one hardpoint must remain (architecture.md 13.3 finding V).
         }
-        if (HasDependentChild(registry, self, hardpoint)) {
+        if (HasDependentChild(registry, subject, hardpoint)) {
             continue;
         }
 
@@ -99,12 +126,19 @@ void ProcessRebuildRequests(const SystemContext& ctx) {
     for (auto [self, request] : registry.view<RebuildMountRequest>().each()) {
         consumed.push_back(self);
 
-        if (docked_facility::DockedFacility(registry, self, FacilityKind::Engineering) ==
-            entt::null) {
+        const entt::entity facility =
+            docked_facility::DockedFacility(registry, self, FacilityKind::Engineering);
+        if (facility == entt::null) {
             continue;
         }
-        Rig* rig = registry.try_get<Rig>(self);
-        const BlueprintRef* blueprintRef = registry.try_get<BlueprintRef>(self);
+        const entt::entity station = registry.get<ParentRig>(facility).root;
+        const entt::entity subject = request.subject != entt::null ? request.subject : self;
+        if (!IsValidSubject(registry, self, station, subject)) {
+            continue;
+        }
+
+        Rig* rig = registry.try_get<Rig>(subject);
+        const BlueprintRef* blueprintRef = registry.try_get<BlueprintRef>(subject);
         if (rig == nullptr || blueprintRef == nullptr) {
             continue;
         }
@@ -136,12 +170,12 @@ void ProcessRebuildRequests(const SystemContext& ctx) {
         }
 
         const entt::entity hardpoint =
-            rig_attachment::CreateBareHardpoint(registry, self, *mount, *shell);
+            rig_attachment::CreateBareHardpoint(registry, subject, *mount, *shell);
         registry.emplace<StructuralAttachment>(hardpoint, parentHardpoint);
         rig->children.push_back(hardpoint);
         // Folds the restored hardpoint's mass/propulsion/sensor contribution back into the rig's
         // aggregates -- an engine mount rebuilt bare still restores nothing without this.
-        rig_attachment::RecomputeRigTotals(registry, self);
+        rig_attachment::RecomputeRigTotals(registry, subject);
     }
 
     for (const entt::entity self : consumed) {

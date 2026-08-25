@@ -73,10 +73,20 @@ std::vector<MountRow> MountRows(const entt::registry& registry, entt::entity rig
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
                            const FactionId& playerFaction);
 
+// True when `station`'s own rig is a second valid subject for this screen -- architecture.md
+// 12.30.5's "Editing the station's own rig, when it is yours": its FactionRef matches
+// `playerFaction`, the same ownership test §12.30.4's Repair screen already establishes for its
+// own dual-subject section ("a station with a repair bay repairs itself"). Pure -- no content
+// lookup, no raylib -- so unit-testable; the caller still needs the station's own BlueprintRef to
+// resolve before the section can actually draw anything, which is not this function's concern.
+bool StationIsSubject(const entt::registry& registry, entt::entity station,
+                      const FactionId& playerFaction);
+
 // Reads this frame's input and, while the player stands on a living Engineering hardpoint,
 // hit-tests the sibling selector (when the station has more than one), the left list (a click
-// issues DeconstructModuleRequest) and the right list (a click issues DeleteHardpointRequest or
-// RebuildMountRequest, whichever that row's state means). No-op otherwise, or with no owned
+// issues DeconstructModuleRequest) and each rig-mount subject's list (a click issues
+// DeleteHardpointRequest or RebuildMountRequest -- whichever that row's state means -- placed on
+// the requester with `subject` naming which rig it applies to). No-op otherwise, or with no owned
 // vessel docked here. `content` resolves the requester's own BlueprintRef for MountRows -- the
 // one thing this screen needs core/ for, threaded in by the caller (SpaceFlight.cpp) the same way
 // ResearchScreen threads its own KnowledgeStore, since modes/*/ui/ may not include systems/ but
@@ -85,7 +95,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
             const core::ContentLibrary& content);
 
 // Draws the Engineering screen: header (facility name, grade, this hardpoint's integrity,
-// credits), sibling selector, left CargoHold list, right rig-mount list.
+// credits), sibling selector, left CargoHold list, one right-hand rig-mount section per subject
+// (YOUR VESSEL, and STATION when it is yours).
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
           const core::ContentLibrary& content);
 

@@ -178,3 +178,17 @@ TEST_CASE("OwnedVesselAt finds the docked vessel matching the player's faction",
     CHECK(
         (engineering_screen::OwnedVesselAt(registry, station, FactionId("nobody")) == entt::null));
 }
+
+TEST_CASE("StationIsSubject is true only when the station's FactionRef matches the player's",
+          "[engineering]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    registry.emplace<FactionRef>(station, FactionId("aegis_directorate"));
+
+    CHECK(engineering_screen::StationIsSubject(registry, station, FactionId("aegis_directorate")));
+    CHECK_FALSE(engineering_screen::StationIsSubject(registry, station, FactionId("scrappers")));
+
+    const entt::entity ownerless = registry.create();  // No FactionRef at all.
+    CHECK_FALSE(
+        engineering_screen::StationIsSubject(registry, ownerless, FactionId("aegis_directorate")));
+}
