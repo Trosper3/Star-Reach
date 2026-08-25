@@ -1,5 +1,7 @@
 #pragma once
 
+#include <raylib.h>
+
 #include <entt/entity/registry.hpp>
 #include <span>
 #include <string_view>
@@ -75,11 +77,36 @@ void SelectTab(entt::registry& registry, entt::entity shell, std::span<const Bri
 
 // Reads this frame's input (raylib) and the PlayerControlled entity's Docked state: hit-tests the
 // tab strip Draw() below renders and, on a click, calls SelectTab. No-op with no PlayerControlled
-// entity, or one that is not Docked.
+// entity, or one that is not Docked. Also clears IsStorageSelected the moment DockedStation goes
+// null (undocking), so the next docking -- this station or another -- always opens on Bay rather
+// than carrying a stale Storage selection forward.
 void Update(entt::registry& registry);
 
-// Draws the docked station's tab strip, screen-space, centered -- only when the PlayerControlled
-// entity is currently Docked. No-op otherwise.
+// Draws the docked frame: architecture.md 12.30's full-window bezel (sr::ui::DrawPanelFrame over
+// the whole screen, drawn exactly once here rather than once per screen -- "the edge channel is
+// drawn by the router... never by the screens, which would be seven copies of it," extended to
+// the frame itself) plus the tab strip inside it. Only when the PlayerControlled entity is
+// currently Docked. No-op otherwise.
 void Draw(const entt::registry& registry);
+
+// architecture.md 12.30's frame: the content Rectangle every docked screen lays its own sections
+// into, below the tab strip Draw() above renders. Pure -- GetScreenWidth/Height only, no
+// registry -- so every screen can call it without depending on bridge_view's registry-reading
+// half. Screens must not call sr::ui::DrawPanelFrame on their own bounds any more: Draw() already
+// drew the one bezel for the whole window, and a second bezel nested inside it would double the
+// chrome for no reason.
+Rectangle FrameContentRect();
+
+// Tag singleton: true exactly while Storage is the explicitly-clicked router tab.
+//
+// architecture.md 12.30's own open question -- "does Storage become its own full-screen tab, or
+// does the frame make an explicit exception for a docked-only overlay layered on top?" -- is
+// resolved here: Storage is a real, exclusively-shown tab like every other screen. It has no
+// FacilityKind hardpoint for PlayerLocation to name (architecture.md 12.30.3), so SelectTab
+// tracks its selection on this singleton instead of by moving PlayerLocation; every hardpoint
+// screen (Bay/Repair/Engineering/Research) checks it too; alongside its own PlayerLocation gate,
+// so at most one screen is ever shown full-screen at a time. Selecting any other tab clears it
+// (SelectTab); undocking clears it too (Update).
+bool IsStorageSelected(const entt::registry& registry);
 
 }  // namespace sr::space::ui::bridge_view

@@ -24,6 +24,7 @@ using sr::Rig;
 using sr::space::ui::bridge_view::AvailableTabs;
 using sr::space::ui::bridge_view::BridgeTab;
 using sr::space::ui::bridge_view::DockedStation;
+using sr::space::ui::bridge_view::IsStorageSelected;
 using sr::space::ui::bridge_view::ScreenId;
 using sr::space::ui::bridge_view::SelectTab;
 
@@ -227,7 +228,7 @@ TEST_CASE("SelectTab moves PlayerLocation to the selected tab's hardpoint", "[br
     CHECK(registry.get<PlayerLocation>(repairHardpoint).shell == repairHardpoint);
 }
 
-TEST_CASE("SelectTab does nothing for the Storage tab -- no hardpoint to move onto",
+TEST_CASE("SelectTab leaves PlayerLocation alone for the Storage tab -- no hardpoint to move onto",
           "[bridge-view]") {
     entt::registry registry;
     const entt::entity shell = registry.create();
@@ -238,6 +239,43 @@ TEST_CASE("SelectTab does nothing for the Storage tab -- no hardpoint to move on
 
     REQUIRE(registry.all_of<PlayerLocation>(shell));
     CHECK(registry.get<PlayerLocation>(shell).shell == shell);
+}
+
+TEST_CASE("IsStorageSelected is false until the Storage tab is clicked", "[bridge-view]") {
+    entt::registry registry;
+    CHECK_FALSE(IsStorageSelected(registry));
+}
+
+TEST_CASE(
+    "SelectTab marks Storage selected -- architecture.md 12.30's frame: Storage is a real, "
+    "exclusively-shown tab tracked on this singleton rather than by hardpoint",
+    "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity shell = registry.create();
+    registry.emplace<PlayerLocation>(shell, PlayerLocation{shell});
+
+    const std::vector<BridgeTab> tabs = {{ScreenId::Storage, entt::null}};
+    SelectTab(registry, shell, tabs, 0);
+
+    CHECK(IsStorageSelected(registry));
+}
+
+TEST_CASE("SelectTab clears a prior Storage selection when a hardpoint tab is chosen next",
+          "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity shell = registry.create();
+    registry.emplace<PlayerLocation>(shell, PlayerLocation{shell});
+
+    const entt::entity repairHardpoint = registry.create();
+    const std::vector<BridgeTab> storageOnly = {{ScreenId::Storage, entt::null}};
+    SelectTab(registry, shell, storageOnly, 0);
+    REQUIRE(IsStorageSelected(registry));
+
+    const std::vector<BridgeTab> withRepair = {{ScreenId::Repair, repairHardpoint}};
+    SelectTab(registry, shell, withRepair, 0);
+
+    CHECK_FALSE(IsStorageSelected(registry));
+    CHECK(registry.get<PlayerLocation>(repairHardpoint).shell == repairHardpoint);
 }
 
 TEST_CASE("SelectTab does nothing for an out-of-range index", "[bridge-view]") {

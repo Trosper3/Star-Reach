@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 
+#include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
@@ -19,8 +20,6 @@
 namespace sr::space::ui::bay_view {
 namespace {
 
-constexpr float kPanelWidth = 560.0f;
-constexpr float kPanelTop = 132.0f;
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSiblingStripHeight = 28.0f;
 constexpr float kRosterHeight = 260.0f;
@@ -55,13 +54,20 @@ entt::entity PlayerShell(const entt::registry& registry) {
 
 // The living Docking-kind facility hardpoint PlayerLocation currently names ("this bay"), or
 // entt::null when the player is not currently viewing the Bay screen -- flying, docked but
-// standing on a different facility hardpoint, or aboard a vessel rather than inside the station.
+// standing on a different facility hardpoint, aboard a vessel rather than inside the station, or
+// with Storage currently the explicitly-selected tab (bridge_view::IsStorageSelected):
+// architecture.md 12.30's frame leaves room for exactly one full-screen tab at a time, and Bay's
+// own PlayerLocation-based gate can't see that Storage has no hardpoint of its own to contest it
+// with.
 entt::entity CurrentBay(const entt::registry& registry, entt::entity shell) {
     if (shell == entt::null || registry.all_of<Destroyed>(shell)) {
         return entt::null;
     }
     const FacilityRef* facility = registry.try_get<FacilityRef>(shell);
     if (facility == nullptr || facility->kind != FacilityKind::Docking) {
+        return entt::null;
+    }
+    if (bridge_view::IsStorageSelected(registry)) {
         return entt::null;
     }
     return shell;
@@ -74,8 +80,9 @@ struct Layout {
     Rectangle roster{};
 };
 
-Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip) {
-    const Rectangle content = sr::ui::PanelContentRect(bounds);
+// `content` is bridge_view::FrameContentRect() -- already inset by the router's one bezel, so this
+// lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+Layout ComputeLayout(Rectangle content, bool showSiblingStrip) {
     Layout layout;
     layout.content = content;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
@@ -86,13 +93,6 @@ Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip) {
     }
     layout.roster = {content.x, y, content.width, kRosterHeight};
     return layout;
-}
-
-Rectangle PanelBounds() {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float height =
-        kHeaderHeight + kSiblingStripHeight + kRosterHeight + 2.0f * sr::ui::kPanelPadding;
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
 }
 
 }  // namespace
@@ -192,7 +192,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
     }
 
     const std::vector<entt::entity> siblings = SiblingBays(registry, station);
-    const Layout layout = ComputeLayout(PanelBounds(), siblings.size() > 1);
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), siblings.size() > 1);
 
     if (siblings.size() > 1) {
         const std::optional<int> hit = sr::ui::TabStripHitTest(
@@ -235,8 +235,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
 
     const std::vector<entt::entity> siblings = SiblingBays(registry, station);
     const bool showSiblingStrip = siblings.size() > 1;
-    const Layout layout = ComputeLayout(PanelBounds(), showSiblingStrip);
-    sr::ui::DrawPanelFrame(PanelBounds());
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), showSiblingStrip);
 
     // Header: bay name, occupancy, this bay hardpoint's integrity -- features.md 3.4's mandatory
     // per-screen facility-health readout.

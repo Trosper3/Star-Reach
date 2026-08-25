@@ -74,8 +74,9 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
 void Update(entt::registry& registry, const FactionId& playerFaction,
             const core::knowledge::KnowledgeStore& knowledge);
 
-// Draws the Research screen: header (lab name, grade, integrity, slots), the candidate ListView,
-// and the running-job queue ListView.
+// Draws the Research screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
+// drew the one bezel around the whole window, so this does not draw its own): header (lab name,
+// grade, integrity, slots), the candidate ListView, and the running-job queue ListView.
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
           const core::knowledge::KnowledgeStore& knowledge);
 

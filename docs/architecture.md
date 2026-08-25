@@ -4893,6 +4893,37 @@ One consequence worth naming: **the edge channel is drawn by the router, once, a
 is open** — never by the screens, which would be seven copies of it. That is the same argument that
 put row rendering in `ListView`.
 
+##### Landed 2026-08-25 — the frame itself, and Storage's open sub-question resolved
+
+*Verified against `src/` on 2026-08-25.* `BridgeView::Draw` now draws one full-window `PanelFrame`
+bezel (`sr::ui::DrawPanelFrame` over `{0, 0, screenWidth, screenHeight}`) and the tab strip inside
+it; `SpaceFlight::Draw` skips `DrawWorld`, `DrawAimReticle`, and `CockpitHud::Draw` entirely while
+`bridge_view::DockedStation` resolves, rather than drawing them underneath the frame — "the
+viewport is not visible behind it, and the flight HUD does not persist under it" taken literally.
+Bay, Repair, Engineering, Research, and Storage all lay their own sections out inside
+`bridge_view::FrameContentRect()` (the router's one inset, below the tab strip) and no longer call
+`DrawPanelFrame` themselves — a second bezel nested inside the router's one would just double the
+chrome. `AvionicsMenu`'s dock/undock prompt is deliberately left alone (it is a control, not part
+of the viewport or the bottom band), and the two flight overlays (§12.30.7's inventory/loadout,
+plus Codex) are deliberately left alone too — §3.10 already settles that they open "over the
+full-screen docked frame" the same as over the world.
+
+**This section's own open question is resolved: Storage is a real, exclusively-shown tab, not a
+docked-only overlay layered on top.** It rides `bridge_view`'s own tab strip like every other
+screen; since it has no `FacilityKind` hardpoint for `PlayerLocation` to name, its selection lives
+on a small tag singleton (`IsStorageSelected`) that `SelectTab` sets on a Storage click and clears
+on any other tab click or on undocking, instead. Every hardpoint screen's own gate additionally
+checks `!IsStorageSelected`, so at most one screen is ever shown full-screen at once — the frame
+has room for exactly one. Landing on a fresh dock is unaffected: `DockingSystem` still moves
+`PlayerLocation` straight onto `Docked.bay`, so Bay is what shows first, same as before.
+
+⚠️ **The three edge-channel elements this table lists — directional damage indicators, sensor
+contacts, hazard tint — do not exist in code.** `features.md` §3.10 is still 📋: `CockpitHud::Draw`
+is one hull bar, and grepping `src/` for hazard/sensor/damage-indicator drawing turns up nothing.
+This landing gives the router a single place to add them later (`bridge_view::Draw`, once, rather
+than per-screen) but does not fabricate placeholder versions of features §3.10 hasn't specified
+yet. Building them is §3.10's own work, not this one's.
+
 ##### The set, and what is deliberately absent
 
 Each earns its place by consumers that exist in the same batch (§2.4, Law 11):

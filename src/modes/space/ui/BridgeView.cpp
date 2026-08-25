@@ -1,6 +1,7 @@
 #include "modes/space/ui/BridgeView.h"
 
 #include <raylib.h>
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -50,13 +51,40 @@ ScreenId ScreenIdFor(FacilityKind kind) {
     return ScreenId::Bay;
 }
 
-constexpr float kPanelWidth = 520.0f;
-constexpr float kPanelTop = 80.0f;
-constexpr float kPanelHeight = 44.0f;
+constexpr float kTabStripHeight = 44.0f;
 
-Rectangle PanelBounds() {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, kPanelHeight};
+// architecture.md 12.30's frame: the whole window, bezel included -- not a small centered panel.
+Rectangle WindowBounds() {
+    return Rectangle{0.0f, 0.0f, static_cast<float>(GetScreenWidth()),
+                     static_cast<float>(GetScreenHeight())};
+}
+
+Rectangle TabStripBounds(Rectangle content) {
+    return Rectangle{content.x, content.y, content.width, kTabStripHeight};
+}
+
+// System.h's "one legitimate cache" exception (Law 6), the SystemMenuState/CommsLog precedent --
+// created lazily the first time the Storage tab is clicked, not up front. Kept file-local: nothing
+// outside this file writes it, and every reader goes through IsStorageSelected below.
+struct StorageSelectedSingleton {};
+
+entt::entity FindStorageSelected(const entt::registry& registry) {
+    for (auto [entity] : registry.view<StorageSelectedSingleton>().each()) {
+        return entity;
+    }
+    return entt::null;
+}
+
+void SetStorageSelected(entt::registry& registry) {
+    if (FindStorageSelected(registry) == entt::null) {
+        registry.emplace<StorageSelectedSingleton>(registry.create());
+    }
+}
+
+void ClearStorageSelected(entt::registry& registry) {
+    if (const entt::entity entity = FindStorageSelected(registry); entity != entt::null) {
+        registry.destroy(entity);
+    }
 }
 
 // The entity currently carrying PlayerLocation (architecture.md 12.30.1 -- exactly one per
@@ -179,17 +207,25 @@ void SelectTab(entt::registry& registry, entt::entity shell, std::span<const Bri
     if (tabIndex < 0 || static_cast<std::size_t>(tabIndex) >= tabs.size()) {
         return;
     }
-    const entt::entity hardpoint = tabs[static_cast<std::size_t>(tabIndex)].hardpoint;
-    if (hardpoint == entt::null || hardpoint == shell) {
+    const BridgeTab& tab = tabs[static_cast<std::size_t>(tabIndex)];
+    if (tab.screen == ScreenId::Storage) {
+        // Nothing physical to move PlayerLocation onto (architecture.md 12.30.3) -- the selection
+        // itself is what makes Storage the shown screen.
+        SetStorageSelected(registry);
+        return;
+    }
+    ClearStorageSelected(registry);
+    if (tab.hardpoint == entt::null || tab.hardpoint == shell) {
         return;
     }
     registry.remove<PlayerLocation>(shell);
-    registry.emplace<PlayerLocation>(hardpoint, PlayerLocation{hardpoint});
+    registry.emplace<PlayerLocation>(tab.hardpoint, PlayerLocation{tab.hardpoint});
 }
 
 void Update(entt::registry& registry) {
     const entt::entity station = DockedStation(registry);
     if (station == entt::null) {
+        ClearStorageSelected(registry);
         return;
     }
 
@@ -200,9 +236,9 @@ void Update(entt::registry& registry) {
         return;
     }
 
-    const Rectangle content = sr::ui::PanelContentRect(PanelBounds());
-    const std::optional<int> hit =
-        sr::ui::TabStripHitTest(content, static_cast<int>(tabs.size()), input.cursor);
+    const Rectangle content = sr::ui::PanelContentRect(WindowBounds());
+    const std::optional<int> hit = sr::ui::TabStripHitTest(
+        TabStripBounds(content), static_cast<int>(tabs.size()), input.cursor);
     if (!hit.has_value()) {
         return;
     }
@@ -221,7 +257,9 @@ void Draw(const entt::registry& registry) {
     }
 
     const std::vector<BridgeTab> tabs = AvailableTabs(registry, station);
-    const Rectangle content = sr::ui::DrawPanelFrame(PanelBounds());
+    // The one full-window bezel for whichever screen is about to draw inside it -- see this
+    // function's own header comment.
+    const Rectangle content = sr::ui::DrawPanelFrame(WindowBounds());
 
     std::vector<std::string> labels;
     labels.reserve(tabs.size());
@@ -230,15 +268,30 @@ void Draw(const entt::registry& registry) {
     }
 
     const entt::entity shell = PlayerShell(registry);
+    const bool storageSelected = IsStorageSelected(registry);
     int selected = -1;
     for (std::size_t i = 0; i < tabs.size(); ++i) {
-        if (tabs[i].hardpoint != entt::null && tabs[i].hardpoint == shell) {
+        const bool isThisTab =
+            storageSelected ? tabs[i].screen == ScreenId::Storage
+                            : (tabs[i].hardpoint != entt::null && tabs[i].hardpoint == shell);
+        if (isThisTab) {
             selected = static_cast<int>(i);
             break;
         }
     }
 
-    sr::ui::DrawTabStrip(content, labels, selected);
+    sr::ui::DrawTabStrip(TabStripBounds(content), labels, selected);
+}
+
+Rectangle FrameContentRect() {
+    const Rectangle content = sr::ui::PanelContentRect(WindowBounds());
+    const float top = content.y + kTabStripHeight + sr::ui::kPanelPadding;
+    return Rectangle{content.x, top, content.width,
+                     std::max(0.0f, content.y + content.height - top)};
+}
+
+bool IsStorageSelected(const entt::registry& registry) {
+    return FindStorageSelected(registry) != entt::null;
 }
 
 }  // namespace sr::space::ui::bridge_view

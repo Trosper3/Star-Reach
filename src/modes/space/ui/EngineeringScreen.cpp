@@ -7,6 +7,7 @@
 #include <string>
 
 #include "core/registries/ContentLibrary.h"
+#include "modes/space/ui/BridgeView.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Engineer.h"
 #include "shared/components/Facility.h"
@@ -23,8 +24,6 @@
 namespace sr::space::ui::engineering_screen {
 namespace {
 
-constexpr float kPanelWidth = 640.0f;
-constexpr float kPanelTop = 132.0f;
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSiblingStripHeight = 28.0f;
 constexpr float kListHeight = 220.0f;
@@ -64,6 +63,12 @@ entt::entity CurrentFacility(const entt::registry& registry, entt::entity shell)
     }
     const FacilityRef* facility = registry.try_get<FacilityRef>(shell);
     if (facility == nullptr || facility->kind != FacilityKind::Engineering) {
+        return entt::null;
+    }
+    // architecture.md 12.30's frame: at most one full-screen tab at a time, and Storage's own
+    // selection (bridge_view::IsStorageSelected) has no hardpoint to contest this gate with
+    // otherwise.
+    if (bridge_view::IsStorageSelected(registry)) {
         return entt::null;
     }
     return shell;
@@ -134,8 +139,9 @@ struct Layout {
     Rectangle stationList{};   // architecture.md 12.30.5's station section -- full panel width.
 };
 
-Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip, bool showStationSection) {
-    const Rectangle content = sr::ui::PanelContentRect(bounds);
+// `content` is bridge_view::FrameContentRect() -- already inset by the router's one bezel, so
+// this lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+Layout ComputeLayout(Rectangle content, bool showSiblingStrip, bool showStationSection) {
     Layout layout;
     layout.content = content;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
@@ -155,16 +161,6 @@ Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip, bool showStationSe
         y += kListHeight;
     }
     return layout;
-}
-
-Rectangle PanelBounds(bool showSiblingStrip, bool showStationSection) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    float height = kHeaderHeight + (showSiblingStrip ? kSiblingStripHeight : 0.0f) + kListHeight +
-                   2.0f * sr::ui::kPanelPadding;
-    if (showStationSection) {
-        height += kSectionLabelHeight + kListHeight;
-    }
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
 }
 
 }  // namespace
@@ -381,8 +377,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
     const std::vector<Subject> subjects = Subjects(registry, ctx, playerFaction, content);
     const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
-    const Layout layout = ComputeLayout(PanelBounds(siblings.size() > 1, showStationSection),
-                                        siblings.size() > 1, showStationSection);
+    const Layout layout =
+        ComputeLayout(bridge_view::FrameContentRect(), siblings.size() > 1, showStationSection);
 
     if (siblings.size() > 1) {
         const std::optional<int> hit = sr::ui::TabStripHitTest(
@@ -426,9 +422,8 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
     const bool showSiblingStrip = siblings.size() > 1;
-    const Layout layout = ComputeLayout(PanelBounds(showSiblingStrip, showStationSection),
-                                        showSiblingStrip, showStationSection);
-    sr::ui::DrawPanelFrame(PanelBounds(showSiblingStrip, showStationSection));
+    const Layout layout =
+        ComputeLayout(bridge_view::FrameContentRect(), showSiblingStrip, showStationSection);
 
     std::string facilityName = "ENGINEERING";
     if (const DisplayName* name = registry.try_get<DisplayName>(ctx.station)) {

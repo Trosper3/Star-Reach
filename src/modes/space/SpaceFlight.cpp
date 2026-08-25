@@ -354,15 +354,25 @@ void SpaceFlight::Draw() const {
         }
     }
     const render::CameraView camera{cameraPosition, cameraZoom_};
-    render::DrawWorld(world_, camera, alpha);
-    // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world space
-    // to screen space itself, so its reticle stays a fixed pixel size under zoom instead of
-    // scaling with the world like WorldRenderer's sprites do.
-    render::DrawAimReticle(registry, camera);
+
+    // architecture.md 12.30's frame: "the viewport is not visible behind it, and the flight HUD
+    // does not persist under it." A docked screen replaces the world and CockpitHud's hull bar
+    // (today's placeholder for features.md 3.10's bottom band) rather than floating over them --
+    // ui::bridge_view::Draw below draws the full-window bezel that takes their place.
+    const bool docked = ui::bridge_view::DockedStation(registry) != entt::null;
+    if (!docked) {
+        render::DrawWorld(world_, camera, alpha);
+        // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world
+        // space to screen space itself, so its reticle stays a fixed pixel size under zoom
+        // instead of scaling with the world like WorldRenderer's sprites do.
+        render::DrawAimReticle(registry, camera);
+    }
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
     const FactionId playerFaction = player_record_system::FactionOf(registry);
-    ui::cockpit_hud::Draw(world_.Registry());
+    if (!docked) {
+        ui::cockpit_hud::Draw(world_.Registry());
+    }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     ui::bridge_view::Draw(world_.Registry());
     ui::bay_view::Draw(world_.Registry(), playerFaction);
