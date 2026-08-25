@@ -133,8 +133,8 @@ TEST_CASE(
     const auto tabs = AvailableTabs(registry, root);
     REQUIRE(tabs.size() == 5);
     constexpr ScreenId kExpectedOrder[] = {
-        ScreenId::Bay, ScreenId::Storage, ScreenId::Repair, ScreenId::Engineering,
-        ScreenId::Research,
+        ScreenId::Bay,         ScreenId::Storage,  ScreenId::Repair,
+        ScreenId::Engineering, ScreenId::Research,
     };
     for (std::size_t i = 0; i < 5; ++i) {
         CHECK(tabs[i].screen == kExpectedOrder[i]);
