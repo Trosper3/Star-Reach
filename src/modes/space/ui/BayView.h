@@ -72,9 +72,11 @@ void Launch(entt::registry& registry, entt::entity vessel);
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
 // Draws the Bay screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already drew
-// the one bezel around the whole window, so this does not draw its own): header (bay name,
-// occupancy, this bay hardpoint's integrity), sibling selector, roster. No-op unless PlayerLocation
-// currently names a living Docking-kind facility hardpoint and Storage is not the selected tab
+// the one bezel around the whole window, so this does not draw a second one at that scale): header
+// (bay name, one stat line combining slots/occupancy/integrity -- features.md 3.4's mandatory
+// per-screen health readout), sibling selector, and the roster inside its own bracket-bordered
+// sub-panel (issue #224's visual-chrome pass). No-op unless PlayerLocation currently names a living
+// Docking-kind facility hardpoint and Storage is not the selected tab
 // (bridge_view::IsStorageSelected).
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
