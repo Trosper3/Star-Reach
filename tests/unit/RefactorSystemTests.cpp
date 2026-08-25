@@ -203,9 +203,9 @@ TEST_CASE(
     "Delete acts on the station's own rig when subject names it and the station's FactionRef "
     "matches the requester's",
     "[refactor]") {
-    // architecture.md 12.30.5's "Editing the station's own rig, when it is yours" -- DeleteHardpoint
-    // Request::subject names which rig to edit; entt::null (every other test in this file) means
-    // "the requester's own," matching the pre-P4-12 behavior unchanged.
+    // architecture.md 12.30.5's "Editing the station's own rig, when it is yours" -- `subject`
+    // names which rig to edit; entt::null (every other test in this file) means "the requester's
+    // own," matching the pre-P4-12 behavior unchanged.
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;

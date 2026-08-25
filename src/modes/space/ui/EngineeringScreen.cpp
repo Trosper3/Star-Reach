@@ -159,8 +159,8 @@ Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip, bool showStationSe
 
 Rectangle PanelBounds(bool showSiblingStrip, bool showStationSection) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
-    float height = kHeaderHeight + (showSiblingStrip ? kSiblingStripHeight : 0.0f) +
-                   kListHeight + 2.0f * sr::ui::kPanelPadding;
+    float height = kHeaderHeight + (showSiblingStrip ? kSiblingStripHeight : 0.0f) + kListHeight +
+                   2.0f * sr::ui::kPanelPadding;
     if (showStationSection) {
         height += kSectionLabelHeight + kListHeight;
     }
@@ -328,8 +328,7 @@ std::vector<Subject> Subjects(const entt::registry& registry, const ResolvedCont
                               const FactionId& playerFaction, const core::ContentLibrary& content) {
     std::vector<Subject> subjects{Subject{ctx.requester, ctx.blueprint, false}};
     if (StationIsSubject(registry, ctx.station, playerFaction)) {
-        if (const RigBlueprint* stationBlueprint =
-                ResolveBlueprint(registry, ctx.station, content);
+        if (const RigBlueprint* stationBlueprint = ResolveBlueprint(registry, ctx.station, content);
             stationBlueprint != nullptr) {
             subjects.push_back(Subject{ctx.station, stationBlueprint, true});
         }
@@ -382,9 +381,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
     const std::vector<Subject> subjects = Subjects(registry, ctx, playerFaction, content);
     const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
-    const Layout layout =
-        ComputeLayout(PanelBounds(siblings.size() > 1, showStationSection), siblings.size() > 1,
-                     showStationSection);
+    const Layout layout = ComputeLayout(PanelBounds(siblings.size() > 1, showStationSection),
+                                        siblings.size() > 1, showStationSection);
 
     if (siblings.size() > 1) {
         const std::optional<int> hit = sr::ui::TabStripHitTest(
@@ -428,9 +426,8 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
     const bool showSiblingStrip = siblings.size() > 1;
-    const Layout layout =
-        ComputeLayout(PanelBounds(showSiblingStrip, showStationSection), showSiblingStrip,
-                     showStationSection);
+    const Layout layout = ComputeLayout(PanelBounds(showSiblingStrip, showStationSection),
+                                        showSiblingStrip, showStationSection);
     sr::ui::DrawPanelFrame(PanelBounds(showSiblingStrip, showStationSection));
 
     std::string facilityName = "ENGINEERING";
