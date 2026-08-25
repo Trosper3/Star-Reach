@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -146,8 +147,7 @@ void DrawHeader(Rectangle header, const std::string& bayName, const std::string&
         slots + " | " + std::to_string(occupied) + " OCCUPIED | INTEGRITY ";
     DrawText(statPrefix.c_str(), statX, statY, 14, sr::ui::kLabelDim);
     statX += MeasureText(statPrefix.c_str(), 14);
-    const std::string integrityPct =
-        std::to_string(static_cast<int>(integrityFraction * 100.0f + 0.5f)) + "%";
+    const std::string integrityPct = std::to_string(std::lround(integrityFraction * 100.0f)) + "%";
     DrawText(integrityPct.c_str(), statX, statY, 14, IntegrityStatusColor(integrityFraction));
 }
 
