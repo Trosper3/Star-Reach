@@ -5738,16 +5738,39 @@ each showing that hold's own integrity, Deposit targeting whichever is selected.
   the auto-pick stays the default for withdraw-side and non-screen callers, the screen is the one
   caller that names a specific hold.
 
-**NPC parity, flagged here rather than decided:** NPC factions already run their own faceless
-command-economy (repair/build/expand, all resource-gated via `FactionEconomy::Spend`) with no
-per-hold reasoning at all — stock is spent against the faction's aggregate. **Decided by the project
-owner 2026-08-23: NPC logistics should factor in spreading stock across holds too**, once this
-screen's mechanic exists — a faction that keeps its whole stockpile in one hold is exposed to the
-exact single-point-of-loss risk the player can now choose to avoid, and an AI that does not reason
-about it is playing a strictly worse version of its own game. **Not yet scoped**: this needs a look at
-`NpcAiSystem`/the faction command-economy's actual stock-allocation logic (wherever
-`FactionEconomy::Spend`'s callers decide what to build and where) before it is buildable — filed as
-P4-14 below, blocked on P4-11 (this section's own sibling-hold task) landing first.
+**NPC parity — audited 2026-08-25 (#223), corrected rather than scoped.** The paragraph this replaces
+assumed NPC factions "already run their own faceless command-economy... stock is spent against the
+faction's aggregate," and asked only whether that aggregate should be spent per-hold instead. The
+audit found the premise itself does not hold:
+
+- `core/economy/FactionEconomy` is **one `int` scalar per faction** — its own header says so
+  explicitly ("one scalar per faction rather than legacy StarReach2's per-station, per-good
+  StationEconomy"). There is no per-good, per-station, or per-hold subdivision for a hold-choosing
+  policy to attach to.
+- `FactionEconomySystem::Tick` — the only caller of `FactionEconomy::Spend`/`Deposit` — has **zero
+  producers anywhere in `src/`**. No system decides what a faction builds or spends on yet.
+- `NpcAiSystem` is combat/flee/patrol/repair-order steering only; it never reads or writes
+  `FactionEconomy` or any `CargoHold`.
+- `core/ai/FactionDecisionEngine` (architecture.md §4's `FactionDecisionSystem` row, #31) is the
+  actual decision layer over this ledger, and it is Tier 3 by design — "mode-agnostic,
+  registry-agnostic... nothing here reads or writes registry state." It computes `MaterialSecurity`
+  from `FactionEconomy::Stock()` as one number; it structurally cannot see a `CargoHold` or an
+  `ItemStack`, on this faction's rigs or anyone else's.
+- A physical `CargoHold` *does* exist on NPC stations (emergent from a mounted `CargoBay` module,
+  same as any rig, per this section's own sibling-hold mechanic above) — but nothing connects it to
+  the faction's abstract stock number. Destroying a station's hold does not reduce
+  `FactionEconomy::Stock()`; nothing links the two.
+
+So `FactionEconomy::Stock()` has no physical location to "spread across holds" — it is not stored in
+any hold to begin with, and the layer that spends it (`FactionDecisionEngine`) is architecturally
+incapable of reasoning about any single rig's holds. The single-point-of-loss framing this section
+used to justify a per-hold policy applies to a player's own physical cargo (the sibling-hold
+mechanic above), not to this ledger. **P4-14 is not re-scoped by this audit — it is deferred**, pending two prerequisites
+neither of which exists yet: (1) a real caller of `SpendRequest`/`DepositRequest` that decides what
+an NPC faction builds and where (the `FactionDecisionSystem` #31 slot), and (2) that caller actually
+manipulating physical `CargoHold`/`ItemStack` state on NPC-owned rigs rather than only the abstract
+ledger. Until both exist, there is nothing per-hold for an NPC to reason about. Re-open this question
+once either prerequisite lands.
 
 #### 12.30.4 Screen 3 — Repair
 

@@ -1430,19 +1430,22 @@ screens. All follow-ons to already-merged work, not revisions of it — none blo
 
 ---
 
-### P4-14 · NPC logistics — spreading stock across holds 🔗
+### P4-14 · NPC logistics — spreading stock across holds ❓ **deferred, not re-filed**
 **Docs:** §12.30.3 "Sibling holds," the NPC-parity paragraph
-**Depends on:** P4-11 — **Label:** `feature`
+**Depends on:** a real caller of `SpendRequest`/`DepositRequest` (the `FactionDecisionSystem` #31
+slot) that manipulates physical `CargoHold`/`ItemStack` state, not just P4-11 — **Label:** n/a, not a
+build issue
 
-- **Home:** wherever the faction command-economy's stock-allocation logic actually lives today
-  (`FactionEconomy::Spend`'s callers — audit before starting, this file does not yet name the exact
-  system).
-- **Systems:** once P4-11 makes hold placement a real player choice, NPC factions reasoning about
-  their own stock only in aggregate is a strictly worse version of the same game the player now
-  plays. Scope is deliberately open pending that audit — this task exists to hold the slot, not to
-  fully specify the mechanic; **file this one as a design issue first (Appendix D shape), not a build
-  issue, if the audit finds no existing per-hold hook to extend.**
-- **Tests:** TBD, pending the audit above.
+Filed as #223 (design issue, per this task's own instruction above) and audited 2026-08-25: the
+premise does not hold yet, so the section it points at was corrected rather than specified. `core/
+economy/FactionEconomy` is one scalar `int` per faction with no per-good/per-station/per-hold
+subdivision; `FactionEconomySystem::Tick` has zero producers; `NpcAiSystem` never touches the ledger
+or any `CargoHold`; and `core/ai/FactionDecisionEngine` (#31, the actual spender) is Tier 3 and
+structurally cannot see registry state — a `CargoHold` included — by design. There is no physical
+location for the faction's stock to be "in a hold" in the first place, so nothing per-hold is
+buildable. **Do not re-file this as a build issue until both prerequisites above exist** — full
+finding in §12.30.3's NPC-parity paragraph. #223 closed with this finding rather than a
+`features.md` section.
 
 ---
 
@@ -2828,7 +2831,7 @@ reads.
 | P4-11 | Storage — sibling-hold selection | #220 |  |
 | P4-12 | Engineering — editing the station's own rig | #221 |  |
 | P4-13 | Research — the Codex | #222 |  |
-| P4-14 | NPC logistics — spreading stock across holds | #223 (design issue, not build) |  |
+| P4-14 | NPC logistics — spreading stock across holds | #223 (design issue, closed 2026-08-25 — deferred, see §12.30.3) |  |
 | P5-01 | The status display | #233 |  |
 | P5-02 | The flight HUD | #234 |  |
 | P5-03 | The comms surface | #235 |  |
