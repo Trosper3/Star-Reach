@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "modes/space/ui/CodexScreen.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
@@ -87,9 +88,12 @@ constexpr float kPanelTop = 132.0f;
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSectionLabelHeight = 20.0f;
 constexpr float kListHeight = 160.0f;
+constexpr float kCodexButtonWidth = 76.0f;
+constexpr float kCodexButtonHeight = 22.0f;
 
 struct Layout {
     Rectangle header{};
+    Rectangle codexButton{};
     Rectangle candidateLabel{};
     Rectangle candidateList{};
     Rectangle queueLabel{};
@@ -107,6 +111,8 @@ Layout ComputeLayout() {
     const Rectangle content = sr::ui::PanelContentRect(PanelBounds());
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
+    layout.codexButton = {content.x + content.width - kCodexButtonWidth, content.y,
+                          kCodexButtonWidth, kCodexButtonHeight};
     float y = content.y + kHeaderHeight;
     layout.candidateLabel = {content.x, y, content.width, kSectionLabelHeight};
     y += kSectionLabelHeight;
@@ -215,6 +221,12 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
         return;
     }
 
+    const Layout layout = ComputeLayout();
+    if (sr::ui::ButtonClicked(layout.codexButton, input)) {
+        codex_screen::Open(registry);
+        return;
+    }
+
     const NetworkOwner* owner = registry.try_get<NetworkOwner>(requester);
     const core::knowledge::KnowledgeNetwork* network =
         owner != nullptr ? knowledge.Get(owner->network) : nullptr;
@@ -226,7 +238,6 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
         Candidates(registry, requester, facility, station, network, queuedCount,
                    FacilityCapacity(registry, facility));
 
-    const Layout layout = ComputeLayout();
     const std::optional<int> hit = sr::ui::ListViewRowAt(
         layout.candidateList, static_cast<int>(candidates.size()), 0.0f, input.cursor);
     if (!hit.has_value() || *hit >= static_cast<int>(candidates.size())) {
@@ -277,6 +288,8 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
              sr::ui::kValueBright);
     DrawText(("SLOTS " + slots).c_str(), static_cast<int>(layout.header.x),
              static_cast<int>(layout.header.y + 20.0f), 14, sr::ui::kLabelDim);
+    sr::ui::DrawChamferedButton(layout.codexButton, "CODEX", GetFontDefault(), 14.0f,
+                                sr::ui::kPanelGlass, sr::ui::kPanelChrome, sr::ui::kValueBright);
 
     const Health* facilityHealth = registry.try_get<Health>(facility);
     if (facilityHealth != nullptr) {

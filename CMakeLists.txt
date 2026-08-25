@@ -274,6 +274,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/ui/ResearchScreen.cpp
+    src/modes/space/ui/CodexScreen.cpp
     src/modes/space/systems/CaptureSystem.cpp
     src/modes/space/systems/CollisionSystem.cpp
     src/modes/space/systems/ConstructionSystem.cpp

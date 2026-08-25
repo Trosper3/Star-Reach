@@ -16,6 +16,12 @@ struct ElementDef {
     ElementId id;
     std::string displayName;
     float mass = 0.0f;
+
+    // ModuleDef.h's `faction`/`tier` fields, mirrored here so the Codex (architecture.md
+    // 12.30.6) can tag a Materials row the same way it tags Modules and Shells -- see that
+    // file's header comment for both fields' full rationale.
+    FactionId faction;
+    int tier = 1;
 };
 
 }  // namespace sr

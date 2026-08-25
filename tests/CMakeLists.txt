@@ -83,6 +83,7 @@ add_executable(sr_tests
     unit/TerritoryTests.cpp
     unit/FactionDecisionEngineTests.cpp
     integration/ContentTests.cpp
+    integration/CodexScreenTests.cpp
     integration/RigFactoryTests.cpp
     integration/ConstructionSystemTests.cpp
     integration/EngineerSystemTests.cpp

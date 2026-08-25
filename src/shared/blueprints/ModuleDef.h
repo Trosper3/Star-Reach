@@ -120,6 +120,18 @@ struct ModuleDef {
     std::string displayName;
     ModuleKind kind = ModuleKind::Armor;
 
+    // Empty for unfactioned/universal content, same convention as ShipBlueprint::faction.
+    // Authored per module (Law 10) once a faction wants an exclusive line; nothing gates on this
+    // yet outside the Codex's display/filter (architecture.md 12.30.6), which is its only reader.
+    FactionId faction;
+
+    // features.md 2.4/12.19's eventual Grade ladder, pre-adopted here only for the Codex's own
+    // display/filter tag -- every base-game module is tier 1 today (no "_ii"/"_iii" content is
+    // authored yet), so this is forward-declared capacity, not a claim the ladder is wired
+    // anywhere else. Named `tier` rather than `grade` to not collide with the unrelated
+    // FacilityStats::grade above (engineer skill tier, Engineering-kind facilities only).
+    int tier = 1;
+
     // The constraints puzzle (features.md section 2.2). Mass degrades handling; draw must be
     // covered by generation. These two fields are why there is no strictly-best loadout.
     float mass = 0.0f;

@@ -17,6 +17,7 @@
 #include "modes/space/ui/BayView.h"
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
+#include "modes/space/ui/CodexScreen.h"
 #include "modes/space/ui/EngineeringScreen.h"
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ModulesMenu.h"
@@ -172,14 +173,14 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     ui::repair_screen::Update(registry, playerFaction);
     ui::engineering_screen::Update(registry, playerFaction, content_);
     ui::research_screen::Update(registry, playerFaction, knowledge_);
-    // architecture.md 12.30.7: available everywhere, gated on nothing -- both run whether the
-    // player is flying or docked over any screen (features.md 3.10), never facility-gated the
-    // way bridge_view's own tabs are. PlayerVesselRoot, not PlayerLocation's own shell, since
-    // standing on a facility hardpoint while docked must still resolve to the player's own ship.
+    // architecture.md 12.30.7/12.30.6: none of these three gate on a facility (features.md 3.10).
+    // PlayerVesselRoot, not PlayerLocation's own shell, since a facility hardpoint while docked
+    // must still resolve to the player's own ship.
     {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Update(registry, vesselRoot);
         ui::modules_menu::Update(registry, vesselRoot);
+        ui::codex_screen::Update(registry, vesselRoot, knowledge_, content_);
     }
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
@@ -376,6 +377,7 @@ void SpaceFlight::Draw() const {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Draw(registry, vesselRoot);
         ui::modules_menu::Draw(registry, vesselRoot);
+        ui::codex_screen::Draw(registry, vesselRoot, knowledge_, content_);
     }
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).
