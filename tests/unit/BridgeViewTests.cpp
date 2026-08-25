@@ -105,8 +105,11 @@ TEST_CASE("AvailableTabs de-duplicates two hardpoints of the same kind, keeping 
     CHECK(tabs[0].hardpoint == firstRepair);
 }
 
-TEST_CASE("AvailableTabs returns all seven screens when every facility kind and CargoHold live",
-          "[bridge-view]") {
+TEST_CASE(
+    "AvailableTabs returns only the shipped screens when every facility kind and CargoHold live",
+    "[bridge-view]") {
+    // architecture.md 12.30's shipped-table fix: Market and Manufacturing have no screen behind
+    // them yet, so they must not appear even though their FacilityKind hardpoints are living.
     entt::registry registry;
     const entt::entity root = registry.create();
     Rig rig;
@@ -128,12 +131,12 @@ TEST_CASE("AvailableTabs returns all seven screens when every facility kind and 
     registry.emplace<Rig>(root, std::move(rig));
 
     const auto tabs = AvailableTabs(registry, root);
-    REQUIRE(tabs.size() == 7);
+    REQUIRE(tabs.size() == 5);
     constexpr ScreenId kExpectedOrder[] = {
-        ScreenId::Bay,         ScreenId::Market,        ScreenId::Storage,  ScreenId::Repair,
-        ScreenId::Engineering, ScreenId::Manufacturing, ScreenId::Research,
+        ScreenId::Bay,         ScreenId::Storage,  ScreenId::Repair,
+        ScreenId::Engineering, ScreenId::Research,
     };
-    for (std::size_t i = 0; i < 7; ++i) {
+    for (std::size_t i = 0; i < 5; ++i) {
         CHECK(tabs[i].screen == kExpectedOrder[i]);
     }
     // The Storage tab names no hardpoint -- there is nothing physical to move PlayerLocation onto.
@@ -142,6 +145,38 @@ TEST_CASE("AvailableTabs returns all seven screens when every facility kind and 
     });
     REQUIRE(storageTab != tabs.end());
     CHECK((storageTab->hardpoint == entt::null));
+}
+
+TEST_CASE("AvailableTabs shows no Market tab for a living Trade hardpoint -- unshipped screen",
+          "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    Rig rig;
+
+    const entt::entity trade = registry.create();
+    registry.emplace<FacilityRef>(trade, FacilityKind::Trade);
+    rig.children.push_back(trade);
+
+    registry.emplace<Rig>(root, std::move(rig));
+
+    CHECK(AvailableTabs(registry, root).empty());
+}
+
+TEST_CASE(
+    "AvailableTabs shows no Manufacturing tab for a living Manufacturing hardpoint -- unshipped "
+    "screen",
+    "[bridge-view]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    Rig rig;
+
+    const entt::entity manufacturing = registry.create();
+    registry.emplace<FacilityRef>(manufacturing, FacilityKind::Manufacturing);
+    rig.children.push_back(manufacturing);
+
+    registry.emplace<Rig>(root, std::move(rig));
+
+    CHECK(AvailableTabs(registry, root).empty());
 }
 
 TEST_CASE("AvailableTabs adds a Storage tab for a CargoHold with no Trade facility",

@@ -47,9 +47,11 @@ struct BridgeTab {
 };
 
 // Distinct screens available among `rigRoot`'s live (non-Destroyed) hardpoints, in ScreenId
-// declaration order -- first living hardpoint of each FacilityKind, deduped. Pure -- no raylib --
-// so unit-testable. Empty for a rig with no Facility hardpoints and no CargoHold, and for
-// entt::null.
+// declaration order -- first living hardpoint of each FacilityKind, deduped. Also gated on a
+// compile-time shipped-table (architecture.md 12.30: "a tab needs a working screen behind it, not
+// just a living hardpoint") -- a living Trade or Manufacturing hardpoint does not yet produce a
+// Market or Manufacturing tab. Pure -- no raylib -- so unit-testable. Empty for a rig with no
+// Facility hardpoints and no CargoHold, and for entt::null.
 std::vector<BridgeTab> AvailableTabs(const entt::registry& registry, entt::entity rigRoot);
 
 // The station rig root the player is currently docked at, found via PlayerLocation rather than
