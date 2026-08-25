@@ -29,6 +29,7 @@ constexpr float kHeaderHeight = 44.0f;
 constexpr float kSiblingStripHeight = 28.0f;
 constexpr float kListHeight = 220.0f;
 constexpr float kColumnGap = 16.0f;
+constexpr float kSectionLabelHeight = 20.0f;
 
 // One-letter monogram per ShellKind (features.md 3.9's glyph-carries-identity rule) -- the same
 // placeholder every other docked screen's own row list uses; duplicated locally rather than
@@ -127,11 +128,13 @@ struct Layout {
     Rectangle content{};
     Rectangle header{};
     Rectangle siblingStrip{};  // Zero height when there is only one bench.
-    Rectangle leftList{};
-    Rectangle rightList{};
+    Rectangle leftList{};      // CargoHold -- the Deconstruct axis, never per-subject.
+    Rectangle rightList{};     // The requester's own vessel mounts.
+    Rectangle stationLabel{};  // Zero height unless the station is a second subject.
+    Rectangle stationList{};   // architecture.md 12.30.5's station section -- full panel width.
 };
 
-Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip) {
+Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip, bool showStationSection) {
     const Rectangle content = sr::ui::PanelContentRect(bounds);
     Layout layout;
     layout.content = content;
@@ -144,13 +147,23 @@ Layout ComputeLayout(Rectangle bounds, bool showSiblingStrip) {
     const float columnWidth = (content.width - kColumnGap) * 0.5f;
     layout.leftList = {content.x, y, columnWidth, kListHeight};
     layout.rightList = {content.x + columnWidth + kColumnGap, y, columnWidth, kListHeight};
+    y += kListHeight;
+    if (showStationSection) {
+        layout.stationLabel = {content.x, y, content.width, kSectionLabelHeight};
+        y += kSectionLabelHeight;
+        layout.stationList = {content.x, y, content.width, kListHeight};
+        y += kListHeight;
+    }
     return layout;
 }
 
-Rectangle PanelBounds(bool showSiblingStrip) {
+Rectangle PanelBounds(bool showSiblingStrip, bool showStationSection) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float height = kHeaderHeight + (showSiblingStrip ? kSiblingStripHeight : 0.0f) +
-                         kListHeight + 2.0f * sr::ui::kPanelPadding;
+    float height = kHeaderHeight + (showSiblingStrip ? kSiblingStripHeight : 0.0f) + kListHeight +
+                   2.0f * sr::ui::kPanelPadding;
+    if (showStationSection) {
+        height += kSectionLabelHeight + kListHeight;
+    }
     return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
 }
 
@@ -253,7 +266,23 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
     return entt::null;
 }
 
+bool StationIsSubject(const entt::registry& registry, entt::entity station,
+                      const FactionId& playerFaction) {
+    const FactionRef* stationFaction = registry.try_get<FactionRef>(station);
+    return stationFaction != nullptr && stationFaction->id == playerFaction;
+}
+
 namespace {
+
+// One rig-mount subject the right-hand section(s) edit: the requester's own vessel, or the
+// station itself (architecture.md 12.30.5's station section). `blueprint` resolves the same way
+// for either -- both are spawned from a ShipBlueprint (modes/space/factories/RigFactory.cpp), a
+// station is not a distinct authoring type.
+struct Subject {
+    entt::entity rigRoot = entt::null;
+    const RigBlueprint* blueprint = nullptr;
+    bool isStation = false;
+};
 
 // Shared by Update and Draw: PlayerLocation's living Engineering facility, the station it
 // belongs to, the requester's own vessel docked there, and its blueprint's RigBlueprint. Any
@@ -265,6 +294,16 @@ struct ResolvedContext {
     entt::entity requester = entt::null;
     const RigBlueprint* blueprint = nullptr;
 };
+
+const RigBlueprint* ResolveBlueprint(const entt::registry& registry, entt::entity rigRoot,
+                                     const core::ContentLibrary& content) {
+    const BlueprintRef* blueprintRef = registry.try_get<BlueprintRef>(rigRoot);
+    if (blueprintRef == nullptr) {
+        return nullptr;
+    }
+    const ShipBlueprint* ship = content.FindShip(blueprintRef->id);
+    return ship != nullptr ? &ship->rig : nullptr;
+}
 
 ResolvedContext Resolve(const entt::registry& registry, const FactionId& playerFaction,
                         const core::ContentLibrary& content) {
@@ -278,15 +317,50 @@ ResolvedContext Resolve(const entt::registry& registry, const FactionId& playerF
     if (ctx.requester == entt::null) {
         return ctx;
     }
-    const BlueprintRef* blueprintRef = registry.try_get<BlueprintRef>(ctx.requester);
-    if (blueprintRef == nullptr) {
-        return ctx;
-    }
-    const ShipBlueprint* ship = content.FindShip(blueprintRef->id);
-    if (ship != nullptr) {
-        ctx.blueprint = &ship->rig;
-    }
+    ctx.blueprint = ResolveBlueprint(registry, ctx.requester, content);
     return ctx;
+}
+
+// `ctx.requester` first, then `ctx.station` when it is a second valid subject
+// (StationIsSubject) and its own BlueprintRef resolves -- a station with no authored rig simply
+// omits the section rather than showing an empty one.
+std::vector<Subject> Subjects(const entt::registry& registry, const ResolvedContext& ctx,
+                              const FactionId& playerFaction, const core::ContentLibrary& content) {
+    std::vector<Subject> subjects{Subject{ctx.requester, ctx.blueprint, false}};
+    if (StationIsSubject(registry, ctx.station, playerFaction)) {
+        if (const RigBlueprint* stationBlueprint = ResolveBlueprint(registry, ctx.station, content);
+            stationBlueprint != nullptr) {
+            subjects.push_back(Subject{ctx.station, stationBlueprint, true});
+        }
+    }
+    return subjects;
+}
+
+// Hit-tests one subject's mount list and, on a hit against an enabled row, issues the request
+// that row's state means -- Delete/Rebuild placed on `requester` (the only entity RefactorSystem
+// can gate through docked_facility::DockedFacility) with `subject.rigRoot` naming which rig it
+// applies to. Returns true once it has consumed the click, whether or not a request was issued,
+// so callers stop trying further sections.
+bool TryEditSubject(entt::registry& registry, entt::entity requester, const Subject& subject,
+                    Rectangle list, const sr::ui::UiInput& input) {
+    const std::vector<MountRow> mounts = MountRows(registry, subject.rigRoot, *subject.blueprint);
+    const std::optional<int> hit =
+        sr::ui::ListViewRowAt(list, static_cast<int>(mounts.size()), 0.0f, input.cursor);
+    if (!hit.has_value() || *hit >= static_cast<int>(mounts.size())) {
+        return false;
+    }
+    const MountRow& row = mounts[static_cast<std::size_t>(*hit)];
+    if (row.row.style.disabled) {
+        return true;
+    }
+    if (row.hardpoint == entt::null) {
+        registry.emplace_or_replace<RebuildMountRequest>(
+            requester, RebuildMountRequest{row.mount, subject.rigRoot});
+    } else {
+        registry.emplace_or_replace<DeleteHardpointRequest>(
+            requester, DeleteHardpointRequest{row.hardpoint, subject.rigRoot});
+    }
+    return true;
 }
 
 }  // namespace
@@ -304,8 +378,11 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
         return;
     }
 
+    const std::vector<Subject> subjects = Subjects(registry, ctx, playerFaction, content);
+    const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
-    const Layout layout = ComputeLayout(PanelBounds(siblings.size() > 1), siblings.size() > 1);
+    const Layout layout = ComputeLayout(PanelBounds(siblings.size() > 1, showStationSection),
+                                        siblings.size() > 1, showStationSection);
 
     if (siblings.size() > 1) {
         const std::optional<int> hit = sr::ui::TabStripHitTest(
@@ -330,22 +407,11 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
         return;
     }
 
-    const std::vector<MountRow> mounts = MountRows(registry, ctx.requester, *ctx.blueprint);
-    const std::optional<int> mountHit = sr::ui::ListViewRowAt(
-        layout.rightList, static_cast<int>(mounts.size()), 0.0f, input.cursor);
-    if (!mountHit.has_value() || *mountHit >= static_cast<int>(mounts.size())) {
+    if (TryEditSubject(registry, ctx.requester, subjects[0], layout.rightList, input)) {
         return;
     }
-    const MountRow& row = mounts[static_cast<std::size_t>(*mountHit)];
-    if (row.row.style.disabled) {
-        return;
-    }
-    if (row.hardpoint == entt::null) {
-        registry.emplace_or_replace<RebuildMountRequest>(ctx.requester,
-                                                         RebuildMountRequest{row.mount});
-    } else {
-        registry.emplace_or_replace<DeleteHardpointRequest>(ctx.requester,
-                                                            DeleteHardpointRequest{row.hardpoint});
+    if (showStationSection) {
+        TryEditSubject(registry, ctx.requester, subjects[1], layout.stationList, input);
     }
 }
 
@@ -356,10 +422,13 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
         return;
     }
 
+    const std::vector<Subject> subjects = Subjects(registry, ctx, playerFaction, content);
+    const bool showStationSection = subjects.size() > 1;
     const std::vector<entt::entity> siblings = SiblingBenches(registry, ctx.station);
     const bool showSiblingStrip = siblings.size() > 1;
-    const Layout layout = ComputeLayout(PanelBounds(showSiblingStrip), showSiblingStrip);
-    sr::ui::DrawPanelFrame(PanelBounds(showSiblingStrip));
+    const Layout layout = ComputeLayout(PanelBounds(showSiblingStrip, showStationSection),
+                                        showSiblingStrip, showStationSection);
+    sr::ui::DrawPanelFrame(PanelBounds(showSiblingStrip, showStationSection));
 
     std::string facilityName = "ENGINEERING";
     if (const DisplayName* name = registry.try_get<DisplayName>(ctx.station)) {
@@ -405,6 +474,17 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
         mountWidgetRows.push_back(entry.row);
     }
     sr::ui::DrawListView(layout.rightList, mountWidgetRows, 0.0f, "NO MOUNTS");
+
+    if (showStationSection) {
+        DrawText("STATION", static_cast<int>(layout.stationLabel.x),
+                 static_cast<int>(layout.stationLabel.y), 14, sr::ui::kLabelDim);
+        std::vector<sr::ui::Row> stationWidgetRows;
+        for (const MountRow& entry :
+             MountRows(registry, subjects[1].rigRoot, *subjects[1].blueprint)) {
+            stationWidgetRows.push_back(entry.row);
+        }
+        sr::ui::DrawListView(layout.stationList, stationWidgetRows, 0.0f, "NO MOUNTS");
+    }
 }
 
 }  // namespace sr::space::ui::engineering_screen
