@@ -41,4 +41,15 @@ Follow these steps in order for every issue worked from this repo's GitHub track
 
    Do not launch `StarReach.exe` or drive the GUI (mouse/keyboard injection, screenshots) to verify features — the user verifies in-game themselves.
 
+   **Also run clang-format before handing off.** A clean compile and passing `sr_tests.exe` say
+   nothing about formatting — CI's `Formatting` job runs `clang-format` independently and fails on
+   things a compiler doesn't care about (a hand-wrapped ternary, a manually broken `return`, a
+   multi-line `TEST_CASE` string). Check every touched `.cpp`/`.h` against the repo's `.clang-format`:
+   ```
+   clang-format -n -Werror <touched files>
+   ```
+   If it reports violations, apply them (`clang-format -i <touched files>`) and rebuild + rerun
+   `sr_tests.exe` once more to confirm the reformat didn't change behavior — it shouldn't, since
+   clang-format only touches whitespace/wrapping, but confirm rather than assume.
+
 5. **Hand off, don't commit.** Report what changed and the exact runnable exe path(s) built. Do not commit or push unless explicitly asked — the user reviews, commits, and pushes themselves. The user also opens the PR; on request, provide a short summary of the work for the PR description (tied to the issue's Feature Description/Tests sections, "Closes #NN") but do not open the PR.
