@@ -133,6 +133,52 @@ Layout ComputeLayout(Rectangle content, bool showSiblingStrip) {
     return layout;
 }
 
+// architecture.md 2.2's function-length cap -- split out of Draw() below, one section each.
+
+void DrawHeader(Rectangle header, const std::string& bayName, const std::string& slots,
+                int occupied, float integrityFraction) {
+    DrawText(bayName.c_str(), static_cast<int>(header.x), static_cast<int>(header.y), 24,
+             sr::ui::kValueBright);
+
+    const int statY = static_cast<int>(header.y + 30.0f);
+    int statX = static_cast<int>(header.x);
+    const std::string statPrefix =
+        slots + " | " + std::to_string(occupied) + " OCCUPIED | INTEGRITY ";
+    DrawText(statPrefix.c_str(), statX, statY, 14, sr::ui::kLabelDim);
+    statX += MeasureText(statPrefix.c_str(), 14);
+    const std::string integrityPct =
+        std::to_string(static_cast<int>(integrityFraction * 100.0f + 0.5f)) + "%";
+    DrawText(integrityPct.c_str(), statX, statY, 14, IntegrityStatusColor(integrityFraction));
+}
+
+void DrawSiblingStrip(Rectangle bounds, const std::vector<entt::entity>& siblings,
+                      entt::entity thisBay) {
+    std::vector<std::string> labels;
+    labels.reserve(siblings.size());
+    int selected = -1;
+    for (std::size_t i = 0; i < siblings.size(); ++i) {
+        labels.push_back(BayLabel(i));
+        if (siblings[i] == thisBay) {
+            selected = static_cast<int>(i);
+        }
+    }
+    sr::ui::DrawTabStrip(bounds, labels, selected);
+}
+
+// The reference's "ROSTER -- BAY ALPHA" box: a bracket panel plus a label row naming the bay and
+// its slot count, drawn around (but not including) the ListView itself.
+void DrawRosterPanel(const Layout& layout, std::size_t thisBayIndex, const std::string& slots) {
+    sr::ui::DrawBracketPanel(layout.rosterPanel, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f,
+                             2.0f);
+    const std::string rosterTitle = "ROSTER -- " + BayLabel(thisBayIndex);
+    DrawText(rosterTitle.c_str(), static_cast<int>(layout.rosterLabel.x),
+             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kValueBright);
+    const int slotsWidth = MeasureText(slots.c_str(), 14);
+    DrawText(slots.c_str(),
+             static_cast<int>(layout.rosterLabel.x + layout.rosterLabel.width - slotsWidth),
+             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kLabelDim);
+}
+
 }  // namespace
 
 std::vector<BayRosterEntry> Roster(const entt::registry& registry, entt::entity bay,
@@ -300,54 +346,23 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
         health != nullptr && health->max > 0.0f) {
         integrityFraction = health->current / health->max;
     }
-    const Color integrityColor = IntegrityStatusColor(integrityFraction);
-    const std::string integrityPct =
-        std::to_string(static_cast<int>(integrityFraction * 100.0f + 0.5f)) + "%";
-
-    DrawText(bayName.c_str(), static_cast<int>(layout.header.x), static_cast<int>(layout.header.y),
-             24, sr::ui::kValueBright);
-
-    const int statY = static_cast<int>(layout.header.y + 30.0f);
-    int statX = static_cast<int>(layout.header.x);
-    const std::string statPrefix =
-        slots + " | " + std::to_string(occupied) + " OCCUPIED | INTEGRITY ";
-    DrawText(statPrefix.c_str(), statX, statY, 14, sr::ui::kLabelDim);
-    statX += MeasureText(statPrefix.c_str(), 14);
-    DrawText(integrityPct.c_str(), statX, statY, 14, integrityColor);
+    DrawHeader(layout.header, bayName, slots, occupied, integrityFraction);
 
     // Sibling selector: one TabStrip entry per living Docking hardpoint on the host, absent when
     // there is only one bay. Labelled phonetically (BAY ALPHA/BRAVO/...) to match the reference,
     // rather than the bare ordinal this screen drew before.
     if (showSiblingStrip) {
-        std::vector<std::string> labels;
-        labels.reserve(siblings.size());
-        int selected = -1;
-        for (std::size_t i = 0; i < siblings.size(); ++i) {
-            labels.push_back(BayLabel(i));
-            if (siblings[i] == thisBay) {
-                selected = static_cast<int>(i);
-            }
-        }
-        sr::ui::DrawTabStrip(layout.siblingStrip, labels, selected);
+        DrawSiblingStrip(layout.siblingStrip, siblings, thisBay);
     }
 
     // Roster: view<Docked> filtered on docked.bay == thisBay, framed as its own bracket-bordered
-    // sub-panel (the reference's "ROSTER -- BAY ALPHA" box) with a label row naming the bay and
-    // its slot count. Your own vessel is a row like any other, marked via `value` ("LAUNCH" if you
-    // occupy it, "BOARD" if you own it and don't) -- unchanged from before, out of this issue's
-    // scope.
+    // sub-panel (DrawRosterPanel above). Your own vessel is a row like any other, marked via
+    // `value` ("LAUNCH" if you occupy it, "BOARD" if you own it and don't) -- unchanged from
+    // before, out of this issue's scope.
     const auto siblingIt = std::find(siblings.begin(), siblings.end(), thisBay);
     const std::size_t thisBayIndex =
         siblingIt != siblings.end() ? static_cast<std::size_t>(siblingIt - siblings.begin()) : 0;
-    sr::ui::DrawBracketPanel(layout.rosterPanel, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f,
-                             2.0f);
-    const std::string rosterTitle = "ROSTER -- " + BayLabel(thisBayIndex);
-    DrawText(rosterTitle.c_str(), static_cast<int>(layout.rosterLabel.x),
-             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kValueBright);
-    const int slotsWidth = MeasureText(slots.c_str(), 14);
-    DrawText(slots.c_str(),
-             static_cast<int>(layout.rosterLabel.x + layout.rosterLabel.width - slotsWidth),
-             static_cast<int>(layout.rosterLabel.y), 14, sr::ui::kLabelDim);
+    DrawRosterPanel(layout, thisBayIndex, slots);
 
     const std::vector<BayRosterEntry> roster =
         Roster(registry, thisBay, occupiedVessel, playerFaction);
