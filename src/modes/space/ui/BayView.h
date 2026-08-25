@@ -71,9 +71,11 @@ void Launch(entt::registry& registry, entt::entity vessel);
 // Launch, whichever the row shows) and the sibling-bay selector. No-op otherwise.
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
-// Draws the Bay screen: header (bay name, occupancy, this bay hardpoint's integrity), sibling
-// selector, roster. No-op unless PlayerLocation currently names a living Docking-kind facility
-// hardpoint.
+// Draws the Bay screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already drew
+// the one bezel around the whole window, so this does not draw its own): header (bay name,
+// occupancy, this bay hardpoint's integrity), sibling selector, roster. No-op unless PlayerLocation
+// currently names a living Docking-kind facility hardpoint and Storage is not the selected tab
+// (bridge_view::IsStorageSelected).
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::bay_view

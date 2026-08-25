@@ -198,8 +198,10 @@ TEST_CASE("ActiveStation resolves for an owned, CargoHold-carrying docked statio
 
 TEST_CASE("ActiveStation resolves while PlayerLocation is on a facility hardpoint (e.g. Bay)",
           "[storage-screen]") {
-    // architecture.md 12.30.2 lands the player on a Docking-kind hardpoint by default; Storage
-    // must still resolve as a companion panel while that screen is showing.
+    // architecture.md 12.30.2 lands the player on a Docking-kind hardpoint by default; ActiveStation
+    // is the structural "could Storage apply here" check and stays true regardless -- it is
+    // Update/Draw's separate bridge_view::IsStorageSelected gate (architecture.md 12.30's frame)
+    // that keeps Storage and a hardpoint screen from ever showing full-screen at the same time.
     entt::registry registry;
     const entt::entity station = registry.create();
     registry.emplace<FactionRef>(station, FactionId("aegis"));

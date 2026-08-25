@@ -15,10 +15,12 @@
 // exist; a warehouse that does not deal is a complete screen on its own.
 //
 // Gated on the host carrying a CargoHold and no hardpoint at all (architecture.md 12.30's split),
-// so unlike Bay/Repair/etc. there is no facility hardpoint for PlayerLocation to name -- this
-// screen is a companion panel, drawn whenever bridge_view::DockedStation resolves to an owned,
-// CargoHold-carrying station, alongside whichever hardpoint screen (if any) is also showing,
-// rather than a router tab you switch into.
+// so unlike Bay/Repair/etc. there is no facility hardpoint for PlayerLocation to name. Under
+// architecture.md 12.30's full-screen frame -- settled here, resolving that section's own open
+// question -- Storage IS a real router tab, exclusively shown like every other screen; it just
+// tracks its selection on bridge_view's IsStorageSelected singleton instead of by moving
+// PlayerLocation, since it has no hardpoint to move onto. It is never drawn "alongside" a
+// hardpoint screen any more -- the frame has room for exactly one full-screen tab at a time.
 //
 // modes/*/ui/ must not include systems/ (section 2.3); this builds TransferItemRequest
 // (shared/components/StationServices.h) for the caller to place on the requester -- the vessel
@@ -75,16 +77,18 @@ entt::entity ActiveStation(const entt::registry& registry, const FactionId& play
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
                            const FactionId& playerFaction);
 
-// Reads this frame's input and, while ActiveStation resolves, hit-tests each side's sibling strip
-// (a click there just changes that side's chosen destination hold) and both ListViews -- a click
-// on a row performs a whole-stack transfer in that row's direction, into whichever hold the
-// OTHER side's strip currently has selected. No-op otherwise, or with no owned vessel currently
-// docked there (OwnedVesselAt).
+// Reads this frame's input and, while bridge_view::IsStorageSelected and ActiveStation both
+// resolve, hit-tests each side's sibling strip (a click there just changes that side's chosen
+// destination hold) and both ListViews -- a click on a row performs a whole-stack transfer in
+// that row's direction, into whichever hold the OTHER side's strip currently has selected. No-op
+// otherwise, or with no owned vessel currently docked there (OwnedVesselAt).
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
-// Draws the Storage screen: header (station name, both holds' mass used/capacity), each side's
-// sibling strip when it has more than one living hold, your hold on the left, the station's on
-// the right. No-op unless ActiveStation resolves.
+// Draws the Storage screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
+// drew the one bezel around the whole window, so this does not draw its own): header (station
+// name, both holds' mass used/capacity), each side's sibling strip when it has more than one
+// living hold, your hold on the left, the station's on the right. No-op unless
+// bridge_view::IsStorageSelected and ActiveStation both resolve.
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::storage_screen

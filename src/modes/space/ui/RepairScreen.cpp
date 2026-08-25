@@ -8,6 +8,7 @@
 #include <string>
 
 #include "core/economy/Pricing.h"
+#include "modes/space/ui/BridgeView.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Health.h"
@@ -21,8 +22,6 @@
 namespace sr::space::ui::repair_screen {
 namespace {
 
-constexpr float kPanelWidth = 560.0f;
-constexpr float kPanelTop = 132.0f;
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSectionLabelHeight = 20.0f;
 constexpr float kListHeight = 160.0f;
@@ -63,6 +62,12 @@ entt::entity CurrentFacility(const entt::registry& registry, entt::entity shell)
     if (facility == nullptr || facility->kind != FacilityKind::Repair) {
         return entt::null;
     }
+    // architecture.md 12.30's frame: at most one full-screen tab at a time, and Storage's own
+    // selection (bridge_view::IsStorageSelected) has no hardpoint to contest this gate with
+    // otherwise.
+    if (bridge_view::IsStorageSelected(registry)) {
+        return entt::null;
+    }
     return shell;
 }
 
@@ -77,16 +82,9 @@ struct Layout {
     std::vector<SectionLayout> sections;
 };
 
-Rectangle PanelBounds(int sectionCount) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float sectionHeight = kSectionLabelHeight + kListHeight + kAllButtonHeight;
-    const float height = kHeaderHeight + sectionHeight * static_cast<float>(sectionCount) +
-                         2.0f * sr::ui::kPanelPadding;
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
-}
-
-Layout ComputeLayout(int sectionCount) {
-    const Rectangle content = sr::ui::PanelContentRect(PanelBounds(sectionCount));
+// `content` is bridge_view::FrameContentRect() -- already the router's one full-screen inset, so
+// this lays sections out inside it directly rather than re-insetting.
+Layout ComputeLayout(Rectangle content, int sectionCount) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     float y = content.y + kHeaderHeight;
@@ -222,7 +220,8 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
 
     const std::vector<entt::entity> subjects =
         Subjects(registry, station, requester, playerFaction);
-    const Layout layout = ComputeLayout(static_cast<int>(subjects.size()));
+    const Layout layout =
+        ComputeLayout(bridge_view::FrameContentRect(), static_cast<int>(subjects.size()));
     const RepairOrder* order = registry.try_get<RepairOrder>(requester);
     const int costPerHp = core::economy::RepairCostPerHp(FacilityGrade(registry, facility));
 
@@ -264,8 +263,8 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
 
     const std::vector<entt::entity> subjects =
         Subjects(registry, station, requester, playerFaction);
-    const Layout layout = ComputeLayout(static_cast<int>(subjects.size()));
-    sr::ui::DrawPanelFrame(PanelBounds(static_cast<int>(subjects.size())));
+    const Layout layout =
+        ComputeLayout(bridge_view::FrameContentRect(), static_cast<int>(subjects.size()));
 
     std::string facilityName = "REPAIR BAY";
     if (const DisplayName* name = registry.try_get<DisplayName>(station)) {

@@ -62,8 +62,10 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
 // otherwise. No-op on a Destroyed row.
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
-// Draws the Repair screen: header (facility name, its own integrity, your credits, rate), one
-// section per valid subject, each a ListView over its hardpoints plus a Repair All row.
+// Draws the Repair screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
+// drew the one bezel around the whole window, so this does not draw its own): header (facility
+// name, its own integrity, your credits, rate), one section per valid subject, each a ListView
+// over its hardpoints plus a Repair All row.
 void Draw(const entt::registry& registry, const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::repair_screen

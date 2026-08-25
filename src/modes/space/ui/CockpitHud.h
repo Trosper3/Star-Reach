@@ -24,6 +24,12 @@ float AggregateHullFraction(const entt::registry& registry, entt::entity rigRoot
 // a true zero at features.md 3.2's structural-failure threshold rather than at raw zero -- no
 // ship is ever seen alive below that point. No-op with no PlayerControlled entity. Must be called
 // outside BeginMode2D/EndMode2D, same as IconRenderer.
+//
+// architecture.md 12.30's frame: this is today's placeholder for features.md 3.10's bottom band,
+// which the docked frame replaces rather than floats over ("the flight HUD does not persist under
+// it") -- SpaceFlight::Draw skips this call while docked (modes/space/ui/BridgeView.h's
+// DockedStation), rather than this function gating on it itself, the same split DrawWorld/
+// DrawAimReticle already use.
 void Draw(const entt::registry& registry);
 
 }  // namespace sr::space::ui::cockpit_hud

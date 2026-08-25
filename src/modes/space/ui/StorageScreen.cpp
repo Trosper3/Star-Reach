@@ -20,8 +20,6 @@
 namespace sr::space::ui::storage_screen {
 namespace {
 
-constexpr float kPanelWidth = 640.0f;
-constexpr float kPanelTop = 520.0f;  // Below BayView's panel -- both are visible while docked.
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSiblingStripHeight = 28.0f;
 constexpr float kListHeight = 220.0f;
@@ -74,18 +72,12 @@ struct Layout {
     Rectangle right{};
 };
 
-Rectangle PanelBounds(bool showStripRow) {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float height = kHeaderHeight + (showStripRow ? kSiblingStripHeight : 0.0f) + kListHeight +
-                         2.0f * sr::ui::kPanelPadding;
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
-}
-
 // `showStripRow` reserves one shared strip row so both columns' lists stay vertically aligned --
 // a side without its own sibling strip (one hold, or none) simply leaves that half blank rather
-// than the two columns starting at different heights.
-Layout ComputeLayout(Rectangle bounds, bool showStripRow) {
-    const Rectangle content = sr::ui::PanelContentRect(bounds);
+// than the two columns starting at different heights. `content` is
+// bridge_view::FrameContentRect() -- already inset by the router's one bezel, so this lays
+// sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+Layout ComputeLayout(Rectangle content, bool showStripRow) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     const float columnWidth = (content.width - kColumnGap) * 0.5f;
@@ -214,6 +206,11 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
     return entt::null;
 }
 
+// Structural resolver only: "is there a valid, owned CargoHold station to trade with here at
+// all," independent of whether Storage is the tab currently on screen. Deliberately does not
+// consult bridge_view::IsStorageSelected -- Update/Draw are what enforce the frame's one-screen-
+// at-a-time exclusivity (architecture.md 12.30's Storage sub-question), so this stays the same
+// pure "could Storage apply" check regardless of which tab is showing.
 entt::entity ActiveStation(const entt::registry& registry, const FactionId& playerFaction) {
     const entt::entity station = bridge_view::DockedStation(registry);
     if (station == entt::null || !HasCargoHold(registry, station)) {
@@ -227,6 +224,9 @@ entt::entity ActiveStation(const entt::registry& registry, const FactionId& play
 }
 
 void Update(entt::registry& registry, const FactionId& playerFaction) {
+    if (!bridge_view::IsStorageSelected(registry)) {
+        return;
+    }
     const entt::entity station = ActiveStation(registry, playerFaction);
     if (station == entt::null) {
         return;
@@ -245,7 +245,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
     const std::vector<entt::entity> vesselHolds = SiblingHolds(registry, vessel);
     const std::vector<entt::entity> stationHolds = SiblingHolds(registry, station);
     const bool showStripRow = vesselHolds.size() > 1 || stationHolds.size() > 1;
-    const Layout layout = ComputeLayout(PanelBounds(showStripRow), showStripRow);
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), showStripRow);
 
     StorageScreenState& state = registry.get<StorageScreenState>(EnsureStateSingleton(registry));
     state.selectedVesselHold = ResolveSelectedHold(vesselHolds, state.selectedVesselHold);
@@ -293,6 +293,9 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
 }
 
 void Draw(const entt::registry& registry, const FactionId& playerFaction) {
+    if (!bridge_view::IsStorageSelected(registry)) {
+        return;
+    }
     const entt::entity station = ActiveStation(registry, playerFaction);
     if (station == entt::null) {
         return;
@@ -311,8 +314,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction) {
     const entt::entity selectedStationHold =
         ResolveSelectedHold(stationHolds, state.selectedStationHold);
 
-    const Layout layout = ComputeLayout(PanelBounds(showStripRow), showStripRow);
-    sr::ui::DrawPanelFrame(PanelBounds(showStripRow));
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect(), showStripRow);
 
     if (showStripRow) {
         DrawSiblingStrip(registry, layout.leftStrip, vesselHolds, selectedVesselHold);

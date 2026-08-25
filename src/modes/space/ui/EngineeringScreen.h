@@ -94,9 +94,10 @@ bool StationIsSubject(const entt::registry& registry, entt::entity station,
 void Update(entt::registry& registry, const FactionId& playerFaction,
             const core::ContentLibrary& content);
 
-// Draws the Engineering screen: header (facility name, grade, this hardpoint's integrity,
-// credits), sibling selector, left CargoHold list, one right-hand rig-mount section per subject
-// (YOUR VESSEL, and STATION when it is yours).
+// Draws the Engineering screen full-screen (architecture.md 12.30's frame; bridge_view::Draw
+// already drew the one bezel around the whole window, so this does not draw its own): header
+// (facility name, grade, this hardpoint's integrity, credits), sibling selector, left CargoHold
+// list, one right-hand rig-mount section per subject (YOUR VESSEL, and STATION when it is yours).
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
           const core::ContentLibrary& content);
 

@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CodexScreen.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
@@ -65,6 +66,12 @@ entt::entity CurrentFacility(const entt::registry& registry, entt::entity shell)
     if (facility == nullptr || facility->kind != FacilityKind::Research) {
         return entt::null;
     }
+    // architecture.md 12.30's frame: at most one full-screen tab at a time, and Storage's own
+    // selection (bridge_view::IsStorageSelected) has no hardpoint to contest this gate with
+    // otherwise.
+    if (bridge_view::IsStorageSelected(registry)) {
+        return entt::null;
+    }
     return shell;
 }
 
@@ -83,8 +90,6 @@ int FacilityCapacity(const entt::registry& registry, entt::entity facility) {
     return ref != nullptr ? ref->capacity : 0;
 }
 
-constexpr float kPanelWidth = 560.0f;
-constexpr float kPanelTop = 132.0f;
 constexpr float kHeaderHeight = 44.0f;
 constexpr float kSectionLabelHeight = 20.0f;
 constexpr float kListHeight = 160.0f;
@@ -100,15 +105,9 @@ struct Layout {
     Rectangle queueList{};
 };
 
-Rectangle PanelBounds() {
-    const float screenWidth = static_cast<float>(GetScreenWidth());
-    const float height =
-        kHeaderHeight + 2.0f * (kSectionLabelHeight + kListHeight) + 2.0f * sr::ui::kPanelPadding;
-    return Rectangle{(screenWidth - kPanelWidth) * 0.5f, kPanelTop, kPanelWidth, height};
-}
-
-Layout ComputeLayout() {
-    const Rectangle content = sr::ui::PanelContentRect(PanelBounds());
+// `content` is bridge_view::FrameContentRect() -- already inset by the router's one bezel, so
+// this lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect.
+Layout ComputeLayout(Rectangle content) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     layout.codexButton = {content.x + content.width - kCodexButtonWidth, content.y,
@@ -221,7 +220,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction,
         return;
     }
 
-    const Layout layout = ComputeLayout();
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect());
     if (sr::ui::ButtonClicked(layout.codexButton, input)) {
         codex_screen::Open(registry);
         return;
@@ -262,8 +261,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     const entt::entity station = registry.get<ParentRig>(facility).root;
     const entt::entity requester = OwnedVesselAt(registry, station, playerFaction);
 
-    const Layout layout = ComputeLayout();
-    sr::ui::DrawPanelFrame(PanelBounds());
+    const Layout layout = ComputeLayout(bridge_view::FrameContentRect());
 
     std::string labName = "RESEARCH LAB";
     if (const DisplayName* name = registry.try_get<DisplayName>(station)) {
