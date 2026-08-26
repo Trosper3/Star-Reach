@@ -1,12 +1,15 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/registries/ContentLibrary.h"
 #include "modes/space/ui/ModulesMenu.h"
 #include "shared/components/FlightOverlay.h"
 #include "shared/components/Rig.h"
 
+using sr::Destroyed;
 using sr::FlightOverlayState;
 using sr::FlightOverlayStateSingleton;
 using sr::MountedModules;
+using sr::ParentRig;
 using sr::Rig;
 using sr::ShellRole;
 namespace modules_menu = sr::space::ui::modules_menu;
@@ -87,6 +90,93 @@ TEST_CASE("EquippableMounts/EquippedMounts are empty for a rig with no Rig compo
     CHECK(modules_menu::EquippedMounts(registry, root).empty());
 }
 
+TEST_CASE(
+    "EquippableMounts/EquippedMounts exclude a Destroyed mount even if it is empty or occupied",
+    "[modules-menu]") {
+    // architecture.md 12.30.7: the mount list's three states are occupied, empty, and Destroyed
+    // -- a Destroyed hardpoint is never offered as an equip or unmount target regardless of what
+    // MountedModules still says, so it must not appear in either list.
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity destroyedEmpty = registry.create();
+    registry.emplace<ShellRole>(destroyedEmpty, sr::ShellKind::Weapon);
+    registry.emplace<Destroyed>(destroyedEmpty);
+    const entt::entity destroyedOccupied = registry.create();
+    registry.emplace<ShellRole>(destroyedOccupied, sr::ShellKind::Weapon);
+    registry.emplace<MountedModules>(destroyedOccupied, MountedModules{{sr::ModuleId("gun_nose")}});
+    registry.emplace<Destroyed>(destroyedOccupied);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{destroyedEmpty, destroyedOccupied});
+
+    CHECK(modules_menu::EquippableMounts(registry, root).empty());
+    CHECK(modules_menu::EquippedMounts(registry, root).empty());
+}
+
+TEST_CASE("DestroyedMounts lists only Destroyed hardpoints, occupied or not", "[modules-menu]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity living = registry.create();
+    registry.emplace<ShellRole>(living, sr::ShellKind::Weapon);
+    const entt::entity destroyed = registry.create();
+    registry.emplace<ShellRole>(destroyed, sr::ShellKind::Weapon);
+    registry.emplace<Destroyed>(destroyed);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{living, destroyed});
+
+    const auto mounts = modules_menu::DestroyedMounts(registry, root);
+    REQUIRE(mounts.size() == 1);
+    CHECK(mounts.front() == destroyed);
+}
+
+TEST_CASE("CanMount refuses a Destroyed mount", "[modules-menu]") {
+    entt::registry registry;
+    sr::core::ContentLibrary content;  // Bare -- FindModule always resolves nullptr here.
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<Destroyed>(mount);
+
+    CHECK_FALSE(
+        modules_menu::CanMount(registry, content, root, mount, sr::ModuleId("pulse_cannon_i")));
+}
+
+TEST_CASE("CanMount refuses an already-occupied mount", "[modules-menu]") {
+    entt::registry registry;
+    sr::core::ContentLibrary content;
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+    registry.emplace<MountedModules>(mount, MountedModules{{sr::ModuleId("gun_nose")}});
+
+    CHECK_FALSE(
+        modules_menu::CanMount(registry, content, root, mount, sr::ModuleId("pulse_cannon_i")));
+}
+
+TEST_CASE("CanMount refuses a mount belonging to another rig", "[modules-menu]") {
+    entt::registry registry;
+    sr::core::ContentLibrary content;
+    const entt::entity otherRoot = registry.create();
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, otherRoot);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+
+    CHECK_FALSE(
+        modules_menu::CanMount(registry, content, root, mount, sr::ModuleId("pulse_cannon_i")));
+}
+
+TEST_CASE("CanMount refuses a module id that does not resolve in content", "[modules-menu]") {
+    entt::registry registry;
+    sr::core::ContentLibrary content;  // Loads nothing -- FindModule always returns nullptr.
+    const entt::entity root = registry.create();
+    const entt::entity mount = registry.create();
+    registry.emplace<ParentRig>(mount, root);
+    registry.emplace<ShellRole>(mount, sr::ShellKind::Weapon);
+
+    CHECK_FALSE(
+        modules_menu::CanMount(registry, content, root, mount, sr::ModuleId("pulse_cannon_i")));
+}
+
 TEST_CASE("BuildMountRequest/BuildUnmountRequest carry their fields through", "[modules-menu]") {
     const entt::entity mount = entt::entity{7};
     const auto mountRequest =
@@ -110,7 +200,8 @@ TEST_CASE(
     entt::registry registry;
     const entt::entity singleton = registry.create();
     registry.emplace<FlightOverlayStateSingleton>(singleton);
-    registry.emplace<FlightOverlayState>(singleton, FlightOverlayState{false, true, {}});
+    registry.emplace<FlightOverlayState>(singleton,
+                                         FlightOverlayState{false, true, {}, entt::null});
 
     CHECK(modules_menu::IsOpen(registry));
 }

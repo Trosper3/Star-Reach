@@ -182,7 +182,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Update(registry, vesselRoot);
-        ui::modules_menu::Update(registry, vesselRoot);
+        ui::modules_menu::Update(registry, vesselRoot, content_);
         ui::codex_screen::Update(registry, vesselRoot, knowledge_, content_);
     }
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
@@ -412,7 +412,7 @@ void SpaceFlight::Draw() const {
     {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Draw(registry, vesselRoot);
-        ui::modules_menu::Draw(registry, vesselRoot);
+        ui::modules_menu::Draw(registry, vesselRoot, content_, fonts);
         ui::codex_screen::Draw(registry, vesselRoot, knowledge_, content_);
     }
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <entt/entity/entity.hpp>
 #include <string>
 
@@ -82,6 +83,19 @@ struct StorageScreenStateSingleton {};
 struct StorageScreenState {
     entt::entity selectedVesselHold = entt::null;
     entt::entity selectedStationHold = entt::null;
+};
+
+// The Repair screen's own per-section vertical scroll, in pixels -- one row list can outgrow its
+// fixed-height panel (the vessel's own hardpoint count has no upper bound), and mouse-wheel
+// position has to persist across frames the same way StorageScreenState's sibling selection
+// does. Indexed by Subjects()' own order (architecture.md 12.30.4: requester's vessel first,
+// then the station itself when owned) -- `[0]` is always the vessel's scroll, `[1]` the
+// station's, whether or not the station section exists this frame. Clamped every frame against
+// that section's current row count, so a hardpoint dying (or Rebuild adding one back) can only
+// ever shrink the valid range, never leave the offset pointing at a lost row.
+struct RepairScreenStateSingleton {};
+struct RepairScreenState {
+    std::array<float, 2> subjectScroll{};
 };
 
 // architecture.md 12.10 also names MergeModuleRequest{ ModuleId a, b }, deliberately not defined
