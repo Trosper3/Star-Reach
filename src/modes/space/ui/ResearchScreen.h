@@ -2,10 +2,13 @@
 
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
+#include <optional>
 #include <vector>
 
 #include "core/knowledge/KnowledgeNetwork.h"
+#include "modes/space/ui/BridgeView.h"
 #include "shared/blueprints/Ids.h"
+#include "shared/ui/Fonts.h"
 #include "shared/ui/Row.h"
 
 // modes/space/ui/ResearchScreen -- architecture.md 12.30.6, "Screen 6 -- Research." Gated on a
@@ -33,6 +36,16 @@
 // player's NetworkOwner already unlocks. This header owns hit-testing that one button; the panel
 // it opens is entirely CodexScreen's own file, the same one-button coupling direction
 // BridgeView's tabs have with the screens they route to.
+//
+// issue #227's visual-chrome pass: a fixed "RESEARCH LAB" header (the router's top bar already
+// names the specific station under "DOCKED AT", the same call Repair's/Storage's own headers
+// already made) with a consolidated GRADE/SLOTS stat line, over two bracket-bordered panels
+// (candidates, then the running queue) drawn with Bay's/Storage's/Repair's own bordered icon-box
+// row treatment rather than the generic sr::ui::DrawListView this screen drew before. The
+// facility-integrity gauge moved out of this screen's own header into the router's top-bar Gauge
+// (ActiveGaugeStatus below), the same move Repair's/Storage's own passes made. The click-a-row
+// queue model is unchanged: a row's "RESEARCH" button is drawn, not a separately hit-tested
+// widget -- Update() still hit-tests the whole row.
 namespace sr::space::ui::research_screen {
 
 // One candidate row: a distinct ModuleId held somewhere in the requester's CargoHold. Pure -- no
@@ -56,8 +69,9 @@ std::vector<CandidateRow> Candidates(const entt::registry& registry, entt::entit
                                      int queuedCount, int capacity);
 
 // One running-job row for `facility`'s own queue (StationFacility::researchJobs filtered to jobs
-// whose MountId names this hardpoint) -- `Row::fill` carries progress/durationSeconds so
-// DrawListView draws the per-row progress bar architecture.md 12.30.6 asks for.
+// whose MountId names this hardpoint) -- `Row::fill` carries progress/durationSeconds so the
+// queue panel's own row treatment draws the per-row progress bar architecture.md 12.30.6 asks
+// for.
 std::vector<sr::ui::Row> QueueRows(const entt::registry& registry, entt::entity station,
                                    entt::entity facility);
 
@@ -68,16 +82,30 @@ std::vector<sr::ui::Row> QueueRows(const entt::registry& registry, entt::entity 
 entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
                            const FactionId& playerFaction);
 
+// The mandatory per-screen facility-health readout (features.md 3.4) for the Research hardpoint
+// PlayerLocation currently names, fed to the router's top-bar Gauge via SpaceFlight's
+// orchestration (mirrors BayView.h's/StorageScreen.h's/RepairScreen.h's own ActiveGaugeStatus)
+// rather than Research drawing its own in-page gauge any more (issue #227's visual-chrome pass).
+// nullopt unless the screen is active and an owned vessel is docked there (the same gate Draw()
+// itself uses).
+std::optional<bridge_view::GaugeStatus> ActiveGaugeStatus(const entt::registry& registry,
+                                                          const FactionId& playerFaction);
+
 // Reads this frame's input and, while the player stands on a living Research hardpoint,
-// hit-tests the candidate list -- a click on an enabled row places a StartResearchRequest naming
-// that item and this hardpoint's MountId on the requester. No-op on a disabled row.
+// hit-tests the CODEX button and the candidate list -- a click on an enabled row places a
+// StartResearchRequest naming that item and this hardpoint's MountId on the requester. No-op on a
+// disabled row.
 void Update(entt::registry& registry, const FactionId& playerFaction,
             const core::knowledge::KnowledgeStore& knowledge);
 
 // Draws the Research screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
-// drew the one bezel around the whole window, so this does not draw its own): header (lab name,
-// grade, integrity, slots), the candidate ListView, and the running-job queue ListView.
+// drew the one bezel around the whole window, so this does not draw its own, nor its own
+// integrity gauge any more -- ActiveGaugeStatus above feeds that to the router's top bar
+// instead): a fixed "RESEARCH LAB" header with a GRADE/SLOTS stat line, the CODEX button, and two
+// bracket-bordered panels -- candidates, then the running queue -- each drawn with the bordered
+// icon-box row treatment issue #227's visual-chrome pass matches to Bay's/Storage's/Repair's own.
+// `fonts` is shared/ui/Fonts.h's Orbitron/Exo2 pair, replacing raylib's built-in bitmap font.
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
-          const core::knowledge::KnowledgeStore& knowledge);
+          const core::knowledge::KnowledgeStore& knowledge, const sr::ui::Fonts& fonts);
 
 }  // namespace sr::space::ui::research_screen
