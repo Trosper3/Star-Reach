@@ -148,6 +148,22 @@ float TotalMass(const entt::registry& registry, entt::entity rigRoot) {
     return total;
 }
 
+int SlotsTotal(const entt::registry& registry, entt::entity rigRoot) {
+    int total = 0;
+    for (const entt::entity hardpoint : LivingBays(registry, rigRoot)) {
+        total += registry.get<CargoHold>(hardpoint).slotCount;
+    }
+    return total;
+}
+
+int SlotsUsed(const entt::registry& registry, entt::entity rigRoot) {
+    int used = 0;
+    for (const entt::entity hardpoint : LivingBays(registry, rigRoot)) {
+        used += static_cast<int>(registry.get<CargoHold>(hardpoint).stacks.size());
+    }
+    return used;
+}
+
 DepositResult Deposit(entt::registry& registry, entt::entity rigRoot, const ItemStack& stack) {
     if (stack.quantity <= 0) {
         return DepositResult::Deposited;

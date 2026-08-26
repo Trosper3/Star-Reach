@@ -30,6 +30,16 @@ float Capacity(const entt::registry& registry, entt::entity rigRoot);
 // Sum of every living bay's stacks' (quantity * unitMass).
 float TotalMass(const entt::registry& registry, entt::entity rigRoot);
 
+// Sum of slotCount across every living cargo-bay hardpoint -- Capacity's item-slot counterpart
+// (Capacity is mass, this is the "34 / 50" count the inventory overlay's header wants alongside
+// it, architecture.md 12.30.7). Zero for a rig with no CargoBay module, same as Capacity.
+int SlotsTotal(const entt::registry& registry, entt::entity rigRoot);
+
+// How many of SlotsTotal's slots are presently occupied -- every living bay's stacks.size(),
+// summed. Never exceeds SlotsTotal outside of a bug: a bay only ever grows a new stacks() entry
+// through Deposit, which already refuses once slotCount is full.
+int SlotsUsed(const entt::registry& registry, entt::entity rigRoot);
+
 // features.md's two named refusals (the row model's "why", not just a bool):
 //   HoldFull    -- every slot that could take this item (a free slot, or an existing matching
 //                  stack with room) is at capacity. The rig has room to spare elsewhere, just not

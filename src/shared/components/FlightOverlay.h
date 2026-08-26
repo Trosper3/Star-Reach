@@ -1,8 +1,10 @@
 #pragma once
 
 #include <entt/entity/entity.hpp>
+#include <string>
 
 #include "shared/blueprints/Ids.h"
+#include "shared/components/Loot.h"
 
 // Components are plain-old-data (Law 1): no virtual methods, no inheritance, no owning pointers,
 // and no std::vector where a child entity would do (Law 4). Anything that looks like behavior
@@ -32,12 +34,23 @@ struct FlightOverlayState {
     entt::entity draggedFromMount = entt::null;
     // The loadout overlay's own per-column vertical scroll, in pixels -- a held CargoHold can
     // outgrow the fixed-height hold list the same way a many-hardpoint rig outgrows the mount
-    // list, and mouse-wheel position has to persist across frames. Unused by the inventory
-    // overlay (its own list scrolls the same way, tracked on StorageMenu's own state once that
-    // gap is closed) -- loadout-only fields already coexist here with draggedModule/
-    // draggedFromMount above.
+    // list, and mouse-wheel position has to persist across frames. Loadout-only fields already
+    // coexist here with draggedModule/draggedFromMount above.
     float holdScroll = 0.0f;
     float mountScroll = 0.0f;
+
+    // The inventory overlay's own vertical scroll -- holdScroll/mountScroll's counterpart above,
+    // for StorageMenu's one list instead of loadout's two columns.
+    float storageScroll = 0.0f;
+    // The inventory overlay's own selection + jettison quantity (issue #229's grouping/quantity
+    // pass). Identifies a row by (hardpoint, kind, id) rather than a row index -- the row list
+    // this indexes into now has group headers mixed in, and shifts every time the one verb this
+    // screen owns actually fires, so an index would go stale the instant either happens.
+    // `selectedHardpoint == entt::null` means "nothing selected."
+    entt::entity selectedHardpoint = entt::null;
+    ItemKind selectedKind = ItemKind::Element;
+    std::string selectedId;
+    int jettisonQuantity = 1;
 };
 
 }  // namespace sr

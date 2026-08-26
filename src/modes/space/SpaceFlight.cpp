@@ -411,7 +411,7 @@ void SpaceFlight::Draw() const {
     // what it is over") -- after bridge_view, never gated on it.
     {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
-        ui::storage_menu::Draw(registry, vesselRoot);
+        ui::storage_menu::Draw(registry, vesselRoot, content_, fonts);
         ui::modules_menu::Draw(registry, vesselRoot, content_, fonts);
         ui::codex_screen::Draw(registry, vesselRoot, knowledge_, content_);
     }
