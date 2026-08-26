@@ -1,5 +1,7 @@
 #pragma once
 
+#include <entt/entity/entity.hpp>
+
 #include "shared/blueprints/Ids.h"
 
 // Components are plain-old-data (Law 1): no virtual methods, no inheritance, no owning pointers,
@@ -19,12 +21,23 @@ struct FlightOverlayStateSingleton {};
 struct FlightOverlayState {
     bool inventoryOpen = false;
     bool loadoutOpen = false;
-    // The loadout overlay's "select, then target" flow: a CargoHold module id chosen from the
-    // left ListView, waiting for a mount click to commit a MountModuleRequest. Empty means
-    // nothing pending. Two stateless clicks rather than drag-and-drop (architecture.md 12.30.7:
-    // "no retained tree, no widget-owned state" -- a drag is retained state spanning frames,
-    // this is one more field on the same UI-state singleton a selected row index already is).
-    ModuleId pendingModule;
+    // architecture.md 12.30.7 (drag-and-drop, settled 2026-08-23 -- replaces this struct's
+    // earlier click-then-target "pendingModule" field entirely, not just its meaning).
+    // Mutually exclusive, whichever list the live drag started in: `draggedModule` holds a
+    // CargoHold module id picked up from the hold list, `draggedFromMount` holds a hardpoint
+    // entity picked up from an occupied mount in the mount list. Both empty/null means no drag
+    // is live. Still screen-owned singleton state, not widget-owned -- ListView is only ever
+    // asked "what row is under this point," the same question it already answered for a click.
+    ModuleId draggedModule;
+    entt::entity draggedFromMount = entt::null;
+    // The loadout overlay's own per-column vertical scroll, in pixels -- a held CargoHold can
+    // outgrow the fixed-height hold list the same way a many-hardpoint rig outgrows the mount
+    // list, and mouse-wheel position has to persist across frames. Unused by the inventory
+    // overlay (its own list scrolls the same way, tracked on StorageMenu's own state once that
+    // gap is closed) -- loadout-only fields already coexist here with draggedModule/
+    // draggedFromMount above.
+    float holdScroll = 0.0f;
+    float mountScroll = 0.0f;
 };
 
 }  // namespace sr

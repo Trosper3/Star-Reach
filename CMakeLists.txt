@@ -269,8 +269,10 @@ add_library(sr_space STATIC
     src/modes/space/ui/EngineeringScreen.cpp
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
+    src/modes/space/ui/ModulesMenuModel.cpp
     src/modes/space/ui/StationServicesMenu.cpp
     src/modes/space/ui/RepairScreen.cpp
+    src/modes/space/ui/RepairScreenModel.cpp
     src/modes/space/ui/StorageScreen.cpp
     src/modes/space/ui/StorageScreenModel.cpp
     src/modes/space/ui/NavigationMap.cpp

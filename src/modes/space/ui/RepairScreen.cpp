@@ -48,21 +48,30 @@ Color IntegrityStatusColor(float fraction) {
                              : sr::ui::kStatusCritical;
 }
 
-// One-letter monogram per ShellKind (features.md 3.9's glyph-carries-identity rule) -- the same
-// placeholder RefactorMenu.cpp's own ShellGlyph uses; duplicated locally rather than shared,
-// since neither file may depend on the other and this is the whole of it.
-void ShellGlyph(ShellKind kind, char (&out)[3]) {
-    switch (kind) {
-        case ShellKind::Chassis: out[0] = 'C'; break;
-        case ShellKind::Armor: out[0] = 'A'; break;
-        case ShellKind::PowerCell: out[0] = 'P'; break;
-        case ShellKind::Engine: out[0] = 'E'; break;
-        case ShellKind::Weapon: out[0] = 'W'; break;
-        case ShellKind::Shield: out[0] = 'S'; break;
-        case ShellKind::Facility: out[0] = 'F'; break;
+// System.h's "one legitimate cache" exception (Law 6) -- duplicated locally per screen file on
+// purpose, the same StorageScreen.cpp/StorageMenu.cpp precedent (architecture.md 12.30's
+// established rule: each of this batch's files stays independently buildable).
+entt::entity EnsureStateSingleton(entt::registry& registry) {
+    for (auto [entity] : registry.view<RepairScreenStateSingleton>().each()) {
+        return entity;
     }
-    out[1] = '\0';
-    out[2] = '\0';
+    const entt::entity singleton = registry.create();
+    registry.emplace<RepairScreenStateSingleton>(singleton);
+    registry.emplace<RepairScreenState>(singleton);
+    return singleton;
+}
+
+entt::entity FindStateSingleton(const entt::registry& registry) {
+    for (auto [entity] : registry.view<RepairScreenStateSingleton>().each()) {
+        return entity;
+    }
+    return entt::null;
+}
+
+RepairScreenState ReadState(const entt::registry& registry) {
+    const entt::entity singleton = FindStateSingleton(registry);
+    return singleton == entt::null ? RepairScreenState{}
+                                   : registry.get<RepairScreenState>(singleton);
 }
 
 entt::entity PlayerShell(const entt::registry& registry) {
@@ -113,17 +122,27 @@ Rectangle FooterButtonRect(Rectangle footer) {
 }
 
 // Pure -- the bordered-icon-box row analog of sr::ui::ListViewRowAt, using kRowHeight instead of
-// sr::ui::kListRowHeight. No scroll offset, matching Bay's RosterRowAt/Storage's StorageRowAt: the
-// panel is sized for kVisibleRows and scrolling past that is out of this pass's scope.
-std::optional<int> RepairRowAt(Rectangle bounds, int rowCount, Vector2 cursor) {
+// sr::ui::kListRowHeight, and `scrollOffset` (pixels scrolled down, from
+// RepairScreenState::subjectScroll) instead of sr::ui::ListViewRowAt's own scroll parameter.
+std::optional<int> RepairRowAt(Rectangle bounds, int rowCount, float scrollOffset, Vector2 cursor) {
     if (rowCount <= 0 || !CheckCollisionPointRec(cursor, bounds)) {
         return std::nullopt;
     }
-    const int index = static_cast<int>((cursor.y - bounds.y) / kRowHeight);
+    const int index = static_cast<int>((cursor.y - bounds.y + scrollOffset) / kRowHeight);
     if (index < 0 || index >= rowCount) {
         return std::nullopt;
     }
     return index;
+}
+
+// Pure -- clamps a scroll offset into [0, contentHeight - listHeight], zero once every row
+// already fits. Re-run every frame in Update(), not just on a wheel tick, so a row list
+// shrinking out from under a stale offset (a hardpoint destroyed, or rebuilt) cannot leave the
+// view scrolled past its own last row.
+float ClampScroll(int rowCount, float listHeight, float offset) {
+    const float contentHeight = static_cast<float>(std::max(rowCount, 0)) * kRowHeight;
+    const float maxScroll = std::max(0.0f, contentHeight - listHeight);
+    return std::clamp(offset, 0.0f, maxScroll);
 }
 
 // `content` is bridge_view::FrameContentRect() -- already the router's one full-screen inset, so
@@ -155,102 +174,6 @@ Layout ComputeLayout(Rectangle content, int sectionCount) {
     }
     return layout;
 }
-
-}  // namespace
-
-std::vector<RepairRow> Rows(const entt::registry& registry, entt::entity subject, bool hasOrder,
-                            entt::entity orderedHardpoint, int costPerHp) {
-    std::vector<RepairRow> rows;
-    const Rig* rig = registry.try_get<Rig>(subject);
-    if (rig == nullptr) {
-        return rows;
-    }
-    for (const entt::entity hardpoint : rig->children) {
-        const Health* health = registry.try_get<Health>(hardpoint);
-        if (health == nullptr) {
-            continue;
-        }
-        RepairRow entry;
-        entry.hardpoint = hardpoint;
-        entry.destroyed = registry.all_of<Destroyed>(hardpoint);
-        entry.ordered = !entry.destroyed && hasOrder &&
-                        (orderedHardpoint == entt::null || orderedHardpoint == hardpoint);
-
-        if (const ShellRole* role = registry.try_get<ShellRole>(hardpoint)) {
-            ShellGlyph(role->kind, entry.row.glyph);
-        }
-        if (const MountRef* mount = registry.try_get<MountRef>(hardpoint)) {
-            entry.row.label = mount->id.str();
-        }
-        entry.row.style.integrity = health->max > 0.0f ? health->current / health->max : 0.0f;
-        entry.row.style.disabled = entry.destroyed;
-
-        const std::string hull = std::to_string(static_cast<int>(health->current)) + "/" +
-                                 std::to_string(static_cast<int>(health->max));
-        if (entry.destroyed) {
-            entry.row.value = hull + "  REBUILD (P4-05)";
-        } else {
-            const float missing = std::max(0.0f, health->max - health->current);
-            entry.costToFull = static_cast<int>(std::ceil(missing * static_cast<float>(costPerHp)));
-            entry.row.value = hull + "  " + std::to_string(entry.costToFull) + "cr";
-            if (entry.ordered) {
-                entry.row.value += "  [STOP]";
-            }
-        }
-        rows.push_back(std::move(entry));
-    }
-    // architecture.md 12.30.4: "the thing most likely to kill you is the first row."
-    std::sort(rows.begin(), rows.end(), [](const RepairRow& a, const RepairRow& b) {
-        return a.row.style.integrity < b.row.style.integrity;
-    });
-    return rows;
-}
-
-bool RepairAllActive(bool hasOrder, entt::entity orderedHardpoint) {
-    return hasOrder && orderedHardpoint == entt::null;
-}
-
-int FacilityGrade(const entt::registry& registry, entt::entity facilityHardpoint) {
-    const FacilityRef* facility = registry.try_get<FacilityRef>(facilityHardpoint);
-    return facility != nullptr ? facility->grade : 1;
-}
-
-float FacilityRate(const entt::registry& registry, const core::ContentLibrary& content,
-                   entt::entity facilityHardpoint) {
-    const MountedModules* mounted = registry.try_get<MountedModules>(facilityHardpoint);
-    if (mounted == nullptr) {
-        return 0.0f;
-    }
-    float rate = 0.0f;
-    for (const ModuleId& id : mounted->ids) {
-        const ModuleDef* module = content.FindModule(id);
-        if (module != nullptr && module->facility.kind == FacilityKind::Repair) {
-            rate = module->facility.ratePerSecond;
-            break;
-        }
-    }
-    if (rate <= 0.0f) {
-        return 0.0f;
-    }
-    if (const ParentRig* parent = registry.try_get<ParentRig>(facilityHardpoint)) {
-        if (const CrewRepairBonus* bonus = registry.try_get<CrewRepairBonus>(parent->root)) {
-            rate *= (1.0f + bonus->value);
-        }
-    }
-    return rate;
-}
-
-entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
-                           const FactionId& playerFaction) {
-    for (auto [vessel, docked, faction] : registry.view<Docked, FactionRef>().each()) {
-        if (docked.station == station && faction.id == playerFaction) {
-            return vessel;
-        }
-    }
-    return entt::null;
-}
-
-namespace {
 
 // The valid subjects for this screen, in display order: the requester's own vessel first, then
 // the station itself when its FactionRef is the player's own (architecture.md 12.30.3's
@@ -291,12 +214,6 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         return;
     }
 
-    const sr::ui::UiInput input{GetMousePosition(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
-                                GetMouseWheelMove()};
-    if (!input.clicked) {
-        return;
-    }
-
     const std::vector<entt::entity> subjects =
         Subjects(registry, station, requester, playerFaction);
     const Layout layout =
@@ -304,20 +221,34 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
     const RepairOrder* order = registry.try_get<RepairOrder>(requester);
     const int costPerHp = core::economy::RepairCostPerHp(FacilityGrade(registry, facility));
 
+    const sr::ui::UiInput input{GetMousePosition(), IsMouseButtonPressed(MOUSE_BUTTON_LEFT),
+                                GetMouseWheelMove()};
+    RepairScreenState& state = registry.get<RepairScreenState>(EnsureStateSingleton(registry));
+
     for (std::size_t i = 0; i < subjects.size(); ++i) {
         const entt::entity subject = subjects[i];
         const SectionLayout& section = layout.sections[i];
         const bool hasOrder = order != nullptr && order->subject == subject;
+        const std::vector<RepairRow> rows =
+            Rows(registry, subject, hasOrder, hasOrder ? order->hardpoint : entt::null, costPerHp);
 
+        // Scrolling is independent of a click, and always re-clamped (see ClampScroll's own
+        // comment on why every frame).
+        float& scroll = state.subjectScroll[i];
+        if (input.scroll != 0.0f && CheckCollisionPointRec(input.cursor, section.list)) {
+            scroll -= input.scroll * kRowHeight;
+        }
+        scroll = ClampScroll(static_cast<int>(rows.size()), section.list.height, scroll);
+
+        if (!input.clicked) {
+            continue;
+        }
         if (sr::ui::ButtonClicked(FooterButtonRect(section.footer), input)) {
             ToggleOrder(registry, requester, subject, entt::null, order);
             return;
         }
-
-        const std::vector<RepairRow> rows =
-            Rows(registry, subject, hasOrder, hasOrder ? order->hardpoint : entt::null, costPerHp);
         const std::optional<int> hit =
-            RepairRowAt(section.list, static_cast<int>(rows.size()), input.cursor);
+            RepairRowAt(section.list, static_cast<int>(rows.size()), scroll, input.cursor);
         if (hit.has_value() && *hit < static_cast<int>(rows.size())) {
             const RepairRow& row = rows[static_cast<std::size_t>(*hit)];
             if (!row.destroyed) {
@@ -423,11 +354,11 @@ void DrawRepairRow(Rectangle bounds, const sr::ui::Fonts& fonts, const RepairRow
                14.0f, 1.0f, valueColor);
 }
 
-// The row list, top to bottom inside `bounds`, divider rules between rows -- Bay's/Storage's own
-// bordered-icon-box row treatment, replacing the generic sr::ui::DrawListView this screen drew
-// before (issue #226's visual-chrome pass).
+// The row list, top to bottom inside `bounds` and shifted up by `scrollOffset`, divider rules
+// between rows -- Bay's/Storage's own bordered-icon-box row treatment, replacing the generic
+// sr::ui::DrawListView this screen drew before (issue #226's visual-chrome pass).
 void DrawRepairRows(Rectangle bounds, const sr::ui::Fonts& fonts,
-                    const std::vector<RepairRow>& rows) {
+                    const std::vector<RepairRow>& rows, float scrollOffset) {
     BeginScissorMode(static_cast<int>(bounds.x), static_cast<int>(bounds.y),
                      static_cast<int>(bounds.width), static_cast<int>(bounds.height));
     if (rows.empty()) {
@@ -437,9 +368,9 @@ void DrawRepairRows(Rectangle bounds, const sr::ui::Fonts& fonts,
         return;
     }
     for (std::size_t i = 0; i < rows.size(); ++i) {
-        const float y = bounds.y + static_cast<float>(i) * kRowHeight;
-        if (y > bounds.y + bounds.height) {
-            break;
+        const float y = bounds.y + static_cast<float>(i) * kRowHeight - scrollOffset;
+        if (y + kRowHeight < bounds.y || y > bounds.y + bounds.height) {
+            continue;  // Scrolled out of view -- scissor alone would clip the draw, not skip it.
         }
         if (i > 0) {
             DrawLineEx({bounds.x, y}, {bounds.x + bounds.width, y}, 1.0f, sr::ui::kDivider);
@@ -447,6 +378,24 @@ void DrawRepairRows(Rectangle bounds, const sr::ui::Fonts& fonts,
         DrawRepairRow({bounds.x, y, bounds.width, kRowHeight}, fonts, rows[i]);
     }
     EndScissorMode();
+}
+
+// A thin chrome-coloured thumb along the list's right edge once its rows outgrow `bounds` -- the
+// only signal (besides the wheel itself) that more rows exist below/above the fold. A no-op when
+// everything already fits.
+void DrawScrollbar(Rectangle bounds, int rowCount, float scrollOffset) {
+    const float contentHeight = static_cast<float>(rowCount) * kRowHeight;
+    const float maxScroll = contentHeight - bounds.height;
+    if (maxScroll <= 0.0f) {
+        return;
+    }
+    constexpr float kThumbWidth = 3.0f;
+    const Rectangle track{bounds.x + bounds.width - kThumbWidth, bounds.y, kThumbWidth,
+                          bounds.height};
+    const float thumbHeight = std::max(16.0f, bounds.height * (bounds.height / contentHeight));
+    const float thumbY = track.y + (bounds.height - thumbHeight) * (scrollOffset / maxScroll);
+    DrawRectangleRec(track, sr::ui::kPanelGlass);
+    DrawRectangleRec({track.x, thumbY, track.width, thumbHeight}, sr::ui::kPanelChrome);
 }
 
 // The footer row: "REPAIR ALL -- {cost} CR TO FULL" (left, priced from every non-destroyed row's
@@ -526,6 +475,7 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
 
     const RepairOrder* order = registry.try_get<RepairOrder>(requester);
     const int costPerHp = core::economy::RepairCostPerHp(grade);
+    const RepairScreenState state = ReadState(registry);
 
     for (std::size_t i = 0; i < subjects.size(); ++i) {
         const entt::entity subject = subjects[i];
@@ -544,7 +494,8 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
             isVessel ? vesselName + " -- YOUR VESSEL" : stationName + " -- THIS STATION";
         const std::string hint = isVessel ? "Worst first" : "Yours, so it repairs itself";
         DrawSectionPanel(section, fonts, title, hint, hasDestroyed);
-        DrawRepairRows(section.list, fonts, rows);
+        DrawRepairRows(section.list, fonts, rows, state.subjectScroll[i]);
+        DrawScrollbar(section.list, static_cast<int>(rows.size()), state.subjectScroll[i]);
 
         const bool allActive = RepairAllActive(hasOrder, hasOrder ? order->hardpoint : entt::null);
         DrawFooter(section, fonts, rows, allActive);

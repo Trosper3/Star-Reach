@@ -49,7 +49,8 @@ TEST_CASE("StorageMenu::IsOpen reads FlightOverlayState::inventoryOpen", "[stora
     entt::registry registry;
     const entt::entity singleton = registry.create();
     registry.emplace<FlightOverlayStateSingleton>(singleton);
-    registry.emplace<FlightOverlayState>(singleton, FlightOverlayState{true, false, {}});
+    registry.emplace<FlightOverlayState>(singleton,
+                                         FlightOverlayState{true, false, {}, entt::null});
 
     CHECK(storage_menu::IsOpen(registry));
 }
