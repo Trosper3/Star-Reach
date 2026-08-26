@@ -23,8 +23,10 @@ using sr::ModuleId;
 using sr::ModuleKind;
 using sr::MountedModules;
 using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::Rig;
 using sr::core::ContentLibrary;
+using sr::space::ui::repair_screen::ActiveGaugeStatus;
 using sr::space::ui::repair_screen::FacilityGrade;
 using sr::space::ui::repair_screen::FacilityRate;
 using sr::space::ui::repair_screen::OwnedVesselAt;
@@ -188,4 +190,27 @@ TEST_CASE("OwnedVesselAt returns null with no owned vessel docked at the station
     registry.emplace<FactionRef>(vessel, FactionId("kore"));
 
     CHECK((OwnedVesselAt(registry, station, FactionId("aegis")) == entt::null));
+}
+
+TEST_CASE("ActiveGaugeStatus resolves the current facility's own integrity", "[repair-screen]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity facility = registry.create();
+    registry.emplace<FacilityRef>(facility, FacilityKind::Repair, 1);
+    registry.emplace<ParentRig>(facility, station);
+    registry.emplace<Health>(facility, 50.0f, 100.0f);
+    registry.emplace<PlayerLocation>(facility, PlayerLocation{facility});
+    const entt::entity vessel = registry.create();
+    registry.emplace<Docked>(vessel, station, entt::null);
+    registry.emplace<FactionRef>(vessel, FactionId("aegis"));
+
+    const auto status = ActiveGaugeStatus(registry, FactionId("aegis"));
+    REQUIRE(status.has_value());
+    CHECK(status->label == "REPAIR BAY");
+    CHECK(status->fraction == 0.5f);
+}
+
+TEST_CASE("ActiveGaugeStatus is nullopt while not viewing Repair", "[repair-screen]") {
+    entt::registry registry;
+    CHECK_FALSE(ActiveGaugeStatus(registry, FactionId("aegis")).has_value());
 }

@@ -17,6 +17,7 @@
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
 #include "shared/components/StationServices.h"
+#include "shared/ui/Fonts.h"
 #include "shared/ui/HudTheme.h"
 #include "shared/ui/UiInput.h"
 #include "shared/ui/Widgets.h"
@@ -28,12 +29,24 @@ constexpr float kHeaderHeight = 54.0f;
 constexpr float kSectionGap = 10.0f;
 constexpr float kColumnGap = 12.0f;
 constexpr float kLabelHeight = 22.0f;
-constexpr float kListHeight = 200.0f;
+constexpr float kIconBoxSize = 30.0f;
+constexpr float kRowHeight = 48.0f;
+constexpr float kVisibleRows = 4.0f;
+constexpr float kListHeight = kRowHeight * kVisibleRows;
 constexpr float kFooterGap = 6.0f;
 constexpr float kFooterHeight = 26.0f;
 constexpr float kHintGap = 4.0f;
 constexpr float kHintHeight = 16.0f;
 constexpr float kFooterButtonWidth = 100.0f;
+
+// features.md 3.9's status triad, the same three-stop thresholds Bay's/Storage's own
+// IntegrityStatusColor use -- duplicated locally per screen file on purpose, the established
+// precedent those two files already set.
+Color IntegrityStatusColor(float fraction) {
+    return fraction > 0.5f   ? sr::ui::kStatusGood
+           : fraction > 0.2f ? sr::ui::kStatusCaution
+                             : sr::ui::kStatusCritical;
+}
 
 // One-letter monogram per ShellKind (features.md 3.9's glyph-carries-identity rule) -- the same
 // placeholder RefactorMenu.cpp's own ShellGlyph uses; duplicated locally rather than shared,
@@ -97,6 +110,20 @@ struct Layout {
 Rectangle FooterButtonRect(Rectangle footer) {
     return {footer.x + footer.width - kFooterButtonWidth, footer.y, kFooterButtonWidth,
             footer.height};
+}
+
+// Pure -- the bordered-icon-box row analog of sr::ui::ListViewRowAt, using kRowHeight instead of
+// sr::ui::kListRowHeight. No scroll offset, matching Bay's RosterRowAt/Storage's StorageRowAt: the
+// panel is sized for kVisibleRows and scrolling past that is out of this pass's scope.
+std::optional<int> RepairRowAt(Rectangle bounds, int rowCount, Vector2 cursor) {
+    if (rowCount <= 0 || !CheckCollisionPointRec(cursor, bounds)) {
+        return std::nullopt;
+    }
+    const int index = static_cast<int>((cursor.y - bounds.y) / kRowHeight);
+    if (index < 0 || index >= rowCount) {
+        return std::nullopt;
+    }
+    return index;
 }
 
 // `content` is bridge_view::FrameContentRect() -- already the router's one full-screen inset, so
@@ -290,7 +317,7 @@ void Update(entt::registry& registry, const FactionId& playerFaction) {
         const std::vector<RepairRow> rows =
             Rows(registry, subject, hasOrder, hasOrder ? order->hardpoint : entt::null, costPerHp);
         const std::optional<int> hit =
-            sr::ui::ListViewRowAt(section.list, static_cast<int>(rows.size()), 0.0f, input.cursor);
+            RepairRowAt(section.list, static_cast<int>(rows.size()), input.cursor);
         if (hit.has_value() && *hit < static_cast<int>(rows.size())) {
             const RepairRow& row = rows[static_cast<std::size_t>(*hit)];
             if (!row.destroyed) {
@@ -305,69 +332,129 @@ namespace {
 
 // architecture.md 2.2's function-length cap -- split out of Draw() below, one section each.
 
-// Station name (large, the screen's own identity -- Bay/Storage's own precedent, and until
-// bridge_view grows a top bar of its own the only place it is shown at all) over one consolidated
-// GRADE/RATE/CREDITS stat line, the facility's own integrity gauge right-aligned on the title row
-// (features.md 3.4's mandatory per-screen health readout).
-void DrawHeader(Rectangle header, const std::string& stationName, int grade, float ratePerSecond,
-                const std::optional<int>& credits, float facilityIntegrity) {
-    DrawText(stationName.c_str(), static_cast<int>(header.x), static_cast<int>(header.y), 24,
-             sr::ui::kValueBright);
+// A fixed "REPAIR BAY" title (the router's top bar already names the specific station under
+// "DOCKED AT" -- Bay's/Storage's own precedent) over one consolidated GRADE/RATE/CREDITS stat
+// line. No integrity readout here any more -- ActiveGaugeStatus below feeds that to the router's
+// top-bar Gauge instead, the same call Bay's/Storage's own headers already made.
+void DrawHeader(Rectangle header, const sr::ui::Fonts& fonts, int grade, float ratePerSecond,
+                const std::optional<int>& credits) {
+    DrawTextEx(fonts.heading, "REPAIR BAY", {header.x, header.y}, 24.0f, 1.0f,
+               sr::ui::kValueBright);
 
-    int x = static_cast<int>(header.x);
-    const int y = static_cast<int>(header.y + 30.0f);
+    float x = header.x;
+    const float y = header.y + 30.0f;
     auto DrawStat = [&](const std::string& label, const std::string& value) {
-        DrawText(label.c_str(), x, y, 14, sr::ui::kLabelDim);
-        x += MeasureText(label.c_str(), 14);
-        DrawText(value.c_str(), x, y, 14, sr::ui::kValueBright);
-        x += MeasureText(value.c_str(), 14);
-        DrawText("   |   ", x, y, 14, sr::ui::kLabelDim);
-        x += MeasureText("   |   ", 14);
+        DrawTextEx(fonts.body, label.c_str(), {x, y}, 14.0f, 1.0f, sr::ui::kLabelDim);
+        x += MeasureTextEx(fonts.body, label.c_str(), 14.0f, 1.0f).x;
+        DrawTextEx(fonts.body, value.c_str(), {x, y}, 14.0f, 1.0f, sr::ui::kValueBright);
+        x += MeasureTextEx(fonts.body, value.c_str(), 14.0f, 1.0f).x;
+    };
+    auto DrawSeparator = [&]() {
+        DrawTextEx(fonts.body, " -- ", {x, y}, 14.0f, 1.0f, sr::ui::kLabelDim);
+        x += MeasureTextEx(fonts.body, " -- ", 14.0f, 1.0f).x;
     };
     DrawStat("GRADE ", std::to_string(grade));
+    DrawSeparator();
     char rateBuf[16];
     std::snprintf(rateBuf, sizeof(rateBuf), "%.1f", static_cast<double>(ratePerSecond));
     DrawStat("RATE ", std::string(rateBuf) + " HP/S");
     if (credits.has_value()) {
-        DrawText("CREDITS ", x, y, 14, sr::ui::kLabelDim);
-        x += MeasureText("CREDITS ", 14);
-        DrawText((std::to_string(*credits) + " CR").c_str(), x, y, 14, sr::ui::kValueBright);
+        DrawSeparator();
+        DrawStat("CREDITS ", std::to_string(*credits) + " CR");
     }
-
-    const Color gaugeColor = facilityIntegrity > 0.5f   ? sr::ui::kStatusGood
-                             : facilityIntegrity > 0.2f ? sr::ui::kStatusCaution
-                                                        : sr::ui::kStatusCritical;
-    const Rectangle gaugeBounds{header.x + header.width * 0.62f, header.y, header.width * 0.38f,
-                                20.0f};
-    sr::ui::DrawGauge(gaugeBounds, "FACILITY INTEGRITY", facilityIntegrity, gaugeColor);
 }
 
-// The reference's "VANGUARD -- YOUR VESSEL" / "Worst first" box: a bracket panel plus a label row
-// naming this subject and a short hint, and (when at least one hardpoint here is destroyed) a
-// dim reminder that a dead socket needs Rebuild elsewhere -- drawn around (but not including) the
-// ListView and the REPAIR ALL/STOP footer.
-void DrawSectionPanel(const SectionLayout& section, const std::string& title,
-                      const std::string& hint, bool hasDestroyed) {
+// The reference's "VANGUARD -- YOUR VESSEL" / "Worst first" box: a bracket panel, a label row
+// naming this subject and a short hint, a divider rule under it (Bay's/Storage's own hairline
+// under every panel header), and -- when at least one hardpoint here is destroyed -- a dim
+// reminder that a dead socket needs Rebuild elsewhere, drawn around (but not including) the row
+// list and the REPAIR ALL/STOP footer.
+void DrawSectionPanel(const SectionLayout& section, const sr::ui::Fonts& fonts,
+                      const std::string& title, const std::string& hint, bool hasDestroyed) {
     sr::ui::DrawBracketPanel(section.panel, sr::ui::kPanelGlass, sr::ui::kPanelChrome, 10.0f, 2.0f);
-    DrawText(title.c_str(), static_cast<int>(section.label.x), static_cast<int>(section.label.y),
-             14, sr::ui::kValueBright);
-    const int hintWidth = MeasureText(hint.c_str(), 14);
-    DrawText(hint.c_str(), static_cast<int>(section.label.x + section.label.width - hintWidth),
-             static_cast<int>(section.label.y), 14, sr::ui::kLabelDim);
+    DrawTextEx(fonts.body, title.c_str(), {section.label.x, section.label.y}, 14.0f, 1.0f,
+               sr::ui::kValueBright);
+    const float hintWidth = MeasureTextEx(fonts.body, hint.c_str(), 14.0f, 1.0f).x;
+    DrawTextEx(fonts.body, hint.c_str(),
+               {section.label.x + section.label.width - hintWidth, section.label.y}, 14.0f, 1.0f,
+               sr::ui::kLabelDim);
+    const float dividerY = section.label.y + section.label.height;
+    DrawLineEx({section.label.x, dividerY}, {section.label.x + section.label.width, dividerY}, 1.0f,
+               sr::ui::kDivider);
     if (hasDestroyed) {
-        DrawText(
-            "Destroyed hardpoints can't be ordered here -- Rebuild on the Engineering screen "
-            "first.",
-            static_cast<int>(section.hint.x), static_cast<int>(section.hint.y), 12,
-            sr::ui::kLabelDim);
+        DrawTextEx(fonts.body,
+                   "Destroyed hardpoints can't be ordered here -- Rebuild on the Engineering "
+                   "screen first.",
+                   {section.hint.x, section.hint.y}, 12.0f, 1.0f, sr::ui::kLabelDim);
     }
+}
+
+// One hardpoint row: a bordered icon box (border colour carries condition -- dim once disabled,
+// else IntegrityStatusColor; the ShellGlyph letter inside carries identity), the hardpoint's own
+// mount id, and its already-formatted hull/cost text right-aligned -- green while under an active
+// order, red once disabled (Storage's own DrawStorageRow precedent: "a disabled row" reads as an
+// alert, not just a dim one), dim otherwise. Mirrors Bay's/Storage's own bordered icon-box rows
+// rather than the generic sr::ui::ListView's flat monogram-prefixed text line.
+void DrawRepairRow(Rectangle bounds, const sr::ui::Fonts& fonts, const RepairRow& entry) {
+    const Rectangle iconBox{bounds.x, bounds.y + (bounds.height - kIconBoxSize) / 2.0f,
+                            kIconBoxSize, kIconBoxSize};
+    const Color chrome = entry.row.style.disabled ? sr::ui::kLabelDim
+                                                  : IntegrityStatusColor(entry.row.style.integrity);
+    DrawRectangleLinesEx(iconBox, entry.row.style.disabled ? 1.0f : 1.5f, chrome);
+    if (entry.row.glyph[0] != '\0') {
+        const Vector2 glyphSize = MeasureTextEx(fonts.heading, entry.row.glyph, 14.0f, 1.0f);
+        DrawTextEx(fonts.heading, entry.row.glyph,
+                   {iconBox.x + (iconBox.width - glyphSize.x) / 2.0f,
+                    iconBox.y + (iconBox.height - glyphSize.y) / 2.0f},
+                   14.0f, 1.0f, chrome);
+    }
+
+    const float textX = iconBox.x + iconBox.width + 14.0f;
+    const Color labelColor = entry.row.style.disabled ? sr::ui::kLabelDim : sr::ui::kValueBright;
+    DrawTextEx(fonts.heading, entry.row.label.c_str(),
+               {textX, bounds.y + bounds.height / 2.0f - 8.0f}, 15.0f, 1.0f, labelColor);
+
+    const Color valueColor = entry.row.style.disabled ? sr::ui::kStatusCritical
+                             : entry.ordered          ? sr::ui::kStatusGood
+                                                      : sr::ui::kLabelDim;
+    const float valueWidth = MeasureTextEx(fonts.body, entry.row.value.c_str(), 14.0f, 1.0f).x;
+    DrawTextEx(fonts.body, entry.row.value.c_str(),
+               {bounds.x + bounds.width - valueWidth, bounds.y + bounds.height / 2.0f - 7.0f},
+               14.0f, 1.0f, valueColor);
+}
+
+// The row list, top to bottom inside `bounds`, divider rules between rows -- Bay's/Storage's own
+// bordered-icon-box row treatment, replacing the generic sr::ui::DrawListView this screen drew
+// before (issue #226's visual-chrome pass).
+void DrawRepairRows(Rectangle bounds, const sr::ui::Fonts& fonts,
+                    const std::vector<RepairRow>& rows) {
+    BeginScissorMode(static_cast<int>(bounds.x), static_cast<int>(bounds.y),
+                     static_cast<int>(bounds.width), static_cast<int>(bounds.height));
+    if (rows.empty()) {
+        DrawTextEx(fonts.body, "NOTHING TO REPAIR", {bounds.x, bounds.y}, 14.0f, 1.0f,
+                   sr::ui::kLabelDim);
+        EndScissorMode();
+        return;
+    }
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const float y = bounds.y + static_cast<float>(i) * kRowHeight;
+        if (y > bounds.y + bounds.height) {
+            break;
+        }
+        if (i > 0) {
+            DrawLineEx({bounds.x, y}, {bounds.x + bounds.width, y}, 1.0f, sr::ui::kDivider);
+        }
+        DrawRepairRow({bounds.x, y, bounds.width, kRowHeight}, fonts, rows[i]);
+    }
+    EndScissorMode();
 }
 
 // The footer row: "REPAIR ALL -- {cost} CR TO FULL" (left, priced from every non-destroyed row's
 // RepairRow::costToFull -- 0 once the whole subject is at target) plus the REPAIR ALL/STOP button
 // (right, RepairAllActive-driven -- the same toggle Update() already performs, unchanged by this
 // pass).
-void DrawFooter(const SectionLayout& section, const std::vector<RepairRow>& rows, bool allActive) {
+void DrawFooter(const SectionLayout& section, const sr::ui::Fonts& fonts,
+                const std::vector<RepairRow>& rows, bool allActive) {
     int totalCost = 0;
     for (const RepairRow& row : rows) {
         if (!row.destroyed) {
@@ -375,20 +462,36 @@ void DrawFooter(const SectionLayout& section, const std::vector<RepairRow>& rows
         }
     }
     const std::string costLabel = "REPAIR ALL -- " + std::to_string(totalCost) + " CR TO FULL";
-    DrawText(costLabel.c_str(), static_cast<int>(section.footer.x),
-             static_cast<int>(section.footer.y + section.footer.height * 0.5f - 7.0f), 14,
-             sr::ui::kLabelDim);
+    DrawTextEx(fonts.body, costLabel.c_str(),
+               {section.footer.x, section.footer.y + section.footer.height * 0.5f - 7.0f}, 14.0f,
+               1.0f, sr::ui::kLabelDim);
 
-    const Font font = GetFontDefault();
     sr::ui::DrawChamferedButton(FooterButtonRect(section.footer), allActive ? "STOP" : "REPAIR",
-                                font, 14.0f, sr::ui::kPanelGlass, sr::ui::kPanelChrome,
+                                fonts.body, 14.0f, sr::ui::kPanelGlass, sr::ui::kPanelChrome,
                                 sr::ui::kValueBright);
 }
 
 }  // namespace
 
+std::optional<bridge_view::GaugeStatus> ActiveGaugeStatus(const entt::registry& registry,
+                                                          const FactionId& playerFaction) {
+    const entt::entity shell = PlayerShell(registry);
+    const entt::entity facility = CurrentFacility(registry, shell);
+    if (facility == entt::null) {
+        return std::nullopt;
+    }
+    const entt::entity station = registry.get<ParentRig>(facility).root;
+    if (OwnedVesselAt(registry, station, playerFaction) == entt::null) {
+        return std::nullopt;
+    }
+    const Health* health = registry.try_get<Health>(facility);
+    const float fraction =
+        health != nullptr && health->max > 0.0f ? health->current / health->max : 1.0f;
+    return bridge_view::GaugeStatus{"REPAIR BAY", fraction};
+}
+
 void Draw(const entt::registry& registry, const FactionId& playerFaction,
-          const core::ContentLibrary& content) {
+          const core::ContentLibrary& content, const sr::ui::Fonts& fonts) {
     const entt::entity shell = PlayerShell(registry);
     const entt::entity facility = CurrentFacility(registry, shell);
     if (facility == entt::null) {
@@ -413,17 +516,13 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
     if (const DisplayName* name = registry.try_get<DisplayName>(requester)) {
         vesselName = name->value;
     }
-    const Health* facilityHealth = registry.try_get<Health>(facility);
-    const float facilityIntegrity = facilityHealth != nullptr && facilityHealth->max > 0.0f
-                                        ? facilityHealth->current / facilityHealth->max
-                                        : 1.0f;
     const int grade = FacilityGrade(registry, facility);
     const float rate = FacilityRate(registry, content, facility);
     std::optional<int> credits;
     if (const Wallet* wallet = registry.try_get<Wallet>(requester)) {
         credits = wallet->credits;
     }
-    DrawHeader(layout.header, stationName, grade, rate, credits, facilityIntegrity);
+    DrawHeader(layout.header, fonts, grade, rate, credits);
 
     const RepairOrder* order = registry.try_get<RepairOrder>(requester);
     const int costPerHp = core::economy::RepairCostPerHp(grade);
@@ -444,17 +543,11 @@ void Draw(const entt::registry& registry, const FactionId& playerFaction,
         const std::string title =
             isVessel ? vesselName + " -- YOUR VESSEL" : stationName + " -- THIS STATION";
         const std::string hint = isVessel ? "Worst first" : "Yours, so it repairs itself";
-        DrawSectionPanel(section, title, hint, hasDestroyed);
-
-        std::vector<sr::ui::Row> widgetRows;
-        widgetRows.reserve(rows.size());
-        for (const RepairRow& entry : rows) {
-            widgetRows.push_back(entry.row);
-        }
-        sr::ui::DrawListView(section.list, widgetRows, 0.0f, "NOTHING TO REPAIR");
+        DrawSectionPanel(section, fonts, title, hint, hasDestroyed);
+        DrawRepairRows(section.list, fonts, rows);
 
         const bool allActive = RepairAllActive(hasOrder, hasOrder ? order->hardpoint : entt::null);
-        DrawFooter(section, rows, allActive);
+        DrawFooter(section, fonts, rows, allActive);
     }
 }
 
