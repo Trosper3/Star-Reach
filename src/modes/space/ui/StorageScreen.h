@@ -2,10 +2,13 @@
 
 #include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
+#include <optional>
 #include <vector>
 
+#include "modes/space/ui/BridgeView.h"
 #include "shared/blueprints/Ids.h"
 #include "shared/components/StationServices.h"
+#include "shared/ui/Fonts.h"
 #include "shared/ui/Row.h"
 
 // modes/space/ui/StorageScreen -- architecture.md 12.30.3's Storage half, split out of
@@ -85,12 +88,28 @@ entt::entity OwnedVesselAt(const entt::registry& registry, entt::entity station,
 void Update(entt::registry& registry, const FactionId& playerFaction);
 
 // Draws the Storage screen full-screen (architecture.md 12.30's frame; bridge_view::Draw already
-// drew the one bezel around the whole window, so this does not draw its own): header (station
-// name, both holds' mass used/capacity), each side's sibling strip when it has more than one
-// living hold, then your hold and the station's each framed as their own bracket-bordered panel
-// (issue #225's visual-chrome pass) -- a label naming the selected hold and its owner, a
-// deposit/withdraw hint, and the ListView itself. No-op unless bridge_view::IsStorageSelected and
+// drew the one bezel, top bar and icon rail around the whole window, so this does not draw its
+// own): a fixed "STORAGE" title (the router's top bar already names the specific station), a
+// caution-coloured "NO TRADE HARDPOINT" badge when the host has none, one consolidated stat line
+// for both holds' mass used/capacity, each side's bordered hold-selector pill (colour-coded by
+// that hold's own integrity) when it has more than one living hold, and your hold/the station's
+// each framed as their own bracket-bordered panel -- a label naming the selected hold and its
+// owner, a deposit/withdraw hint, a row list of bordered icon-box rows, and a footer caption
+// (issue #225's Storage visual-chrome pass). `fonts` is shared/ui/Fonts.h's Orbitron/Exo2 pair,
+// replacing raylib's built-in bitmap font. No-op unless bridge_view::IsStorageSelected and
 // ActiveStation both resolve.
-void Draw(const entt::registry& registry, const FactionId& playerFaction);
+void Draw(const entt::registry& registry, const FactionId& playerFaction,
+          const sr::ui::Fonts& fonts);
+
+// The mandatory per-screen facility-health readout (features.md 3.4) for Storage, fed to the
+// router's top-bar Gauge via SpaceFlight's orchestration (mirrors BayView.h's ActiveGaugeStatus):
+// the currently selected STATION hold's own name and structural integrity -- "HOLD 1 -- 92%" --
+// matching Bay's own hardpoint-health gauge rather than the reference mock's vessel cargo-fill
+// reading (a deliberate divergence: the station hold, not the player's own hull, is the facility
+// this screen is about, and the one that can be shot out from under the player while they trade
+// with it). nullopt unless bridge_view::IsStorageSelected, ActiveStation, and OwnedVesselAt all
+// resolve.
+std::optional<bridge_view::GaugeStatus> ActiveGaugeStatus(const entt::registry& registry,
+                                                          const FactionId& playerFaction);
 
 }  // namespace sr::space::ui::storage_screen

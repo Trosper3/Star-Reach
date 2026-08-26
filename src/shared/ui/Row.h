@@ -24,7 +24,9 @@ struct Row {
     std::string value;
     char glyph[3] = {'\0', '\0', '\0'};  // monogram placeholder (features.md 3.9)
     RowStyle style;
-    float fill = -1.0f;  // negative = no progress bar (architecture.md 12.30.6)
+    float fill = -1.0f;    // negative = no progress bar (architecture.md 12.30.6)
+    std::string subtitle;  // empty = the classic one-line row; set = a two-line card row
+                           // (issue #225's visual-chrome pass, first drawn by BayView's roster).
 };
 
 }  // namespace sr::ui

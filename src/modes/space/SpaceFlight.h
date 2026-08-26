@@ -10,6 +10,7 @@
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
+#include "engine/assets/FontCache.h"
 #include "modes/IGameMode.h"
 #include "modes/space/data/SystemWorld.h"
 #include "shared/blueprints/Ids.h"
@@ -41,7 +42,7 @@ public:
     SpaceFlight(core::ContentLibrary& content, core::economy::FactionEconomy& economy,
                 core::galaxy::WreckLedger& wreckLedger, core::knowledge::KnowledgeStore& knowledge,
                 core::diplomacy::DiplomacyMatrix& diplomacy,
-                core::diplomacy::Reputation& reputation);
+                core::diplomacy::Reputation& reputation, engine::FontCache& fonts);
 
     void OnEnter() override;
 
@@ -130,6 +131,7 @@ private:
     core::knowledge::KnowledgeStore& knowledge_;
     core::diplomacy::DiplomacyMatrix& diplomacy_;
     core::diplomacy::Reputation& reputation_;
+    engine::FontCache& fonts_;
     core::FixedTimestep clock_;
 
     // Presentation state, and the only state this class is permitted to own.

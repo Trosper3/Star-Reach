@@ -220,6 +220,7 @@ target_include_directories(sr_engine SYSTEM PRIVATE
 # not just palette constants and draw-time math.
 add_library(sr_shared_ui STATIC
     src/shared/ui/HudTheme.h
+    src/shared/ui/Fonts.h
     src/shared/ui/UiInput.h
     src/shared/ui/Row.h
     src/shared/ui/Widgets.h
@@ -271,6 +272,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/StationServicesMenu.cpp
     src/modes/space/ui/RepairScreen.cpp
     src/modes/space/ui/StorageScreen.cpp
+    src/modes/space/ui/StorageScreenModel.cpp
     src/modes/space/ui/NavigationMap.cpp
     src/modes/space/ui/CustomizeMenu.cpp
     src/modes/space/ui/ResearchScreen.cpp

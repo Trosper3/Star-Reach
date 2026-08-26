@@ -8,6 +8,7 @@
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
+#include "engine/assets/FontCache.h"
 #include "modes/space/SpaceFlight.h"
 #include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Identity.h"
@@ -32,6 +33,7 @@ using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
+using sr::engine::FontCache;
 using sr::space::SpaceFlight;
 namespace player_record_system = sr::space::player_record_system;
 
@@ -70,7 +72,8 @@ TEST_CASE("SpaceFlight performs a system warp, preserving blueprint identity and
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     entt::registry& before = game.World().Registry();
@@ -104,7 +107,8 @@ TEST_CASE("SpaceFlight demotes a DeathWreck left behind on system warp", "[space
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     const entt::entity player = FindPlayer(game.World().Registry());
@@ -135,7 +139,8 @@ TEST_CASE("SpaceFlight promotes a system's demoted wrecks back when the player r
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     entt::entity player = FindPlayer(game.World().Registry());

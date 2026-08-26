@@ -9,6 +9,7 @@
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
+#include "engine/assets/FontCache.h"
 #include "modes/space/SpaceFlight.h"
 #include "modes/space/ui/SystemMenu.h"
 #include "shared/components/Identity.h"
@@ -27,6 +28,7 @@ using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
+using sr::engine::FontCache;
 using sr::space::SpaceFlight;
 using sr::space::ui::system_menu::SystemMenuState;
 using sr::space::ui::system_menu::SystemMenuStateSingleton;
@@ -72,7 +74,8 @@ TEST_CASE("ShouldReturnToMenu is a latch that does not re-fire", "[spaceflight][
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     CHECK_FALSE(game.ShouldReturnToMenu());
@@ -102,7 +105,8 @@ TEST_CASE(
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();

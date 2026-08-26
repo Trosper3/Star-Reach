@@ -1,6 +1,7 @@
 #include "modes/space/SpaceFlight.h"
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +35,7 @@
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 #include "shared/components/Warp.h"
+#include "shared/ui/Fonts.h"
 
 namespace sr::space {
 namespace {
@@ -92,14 +94,15 @@ SpaceFlight::SpaceFlight(core::ContentLibrary& content, core::economy::FactionEc
                          core::galaxy::WreckLedger& wreckLedger,
                          core::knowledge::KnowledgeStore& knowledge,
                          core::diplomacy::DiplomacyMatrix& diplomacy,
-                         core::diplomacy::Reputation& reputation)
+                         core::diplomacy::Reputation& reputation, engine::FontCache& fonts)
     : world_("sol", "Sol"),
       content_(content),
       economy_(economy),
       wreckLedger_(wreckLedger),
       knowledge_(knowledge),
       diplomacy_(diplomacy),
-      reputation_(reputation) {}
+      reputation_(reputation),
+      fonts_(fonts) {}
 
 void SpaceFlight::OnEnter() {
     // Reset before populating, not just on the way out: without this, entering a second time in
@@ -374,9 +377,25 @@ void SpaceFlight::Draw() const {
         ui::cockpit_hud::Draw(world_.Registry());
     }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
-    ui::bridge_view::Draw(world_.Registry());
-    ui::bay_view::Draw(world_.Registry(), playerFaction);
-    ui::storage_screen::Draw(registry, playerFaction);
+    // Bay and Storage are, today, the only screens with an ActiveGaugeStatus query wired to the
+    // router's top-bar Gauge (issue #225's visual-chrome pass) -- Repair/Engineering/Research keep
+    // drawing their own in-page readout for now rather than this becoming a five-screen change in
+    // one pass. SpaceFlight is the one place that may know about every screen (modes/*/ui/ must
+    // not depend on a sibling the other direction), so it resolves which query applies; the two
+    // are mutually exclusive (bridge_view's frame shows exactly one screen at a time), so trying
+    // Bay first and falling back to Storage never masks a real result.
+    std::optional<ui::bridge_view::GaugeStatus> activeGauge =
+        ui::bay_view::ActiveGaugeStatus(registry);
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::storage_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
+    // shared/ui/Fonts.h's Orbitron/Exo2 pair, loaded once per frame (a cached map lookup, not a
+    // reload -- see FontCache::Get) and threaded into every screen that has migrated off raylib's
+    // built-in bitmap font so far (the router, Bay, Storage).
+    const sr::ui::Fonts fonts = sr::ui::LoadFonts(fonts_);
+    ui::bridge_view::Draw(world_.Registry(), playerFaction, economy_, fonts, activeGauge);
+    ui::bay_view::Draw(world_.Registry(), playerFaction, fonts);
+    ui::storage_screen::Draw(registry, playerFaction, fonts);
     ui::repair_screen::Draw(registry, playerFaction);
     ui::engineering_screen::Draw(world_.Registry(), playerFaction, content_);
     ui::research_screen::Draw(registry, playerFaction, knowledge_);
