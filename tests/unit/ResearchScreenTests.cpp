@@ -7,6 +7,7 @@
 #include "modes/space/ui/ResearchScreen.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Research.h"
@@ -18,15 +19,19 @@ using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
+using sr::Health;
 using sr::ItemKind;
 using sr::ItemStack;
 using sr::ModuleId;
 using sr::MountId;
 using sr::MountRef;
+using sr::ParentRig;
+using sr::PlayerLocation;
 using sr::ResearchJob;
 using sr::Rig;
 using sr::StationFacility;
 using sr::core::knowledge::KnowledgeNetwork;
+using sr::space::ui::research_screen::ActiveGaugeStatus;
 using sr::space::ui::research_screen::Candidates;
 using sr::space::ui::research_screen::OwnedVesselAt;
 using sr::space::ui::research_screen::QueueRows;
@@ -161,4 +166,26 @@ TEST_CASE("OwnedVesselAt returns null with no owned vessel docked at the station
     registry.emplace<FactionRef>(vessel, FactionId("kore"));
 
     CHECK((OwnedVesselAt(registry, station, FactionId("aegis")) == entt::null));
+}
+
+TEST_CASE("ActiveGaugeStatus resolves the current facility's own integrity", "[research-screen]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity facility = MakeFacility(registry, MountId("lab"));
+    registry.emplace<ParentRig>(facility, station);
+    registry.emplace<Health>(facility, 50.0f, 100.0f);
+    registry.emplace<PlayerLocation>(facility, PlayerLocation{facility});
+    const entt::entity vessel = registry.create();
+    registry.emplace<Docked>(vessel, station, entt::null);
+    registry.emplace<FactionRef>(vessel, FactionId("aegis"));
+
+    const auto status = ActiveGaugeStatus(registry, FactionId("aegis"));
+    REQUIRE(status.has_value());
+    CHECK(status->label == "RESEARCH LAB");
+    CHECK(status->fraction == 0.5f);
+}
+
+TEST_CASE("ActiveGaugeStatus is nullopt while not viewing Research", "[research-screen]") {
+    entt::registry registry;
+    CHECK_FALSE(ActiveGaugeStatus(registry, FactionId("aegis")).has_value());
 }
