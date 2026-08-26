@@ -45,6 +45,33 @@ TEST_CASE("Capacity sums slotCount * slotCapacity across living bays, skipping D
     CHECK(cargo_view::Capacity(registry, root) == Approx(1100.0f));
 }
 
+TEST_CASE("SlotsTotal sums slotCount across living bays, skipping Destroyed", "[cargo-view]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity bayA = MakeBay(registry, root, "bay_a", 4, 250.0f);
+    const entt::entity bayB = MakeBay(registry, root, "bay_b", 2, 50.0f);
+    const entt::entity deadBay = MakeBay(registry, root, "bay_dead", 10, 1000.0f);
+    registry.emplace<Destroyed>(deadBay);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{bayA, bayB, deadBay});
+
+    CHECK(cargo_view::SlotsTotal(registry, root) == 6);  // 4 + 2, not + 10.
+}
+
+TEST_CASE("SlotsUsed counts occupied stacks across living bays", "[cargo-view]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    const entt::entity bayA = MakeBay(registry, root, "bay_a", 4, 250.0f);
+    const entt::entity bayB = MakeBay(registry, root, "bay_b", 4, 250.0f);
+    registry.emplace<Rig>(root, std::vector<entt::entity>{bayA, bayB});
+    registry.get<CargoHold>(bayA).stacks.push_back(ItemStack{ItemKind::Element, "iron", 3, 1.0f});
+    registry.get<CargoHold>(bayA).stacks.push_back(ItemStack{ItemKind::Element, "xenon", 1, 1.0f});
+    registry.get<CargoHold>(bayB).stacks.push_back(
+        ItemStack{ItemKind::Module, "pulse_cannon_i", 1, 14.0f});
+
+    CHECK(cargo_view::SlotsUsed(registry, root) == 3);
+    CHECK(cargo_view::SlotsTotal(registry, root) == 8);
+}
+
 TEST_CASE("Deposit fills an empty bay and TotalMass reflects it", "[cargo-view]") {
     entt::registry registry;
     const entt::entity root = registry.create();
