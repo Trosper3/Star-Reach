@@ -9,6 +9,7 @@
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
 #include "core/time/FixedTimestep.h"
+#include "engine/assets/FontCache.h"
 #include "modes/space/SpaceFlight.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Spawn.h"
@@ -27,6 +28,7 @@ using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
+using sr::engine::FontCache;
 using sr::space::SpaceFlight;
 
 namespace {
@@ -60,7 +62,8 @@ TEST_CASE("SpaceFlight's camera target follows the player from the first Update"
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();
@@ -81,7 +84,8 @@ TEST_CASE("SpaceFlight's camera target tracks the player across a system warp",
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
     game.Update(0.0f);
 
@@ -105,7 +109,8 @@ TEST_CASE("SpaceFlight's camera target tracks the player across a respawn",
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
     game.OnEnter();
 
     entt::registry& registry = game.World().Registry();

@@ -2,9 +2,11 @@
 
 #include <entt/entity/registry.hpp>
 
+#include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/StorageScreen.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Rig.h"
@@ -16,11 +18,16 @@ using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
+using sr::Health;
 using sr::ItemKind;
 using sr::ItemStack;
 using sr::ParentRig;
 using sr::PlayerLocation;
 using sr::Rig;
+using sr::space::ui::bridge_view::BridgeTab;
+using sr::space::ui::bridge_view::ScreenId;
+using sr::space::ui::bridge_view::SelectTab;
+using sr::space::ui::storage_screen::ActiveGaugeStatus;
 using sr::space::ui::storage_screen::ActiveStation;
 using sr::space::ui::storage_screen::BuildDepositRequest;
 using sr::space::ui::storage_screen::BuildWithdrawRequest;
@@ -58,7 +65,7 @@ TEST_CASE("Rows marks a stack as fitting when the destination has room", "[stora
     CHECK(rows[0].quantity == 5);
     CHECK(rows[0].fits);
     CHECK_FALSE(rows[0].row.style.disabled);
-    CHECK(rows[0].row.value == "5");
+    CHECK(rows[0].row.value == "x5");
 }
 
 TEST_CASE("Rows marks a stack FULL when the destination lacks mass headroom", "[storage-screen]") {
@@ -74,7 +81,7 @@ TEST_CASE("Rows marks a stack FULL when the destination lacks mass headroom", "[
     REQUIRE(rows.size() == 1);
     CHECK_FALSE(rows[0].fits);
     CHECK(rows[0].row.style.disabled);
-    CHECK(rows[0].row.value == "5  FULL");
+    CHECK(rows[0].row.value == "x5  FULL");
 }
 
 TEST_CASE("BuildDepositRequest carries the row's stack toward the station", "[storage-screen]") {
@@ -273,4 +280,43 @@ TEST_CASE("OwnedVesselAt returns null with no owned vessel docked at the station
     registry.emplace<FactionRef>(vessel, FactionId("kore"));
 
     CHECK((OwnedVesselAt(registry, station, FactionId("aegis")) == entt::null));
+}
+
+TEST_CASE(
+    "ActiveGaugeStatus resolves the selected station hold's own label and integrity, not the "
+    "vessel's cargo fill",
+    "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    const entt::entity hold = GiveCargoBay(registry, station, 10, 1000.0f);
+    registry.emplace<Health>(hold, Health{50.0f, 100.0f});
+
+    const entt::entity vessel = registry.create();
+    registry.emplace<Docked>(vessel, station, entt::null);
+    registry.emplace<FactionRef>(vessel, FactionId("aegis"));
+    registry.emplace<PlayerLocation>(vessel, PlayerLocation{vessel});
+
+    const std::vector<BridgeTab> tabs{{ScreenId::Storage, entt::null}};
+    SelectTab(registry, vessel, tabs, 0);
+
+    const auto status = ActiveGaugeStatus(registry, FactionId("aegis"));
+    REQUIRE(status.has_value());
+    CHECK(status->label == "STATION HOLD");
+    CHECK(status->fraction == 0.5f);
+}
+
+TEST_CASE("ActiveGaugeStatus is nullopt while Storage is not the selected tab",
+          "[storage-screen]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    registry.emplace<FactionRef>(station, FactionId("aegis"));
+    GiveCargoBay(registry, station, 10, 1000.0f);
+
+    const entt::entity vessel = registry.create();
+    registry.emplace<Docked>(vessel, station, entt::null);
+    registry.emplace<FactionRef>(vessel, FactionId("aegis"));
+    registry.emplace<PlayerLocation>(vessel, PlayerLocation{vessel});
+
+    CHECK_FALSE(ActiveGaugeStatus(registry, FactionId("aegis")).has_value());
 }

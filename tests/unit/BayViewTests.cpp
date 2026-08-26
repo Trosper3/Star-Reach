@@ -5,6 +5,7 @@
 #include "modes/space/ui/BayView.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Rig.h"
 
@@ -17,10 +18,12 @@ using sr::FacilityKind;
 using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
+using sr::Health;
 using sr::ParentRig;
 using sr::PlayerLocation;
 using sr::Rig;
 using sr::UndockRequest;
+using sr::space::ui::bay_view::ActiveGaugeStatus;
 using sr::space::ui::bay_view::BayRosterEntry;
 using sr::space::ui::bay_view::Board;
 using sr::space::ui::bay_view::Launch;
@@ -73,6 +76,8 @@ TEST_CASE("Roster marks a same-faction vessel owned", "[bay-view]") {
     CHECK(roster[0].owned);
     CHECK_FALSE(roster[0].occupied);
     CHECK(roster[0].row.value == "BOARD");
+    CHECK_FALSE(roster[0].row.style.disabled);
+    CHECK(roster[0].row.subtitle == "Your vessel -- docked, unoccupied");
 }
 
 TEST_CASE("Roster marks a foreign-faction vessel unowned, with no verb offered", "[bay-view]") {
@@ -85,6 +90,8 @@ TEST_CASE("Roster marks a foreign-faction vessel unowned, with no verb offered",
     REQUIRE(roster.size() == 1);
     CHECK_FALSE(roster[0].owned);
     CHECK(roster[0].row.value.empty());
+    CHECK(roster[0].row.style.disabled);
+    CHECK(roster[0].row.subtitle == "KORE -- not yours -- no actions available");
 }
 
 TEST_CASE("Roster marks the occupied vessel occupied, showing Launch", "[bay-view]") {
@@ -97,6 +104,8 @@ TEST_CASE("Roster marks the occupied vessel occupied, showing Launch", "[bay-vie
     REQUIRE(roster.size() == 1);
     CHECK(roster[0].occupied);
     CHECK(roster[0].row.value == "LAUNCH");
+    CHECK_FALSE(roster[0].row.style.disabled);
+    CHECK(roster[0].row.subtitle == "Your vessel -- currently occupied");
 }
 
 TEST_CASE("Roster carries the vessel's DisplayName and integrity", "[bay-view]") {
@@ -214,4 +223,23 @@ TEST_CASE("OwnedVesselAt ignores an owned vessel docked at a different station",
     MakeDockedVessel(registry, otherStation, bay, "aegis");
 
     CHECK((OwnedVesselAt(registry, station, FactionId("aegis")) == entt::null));
+}
+
+TEST_CASE("ActiveGaugeStatus resolves the current bay's label and integrity", "[bay-view]") {
+    entt::registry registry;
+    const entt::entity station = registry.create();
+    const entt::entity bay = MakeBay(registry, station);
+    registry.emplace<Rig>(station, std::vector<entt::entity>{bay});
+    registry.emplace<Health>(bay, Health{50.0f, 100.0f});
+    registry.emplace<PlayerLocation>(bay, PlayerLocation{bay});
+
+    const auto status = ActiveGaugeStatus(registry);
+    REQUIRE(status.has_value());
+    CHECK(status->label == "BAY ALPHA");
+    CHECK(status->fraction == 0.5f);
+}
+
+TEST_CASE("ActiveGaugeStatus is nullopt while not viewing a bay", "[bay-view]") {
+    entt::registry registry;
+    CHECK_FALSE(ActiveGaugeStatus(registry).has_value());
 }

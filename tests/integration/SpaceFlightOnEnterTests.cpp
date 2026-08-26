@@ -8,6 +8,7 @@
 #include "core/galaxy/WreckRecord.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "core/registries/ContentLibrary.h"
+#include "engine/assets/FontCache.h"
 #include "modes/space/SpaceFlight.h"
 #include "modes/space/systems/PlayerRecordSystem.h"
 #include "shared/components/Docking.h"
@@ -36,6 +37,7 @@ using sr::core::diplomacy::Reputation;
 using sr::core::economy::FactionEconomy;
 using sr::core::galaxy::WreckLedger;
 using sr::core::knowledge::KnowledgeStore;
+using sr::engine::FontCache;
 using sr::space::SpaceFlight;
 namespace player_record_system = sr::space::player_record_system;
 
@@ -66,7 +68,8 @@ TEST_CASE("OnEnter populates one sun, one player, one station and the expected N
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
 
     game.OnEnter();
 
@@ -98,7 +101,8 @@ TEST_CASE("OnEnter twice in a row leaves exactly one of each, not two", "[spacef
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
 
     game.OnEnter();
     game.OnEnter();
@@ -121,7 +125,8 @@ TEST_CASE("The player OnEnter spawns has a cargo hold and a wallet", "[spaceflig
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
 
     game.OnEnter();
 
@@ -148,7 +153,8 @@ TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station'
     KnowledgeStore knowledge;
     DiplomacyMatrix diplomacy;
     Reputation reputation;
-    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation);
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
 
     game.OnEnter();
 

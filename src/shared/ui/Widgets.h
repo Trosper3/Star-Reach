@@ -52,9 +52,11 @@ std::vector<Row> ListViewEffectiveRows(std::span<const Row> rows, const std::str
 
 // Draws ListViewEffectiveRows(rows, emptyMessage) inside `contentRect`, scrolled by
 // `scrollOffset` and clipped to it. Row::fill >= 0 draws a fill bar behind that row first
-// (architecture.md 12.30.6's per-row progress).
+// (architecture.md 12.30.6's per-row progress). `font` defaults to raylib's built-in bitmap font
+// for the screens that have not migrated to shared/ui/Fonts.h's Orbitron/Exo2 pair yet -- pass
+// `fonts.body` from a screen that has.
 void DrawListView(Rectangle contentRect, std::span<const Row> rows, float scrollOffset,
-                  const std::string& emptyMessage);
+                  const std::string& emptyMessage, const Font& font = GetFontDefault());
 
 // -- Button ---------------------------------------------------------------------------------
 
@@ -71,8 +73,10 @@ bool ButtonClicked(Rectangle bounds, const UiInput& input);
 // is over, or nullopt outside all of them.
 std::optional<int> TabStripHitTest(Rectangle bounds, int tabCount, Vector2 cursor);
 
-// Draws TabStripHitTest's layout as chamfered tabs, `selected` highlighted.
-void DrawTabStrip(Rectangle bounds, std::span<const std::string> labels, int selected);
+// Draws TabStripHitTest's layout as chamfered tabs, `selected` highlighted. `font` defaults the
+// same way DrawListView's does.
+void DrawTabStrip(Rectangle bounds, std::span<const std::string> labels, int selected,
+                  const Font& font = GetFontDefault());
 
 // -- Gauge ----------------------------------------------------------------------------------
 
@@ -82,7 +86,8 @@ Rectangle GaugeFillRect(Rectangle bounds, float fraction);
 
 // A labelled bar: GaugeFillRect filled, `label` overlaid. features.md 3.4's mandatory
 // per-screen facility-health readout; job progress on Research/Manufacturing; CockpitHud's
-// existing hull bar.
-void DrawGauge(Rectangle bounds, const std::string& label, float fraction, Color fillColor);
+// existing hull bar. `font` defaults the same way DrawListView's does.
+void DrawGauge(Rectangle bounds, const std::string& label, float fraction, Color fillColor,
+               const Font& font = GetFontDefault());
 
 }  // namespace sr::ui

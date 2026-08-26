@@ -3,11 +3,16 @@
 #include <raylib.h>
 
 #include <entt/entity/registry.hpp>
+#include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
+#include "core/economy/FactionEconomy.h"
+#include "shared/blueprints/Ids.h"
 #include "shared/blueprints/Taxonomy.h"
+#include "shared/ui/Fonts.h"
 
 // modes/space/ui/ -- BridgeView, the docked-menu router (architecture.md section 12.24 step 5,
 // section 12.30). features.md section 4's "component-driven menus": "the Bridge UI generates
@@ -42,11 +47,32 @@ enum class ScreenId : std::uint8_t {
 
 std::string_view ToString(ScreenId value);
 
+// "aegis_directorate" -> "AEGIS DIRECTORATE" -- the one FactionId->display-text rule every
+// faction id in data/base_game/ already happens to read correctly under (RelationSeeding.cpp's
+// seeded ids are themselves snake_case words), so no separate display-name registry exists yet.
+// Exported for BayView's roster subtitles ("Trade Guild -- not yours") as well as this file's own
+// ownership badge -- ui-to-ui reuse within modes/space/ui/ is already established (BayView already
+// depends on IsStorageSelected/FrameContentRect below).
+std::string FactionDisplayName(const FactionId& faction);
+
 struct BridgeTab {
     ScreenId screen = ScreenId::Bay;
     // The hardpoint selecting this tab moves PlayerLocation onto (architecture.md 12.30's tab-
     // list fix). entt::null for Storage -- see ScreenId's comment above.
     entt::entity hardpoint = entt::null;
+};
+
+// The mandatory per-screen facility-health readout (features.md 3.4), read out of whichever
+// screen is currently active and drawn once by the router's top bar (issue #225's visual-chrome
+// pass) rather than by each screen's own header -- the same "drawn once by the router" argument
+// this file's Draw() already makes for the edge channel. `label` names the specific facility
+// ("BAY ALPHA"); `fraction` is its health, already clamped by DrawGauge. Each screen that wants a
+// top-bar readout exports its own query returning this (see BayView.h's ActiveGaugeStatus); the
+// caller (SpaceFlight.cpp) is the one place that may know about every screen, so it resolves which
+// query applies and passes the result in here rather than this file depending on bay_view et al.
+struct GaugeStatus {
+    std::string label;
+    float fraction = 1.0f;
 };
 
 // Distinct screens available among `rigRoot`'s live (non-Destroyed) hardpoints, in ScreenId
@@ -85,16 +111,23 @@ void Update(entt::registry& registry);
 // Draws the docked frame: architecture.md 12.30's full-window bezel (sr::ui::DrawPanelFrame over
 // the whole screen, drawn exactly once here rather than once per screen -- "the edge channel is
 // drawn by the router... never by the screens, which would be seven copies of it," extended to
-// the frame itself) plus the tab strip inside it. Only when the PlayerControlled entity is
-// currently Docked. No-op otherwise.
-void Draw(const entt::registry& registry);
+// the frame itself), a top bar (station name, an ownership badge naming the docked station's own
+// faction, `economy`'s credit balance for `playerFaction`, and `activeGauge` when the active
+// screen has one), and a left-hand vertical icon rail in place of the old horizontal tab strip
+// (issue #225's visual-chrome pass, matching the Docking Screens Redesign reference). `fonts` is
+// shared/ui/Fonts.h's Orbitron/Exo2 pair -- the less-pixelated follow-up to the visual-chrome pass,
+// replacing raylib's built-in bitmap font everywhere this router draws text. Only when the
+// PlayerControlled entity is currently Docked. No-op otherwise.
+void Draw(const entt::registry& registry, const FactionId& playerFaction,
+          const core::economy::FactionEconomy& economy, const sr::ui::Fonts& fonts,
+          const std::optional<GaugeStatus>& activeGauge);
 
 // architecture.md 12.30's frame: the content Rectangle every docked screen lays its own sections
-// into, below the tab strip Draw() above renders. Pure -- GetScreenWidth/Height only, no
-// registry -- so every screen can call it without depending on bridge_view's registry-reading
-// half. Screens must not call sr::ui::DrawPanelFrame on their own bounds any more: Draw() already
-// drew the one bezel for the whole window, and a second bezel nested inside it would double the
-// chrome for no reason.
+// into -- below the top bar and to the right of the icon rail Draw() above renders. Pure --
+// GetScreenWidth/Height only, no registry -- so every screen can call it without depending on
+// bridge_view's registry-reading half. Screens must not call sr::ui::DrawPanelFrame on their own
+// bounds any more: Draw() already drew the one bezel for the whole window, and a second bezel
+// nested inside it would double the chrome for no reason.
 Rectangle FrameContentRect();
 
 // Tag singleton: true exactly while Storage is the explicitly-clicked router tab.

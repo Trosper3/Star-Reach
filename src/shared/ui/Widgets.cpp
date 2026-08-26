@@ -86,7 +86,7 @@ std::vector<Row> ListViewEffectiveRows(std::span<const Row> rows, const std::str
 }
 
 void DrawListView(Rectangle contentRect, std::span<const Row> rows, float scrollOffset,
-                  const std::string& emptyMessage) {
+                  const std::string& emptyMessage, const Font& font) {
     const std::vector<Row> effective = ListViewEffectiveRows(rows, emptyMessage);
 
     BeginScissorMode(static_cast<int>(contentRect.x), static_cast<int>(contentRect.y),
@@ -105,8 +105,8 @@ void DrawListView(Rectangle contentRect, std::span<const Row> rows, float scroll
 
         const Color textColor =
             row.style.disabled ? kLabelDim : IntegrityColor(row.style.integrity);
-        DrawText(RowText(row).c_str(), static_cast<int>(contentRect.x + kRowTextPadding),
-                 static_cast<int>(y), kFontSize, textColor);
+        DrawTextEx(font, RowText(row).c_str(), {contentRect.x + kRowTextPadding, y},
+                   static_cast<float>(kFontSize), 1.0f, textColor);
     }
     EndScissorMode();
 }
@@ -131,7 +131,8 @@ std::optional<int> TabStripHitTest(Rectangle bounds, int tabCount, Vector2 curso
     return index;
 }
 
-void DrawTabStrip(Rectangle bounds, std::span<const std::string> labels, int selected) {
+void DrawTabStrip(Rectangle bounds, std::span<const std::string> labels, int selected,
+                  const Font& font) {
     const int count = static_cast<int>(labels.size());
     if (count == 0) {
         return;
@@ -143,10 +144,9 @@ void DrawTabStrip(Rectangle bounds, std::span<const std::string> labels, int sel
         const bool isSelected = i == selected;
         DrawChamferedRect(tabBounds, 6.0f, isSelected ? kPanelChrome : kPanelGlass, kPanelChrome,
                           1.5f);
-        DrawText(labels[static_cast<std::size_t>(i)].c_str(),
-                 static_cast<int>(tabBounds.x + kRowTextPadding),
-                 static_cast<int>(tabBounds.y + tabBounds.height / 2.0f - 6.0f), kFontSize,
-                 isSelected ? kValueBright : kLabelDim);
+        DrawTextEx(font, labels[static_cast<std::size_t>(i)].c_str(),
+                   {tabBounds.x + kRowTextPadding, tabBounds.y + tabBounds.height / 2.0f - 6.0f},
+                   static_cast<float>(kFontSize), 1.0f, isSelected ? kValueBright : kLabelDim);
     }
 }
 
@@ -155,12 +155,14 @@ Rectangle GaugeFillRect(Rectangle bounds, float fraction) {
     return Rectangle{bounds.x, bounds.y, bounds.width * f, bounds.height};
 }
 
-void DrawGauge(Rectangle bounds, const std::string& label, float fraction, Color fillColor) {
+void DrawGauge(Rectangle bounds, const std::string& label, float fraction, Color fillColor,
+               const Font& font) {
     DrawRectangleRec(bounds, kPanelGlass);
     DrawRectangleRec(GaugeFillRect(bounds, fraction), fillColor);
     DrawRectangleLinesEx(bounds, 1.5f, kPanelChrome);
-    DrawText(label.c_str(), static_cast<int>(bounds.x + kRowTextPadding),
-             static_cast<int>(bounds.y + bounds.height / 2.0f - 6.0f), kFontSize, kValueBright);
+    DrawTextEx(font, label.c_str(),
+               {bounds.x + kRowTextPadding, bounds.y + bounds.height / 2.0f - 6.0f},
+               static_cast<float>(kFontSize), 1.0f, kValueBright);
 }
 
 }  // namespace sr::ui

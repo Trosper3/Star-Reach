@@ -18,12 +18,14 @@ using sr::Destroyed;
 using sr::Docked;
 using sr::FacilityKind;
 using sr::FacilityRef;
+using sr::FactionId;
 using sr::ParentRig;
 using sr::PlayerLocation;
 using sr::Rig;
 using sr::space::ui::bridge_view::AvailableTabs;
 using sr::space::ui::bridge_view::BridgeTab;
 using sr::space::ui::bridge_view::DockedStation;
+using sr::space::ui::bridge_view::FactionDisplayName;
 using sr::space::ui::bridge_view::IsStorageSelected;
 using sr::space::ui::bridge_view::ScreenId;
 using sr::space::ui::bridge_view::SelectTab;
@@ -342,4 +344,12 @@ TEST_CASE(
 TEST_CASE("DockedStation is null with no PlayerLocation entity", "[bridge-view]") {
     entt::registry registry;
     CHECK((DockedStation(registry) == entt::null));
+}
+
+TEST_CASE("FactionDisplayName replaces underscores with spaces and uppercases", "[bridge-view]") {
+    CHECK(FactionDisplayName(FactionId("aegis_directorate")) == "AEGIS DIRECTORATE");
+}
+
+TEST_CASE("FactionDisplayName leaves a single-word id as one uppercase word", "[bridge-view]") {
+    CHECK(FactionDisplayName(FactionId("reapers")) == "REAPERS");
 }

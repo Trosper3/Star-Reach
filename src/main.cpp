@@ -130,7 +130,7 @@ int RunGame() {
 
     sr::modes::main_menu::MainMenu menu(textures, fonts);
     sr::space::SpaceFlight game(*content, economy, wreckLedger, galaxy.knowledge, galaxy.diplomacy,
-                                galaxy.reputation);
+                                galaxy.reputation, fonts);
 
     // Which mode runs is main()'s job to track (Law 6/7 govern mode CLASSES, not this loop) --
     // IGameMode.h "lands with the second mode, not before" (architecture.md section 3), and
