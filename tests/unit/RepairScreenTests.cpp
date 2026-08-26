@@ -2,6 +2,7 @@
 
 #include <entt/entity/registry.hpp>
 
+#include "core/registries/ContentLibrary.h"
 #include "modes/space/ui/RepairScreen.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
@@ -9,6 +10,7 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Rig.h"
 
+using sr::CrewRepairBonus;
 using sr::Destroyed;
 using sr::Docked;
 using sr::FacilityKind;
@@ -16,8 +18,15 @@ using sr::FacilityRef;
 using sr::FactionId;
 using sr::FactionRef;
 using sr::Health;
+using sr::ModuleDef;
+using sr::ModuleId;
+using sr::ModuleKind;
+using sr::MountedModules;
+using sr::ParentRig;
 using sr::Rig;
+using sr::core::ContentLibrary;
 using sr::space::ui::repair_screen::FacilityGrade;
+using sr::space::ui::repair_screen::FacilityRate;
 using sr::space::ui::repair_screen::OwnedVesselAt;
 using sr::space::ui::repair_screen::RepairAllActive;
 using sr::space::ui::repair_screen::Rows;
@@ -54,6 +63,7 @@ TEST_CASE("Rows marks a Destroyed hardpoint disabled and never ordered", "[repai
     CHECK_FALSE(rows[0].ordered);  // Repair All is active, but a destroyed row never is.
     CHECK(rows[0].row.style.disabled);
     CHECK(rows[0].row.value.find("REBUILD") != std::string::npos);
+    CHECK(rows[0].costToFull == 0);  // DrawFooter's total must not count a destroyed row.
 }
 
 TEST_CASE("Rows marks exactly the hardpoint a single-target order names as ordered",
@@ -98,6 +108,7 @@ TEST_CASE("Rows prices the cost to bring a hardpoint to full", "[repair-screen]"
     const auto rows = Rows(registry, subject, /*hasOrder=*/false, entt::null, /*costPerHp=*/3);
     REQUIRE(rows.size() == 1);
     CHECK(rows[0].row.value.find("150cr") != std::string::npos);  // 50 missing * 3
+    CHECK(rows[0].costToFull == 150);
 }
 
 TEST_CASE("RepairAllActive is true only for a whole-rig order", "[repair-screen]") {
@@ -114,6 +125,48 @@ TEST_CASE("FacilityGrade reads FacilityRef::grade, defaulting to 1", "[repair-sc
 
     const entt::entity ungraded = registry.create();
     CHECK(FacilityGrade(registry, ungraded) == 1);
+}
+
+TEST_CASE("FacilityRate is zero with no MountedModules", "[repair-screen]") {
+    entt::registry registry;
+    const ContentLibrary content;
+    const entt::entity hardpoint = registry.create();
+    CHECK(FacilityRate(registry, content, hardpoint) == 0.0f);
+}
+
+TEST_CASE("FacilityRate reads the mounted Repair module's ratePerSecond", "[repair-screen]") {
+    entt::registry registry;
+    ContentLibrary content;
+    ModuleDef module;
+    module.id = ModuleId("test_repair_bay");
+    module.kind = ModuleKind::Facility;
+    module.facility.kind = FacilityKind::Repair;
+    module.facility.ratePerSecond = 5.0f;
+    content.RegisterCraftedModule(module);
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<MountedModules>(hardpoint, std::vector<ModuleId>{module.id});
+
+    CHECK(FacilityRate(registry, content, hardpoint) == 5.0f);
+}
+
+TEST_CASE("FacilityRate applies the station's CrewRepairBonus", "[repair-screen]") {
+    entt::registry registry;
+    ContentLibrary content;
+    ModuleDef module;
+    module.id = ModuleId("test_repair_bay");
+    module.kind = ModuleKind::Facility;
+    module.facility.kind = FacilityKind::Repair;
+    module.facility.ratePerSecond = 4.0f;
+    content.RegisterCraftedModule(module);
+
+    const entt::entity station = registry.create();
+    registry.emplace<CrewRepairBonus>(station, 0.5f);
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<MountedModules>(hardpoint, std::vector<ModuleId>{module.id});
+    registry.emplace<ParentRig>(hardpoint, station);
+
+    CHECK(FacilityRate(registry, content, hardpoint) == 6.0f);  // 4 * (1 + 0.5)
 }
 
 TEST_CASE("OwnedVesselAt finds the player's own docked vessel", "[repair-screen]") {

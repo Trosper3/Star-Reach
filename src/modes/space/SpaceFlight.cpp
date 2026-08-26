@@ -396,7 +396,7 @@ void SpaceFlight::Draw() const {
     ui::bridge_view::Draw(world_.Registry(), playerFaction, economy_, fonts, activeGauge);
     ui::bay_view::Draw(world_.Registry(), playerFaction, fonts);
     ui::storage_screen::Draw(registry, playerFaction, fonts);
-    ui::repair_screen::Draw(registry, playerFaction);
+    ui::repair_screen::Draw(registry, playerFaction, content_);
     ui::engineering_screen::Draw(world_.Registry(), playerFaction, content_);
     ui::research_screen::Draw(registry, playerFaction, knowledge_);
     // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
