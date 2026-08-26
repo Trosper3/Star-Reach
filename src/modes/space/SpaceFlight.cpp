@@ -377,26 +377,29 @@ void SpaceFlight::Draw() const {
         ui::cockpit_hud::Draw(world_.Registry());
     }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
-    // Bay and Storage are, today, the only screens with an ActiveGaugeStatus query wired to the
-    // router's top-bar Gauge (issue #225's visual-chrome pass) -- Repair/Engineering/Research keep
-    // drawing their own in-page readout for now rather than this becoming a five-screen change in
-    // one pass. SpaceFlight is the one place that may know about every screen (modes/*/ui/ must
-    // not depend on a sibling the other direction), so it resolves which query applies; the two
-    // are mutually exclusive (bridge_view's frame shows exactly one screen at a time), so trying
-    // Bay first and falling back to Storage never masks a real result.
+    // Bay, Storage, and Repair are, today, the only screens with an ActiveGaugeStatus query wired
+    // to the router's top-bar Gauge (issues #225/#226's visual-chrome passes) --
+    // Engineering/Research keep drawing their own in-page readout for now rather than this
+    // becoming a five-screen change in one pass. SpaceFlight is the one place that may know about
+    // every screen (modes/*/ui/ must not depend on a sibling the other direction), so it resolves
+    // which query applies; all three are mutually exclusive (bridge_view's frame shows exactly one
+    // screen at a time), so trying them in order never masks a real result.
     std::optional<ui::bridge_view::GaugeStatus> activeGauge =
         ui::bay_view::ActiveGaugeStatus(registry);
     if (!activeGauge.has_value()) {
         activeGauge = ui::storage_screen::ActiveGaugeStatus(registry, playerFaction);
     }
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::repair_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
     // shared/ui/Fonts.h's Orbitron/Exo2 pair, loaded once per frame (a cached map lookup, not a
     // reload -- see FontCache::Get) and threaded into every screen that has migrated off raylib's
-    // built-in bitmap font so far (the router, Bay, Storage).
+    // built-in bitmap font so far (the router, Bay, Storage, Repair).
     const sr::ui::Fonts fonts = sr::ui::LoadFonts(fonts_);
     ui::bridge_view::Draw(world_.Registry(), playerFaction, economy_, fonts, activeGauge);
     ui::bay_view::Draw(world_.Registry(), playerFaction, fonts);
     ui::storage_screen::Draw(registry, playerFaction, fonts);
-    ui::repair_screen::Draw(registry, playerFaction);
+    ui::repair_screen::Draw(registry, playerFaction, content_, fonts);
     ui::engineering_screen::Draw(world_.Registry(), playerFaction, content_);
     ui::research_screen::Draw(registry, playerFaction, knowledge_);
     // architecture.md 12.30.7: drawn over the world in flight and over whichever docked screen
