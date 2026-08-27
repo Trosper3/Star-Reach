@@ -99,6 +99,31 @@ TEST_CASE("CommsSystem logs no response when the target is out of comms range", 
     CHECK(log->entries[1].text == "Reaver Raider does not respond -- out of range.");
 }
 
+TEST_CASE("CommsSystem reports comms offline rather than out of range with zero CommsRange",
+          "[comms]") {
+    // CommsRange defaults to 0.0f -- no authored Comms module exists yet (Comms.h's own comment)
+    // -- so "out of range" is permanently unreachable and misleading; every hailer without one
+    // should hear that comms are offline instead.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity target = registry.create();
+    registry.emplace<WorldTransform>(target, Vec2{10.0f, 0.0f}, 0.0f);
+    registry.emplace<DisplayName>(target, "Reaver Raider");
+
+    const entt::entity hailer = MakeHailer(registry, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<HailRequest>(hailer, target);
+
+    comms_system::Tick(MakeContext(world, intents, content));
+
+    const CommsLog* log = FindLog(registry);
+    REQUIRE(log != nullptr);
+    REQUIRE(log->entries.size() == 2);
+    CHECK(log->entries[1].text == "Comms offline -- no transceiver mounted.");
+}
+
 TEST_CASE("CommsSystem falls back to 'Unknown contact' for a target with no DisplayName",
           "[comms]") {
     SystemWorld world("sol");

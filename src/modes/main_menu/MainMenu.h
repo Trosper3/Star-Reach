@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 
 #include "modes/IGameMode.h"
 
@@ -62,10 +63,20 @@ private:
     };
     static constexpr int kStarCount = 200;
 
+    // features.md 1.2: SINGLEPLAYER stays SINGLEPLAYER -- clicking it opens a second screen
+    // offering Play the Prologue / Skip to the Frontier rather than replacing the title screen's
+    // own button. Both are still "new game": there is no save/load flow in this stub yet
+    // (P10-02), so this distinction is purely about not flattening the two menus into one list.
+    enum class Screen : std::uint8_t {
+        Title,
+        NewGame,
+    };
+
     engine::TextureCache& textures_;
     engine::FontCache& fonts_;
     std::array<Star, kStarCount> stars_{};
 
+    Screen screen_ = Screen::Title;
     bool startRequested_ = false;
     bool quitRequested_ = false;
     bool playPrologueRequested_ = false;

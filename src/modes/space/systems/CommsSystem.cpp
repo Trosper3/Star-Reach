@@ -103,6 +103,13 @@ void Tick(const SystemContext& ctx) {
                     ctx.reputation->Adjust(faction->id, kHailSuccessStep);
                 }
             }
+        } else if (comms.units <= 0.0f) {
+            // No authored Comms module exists yet (Comms.h's own CommsRange comment: "0.0f today
+            // since ModuleKind::Comms has no authored content yet"), so every hailer's range is
+            // zero and "out of range" below is never actually reachable, just permanently
+            // misleading -- it implies getting closer would help. Comms hardware simply isn't
+            // installed.
+            PushEntry(registry, log, "Comms offline -- no transceiver mounted.", false);
         } else {
             PushEntry(registry, log, name + " does not respond -- out of range.", false);
         }

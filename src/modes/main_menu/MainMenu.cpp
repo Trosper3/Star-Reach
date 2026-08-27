@@ -3,6 +3,7 @@
 #include <raylib.h>
 
 #include <cstdint>
+#include <span>
 
 #include "engine/assets/FontCache.h"
 #include "engine/assets/TextureCache.h"
@@ -12,8 +13,9 @@
 namespace sr::modes::main_menu {
 namespace {
 
-// Widened from the four-button era's 220.0f: "SKIP TO THE FRONTIER" (features.md 1.2) is longer
-// than any label this screen drew before.
+// Widened from the pre-prologue era's 220.0f: "SKIP TO THE FRONTIER" (features.md 1.2) is longer
+// than any label this screen drew before. Applied to every screen for simplicity -- a title-
+// screen button a little wider than it needs to be costs nothing.
 constexpr float kButtonWidth = 280.0f;
 constexpr float kButtonHeight = 56.0f;
 constexpr float kButtonSpacing = 16.0f;
@@ -28,8 +30,10 @@ constexpr int kSafeSpawnAttempts = 8;
 // action is decided here rather than by comparing button labels, so a label can be reworded
 // without touching the click handling.
 enum class MenuAction : std::uint8_t {
+    kSingleplayer,
     kPlayPrologue,
     kSkipToFrontier,
+    kBack,
     kMultiplayer,
     kSettings,
     kQuit,
@@ -43,15 +47,21 @@ struct MenuButtonDef {
     bool enabled;
 };
 
-// features.md 1.2: New Game replaces the old single SINGLEPLAYER button with the two-act
-// prologue's own choice -- "Play the prologue" or "Skip to the frontier" -- rather than routing
-// through a second confirmation screen this stub has no supporting state machine for yet.
-constexpr std::array<MenuButtonDef, 5> kMenuButtons = {{
-    {"PLAY THE PROLOGUE", MenuAction::kPlayPrologue, true},
-    {"SKIP TO THE FRONTIER", MenuAction::kSkipToFrontier, true},
+constexpr std::array<MenuButtonDef, 4> kTitleButtons = {{
+    {"SINGLEPLAYER", MenuAction::kSingleplayer, true},
     {"MULTIPLAYER", MenuAction::kMultiplayer, false},
     {"SETTINGS", MenuAction::kSettings, false},
     {"QUIT", MenuAction::kQuit, true},
+}};
+
+// features.md 1.2: SINGLEPLAYER opens this second screen -- "Play the prologue" or "Skip to the
+// frontier" -- rather than replacing SINGLEPLAYER itself. Both are still starting a new game:
+// there is no save/load flow in this stub yet (P10-02) for a "new vs. continue" distinction, so
+// SINGLEPLAYER is the only door and this is what stands behind it.
+constexpr std::array<MenuButtonDef, 3> kNewGameButtons = {{
+    {"PLAY THE PROLOGUE", MenuAction::kPlayPrologue, true},
+    {"SKIP TO THE FRONTIER", MenuAction::kSkipToFrontier, true},
+    {"BACK", MenuAction::kBack, true},
 }};
 
 // Relative to the TextureCache root (data/base_game/textures/), never an absolute path.
@@ -69,17 +79,14 @@ constexpr int kTitleFontBaseSize = 96;
 // Window::Open before constructing the mode loop), so GetScreenWidth/Height are always valid
 // here.
 //
-// index picks a slot in kMenuButtons; the buttons stack top to bottom starting where the single
-// PLAY button used to sit. Adding a fifth entry to kMenuButtons is enough to place it -- nothing
-// here needs to change.
+// index picks a slot in whichever screen's button array is active; both max out at four entries
+// (kTitleButtons) or fewer (kNewGameButtons), so 0.62f's fit is unchanged from before
+// features.md 1.2 added the second screen.
 Rectangle MenuButtonRect(std::size_t index) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
     const float screenHeight = static_cast<float>(GetScreenHeight());
-    // 0.58f rather than the four-button era's 0.62f: kMenuButtons grew to five entries with
-    // features.md 1.2's prologue/skip-to-frontier split, and starting lower would run the QUIT
-    // button off a 900px-tall window.
     const float y =
-        screenHeight * 0.58f + static_cast<float>(index) * (kButtonHeight + kButtonSpacing);
+        screenHeight * 0.62f + static_cast<float>(index) * (kButtonHeight + kButtonSpacing);
     return Rectangle{(screenWidth - kButtonWidth) * 0.5f, y, kButtonWidth, kButtonHeight};
 }
 
@@ -104,6 +111,7 @@ MainMenu::MainMenu(engine::TextureCache& textures, engine::FontCache& fonts)
     : textures_(textures), fonts_(fonts) {}
 
 void MainMenu::OnEnter() {
+    screen_ = Screen::Title;
     startRequested_ = false;
     quitRequested_ = false;
     InitStars();
@@ -119,9 +127,13 @@ void MainMenu::Update(float realDeltaSeconds) {
     if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         return;
     }
+    const std::span<const MenuButtonDef> buttons =
+        screen_ == Screen::Title ? std::span<const MenuButtonDef>(kTitleButtons)
+                                 : std::span<const MenuButtonDef>(kNewGameButtons);
+
     const Vector2 mouse = GetMousePosition();
-    for (std::size_t i = 0; i < kMenuButtons.size(); ++i) {
-        const MenuButtonDef& button = kMenuButtons[i];
+    for (std::size_t i = 0; i < buttons.size(); ++i) {
+        const MenuButtonDef& button = buttons[i];
         if (!button.enabled || !CheckCollisionPointRec(mouse, MenuButtonRect(i))) {
             continue;
         }
@@ -129,6 +141,7 @@ void MainMenu::Update(float realDeltaSeconds) {
         // -- but the switch is the seam a future mode hangs its case off of, instead of this
         // growing into a chain of label string comparisons.
         switch (button.action) {
+            case MenuAction::kSingleplayer: screen_ = Screen::NewGame; break;
             case MenuAction::kPlayPrologue:
                 startRequested_ = true;
                 playPrologueRequested_ = true;
@@ -137,6 +150,7 @@ void MainMenu::Update(float realDeltaSeconds) {
                 startRequested_ = true;
                 playPrologueRequested_ = false;
                 break;
+            case MenuAction::kBack: screen_ = Screen::Title; break;
             case MenuAction::kQuit: quitRequested_ = true; break;
             case MenuAction::kMultiplayer:
             case MenuAction::kSettings: break;
@@ -158,8 +172,11 @@ void MainMenu::Draw() const {
                        static_cast<float>(GetScreenHeight()) / 3.0f},
                titleFontSize, 1.0f, sr::ui::kValueBright);
 
-    for (std::size_t i = 0; i < kMenuButtons.size(); ++i) {
-        const MenuButtonDef& button = kMenuButtons[i];
+    const std::span<const MenuButtonDef> buttons =
+        screen_ == Screen::Title ? std::span<const MenuButtonDef>(kTitleButtons)
+                                 : std::span<const MenuButtonDef>(kNewGameButtons);
+    for (std::size_t i = 0; i < buttons.size(); ++i) {
+        const MenuButtonDef& button = buttons[i];
         const Color border = button.enabled ? sr::ui::kPanelChrome : sr::ui::kLabelDim;
         const Color text = button.enabled ? sr::ui::kValueBright : sr::ui::kLabelDim;
         sr::ui::DrawChamferedButton(MenuButtonRect(i), button.label, titleFont, 20.0f,

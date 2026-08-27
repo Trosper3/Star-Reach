@@ -12,8 +12,12 @@ namespace sr::space::comms_system {
 //     StarReach2's AddCommsMessage/kCommsLogCap.
 //   - Hail: a HailRequest naming a target rig logs a hail line if the target is within the
 //     requester's own CommsRange (shared/components/Comms.h -- architecture.md 13.3 finding S,
-//     12.27 moved this off Targeting.h's SensorRange, which only conflated detection with talk),
-//     and a "no response" line otherwise. Both outcomes consume the request the same tick.
+//     12.27 moved this off Targeting.h's SensorRange, which only conflated detection with talk).
+//     Otherwise logs a "comms offline" line if the requester's own CommsRange is zero (no
+//     authored Comms module exists yet, so this is every rig's actual state today -- "out of
+//     range" would be permanently misleading, since there is no range to ever get within), or a
+//     "no response -- out of range" line if it has real range and the target is still beyond it.
+//     All three outcomes consume the request the same tick.
 //   - Dialogue lines: a small canned response pool, picked by a deterministic hash of
 //     (requester, tick) rather than RNG state -- the same reasoning MiningSystem's element roll
 //     already documents for keeping Law 2's fast-forward replayable.
