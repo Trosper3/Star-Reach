@@ -1,5 +1,6 @@
 #include "modes/space/ui/HudGating.h"
 
+#include "shared/components/Comms.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 
@@ -12,6 +13,15 @@ namespace {
 bool SensorOnline(const entt::registry& registry, entt::entity rigRoot) {
     const SensorRange* sensor = registry.try_get<SensorRange>(rigRoot);
     return sensor != nullptr && sensor->units > 0.0f;
+}
+
+// Mirrors SensorOnline exactly, against shared/components/Comms.h's CommsRange instead --
+// RigFactory.cpp emplaces it 0 on every root today (no ModuleKind::Comms content authored yet),
+// so this reads false in practice until that content lands, the same "wired ahead of content"
+// state Sensor itself shipped in first.
+bool CommsOnline(const entt::registry& registry, entt::entity rigRoot) {
+    const CommsRange* comms = registry.try_get<CommsRange>(rigRoot);
+    return comms != nullptr && comms->units > 0.0f;
 }
 
 // Mirrors shared/rig/ModuleAttachment.cpp's RecomputeRigTotals `crewed` walk: a living,
@@ -58,10 +68,10 @@ bool IsOnline(const entt::registry& registry, entt::entity rigRoot, HudSurface s
     }
     switch (surface) {
         case HudSurface::Sensor: return SensorOnline(registry, rigRoot);
+        case HudSurface::Comms: return CommsOnline(registry, rigRoot);
         case HudSurface::Command: return CommandOnline(registry, rigRoot);
-        // Comms, Construction, and Hyperdrive have no live component to read yet -- see this
-        // file's header comment.
-        case HudSurface::Comms:
+        // Construction and Hyperdrive have no live component to read yet -- see this file's
+        // header comment.
         case HudSurface::Construction:
         case HudSurface::Hyperdrive: return false;
     }

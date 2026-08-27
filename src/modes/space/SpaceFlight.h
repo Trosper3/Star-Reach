@@ -123,6 +123,12 @@ private:
     // independent meaning outside that caller.
     void ProcessWarpRequests();
 
+    // Polls every docked screen's Update (Bay/Storage/Repair/Engineering/Research plus the
+    // always-on Storage/Modules/Codex overlays) against the current PlayerVesselRoot -- split out
+    // of Update for the same reason as ProcessWarpRequests above: architecture.md 2.2's
+    // function-length cap, no independent meaning outside that caller.
+    void UpdateDockedScreens(entt::registry& registry);
+
     SystemWorld world_;
     core::IntentQueue intents_;
     core::ContentLibrary& content_;

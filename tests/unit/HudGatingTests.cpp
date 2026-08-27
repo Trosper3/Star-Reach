@@ -3,9 +3,11 @@
 #include <entt/entity/registry.hpp>
 
 #include "modes/space/ui/HudGating.h"
+#include "shared/components/Comms.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
 
+using sr::CommsRange;
 using sr::CrewRating;
 using sr::Destroyed;
 using sr::Rig;
@@ -98,7 +100,7 @@ TEST_CASE("Command ignores a turret's own crew", "[hud-gating]") {
     CHECK_FALSE(IsOnline(registry, root, HudSurface::Command));
 }
 
-TEST_CASE("Comms, Construction, and Hyperdrive are always offline today", "[hud-gating]") {
+TEST_CASE("Construction and Hyperdrive are always offline today", "[hud-gating]") {
     entt::registry registry;
     const entt::entity root = registry.create();
     registry.emplace<SensorRange>(root, 500.0f);
@@ -109,9 +111,26 @@ TEST_CASE("Comms, Construction, and Hyperdrive are always offline today", "[hud-
     rig.children.push_back(cockpit);
     registry.emplace<Rig>(root, std::move(rig));
 
-    CHECK_FALSE(IsOnline(registry, root, HudSurface::Comms));
     CHECK_FALSE(IsOnline(registry, root, HudSurface::Construction));
     CHECK_FALSE(IsOnline(registry, root, HudSurface::Hyperdrive));
+}
+
+TEST_CASE("Comms is online exactly when CommsRange::units is positive", "[hud-gating]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    registry.emplace<CommsRange>(root, 500.0f);
+    CHECK(IsOnline(registry, root, HudSurface::Comms));
+
+    // Mirrors the SensorRange test above -- the component stays present, just at 0, once its
+    // eventual Comms module dies (there is no such module yet -- see this file's header comment).
+    registry.get<CommsRange>(root).units = 0.0f;
+    CHECK_FALSE(IsOnline(registry, root, HudSurface::Comms));
+}
+
+TEST_CASE("Comms is offline with no CommsRange component at all", "[hud-gating]") {
+    entt::registry registry;
+    const entt::entity root = registry.create();
+    CHECK_FALSE(IsOnline(registry, root, HudSurface::Comms));
 }
 
 TEST_CASE("Label names every surface", "[hud-gating]") {
