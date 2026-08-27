@@ -69,7 +69,8 @@ void Draw(std::span<const Contact> contacts, const render::CameraView& camera) {
         if (clamped.pointWasInside) {
             continue;  // Already visible as a world sprite -- features.md 3.10.
         }
-        render::DrawMapMarker(clamped.position, sr::ui::kStatusCritical, "");
+        render::DrawMapMarker(clamped.position, sr::ui::kStatusCritical, "",
+                              render::MapMarkerKind::Hostile, camera.zoom);
     }
 }
 

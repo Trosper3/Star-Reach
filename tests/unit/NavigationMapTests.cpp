@@ -3,6 +3,7 @@
 #include <utility>
 
 #include "core/diplomacy/DiplomacyMatrix.h"
+#include "core/diplomacy/Territory.h"
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "modes/space/ui/NavigationMap.h"
 #include "shared/components/Identity.h"
@@ -18,6 +19,7 @@ using sr::Vec2;
 using sr::WorldTransform;
 using sr::core::diplomacy::DiplomacyMatrix;
 using sr::core::diplomacy::Relation;
+using sr::core::diplomacy::Territory;
 using sr::core::knowledge::FactionNetworkId;
 using sr::core::knowledge::KnowledgeNetwork;
 using sr::core::knowledge::KnowledgeStore;
@@ -76,6 +78,153 @@ TEST_CASE("ShowsShipIcons is true only at System level", "[navigation-map]") {
     CHECK_FALSE(navigation_map::ShowsShipIcons(navigation_map::ZoomLevel::Region));
     CHECK(navigation_map::ShowsShipIcons(navigation_map::ZoomLevel::System));
     CHECK_FALSE(navigation_map::ShowsShipIcons(navigation_map::ZoomLevel::Tactical));
+}
+
+TEST_CASE("RegionalClusters groups discovered claimed systems by owner", "[navigation-map]") {
+    Territory territory;
+    territory.Claim("sol", FactionId("aegis"));
+    territory.Claim("kepler", FactionId("aegis"));
+    territory.Claim("vega", FactionId("reavers"));
+    KnowledgeStore knowledge;
+    SeedFaction(knowledge, FactionId("aegis"));
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "sol");
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "kepler");
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "vega");
+
+    const auto clusters =
+        navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge);
+
+    REQUIRE(clusters.size() == 2);
+    CHECK(clusters[0].owner == FactionId("aegis"));
+    CHECK(clusters[0].knowledge == navigation_map::TerritoryKnowledge::Known);
+    CHECK(clusters[0].systemIds == std::vector<std::string>{"kepler", "sol"});
+    CHECK(clusters[1].owner == FactionId("reavers"));
+    CHECK(clusters[1].systemIds == std::vector<std::string>{"vega"});
+}
+
+TEST_CASE(
+    "RegionalClusters renders undiscovered claimed systems as one present-but-unknown "
+    "cluster",
+    "[navigation-map]") {
+    // features.md 8.3: "absence must never look like emptiness" -- a claim the viewer's faction
+    // has not discovered still shows up, just with no owner or identity revealed.
+    Territory territory;
+    territory.Claim("sol", FactionId("aegis"));       // discovered, below.
+    territory.Claim("kepler", FactionId("reavers"));  // never discovered by "aegis".
+    territory.Claim("vega", FactionId("reavers"));    // never discovered by "aegis".
+    KnowledgeStore knowledge;
+    SeedFaction(knowledge, FactionId("aegis"));
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "sol");
+
+    const auto clusters =
+        navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge);
+
+    REQUIRE(clusters.size() == 2);
+    CHECK(clusters[0].owner == FactionId("aegis"));
+    CHECK(clusters[0].systemIds == std::vector<std::string>{"sol"});
+    CHECK(clusters[1].knowledge == navigation_map::TerritoryKnowledge::Unknown);
+    CHECK(clusters[1].owner.empty());
+    CHECK(clusters[1].systemIds == std::vector<std::string>{"kepler", "vega"});
+}
+
+TEST_CASE("RegionalClusters groups a discovered, unclaimed system under the empty faction",
+          "[navigation-map]") {
+    Territory territory;  // "sol" never claimed.
+    KnowledgeStore knowledge;
+    SeedFaction(knowledge, FactionId("aegis"));
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "sol");
+
+    const auto clusters =
+        navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge);
+
+    REQUIRE(clusters.size() == 1);
+    CHECK(clusters[0].owner.empty());
+    CHECK(clusters[0].knowledge == navigation_map::TerritoryKnowledge::Known);
+    CHECK(clusters[0].systemIds == std::vector<std::string>{"sol"});
+}
+
+TEST_CASE("RegionalClusters is empty with no claims and no discoveries", "[navigation-map]") {
+    Territory territory;
+    KnowledgeStore knowledge;
+    SeedFaction(knowledge, FactionId("aegis"));
+
+    CHECK(navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge).empty());
+}
+
+TEST_CASE("RegionalClusters recomposes a blob when a member's owner changes", "[navigation-map]") {
+    Territory territory;
+    territory.Claim("sol", FactionId("aegis"));
+    KnowledgeStore knowledge;
+    SeedFaction(knowledge, FactionId("aegis"));
+    knowledge.Grant(FactionNetworkId(FactionId("aegis")), NetworkEntryKind::DiscoveredSystem,
+                    "sol");
+
+    {
+        const auto clusters =
+            navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge);
+        REQUIRE(clusters.size() == 1);
+        CHECK(clusters[0].owner == FactionId("aegis"));
+    }
+
+    territory.Claim("sol", FactionId("reavers"));
+
+    {
+        const auto clusters =
+            navigation_map::RegionalClusters(FactionId("aegis"), territory, knowledge);
+        REQUIRE(clusters.size() == 1);
+        CHECK(clusters[0].owner == FactionId("reavers"));
+        CHECK(clusters[0].systemIds == std::vector<std::string>{"sol"});
+    }
+}
+
+TEST_CASE("GalacticTerritory merges regional clusters that share an owner", "[navigation-map]") {
+    const std::vector<navigation_map::TerritoryCluster> regional{
+        navigation_map::TerritoryCluster{
+            FactionId("aegis"), navigation_map::TerritoryKnowledge::Known, {"sol"}},
+        navigation_map::TerritoryCluster{
+            FactionId("aegis"), navigation_map::TerritoryKnowledge::Known, {"kepler"}},
+    };
+
+    const auto merged = navigation_map::GalacticTerritory(regional);
+
+    REQUIRE(merged.size() == 1);
+    CHECK(merged[0].owner == FactionId("aegis"));
+    CHECK(merged[0].systemIds == std::vector<std::string>{"kepler", "sol"});
+}
+
+TEST_CASE("GalacticTerritory merges every Unknown cluster into one", "[navigation-map]") {
+    const std::vector<navigation_map::TerritoryCluster> regional{
+        navigation_map::TerritoryCluster{
+            FactionId(), navigation_map::TerritoryKnowledge::Unknown, {"vega"}},
+        navigation_map::TerritoryCluster{
+            FactionId(), navigation_map::TerritoryKnowledge::Unknown, {"kepler"}},
+    };
+
+    const auto merged = navigation_map::GalacticTerritory(regional);
+
+    REQUIRE(merged.size() == 1);
+    CHECK(merged[0].knowledge == navigation_map::TerritoryKnowledge::Unknown);
+    CHECK(merged[0].systemIds == std::vector<std::string>{"kepler", "vega"});
+}
+
+TEST_CASE("GalacticTerritory keeps distinct owners separate", "[navigation-map]") {
+    const std::vector<navigation_map::TerritoryCluster> regional{
+        navigation_map::TerritoryCluster{
+            FactionId("aegis"), navigation_map::TerritoryKnowledge::Known, {"sol"}},
+        navigation_map::TerritoryCluster{
+            FactionId("reavers"), navigation_map::TerritoryKnowledge::Known, {"vega"}},
+    };
+
+    const auto merged = navigation_map::GalacticTerritory(regional);
+
+    REQUIRE(merged.size() == 2);
+    CHECK(merged[0].owner == FactionId("aegis"));
+    CHECK(merged[1].owner == FactionId("reavers"));
 }
 
 namespace {
