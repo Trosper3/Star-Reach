@@ -4,28 +4,38 @@
 
 namespace sr::space::tutorial_system {
 
-// Step gating and advancement (architecture.md section 4).
+// Act I's four lessons, the prologue's commander offer, and the anomaly's cataclysm
+// (features.md 1.2, architecture.md section 4 / 13.1's TutorialSystem row).
 //
-// A Tutorial component's presence on a rig IS "tutorial active" for that rig -- there is no
-// separate start/skip request; add the component to begin, remove it to abandon. Each step
-// advances on its own signal, read from state other systems already produce, never mutated:
-//
+//   - Offer: the fixed prologue system (modes/space/factories/WorldGen.cpp's
+//     PopulatePrologueSystem) is the only registry that ever carries an AnomalyField
+//     (shared/components/Physics.h). The first tick that sees one and a PlayerControlled rig
+//     with neither Tutorial, TutorialOffer, nor TutorialDeclined logs the commander's hail to
+//     CommsLog and emplaces TutorialOffer on the player -- modes/space/ui/TutorialHud.h is the
+//     only reader, and resolves it to Tutorial (Accept) or TutorialDeclined (Decline).
 //   - Move: the rig has traveled kTutorialMoveDistance from its position when the tutorial
 //     started (captured lazily on the first tick TutorialSystem sees it).
 //   - Target: the rig has a live Target (Targeting.h).
-//   - DestroyAsteroid: ANY Asteroid entity is tagged Destroyed this tick -- ported from legacy
-//     StarReach2, which advanced on any asteroid destruction, not specifically the tutorial
-//     rig's own kill. Must run before MiningSystem, which destroys the entity outright the same
-//     tick DamageSystem tags it.
-//   - CollectElement: the rig's CargoHold (shared/components/Loot.h) has at least one element
-//     stack.
-//   - Dock: the rig is tagged Docked (shared/components/Docking.h).
+//   - Fire: any weapon hardpoint on the rig has a non-zero Weapon::cooldown (Combat.h) --
+//     WeaponSystem only sets this when a shot actually leaves the mount, and it persists for
+//     fireIntervalSeconds afterward, long enough for this system (which runs after WeaponSystem)
+//     to observe it reliably instead of racing a same-tick Projectile that ProjectileSystem might
+//     already have consumed.
+//   - Equip: the rig's live mounted-module count (summed across every hardpoint's
+//     MountedModules, Rig.h) exceeds Tutorial::startEquippedModules -- captured lazily alongside
+//     startPosition, since every blueprint already arrives with modules mounted and "any
+//     MountedModules is non-empty" would complete this before the player did anything.
+//   - Cataclysm: regardless of whether the offer was accepted or declined (features.md 1.2:
+//     "declining changes nothing else"), the PlayerControlled rig crossing an AnomalyField's
+//     triggerRadius emplaces a SystemWarpRequest (shared/components/Warp.h) bound for a
+//     pseudo-randomly named frontier system -- SpaceFlight's existing SystemWarpRequest handoff
+//     (issue #96) does the rest. Guarded on the player not already carrying one, both so a
+//     repeated Tick before SpaceFlight processes it can't overwrite the target, and so the event
+//     is structurally one-shot: the request tears down this whole registry, anomaly included.
 //
-// NOT wired to an automatic signal: Sell and EquipModule (need a StorageMenu/refit UI that does
-// not exist yet -- modes/space/ui, #35/#36) and Warp (legacy's step meant leaving the system;
-// only local warp exists so far, #25, which is not the same action). All three remain reachable
-// only by whatever future system eventually completes them -- there is no generic
-// AdvanceTutorialStep entry point here for one to call yet, since nothing needs it until then.
+// Act II's Gather/Dock-and-trade/Customize/Build/Warp lessons and its gathering tithe are NOT
+// implemented here -- they land with P6-13, against Tutorial::act == Act::Two, which nothing
+// produces yet.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::tutorial_system

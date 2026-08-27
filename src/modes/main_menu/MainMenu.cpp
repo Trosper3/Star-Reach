@@ -12,7 +12,9 @@
 namespace sr::modes::main_menu {
 namespace {
 
-constexpr float kButtonWidth = 220.0f;
+// Widened from the four-button era's 220.0f: "SKIP TO THE FRONTIER" (features.md 1.2) is longer
+// than any label this screen drew before.
+constexpr float kButtonWidth = 280.0f;
 constexpr float kButtonHeight = 56.0f;
 constexpr float kButtonSpacing = 16.0f;
 constexpr int kStarMinSpeed = 10;
@@ -26,7 +28,8 @@ constexpr int kSafeSpawnAttempts = 8;
 // action is decided here rather than by comparing button labels, so a label can be reworded
 // without touching the click handling.
 enum class MenuAction : std::uint8_t {
-    kSingleplayer,
+    kPlayPrologue,
+    kSkipToFrontier,
     kMultiplayer,
     kSettings,
     kQuit,
@@ -40,8 +43,12 @@ struct MenuButtonDef {
     bool enabled;
 };
 
-constexpr std::array<MenuButtonDef, 4> kMenuButtons = {{
-    {"SINGLEPLAYER", MenuAction::kSingleplayer, true},
+// features.md 1.2: New Game replaces the old single SINGLEPLAYER button with the two-act
+// prologue's own choice -- "Play the prologue" or "Skip to the frontier" -- rather than routing
+// through a second confirmation screen this stub has no supporting state machine for yet.
+constexpr std::array<MenuButtonDef, 5> kMenuButtons = {{
+    {"PLAY THE PROLOGUE", MenuAction::kPlayPrologue, true},
+    {"SKIP TO THE FRONTIER", MenuAction::kSkipToFrontier, true},
     {"MULTIPLAYER", MenuAction::kMultiplayer, false},
     {"SETTINGS", MenuAction::kSettings, false},
     {"QUIT", MenuAction::kQuit, true},
@@ -68,8 +75,11 @@ constexpr int kTitleFontBaseSize = 96;
 Rectangle MenuButtonRect(std::size_t index) {
     const float screenWidth = static_cast<float>(GetScreenWidth());
     const float screenHeight = static_cast<float>(GetScreenHeight());
+    // 0.58f rather than the four-button era's 0.62f: kMenuButtons grew to five entries with
+    // features.md 1.2's prologue/skip-to-frontier split, and starting lower would run the QUIT
+    // button off a 900px-tall window.
     const float y =
-        screenHeight * 0.62f + static_cast<float>(index) * (kButtonHeight + kButtonSpacing);
+        screenHeight * 0.58f + static_cast<float>(index) * (kButtonHeight + kButtonSpacing);
     return Rectangle{(screenWidth - kButtonWidth) * 0.5f, y, kButtonWidth, kButtonHeight};
 }
 
@@ -119,7 +129,14 @@ void MainMenu::Update(float realDeltaSeconds) {
         // -- but the switch is the seam a future mode hangs its case off of, instead of this
         // growing into a chain of label string comparisons.
         switch (button.action) {
-            case MenuAction::kSingleplayer: startRequested_ = true; break;
+            case MenuAction::kPlayPrologue:
+                startRequested_ = true;
+                playPrologueRequested_ = true;
+                break;
+            case MenuAction::kSkipToFrontier:
+                startRequested_ = true;
+                playPrologueRequested_ = false;
+                break;
             case MenuAction::kQuit: quitRequested_ = true; break;
             case MenuAction::kMultiplayer:
             case MenuAction::kSettings: break;

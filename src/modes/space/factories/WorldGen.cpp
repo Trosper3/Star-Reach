@@ -15,6 +15,7 @@
 #include "shared/components/Lighting.h"
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
+#include "shared/components/Party.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
@@ -297,7 +298,104 @@ std::vector<EligibleCommander> FindEligibleCommanders(const entt::registry& regi
     return found;
 }
 
+// -- Prologue (features.md 1.2, P5-06) ----------------------------------------------------------
+
+// Reused from the normal game's own starting hull (SpaceFlight.h's kStartingBlueprint) rather
+// than authoring a second ship purely for the prologue -- every content ship's cockpit/bridge
+// already mounts crew_officer_i (data/base_game/ships.json), which is what makes it eligible for
+// Commander below.
+constexpr const char* kPrologueBlueprint = "aegis_vanguard";
+
+constexpr Vec2 kFleetCenter{0.0f, 0.0f};
+constexpr float kWingSpacing = 220.0f;
+// Far enough that Move's kTutorialMoveDistance (300 units, TutorialSystem.cpp) can never
+// accidentally double as "reached the anomaly," and consistent with the normal game's own
+// station/asteroid-band distances (SpawnStation/SpawnAsteroids above).
+constexpr Vec2 kAnomalyOffset{0.0f, 5200.0f};
+constexpr float kAnomalyVisualRadius = 260.0f;
+constexpr float kAnomalyTriggerRadius = 420.0f;
+
+// The living, non-Destroyed hardpoint on `root` carrying a command-rolled CrewRating -- the same
+// eligibility FindEligibleCommanders above checks, but resolved against one specific rig rather
+// than scanned across the whole registry, since the prologue wants to hand Commander to this
+// fleet's leader deterministically rather than whichever rig a registry-wide scan happens to
+// find first.
+entt::entity FindBridgeHardpoint(const entt::registry& registry, entt::entity root) {
+    const auto* rig = registry.try_get<Rig>(root);
+    if (rig == nullptr) {
+        return entt::null;
+    }
+    for (const entt::entity hardpoint : rig->children) {
+        if (registry.any_of<Destroyed, Commander>(hardpoint)) {
+            continue;
+        }
+        const auto* crew = registry.try_get<CrewRating>(hardpoint);
+        if (crew != nullptr && crew->command > 0.0f) {
+            return hardpoint;
+        }
+    }
+    return entt::null;
+}
+
 }  // namespace
+
+ProloguePlacement PopulatePrologueSystem(SystemWorld& world, const core::ContentLibrary& content,
+                                         const FactionId& faction) {
+    entt::registry& registry = world.Registry();
+    const BlueprintId blueprint(kPrologueBlueprint);
+
+    npc_factory::SpawnParams leaderParams;
+    leaderParams.blueprint = blueprint;
+    leaderParams.faction = faction;
+    leaderParams.position = kFleetCenter;
+    leaderParams.rotation = 0.0f;
+    const npc_factory::SpawnResult leader = npc_factory::Spawn(world, content, leaderParams);
+    // Unreachable in practice -- kPrologueBlueprint just came from loaded content -- but guarded
+    // rather than assumed, the same as SpawnStation above: nothing downstream may dereference a
+    // null leader.root.
+    if (leader.ok()) {
+        // Two wingmen flanking the leader -- PartyMember::formationOffset is in the leader's OWN
+        // local frame (Party.h), which is identical to world space here since every rig in the
+        // fixed layout spawns at rotation 0.0f.
+        constexpr Vec2 kWingOffsets[] = {{-kWingSpacing, -kWingSpacing},
+                                         {kWingSpacing, -kWingSpacing}};
+        std::vector<entt::entity> wingmen;
+        for (const Vec2& offset : kWingOffsets) {
+            npc_factory::SpawnParams wingParams;
+            wingParams.blueprint = blueprint;
+            wingParams.faction = faction;
+            wingParams.position = kFleetCenter + offset;
+            wingParams.rotation = 0.0f;
+            const npc_factory::SpawnResult wing = npc_factory::Spawn(world, content, wingParams);
+            if (wing.ok()) {
+                registry.emplace<PartyMember>(wing.root, leader.root, offset);
+                wingmen.push_back(wing.root);
+            }
+        }
+        registry.emplace<PartyLeader>(leader.root, std::move(wingmen));
+
+        // Deterministic, not SeedCommanders (WorldGen.h's own header comment on this function
+        // explains why): exactly one designated fleet commander, always the formation's leader.
+        if (const entt::entity bridge = FindBridgeHardpoint(registry, leader.root);
+            bridge != entt::null) {
+            const KnowledgeNetworkId network(faction.str() + "-prologue-cmd");
+            registry.emplace<Commander>(bridge, network, CommanderOrders::Defend, faction);
+        }
+    }
+
+    const entt::entity anomaly = registry.create();
+    const Vec2 anomalyPosition = kFleetCenter + kAnomalyOffset;
+    registry.emplace<WorldTransform>(anomaly, anomalyPosition, 0.0f);
+    registry.emplace<PreviousTransform>(anomaly, anomalyPosition, 0.0f);
+    registry.emplace<WorldBody>(anomaly, kAnomalyVisualRadius, BodyKind::Anomaly);
+    registry.emplace<AnomalyField>(anomaly, kAnomalyTriggerRadius);
+
+    // A third wingman slot, behind and between the two above -- inside the formation, not flying
+    // it: the player is never given PartyMember (that would fight PlayerInputSystem for no
+    // benefit, since PartySystem's own ThrustInput write always lands after PhysicsSystem has
+    // already consumed this tick's, per SystemSchedule.h's ordering).
+    return ProloguePlacement{kFleetCenter + Vec2{0.0f, kWingSpacing}, 0.0f};
+}
 
 void PopulateSystem(SystemWorld& world, const core::ContentLibrary& content, unsigned int seed) {
     Rng rng(seed);

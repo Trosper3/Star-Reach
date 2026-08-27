@@ -15,16 +15,20 @@
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Orbit.h"
+#include "shared/components/Party.h"
+#include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Spawn.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Vec2.h"
 #include "shared/rig/CargoView.h"
 
+using sr::AnomalyField;
 using sr::Distance;
 using sr::DockingBay;
 using sr::FactionRef;
 using sr::GravityWell;
+using sr::PartyLeader;
 using sr::PlayerLocation;
 using sr::Rig;
 using sr::SpawnAnchor;
@@ -172,4 +176,55 @@ TEST_CASE("OnEnter spawns the player outside the sun's corona, near the station'
     for (auto [bay, bayXf] : bays.each()) {
         CHECK(Distance(playerPos, bayXf.position) < 300.0f);
     }
+}
+
+TEST_CASE("OnEnter with the prologue requested populates the fixed fleet and anomaly instead",
+          "[spaceflight][onenter][prologue]") {
+    ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
+
+    game.RequestPlayPrologue(true);
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    CHECK(std::distance(registry.view<AnomalyField>().begin(),
+                        registry.view<AnomalyField>().end()) == 1);
+    CHECK(std::distance(registry.view<PartyLeader>().begin(), registry.view<PartyLeader>().end()) ==
+          1);
+    CHECK(std::distance(registry.view<PlayerLocation>().begin(),
+                        registry.view<PlayerLocation>().end()) == 1);
+    // The fixed scenario authors no sun -- features.md 1.2 lists only the fleet and the anomaly.
+    CHECK(registry.view<GravityWell>().begin() == registry.view<GravityWell>().end());
+}
+
+TEST_CASE("OnEnter with the prologue requested twice in a row leaves exactly one fleet",
+          "[spaceflight][onenter][prologue]") {
+    // features.md 1.2's own re-entrancy rule, mirroring "OnEnter twice in a row leaves exactly
+    // one of each, not two" above.
+    ContentLibrary content = Content();
+    FactionEconomy economy;
+    WreckLedger wreckLedger;
+    KnowledgeStore knowledge;
+    DiplomacyMatrix diplomacy;
+    Reputation reputation;
+    FontCache fonts(std::filesystem::path(SR_DATA_DIR) / "fonts");
+    SpaceFlight game(content, economy, wreckLedger, knowledge, diplomacy, reputation, fonts);
+
+    game.RequestPlayPrologue(true);
+    game.OnEnter();
+    game.OnEnter();
+
+    entt::registry& registry = game.World().Registry();
+    CHECK(std::distance(registry.view<AnomalyField>().begin(),
+                        registry.view<AnomalyField>().end()) == 1);
+    CHECK(std::distance(registry.view<PartyLeader>().begin(), registry.view<PartyLeader>().end()) ==
+          1);
+    CHECK(std::distance(registry.view<PlayerLocation>().begin(),
+                        registry.view<PlayerLocation>().end()) == 1);
 }

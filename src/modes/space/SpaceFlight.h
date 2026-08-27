@@ -44,6 +44,16 @@ public:
                 core::diplomacy::DiplomacyMatrix& diplomacy,
                 core::diplomacy::Reputation& reputation, engine::FontCache& fonts);
 
+    // features.md 1.2: main() calls this against the concrete SpaceFlight instance it already
+    // holds (not through the IGameMode pointer, which OnEnter's own override signature can't
+    // extend) after MainMenu reports which of New Game's two choices the player clicked, and
+    // before the OnEnter() call that follows. Sticky across calls rather than reset inside
+    // OnEnter -- main.cpp always sets it fresh immediately before every OnEnter() this class ever
+    // receives (both the initial start and a later quit-to-menu-then-restart, architecture.md
+    // 12.29), so there is no path where a stale value from a previous game could survive to be
+    // read.
+    void RequestPlayPrologue(bool playPrologue) { playPrologueRequested_ = playPrologue; }
+
     void OnEnter() override;
 
     // Feeds real frame time to the fixed-timestep clock and runs the schedule for each whole
@@ -147,6 +157,11 @@ private:
     // Mode state (ShouldReturnToMenu()'s backing field), not UI state -- architecture.md 12.29
     // keeps the system menu's own open/closed state on a registry singleton instead.
     bool returnToMenuRequested_ = false;
+
+    // Mode state, same category as returnToMenuRequested_ above: RequestPlayPrologue()'s backing
+    // field, read once by OnEnter(). features.md 1.2's "Skip to the frontier" is simply this
+    // staying false -- OnEnter's existing procedural populate already IS that choice.
+    bool playPrologueRequested_ = false;
 };
 
 }  // namespace sr::space
