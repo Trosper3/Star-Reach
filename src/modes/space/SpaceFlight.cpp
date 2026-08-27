@@ -19,6 +19,7 @@
 #include "modes/space/ui/BridgeView.h"
 #include "modes/space/ui/CockpitHud.h"
 #include "modes/space/ui/CodexScreen.h"
+#include "modes/space/ui/CommsPanel.h"
 #include "modes/space/ui/EngineeringScreen.h"
 #include "modes/space/ui/FlightControls.h"
 #include "modes/space/ui/ModulesMenu.h"
@@ -86,6 +87,33 @@ entt::entity PlayerVesselRoot(const entt::registry& registry, const FactionId& p
         return parent->root;
     }
     return shell;
+}
+
+// Bay, Storage, Repair, Research, and Engineering (issue #230's visual-chrome pass) are the
+// screens with an ActiveGaugeStatus query wired to the router's top-bar Gauge (issues
+// #225/#226/#227/#230's visual-chrome passes). SpaceFlight is the one place that may know about
+// every screen (modes/*/ui/ must not depend on a sibling the other direction), so it resolves
+// which query applies; all five are mutually exclusive (bridge_view's frame shows exactly one
+// screen at a time), so trying them in order never masks a real result. Split out of Draw purely
+// to keep it under architecture.md 2.2's function-length cap, the same reasoning
+// ProcessWarpRequests documents for itself.
+std::optional<ui::bridge_view::GaugeStatus> ResolveActiveGauge(const entt::registry& registry,
+                                                               const FactionId& playerFaction) {
+    std::optional<ui::bridge_view::GaugeStatus> activeGauge =
+        ui::bay_view::ActiveGaugeStatus(registry);
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::storage_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::repair_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::research_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
+    if (!activeGauge.has_value()) {
+        activeGauge = ui::engineering_screen::ActiveGaugeStatus(registry, playerFaction);
+    }
+    return activeGauge;
 }
 
 }  // namespace
@@ -163,27 +191,13 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // frame" state does not survive being checked mid-tick, so this runs before the fixed-step
     // loop rather than inside it. The DockRequest/UndockRequest it may write is still visible to
     // every tick this frame runs (Law 9's established idiom; see AvionicsMenu.h).
-    //
-    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
-    // (section 2.3), and every docked screen below needs "is this station/hull mine"
-    // (architecture.md 12.30.2/12.30.3/12.30.4/12.30.5/12.30.6), research_screen's own
-    // knowledge-store check besides.
-    const FactionId playerFaction = player_record_system::FactionOf(registry);
-    ui::avionics_menu::Update(registry, playerFaction);
-    ui::bridge_view::Update(registry);
-    ui::bay_view::Update(registry, playerFaction);
-    ui::storage_screen::Update(registry, playerFaction);
-    ui::repair_screen::Update(registry, playerFaction);
-    ui::engineering_screen::Update(registry, playerFaction, content_);
-    ui::research_screen::Update(registry, playerFaction, knowledge_);
-    // architecture.md 12.30.7/12.30.6: none of these three gate on a facility (features.md 3.10).
-    // PlayerVesselRoot, not PlayerLocation's own shell, since a facility hardpoint while docked
-    // must still resolve to the player's own ship.
-    {
-        const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
-        ui::storage_menu::Update(registry, vesselRoot);
-        ui::modules_menu::Update(registry, vesselRoot, content_);
-        ui::codex_screen::Update(registry, vesselRoot, knowledge_, content_);
+    UpdateDockedScreens(registry);
+    // Flight-only, the same guard Draw() below uses for CockpitHud: a docked screen replaces the
+    // flight HUD rather than floating over it (architecture.md 12.30), and PlayerControlled
+    // resolves to the station while docked (12.30.1), which is not who the hail key should speak
+    // through.
+    if (ui::bridge_view::DockedStation(registry) == entt::null) {
+        ui::comms_panel::Update(registry);
     }
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
@@ -220,6 +234,29 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // Drained after the whole schedule, never mid-list: a system's view of this tick's input
     // must not depend on its position in the order.
     intents_.Clear();
+}
+
+void SpaceFlight::UpdateDockedScreens(entt::registry& registry) {
+    // Threaded in rather than looked up by ui/ itself -- modes/*/ui/ may not include systems/
+    // (section 2.3), and every docked screen below needs "is this station/hull mine"
+    // (architecture.md 12.30.2/12.30.3/12.30.4/12.30.5/12.30.6), research_screen's own
+    // knowledge-store check besides. Split out of Update purely to keep it under architecture.md
+    // 2.2's function-length cap, the same reasoning ProcessWarpRequests documents for itself.
+    const FactionId playerFaction = player_record_system::FactionOf(registry);
+    ui::avionics_menu::Update(registry, playerFaction);
+    ui::bridge_view::Update(registry);
+    ui::bay_view::Update(registry, playerFaction);
+    ui::storage_screen::Update(registry, playerFaction);
+    ui::repair_screen::Update(registry, playerFaction);
+    ui::engineering_screen::Update(registry, playerFaction, content_);
+    ui::research_screen::Update(registry, playerFaction, knowledge_);
+    // architecture.md 12.30.7/12.30.6: none of these three gate on a facility (features.md 3.10).
+    // PlayerVesselRoot, not PlayerLocation's own shell, since a facility hardpoint while docked
+    // must still resolve to the player's own ship.
+    const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
+    ui::storage_menu::Update(registry, vesselRoot);
+    ui::modules_menu::Update(registry, vesselRoot, content_);
+    ui::codex_screen::Update(registry, vesselRoot, knowledge_, content_);
 }
 
 void SpaceFlight::ProcessWarpRequests() {
@@ -375,28 +412,11 @@ void SpaceFlight::Draw() const {
     const FactionId playerFaction = player_record_system::FactionOf(registry);
     if (!docked) {
         ui::cockpit_hud::Draw(registry, diplomacy_, knowledge_, world_.SystemId(), camera);
+        ui::comms_panel::Draw(registry);
     }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
-    // Bay, Storage, Repair, Research, and now Engineering (issue #230's visual-chrome pass) are
-    // the screens with an ActiveGaugeStatus query wired to the router's top-bar Gauge (issues
-    // #225/#226/#227/#230's visual-chrome passes). SpaceFlight is the one place that may know
-    // about every screen (modes/*/ui/ must not depend on a sibling the other direction), so it
-    // resolves which query applies; all five are mutually exclusive (bridge_view's frame shows
-    // exactly one screen at a time), so trying them in order never masks a real result.
-    std::optional<ui::bridge_view::GaugeStatus> activeGauge =
-        ui::bay_view::ActiveGaugeStatus(registry);
-    if (!activeGauge.has_value()) {
-        activeGauge = ui::storage_screen::ActiveGaugeStatus(registry, playerFaction);
-    }
-    if (!activeGauge.has_value()) {
-        activeGauge = ui::repair_screen::ActiveGaugeStatus(registry, playerFaction);
-    }
-    if (!activeGauge.has_value()) {
-        activeGauge = ui::research_screen::ActiveGaugeStatus(registry, playerFaction);
-    }
-    if (!activeGauge.has_value()) {
-        activeGauge = ui::engineering_screen::ActiveGaugeStatus(registry, playerFaction);
-    }
+    const std::optional<ui::bridge_view::GaugeStatus> activeGauge =
+        ResolveActiveGauge(registry, playerFaction);
     // shared/ui/Fonts.h's Orbitron/Exo2 pair, loaded once per frame (a cached map lookup, not a
     // reload -- see FontCache::Get) and threaded into every screen that has migrated off raylib's
     // built-in bitmap font so far (the router, Bay, Storage, Repair, Engineering, Research).

@@ -8,6 +8,7 @@
 #include "modes/space/factories/RigFactory.h"
 #include "shared/blueprints/Validation.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Comms.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -152,6 +153,20 @@ TEST_CASE("A rig with no sensor module has zero sensor range, not the old hardco
     const entt::registry& registry = world.Registry();
     REQUIRE(registry.all_of<sr::SensorRange>(result.root));
     CHECK(registry.get<sr::SensorRange>(result.root).units == Approx(0.0f));
+}
+
+TEST_CASE("A rig has zero comms range -- ModuleKind::Comms has no authored content yet",
+          "[factory]") {
+    // Companion to the sensor-range regression above (architecture.md 13.3 finding S, 12.27):
+    // CommsRange is emplaced on every root the same honest way, not a hardcoded stand-in.
+    const ContentLibrary content = Content();
+    SystemWorld world("sol");
+    const auto result = factory::Spawn(world, content, VanguardAt(0.0f, 0.0f));
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    REQUIRE(registry.all_of<sr::CommsRange>(result.root));
+    CHECK(registry.get<sr::CommsRange>(result.root).units == Approx(0.0f));
 }
 
 TEST_CASE("Rig mass is the sum of every shell and module", "[factory]") {

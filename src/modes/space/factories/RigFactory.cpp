@@ -6,6 +6,7 @@
 
 #include "shared/blueprints/Validation.h"
 #include "shared/components/Combat.h"
+#include "shared/components/Comms.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Physics.h"
@@ -188,6 +189,12 @@ SpawnResult Spawn(SystemWorld& world, const core::ContentLibrary& content,
     // Max-aggregated from mounted Sensor modules (architecture.md 12.23), zero for a rig with
     // none -- no longer a hardcoded stand-in value.
     registry.emplace<SensorRange>(root, aggregate.sensorRange);
+    // What CommsSystem now gates hailing on instead of SensorRange above (architecture.md 13.3
+    // finding S, 12.27: "sensors detect; comms talk"). `ModuleKind::Comms` has no authored
+    // content yet (features.md 3.10's Comms roster), so this is 0 for every rig today -- the
+    // identical content-starved state SensorRange was in before any Sensor module existed, not a
+    // hardcoded stand-in reintroduced.
+    registry.emplace<CommsRange>(root, 0.0f);
 
     // Always emplaced, on every root -- a rig moves because it has living engines, not because a
     // blueprint flag says it may (architecture.md 12.25). A station's aggregate.propulsion stays

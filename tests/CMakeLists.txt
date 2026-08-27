@@ -12,6 +12,7 @@ add_executable(sr_tests
     unit/StatusProjectionTests.cpp
     unit/HudGatingTests.cpp
     unit/SensorContactsTests.cpp
+    unit/CommsPanelTests.cpp
     unit/BridgeViewTests.cpp
     unit/BayViewTests.cpp
     unit/BlueprintJsonTests.cpp

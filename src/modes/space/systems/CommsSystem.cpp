@@ -9,7 +9,6 @@
 #include "core/diplomacy/Reputation.h"
 #include "shared/components/Comms.h"
 #include "shared/components/Identity.h"
-#include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
 namespace sr::space::comms_system {
@@ -77,8 +76,8 @@ void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
     std::vector<entt::entity> consumed;
 
-    for (auto [self, request, xf, sensor] :
-         registry.view<HailRequest, WorldTransform, SensorRange>().each()) {
+    for (auto [self, request, xf, comms] :
+         registry.view<HailRequest, WorldTransform, CommsRange>().each()) {
         consumed.push_back(self);
 
         if (request.target == entt::null || !registry.valid(request.target)) {
@@ -93,7 +92,7 @@ void Tick(const SystemContext& ctx) {
         const std::string name = NameOf(registry, request.target);
         PushEntry(registry, log, "Hailing " + name + "...", true);
 
-        if (Distance(xf.position, targetXf->position) <= sensor.units) {
+        if (Distance(xf.position, targetXf->position) <= comms.units) {
             const auto seed = static_cast<std::uint32_t>(entt::to_integral(self)) * 2654435761u +
                               static_cast<std::uint32_t>(ctx.tick);
             const std::size_t index = Hash32(seed) % kHailResponses.size();

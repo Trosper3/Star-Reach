@@ -268,6 +268,7 @@ add_library(sr_space STATIC
     src/modes/space/ui/StatusProjection.cpp
     src/modes/space/ui/HudGating.cpp
     src/modes/space/ui/SensorContacts.cpp
+    src/modes/space/ui/CommsPanel.cpp
     src/modes/space/ui/BuildMenu.cpp
     src/modes/space/ui/EngineeringScreen.cpp
     src/modes/space/ui/EngineeringScreenDraw.cpp

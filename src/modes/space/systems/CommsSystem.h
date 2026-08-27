@@ -11,8 +11,9 @@ namespace sr::space::comms_system {
 //     Capped at kCommsLogCap entries, oldest dropped first -- ported verbatim from legacy
 //     StarReach2's AddCommsMessage/kCommsLogCap.
 //   - Hail: a HailRequest naming a target rig logs a hail line if the target is within the
-//     requester's own SensorRange (Targeting.h), and a "no response" line otherwise. Both
-//     outcomes consume the request the same tick.
+//     requester's own CommsRange (shared/components/Comms.h -- architecture.md 13.3 finding S,
+//     12.27 moved this off Targeting.h's SensorRange, which only conflated detection with talk),
+//     and a "no response" line otherwise. Both outcomes consume the request the same tick.
 //   - Dialogue lines: a small canned response pool, picked by a deterministic hash of
 //     (requester, tick) rather than RNG state -- the same reasoning MiningSystem's element roll
 //     already documents for keeping Law 2's fast-forward replayable.
@@ -23,9 +24,9 @@ namespace sr::space::comms_system {
 //     ctx.reputation is null.
 //
 // NOT implemented here: the contract-board/distress-hail flows legacy layered onto hailing
-// (ContractSystem #27 and DistressSystem #28 don't exist yet) and any actual UI rendering of the
-// log (modes/space/ui, #35/#36). Both read CommsLog once they exist; this system only produces
-// it.
+// (ContractSystem #27 and DistressSystem #28 don't exist yet). UI rendering of the log and a real
+// HailRequest producer live in modes/space/ui/CommsPanel.h (issue #235) -- this system only
+// produces the log and consumes the request.
 void Tick(const SystemContext& ctx);
 
 }  // namespace sr::space::comms_system

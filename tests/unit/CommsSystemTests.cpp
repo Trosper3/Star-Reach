@@ -7,16 +7,15 @@
 #include "modes/space/systems/CommsSystem.h"
 #include "shared/components/Comms.h"
 #include "shared/components/Identity.h"
-#include "shared/components/Targeting.h"
 #include "shared/components/Transform.h"
 
 using sr::CommsLog;
 using sr::CommsLogSingleton;
+using sr::CommsRange;
 using sr::DisplayName;
 using sr::FactionId;
 using sr::FactionRef;
 using sr::HailRequest;
-using sr::SensorRange;
 using sr::Vec2;
 using sr::WorldTransform;
 using sr::core::diplomacy::Reputation;
@@ -37,10 +36,10 @@ SystemContext MakeContext(SystemWorld& world, const sr::core::IntentQueue& inten
                          nullptr, nullptr, nullptr, &reputation};
 }
 
-entt::entity MakeHailer(entt::registry& registry, const Vec2& position, float sensorRange) {
+entt::entity MakeHailer(entt::registry& registry, const Vec2& position, float commsRange) {
     const entt::entity self = registry.create();
     registry.emplace<WorldTransform>(self, position, 0.0f);
-    registry.emplace<SensorRange>(self, sensorRange);
+    registry.emplace<CommsRange>(self, commsRange);
     return self;
 }
 
@@ -54,7 +53,7 @@ const CommsLog* FindLog(entt::registry& registry) {
 
 }  // namespace
 
-TEST_CASE("CommsSystem logs a hail and a response when the target is in sensor range", "[comms]") {
+TEST_CASE("CommsSystem logs a hail and a response when the target is in comms range", "[comms]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -79,7 +78,7 @@ TEST_CASE("CommsSystem logs a hail and a response when the target is in sensor r
     CHECK_FALSE(registry.all_of<HailRequest>(hailer));
 }
 
-TEST_CASE("CommsSystem logs no response when the target is out of sensor range", "[comms]") {
+TEST_CASE("CommsSystem logs no response when the target is out of comms range", "[comms]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;

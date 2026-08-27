@@ -11,14 +11,18 @@
 // rather than disappear" -- BridgeView::AvailableTabs's living-hardpoint pattern, one layer out
 // from Bridge tabs to the flight HUD's own module-gated button bar.
 //
-// Sensor and Command are real, dynamic gates today. Comms, Construction, and Hyperdrive are
-// always offline, not a bug: `ModuleKind::Comms` and `FacilityKind::Construction` do not exist in
-// the enum yet (features.md section 2.11's Comms Roster note, architecture.md 12.26), and
-// `ModuleKind::Hyperdrive` is an enumerator with no live per-hardpoint component of its own
-// (architecture.md: "WarpSystem's fuel/jump gate lands in P9-06; this just makes the kind
-// exist"). There is no rolled stat any of the three could read yet -- the slot stays fixed and
-// simply never lights up until its own issue lands a live component, rather than this file
-// inventing one ahead of that work.
+// Sensor, Comms, and Command are real, dynamic gates today. Construction and Hyperdrive are
+// always offline, not a bug: `FacilityKind::Construction` does not exist in the enum yet
+// (architecture.md 12.26), and `ModuleKind::Hyperdrive` is an enumerator with no live
+// per-hardpoint component of its own (architecture.md: "WarpSystem's fuel/jump gate lands in
+// P9-06; this just makes the kind exist"). There is no rolled stat either could read yet -- the
+// slot stays fixed and simply never lights up until its own issue lands a live component, rather
+// than this file inventing one ahead of that work.
+//
+// Comms reads shared/components/Comms.h's CommsRange the same way Sensor reads Targeting.h's
+// SensorRange (architecture.md 13.3 finding S, 12.27; issue #235). `ModuleKind::Comms` itself has
+// no authored content yet (features.md 3.10's Comms roster), so this slot is wired but still dark
+// today -- the identical state Sensor shipped in before any Sensor module existed.
 namespace sr::space::ui::hud_gating {
 
 enum class HudSurface : std::uint8_t {

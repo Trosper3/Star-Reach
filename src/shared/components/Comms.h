@@ -29,4 +29,14 @@ struct HailRequest {
     entt::entity target = entt::null;
 };
 
+// Reach of this rig's comms, in world units -- what CommsSystem gates hailing on instead of
+// Targeting.h's SensorRange (architecture.md 13.3 finding S, 12.27: "sensors detect; comms
+// talk"). Emplaced on every rig root at spawn (modes/space/factories/RigFactory.cpp), 0.0f today
+// since `ModuleKind::Comms` has no authored content yet (features.md 3.10's Comms roster) --
+// the same honest "zero until a module exists" state SensorRange itself carried before any
+// Sensor module existed.
+struct CommsRange {
+    float units = 0.0f;
+};
+
 }  // namespace sr
