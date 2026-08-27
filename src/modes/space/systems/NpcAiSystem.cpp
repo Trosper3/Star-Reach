@@ -244,7 +244,8 @@ void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazar
 // other half. Any docked, damaged, non-player rig orders its own full repair against
 // StationServicesSystem (which resolves the payer: Wallet if it has one, ctx.economy otherwise).
 // get_or_emplace-shaped, not emplace_or_replace: overwriting an in-progress order every tick
-// would wipe RepairOrder::creditRemainder and restart billing from a rounding loss.
+// is needless churn (RepairBilling, not this order, is what actually carries the fractional
+// credit remainder now -- StationServices.h's issue #268 comment).
 void EmitNpcRepairOrders(entt::registry& registry) {
     for (auto [self, docked, rig] :
          registry.view<Docked, Rig>(entt::exclude<PlayerLocation>).each()) {
@@ -256,7 +257,7 @@ void EmitNpcRepairOrders(entt::registry& registry) {
         if (rig_attachment::AggregateStructuralIntegrity(registry, self) >= 1.0f) {
             continue;
         }
-        registry.emplace<RepairOrder>(self, RepairOrder{self, entt::null, 1.0f, 0.0f});
+        registry.emplace<RepairOrder>(self, RepairOrder{self, entt::null, 1.0f});
     }
 }
 

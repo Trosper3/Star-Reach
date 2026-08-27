@@ -48,8 +48,18 @@ struct RepairOrder {
     // Stop once this hardpoint (or every hardpoint, for the whole-rig case) reaches this
     // fraction of its own max -- never above it, and never instantly regardless of value.
     float targetFraction = 1.0f;
-    // Sub-credit carry: billing is whole credits per tick, and the fractional remainder that
-    // would otherwise round to zero every tick -- making repair free again -- accumulates here.
+};
+
+// Sub-credit carry for repair billing (issue #268): billing is whole credits per tick, and the
+// fractional remainder that would otherwise round to zero every tick -- making repair free
+// again -- accumulates here. Deliberately NOT a field on RepairOrder above, and this is the
+// actual fix, not a style choice: RepairOrder is destroyed and recreated every time a player
+// toggles repair off and back on (modes/space/ui/RepairScreen.cpp's ToggleOrder), and a field
+// there would reset to zero on every restart -- which is exactly how rapidly clicking the repair
+// button healed a ship for free regardless of Wallet balance. This lives on the requester
+// instead, independent of whether an order is currently active, get_or_emplace'd lazily by
+// StationServicesSystem the first time it charges that requester for repair, and never removed.
+struct RepairBilling {
     float creditRemainder = 0.0f;
 };
 

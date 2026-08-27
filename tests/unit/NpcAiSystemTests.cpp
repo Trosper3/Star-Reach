@@ -30,6 +30,7 @@ using sr::GravityWell;
 using sr::Health;
 using sr::PartyMember;
 using sr::PlayerLocation;
+using sr::RepairBilling;
 using sr::RepairOrder;
 using sr::Rig;
 using sr::Target;
@@ -363,8 +364,7 @@ TEST_CASE("NpcAiSystem does not order repair for a docked rig already at full in
     CHECK_FALSE(registry.all_of<RepairOrder>(npc));
 }
 
-TEST_CASE("NpcAiSystem does not overwrite an in-progress RepairOrder's creditRemainder",
-          "[npc_ai]") {
+TEST_CASE("NpcAiSystem does not overwrite an in-progress RepairOrder", "[npc_ai]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
     sr::core::IntentQueue intents;
@@ -376,11 +376,15 @@ TEST_CASE("NpcAiSystem does not overwrite an in-progress RepairOrder's creditRem
     const entt::entity hardpoint = registry.create();
     registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
     registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(npc, RepairOrder{npc, entt::null, 1.0f, 0.75f});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, entt::null, 1.0f});
+    // The fractional credit carry lives on RepairBilling, not RepairOrder, since issue #268 --
+    // this rig already has one in progress, and re-emplacing the order must not disturb it.
+    registry.emplace<RepairBilling>(npc, RepairBilling{0.75f});
 
     npc_ai_system::Tick(MakeContext(world, intents, content));
 
-    CHECK(registry.get<RepairOrder>(npc).creditRemainder == Approx(0.75f));
+    CHECK(registry.all_of<RepairOrder>(npc));
+    CHECK(registry.get<RepairBilling>(npc).creditRemainder == Approx(0.75f));
 }
 
 TEST_CASE("NpcAiSystem does not order repair for the player's own docked rig", "[npc_ai]") {
