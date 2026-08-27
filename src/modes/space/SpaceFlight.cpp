@@ -374,7 +374,7 @@ void SpaceFlight::Draw() const {
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.
     const FactionId playerFaction = player_record_system::FactionOf(registry);
     if (!docked) {
-        ui::cockpit_hud::Draw(world_.Registry());
+        ui::cockpit_hud::Draw(registry, diplomacy_, knowledge_, world_.SystemId(), camera);
     }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     // Bay, Storage, Repair, Research, and now Engineering (issue #230's visual-chrome pass) are
