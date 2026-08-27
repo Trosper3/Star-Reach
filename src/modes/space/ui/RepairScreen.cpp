@@ -38,6 +38,14 @@ constexpr float kFooterHeight = 26.0f;
 constexpr float kHintGap = 4.0f;
 constexpr float kHintHeight = 16.0f;
 constexpr float kFooterButtonWidth = 100.0f;
+// AvionicsMenu.cpp's own "[R] LAUNCH"/"[R] UNDOCK"/"[R] DOCK" prompt draws centered at
+// screenHeight - 56 at font size 20, live on every docked screen -- duplicated locally per that
+// file's own established precedent, since neither file may depend on the other. This is how far
+// each section stops short of the bottom of the window so none ever sits under it.
+constexpr float kLaunchPromptClearance = 92.0f;
+constexpr float kMinPanelHeight = kLabelHeight + kListHeight + kFooterGap + kFooterHeight +
+                                  kHintGap + kHintHeight +
+                                  sr::ui::kPanelPadding * 2.0f;  // Floor on a very short window.
 
 // features.md 3.9's status triad, the same three-stop thresholds Bay's/Storage's own
 // IntegrityStatusColor use -- duplicated locally per screen file on purpose, the established
@@ -149,15 +157,19 @@ float ClampScroll(int rowCount, float listHeight, float offset) {
 // this lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect,
 // except for each panel's own interior, which gets exactly one nested inset (each subject is
 // framed as its own sub-panel, per issue #226's reference -- Storage's own two-column layout,
-// generalised down to one column when the station is not the player's own).
+// generalised down to one column when the station is not the player's own). Each panel stretches
+// down to just above AvionicsMenu's own "[R] LAUNCH" prompt (kLaunchPromptClearance) rather than a
+// fixed kVisibleRows height -- kMinPanelHeight only floors it on a window too short for that to
+// leave any room at all. The footer/hint stay pinned to the panel's bottom edge; the row list
+// fills whatever is left between the label and them.
 Layout ComputeLayout(Rectangle content, int sectionCount) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     const float y = content.y + kHeaderHeight + kSectionGap;
     const float columnWidth =
         sectionCount <= 1 ? content.width : (content.width - kColumnGap) * 0.5f;
-    const float panelHeight = kLabelHeight + kListHeight + kFooterGap + kFooterHeight + kHintGap +
-                              kHintHeight + sr::ui::kPanelPadding * 2.0f;
+    const float bottomLimit = static_cast<float>(GetScreenHeight()) - kLaunchPromptClearance;
+    const float panelHeight = std::max(kMinPanelHeight, bottomLimit - y);
 
     for (int i = 0; i < sectionCount; ++i) {
         SectionLayout section;
@@ -165,11 +177,11 @@ Layout ComputeLayout(Rectangle content, int sectionCount) {
         section.panel = {x, y, columnWidth, panelHeight};
         const Rectangle inner = sr::ui::PanelContentRect(section.panel);
         section.label = {inner.x, inner.y, inner.width, kLabelHeight};
-        section.list = {inner.x, inner.y + kLabelHeight, inner.width, kListHeight};
-        section.footer = {inner.x, inner.y + kLabelHeight + kListHeight + kFooterGap, inner.width,
+        section.hint = {inner.x, inner.y + inner.height - kHintHeight, inner.width, kHintHeight};
+        section.footer = {inner.x, section.hint.y - kHintGap - kFooterHeight, inner.width,
                           kFooterHeight};
-        section.hint = {inner.x, section.footer.y + kFooterHeight + kHintGap, inner.width,
-                        kHintHeight};
+        section.list = {inner.x, inner.y + kLabelHeight, inner.width,
+                        section.footer.y - kFooterGap - (inner.y + kLabelHeight)};
         layout.sections.push_back(section);
     }
     return layout;

@@ -34,6 +34,13 @@ constexpr float kSectionGap = 10.0f;
 constexpr float kIconBoxSize = 30.0f;
 constexpr float kPillWidth = 150.0f;
 constexpr float kPillGap = 8.0f;
+// AvionicsMenu.cpp's own "[R] LAUNCH"/"[R] UNDOCK"/"[R] DOCK" prompt draws centered at
+// screenHeight - 56 at font size 20, live on every docked screen -- duplicated locally per that
+// file's own established precedent, since neither file may depend on the other. This is how far
+// both side panels stop short of the bottom of the window so neither ever sits under it.
+constexpr float kLaunchPromptClearance = 92.0f;
+constexpr float kMinPanelHeight = kListLabelHeight + kListHeight + kCaptionHeight +
+                                  sr::ui::kPanelPadding * 2.0f;  // Floor on a very short window.
 
 // System.h's "one legitimate cache" exception (Law 6) -- duplicated locally per screen file on
 // purpose, the same StorageMenu.cpp/EngineeringScreen.cpp precedent (architecture.md 12.30's
@@ -117,21 +124,25 @@ Layout ComputeLayout(Rectangle content, bool showStripRow) {
         y += kSiblingStripHeight + kSectionGap;
     }
 
-    const float panelHeight =
-        kListLabelHeight + kListHeight + kCaptionHeight + sr::ui::kPanelPadding * 2.0f;
+    // Both panels stretch down to just above AvionicsMenu's own "[R] LAUNCH" prompt
+    // (kLaunchPromptClearance) rather than a fixed kStorageVisibleRows height -- kMinPanelHeight
+    // only floors it on a window too short for that to leave any room at all.
+    const float bottomLimit = static_cast<float>(GetScreenHeight()) - kLaunchPromptClearance;
+    const float panelHeight = std::max(kMinPanelHeight, bottomLimit - y);
     layout.leftPanel = {content.x, y, columnWidth, panelHeight};
     layout.rightPanel = {content.x + columnWidth + kColumnGap, y, columnWidth, panelHeight};
     const Rectangle leftContent = sr::ui::PanelContentRect(layout.leftPanel);
     layout.leftLabel = {leftContent.x, leftContent.y, leftContent.width, kListLabelHeight};
-    layout.left = {leftContent.x, leftContent.y + kListLabelHeight, leftContent.width, kListHeight};
-    layout.leftCaption = {leftContent.x, layout.left.y + layout.left.height, leftContent.width,
-                          kCaptionHeight};
+    layout.leftCaption = {leftContent.x, leftContent.y + leftContent.height - kCaptionHeight,
+                          leftContent.width, kCaptionHeight};
+    layout.left = {leftContent.x, leftContent.y + kListLabelHeight, leftContent.width,
+                   layout.leftCaption.y - (leftContent.y + kListLabelHeight)};
     const Rectangle rightContent = sr::ui::PanelContentRect(layout.rightPanel);
     layout.rightLabel = {rightContent.x, rightContent.y, rightContent.width, kListLabelHeight};
+    layout.rightCaption = {rightContent.x, rightContent.y + rightContent.height - kCaptionHeight,
+                           rightContent.width, kCaptionHeight};
     layout.right = {rightContent.x, rightContent.y + kListLabelHeight, rightContent.width,
-                    kListHeight};
-    layout.rightCaption = {rightContent.x, layout.right.y + layout.right.height, rightContent.width,
-                           kCaptionHeight};
+                    layout.rightCaption.y - (rightContent.y + kListLabelHeight)};
     return layout;
 }
 

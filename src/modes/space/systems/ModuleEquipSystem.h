@@ -16,10 +16,14 @@ namespace sr::space::module_equip_system {
 // Refused (request cleared, nothing else happens) when: the mount does not belong to the
 // requester's own Rig; the mount is Destroyed; the module's ModuleKind fails the mount's
 // ShellRole::Accepts() (mirrors Validation.h's ModuleCompatibility rule, applied live); the
-// module is not held anywhere in the requester's own cargo bays (shared/rig/CargoView.h); or
-// (mount) MountedModules (shared/components/Rig.h -- the single record of a mount's contents,
-// architecture.md 13.4 decision 2) is already non-empty -- unmount first. Unmounting is refused
-// the same way if the requester's cargo bays have nowhere to take the module back.
+// module is not held anywhere in the source's own cargo bays (shared/rig/CargoView.h --
+// MountModuleRequest::sourceCargo when set, else the mount's own rig); or (mount) MountedModules
+// (shared/components/Rig.h -- the single record of a mount's contents, architecture.md 13.4
+// decision 2) is already non-empty -- unmount first. Unmounting is refused the same way if the
+// destination cargo bays (UnmountModuleRequest::destinationCargo when set, else the mount's own
+// rig) have nowhere to take the module back. The source/destination fields are Engineering's own
+// cross-hull addition -- entt::null (ModulesMenu's own single-hull mount/unmount never sets them)
+// keeps this exactly ModulesMenu's original single-hull behavior.
 //
 // rig_attachment::RecomputeRigTotals runs after every successful mount/unmount, so BodyMass/
 // Propulsion/SensorRange stay current with a live edit, not just a fresh build or a hardpoint

@@ -101,6 +101,14 @@ constexpr float kCodexButtonWidth = 118.0f;
 constexpr float kCodexButtonHeight = 30.0f;
 constexpr float kRowButtonWidth = 86.0f;
 constexpr float kRowButtonHeight = 26.0f;
+// AvionicsMenu.cpp's own "[R] LAUNCH"/"[R] UNDOCK"/"[R] DOCK" prompt draws centered at
+// screenHeight - 56 at font size 20, live on every docked screen -- duplicated locally per that
+// file's own established precedent, since neither file may depend on the other. This is how far
+// the two stacked panels together stop short of the bottom of the window so neither ever sits
+// under it.
+constexpr float kLaunchPromptClearance = 92.0f;
+constexpr float kMinPanelHeight =
+    kListLabelHeight + kListHeight + sr::ui::kPanelPadding * 2.0f;  // Floor on a very short window.
 
 // The bracket-bordered box wrapping one section (candidates or queue): a label row naming the
 // section with a right-aligned hint, a divider rule under it, and the row-list content rect --
@@ -122,29 +130,34 @@ struct Layout {
 // this lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect,
 // except for each panel's own interior, which gets exactly one nested inset (each section is
 // framed as its own sub-panel, per issue #227's reference -- Repair's/Storage's own panel
-// treatment).
+// treatment). The two stacked panels split whatever height is left down to just above
+// AvionicsMenu's own "[R] LAUNCH" prompt (kLaunchPromptClearance) evenly between them, rather than
+// each keeping a fixed kVisibleRows height -- kMinPanelHeight only floors each one on a window too
+// short for that to leave any room at all.
 Layout ComputeLayout(Rectangle content) {
     Layout layout;
     layout.header = {content.x, content.y, content.width, kHeaderHeight};
     layout.codexButton = {content.x + content.width - kCodexButtonWidth, content.y,
                           kCodexButtonWidth, kCodexButtonHeight};
 
-    const float panelHeight = kListLabelHeight + kListHeight + sr::ui::kPanelPadding * 2.0f;
     float y = content.y + kHeaderHeight + kSectionGap;
+    const float bottomLimit = static_cast<float>(GetScreenHeight()) - kLaunchPromptClearance;
+    const float available = std::max(kMinPanelHeight * 2.0f + kSectionGap, bottomLimit - y);
+    const float panelHeight = (available - kSectionGap) * 0.5f;
 
     layout.candidates.panel = {content.x, y, content.width, panelHeight};
     const Rectangle candidatesInner = sr::ui::PanelContentRect(layout.candidates.panel);
     layout.candidates.label = {candidatesInner.x, candidatesInner.y, candidatesInner.width,
                                kListLabelHeight};
     layout.candidates.list = {candidatesInner.x, candidatesInner.y + kListLabelHeight,
-                              candidatesInner.width, kListHeight};
+                              candidatesInner.width, candidatesInner.height - kListLabelHeight};
     y += panelHeight + kSectionGap;
 
     layout.queue.panel = {content.x, y, content.width, panelHeight};
     const Rectangle queueInner = sr::ui::PanelContentRect(layout.queue.panel);
     layout.queue.label = {queueInner.x, queueInner.y, queueInner.width, kListLabelHeight};
     layout.queue.list = {queueInner.x, queueInner.y + kListLabelHeight, queueInner.width,
-                         kListHeight};
+                         queueInner.height - kListLabelHeight};
     return layout;
 }
 

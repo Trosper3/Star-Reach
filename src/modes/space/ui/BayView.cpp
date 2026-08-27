@@ -34,6 +34,13 @@ constexpr float kSectionGap = 10.0f;
 constexpr float kIconBoxSize = 44.0f;
 constexpr float kButtonWidth = 96.0f;
 constexpr float kButtonHeight = 32.0f;
+// AvionicsMenu.cpp's own "[R] LAUNCH"/"[R] UNDOCK"/"[R] DOCK" prompt draws centered at
+// screenHeight - 56 at font size 20, live on every docked screen -- duplicated locally per that
+// file's own established precedent, since neither file may depend on the other. This is how far
+// the roster panel stops short of the bottom of the window so it never sits under it.
+constexpr float kLaunchPromptClearance = 92.0f;
+constexpr float kMinPanelHeight = kRosterLabelHeight + kRosterListHeight +
+                                  sr::ui::kPanelPadding * 2.0f;  // Floor on a very short window.
 
 // Reference: the "Bay" artboard on the Docking Screens Redesign canvas (issue #224) names sibling
 // bays ALPHA/BRAVO/... rather than the bare ordinal BayView drew before -- purely a display label,
@@ -106,7 +113,10 @@ struct Layout {
 // `content` is bridge_view::FrameContentRect() -- already inset by the router's one bezel, so this
 // lays sections out inside it directly rather than re-insetting via sr::ui::PanelContentRect,
 // except for rosterPanel's own interior, which gets exactly one nested inset (the roster is the
-// one section framed as its own sub-panel, per issue #224's reference).
+// one section framed as its own sub-panel, per issue #224's reference). The roster panel stretches
+// down to just above AvionicsMenu's own "[R] LAUNCH" prompt (kLaunchPromptClearance) rather than a
+// fixed kRosterVisibleRows height -- kMinPanelHeight only floors it on a window too short for that
+// to leave any room at all.
 Layout ComputeLayout(Rectangle content, bool showSiblingStrip) {
     Layout layout;
     layout.content = content;
@@ -117,13 +127,14 @@ Layout ComputeLayout(Rectangle content, bool showSiblingStrip) {
         y += kSiblingStripHeight + kSectionGap;
     }
 
-    const float panelHeight = kRosterLabelHeight + kRosterListHeight + sr::ui::kPanelPadding * 2.0f;
+    const float bottomLimit = static_cast<float>(GetScreenHeight()) - kLaunchPromptClearance;
+    const float panelHeight = std::max(kMinPanelHeight, bottomLimit - y);
     layout.rosterPanel = {content.x, y, content.width, panelHeight};
     const Rectangle rosterContent = sr::ui::PanelContentRect(layout.rosterPanel);
     layout.rosterLabel = {rosterContent.x, rosterContent.y, rosterContent.width,
                           kRosterLabelHeight};
     layout.roster = {rosterContent.x, rosterContent.y + kRosterLabelHeight, rosterContent.width,
-                     kRosterListHeight};
+                     rosterContent.height - kRosterLabelHeight};
     return layout;
 }
 
