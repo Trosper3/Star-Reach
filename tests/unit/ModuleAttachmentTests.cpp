@@ -3,6 +3,7 @@
 
 #include <entt/entity/registry.hpp>
 
+#include "shared/blueprints/Taxonomy.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
@@ -12,6 +13,7 @@
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
+#include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
 #include "shared/rig/ModuleAttachment.h"
 
@@ -33,11 +35,15 @@ using sr::Rig;
 using sr::SensorRange;
 using sr::ShellKind;
 using sr::ShellRole;
+using sr::Shield;
+using sr::ShieldCoverage;
 using sr::Uncrewed;
+using sr::WorldTransform;
 using sr::rig_attachment::AggregateStructuralIntegrity;
 using sr::rig_attachment::AttachModuleComponents;
 using sr::rig_attachment::DetachModuleComponents;
 using sr::rig_attachment::RecomputeRigTotals;
+using sr::rig_attachment::ShieldCovers;
 
 TEST_CASE("AttachModuleComponents writes Weapon/FiringArc for a weapon module", "[module-attach]") {
     entt::registry registry;
@@ -557,4 +563,54 @@ TEST_CASE(
 
     // 20 / (50 + 50) = 0.2, not (20 + 40) / 100 = 0.6.
     CHECK(AggregateStructuralIntegrity(registry, root) == Approx(0.2f));
+}
+
+TEST_CASE("ShieldCovers is always true for a shield's own housing", "[module-attach][shield]") {
+    entt::registry registry;
+    const entt::entity shield = registry.create();
+    registry.emplace<Shield>(shield, 100.0f, 100.0f, sr::DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Personal, 0.0f);
+
+    CHECK(ShieldCovers(registry, shield, shield));
+}
+
+TEST_CASE("ShieldCovers is false for a Personal shield checked against a sibling hardpoint",
+          "[module-attach][shield]") {
+    entt::registry registry;
+    const entt::entity shield = registry.create();
+    registry.emplace<Shield>(shield, 100.0f, 100.0f, sr::DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Personal, 100.0f);
+    const entt::entity sibling = registry.create();
+    registry.emplace<WorldTransform>(sibling, sr::Vec2{1.0f, 0.0f}, 0.0f);
+    registry.emplace<WorldTransform>(shield, sr::Vec2{0.0f, 0.0f}, 0.0f);
+
+    CHECK_FALSE(ShieldCovers(registry, shield, sibling));
+}
+
+TEST_CASE("ShieldCovers is true for a Bubble shield within coverageRadius, false outside it",
+          "[module-attach][shield]") {
+    entt::registry registry;
+    const entt::entity shield = registry.create();
+    registry.emplace<WorldTransform>(shield, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Shield>(shield, 100.0f, 100.0f, sr::DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Bubble, 15.0f);
+
+    const entt::entity near = registry.create();
+    registry.emplace<WorldTransform>(near, sr::Vec2{10.0f, 0.0f}, 0.0f);
+    const entt::entity far = registry.create();
+    registry.emplace<WorldTransform>(far, sr::Vec2{50.0f, 0.0f}, 0.0f);
+
+    CHECK(ShieldCovers(registry, shield, near));
+    CHECK_FALSE(ShieldCovers(registry, shield, far));
+}
+
+TEST_CASE("ShieldCovers is unconditionally true for a Conformal shield regardless of range",
+          "[module-attach][shield]") {
+    entt::registry registry;
+    const entt::entity shield = registry.create();
+    registry.emplace<Shield>(shield, 100.0f, 100.0f, sr::DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Conformal, 0.0f);
+    const entt::entity distant = registry.create();
+
+    CHECK(ShieldCovers(registry, shield, distant));
 }

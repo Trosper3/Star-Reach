@@ -273,6 +273,29 @@ float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity 
     return max > 0.0f ? current / max : 0.0f;
 }
 
+bool ShieldCovers(const entt::registry& registry, entt::entity shieldEntity,
+                  entt::entity hardpoint) {
+    if (shieldEntity == hardpoint) {
+        return true;
+    }
+    const auto* shield = registry.try_get<Shield>(shieldEntity);
+    if (shield == nullptr) {
+        return false;
+    }
+    if (shield->coverage == ShieldCoverage::Conformal) {
+        return true;
+    }
+    if (shield->coverage == ShieldCoverage::Personal) {
+        return false;
+    }
+    const auto* shieldXf = registry.try_get<WorldTransform>(shieldEntity);
+    const auto* targetXf = registry.try_get<WorldTransform>(hardpoint);
+    if (shieldXf == nullptr || targetXf == nullptr) {
+        return false;
+    }
+    return Distance(shieldXf->position, targetXf->position) <= shield->coverageRadius;
+}
+
 entt::entity FindHardpoint(const entt::registry& registry, entt::entity root,
                            const MountId& mount) {
     const Rig* rig = registry.try_get<Rig>(root);

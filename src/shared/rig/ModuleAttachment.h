@@ -72,6 +72,18 @@ inline constexpr float kStructuralFailureThreshold = 0.30f;
 // systems/).
 float AggregateStructuralIntegrity(const entt::registry& registry, entt::entity rigRoot);
 
+// Whether `shieldEntity` (a hardpoint carrying a living Shield) reaches `hardpoint`, per
+// ShieldCoverage: Personal only ever its own housing, Bubble every rig sibling within
+// coverageRadius of the mount, Conformal the whole rig unconditionally (architecture.md 12.22).
+// Pure geometry/set-membership, no damage resolution -- DamageSystem's FindCoveringShield uses
+// this to pick which shield absorbs a hit; CockpitHud's status projection (features.md 3.9) uses
+// the same predicate in the opposite direction, enumerating which hardpoints a shield's loop
+// should enclose. Both `shieldEntity` and `hardpoint` are assumed to belong to the same rig --
+// callers already iterate Rig::children to get here, the same precondition FindCoveringShield's
+// caller already upholds today.
+bool ShieldCovers(const entt::registry& registry, entt::entity shieldEntity,
+                  entt::entity hardpoint);
+
 // Resolves a rig's hardpoint by its stable mount id, or entt::null. The (NetworkId, MountId)
 // pair is how a hardpoint is addressed across a save or the wire -- an entt::entity never is.
 // Lives here rather than RigFactory (its original home) because it is a lookup over an
