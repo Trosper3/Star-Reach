@@ -404,8 +404,12 @@ void SpaceFlight::Draw() const {
         render::DrawWorld(world_, camera, alpha);
         // Outside DrawWorld's BeginMode2D/EndMode2D on purpose -- IconRenderer projects world
         // space to screen space itself, so its reticle stays a fixed pixel size under zoom
-        // instead of scaling with the world like WorldRenderer's sprites do.
+        // instead of scaling with the world like WorldRenderer's sprites do. DrawWorldBodyIcons is
+        // the same idea applied to world bodies: DrawWorld's own DrawWorldBodies already skipped
+        // whichever ones are off-camera or below the icon-substitution threshold (features.md
+        // 9.1), and this pass draws fixed-size substitutes for the latter.
         render::DrawAimReticle(registry, camera);
+        render::DrawWorldBodyIcons(registry, camera, alpha);
     }
 
     // modes/space/ui/ -- screen-space, outside DrawWorld's BeginMode2D/EndMode2D.

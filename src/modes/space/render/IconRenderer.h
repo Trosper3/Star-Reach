@@ -6,6 +6,7 @@
 #include <string>
 
 #include "modes/space/render/WorldRenderer.h"
+#include "shared/components/Physics.h"
 #include "shared/math/Vec2.h"
 #include "shared/ui/HudTheme.h"
 
@@ -70,5 +71,42 @@ enum class MapMarkerKind : std::uint8_t {
 // a marker too small to read. NavigationMap (modes/space/ui/) and SensorContacts are the callers.
 void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& label,
                    MapMarkerKind kind, float zoom);
+
+// features.md 9.1's required camera-AABB cull ("objects outside the camera are simulated but not
+// drawn") -- true if a world-space circle (`worldPosition`, `worldRadius`) does not intersect the
+// camera's visible rectangle. `screenWidth`/`screenHeight` are taken as explicit parameters rather
+// than read via GetScreenWidth/Height, the same split SensorContacts.h's ClampToEdge already uses,
+// so this stays unit-testable without a live window; real callers below pass the live values.
+bool IsBodyCulled(const Vec2& worldPosition, float worldRadius, const CameraView& camera,
+                  float screenWidth, float screenHeight);
+
+// True once `worldRadius` at `camera.zoom` would draw smaller than this system's legibility floor
+// -- features.md 9.1 and architecture.md's `BodyKind` comment ("which icon IconRenderer
+// substitutes when the body shrinks below a few pixels on zoom-out"). Below this threshold,
+// WorldRenderer's DrawWorldBodies skips its true-scale shape and DrawBodyIcon below substitutes a
+// fixed-size one instead. Pure arithmetic, unit-testable without a live GL context.
+bool NeedsIconSubstitution(float worldRadius, float zoom);
+
+// The placeholder identity color for a world body kind -- WorldRenderer.cpp's true-scale circles
+// and DrawBodyIcon's substitute icons both tint from this single mapping, so a planet reads as the
+// same blue whether it is drawn at true scale or as a substituted icon.
+Color ColorForBodyKind(sr::BodyKind kind);
+
+// Draws a fixed-pixel-size, cached `BodyKind` icon (a small baked `RenderTexture2D`, tinted per
+// call from ColorForBodyKind -- features.md 8.2's "runtime template bakes," the same mechanism
+// DrawMapMarker above uses for MapMarkerKind) at `worldPosition`, projected to screen space under
+// `camera`. This is the substitute WorldRenderer's DrawWorldBodies defers to once
+// NeedsIconSubstitution is true for that body. Screen-space; must be called outside
+// BeginMode2D/EndMode2D, same as DrawAimReticle/DrawMapMarker.
+void DrawBodyIcon(const Vec2& worldPosition, sr::BodyKind kind, const CameraView& camera);
+
+// The screen-space pass over every `WorldBody`: culls off-camera bodies (IsBodyCulled) and calls
+// DrawBodyIcon for whichever survive at a substitution-eligible size (NeedsIconSubstitution) --
+// WorldRenderer's own DrawWorldBodies applies the identical two predicates to decide which bodies
+// it draws at true scale instead, so between the two passes every visible body is drawn exactly
+// once, never both or neither. `alpha` is SpaceFlight::InterpolationAlpha, the same fixed-timestep
+// blend DrawWorld's own bodies use. Called from SpaceFlight.cpp after DrawWorld's
+// BeginMode2D/EndMode2D, alongside DrawAimReticle.
+void DrawWorldBodyIcons(const entt::registry& registry, const CameraView& camera, float alpha);
 
 }  // namespace sr::space::render

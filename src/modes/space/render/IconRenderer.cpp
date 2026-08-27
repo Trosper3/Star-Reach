@@ -22,6 +22,12 @@ constexpr float kMapMarkerLabelOffset = 10.0f;
 constexpr int kMapMarkerBakeSize = 32;
 constexpr float kMapMarkerMinVisiblePixels = 1.5f;
 
+constexpr float kBodyIconRadius = 6.0f;  // Fixed screen pixels -- never scales with zoom.
+constexpr int kBodyIconBakeSize = 32;
+// "a few pixels" -- features.md 9.1. Below this true-scale radius, WorldRenderer's own circle
+// reads as noise, not a shape, so DrawBodyIcon substitutes a legible fixed-size one instead.
+constexpr float kBodyIconMinTrueScalePixels = 4.0f;
+
 // One small white RenderTexture2D per MapMarkerKind, baked the first time that kind is drawn and
 // reused every frame after (features.md 8.2: "runtime template bakes cached into small
 // RenderTexture2D's"). Baked white so DrawTexturePro's tint recolors it per call -- every marker
@@ -46,6 +52,38 @@ RenderTexture2D& MapMarkerBake(MapMarkerKind kind) {
             DrawRing(center, radius * 0.55f, radius, 0.0f, 360.0f, 24, WHITE);
             break;
         case MapMarkerKind::Hostile: DrawCircleV(center, radius, WHITE); break;
+    }
+    EndTextureMode();
+
+    return bakes.emplace(kind, target).first->second;
+}
+
+// One small white RenderTexture2D per BodyKind, baked the first time that kind is drawn and
+// reused every frame after -- the identical pattern MapMarkerBake above uses, keyed on the other
+// enum this file distinguishes (IconRenderer.h's MapMarkerKind comment). Distinct simple shapes
+// per kind, not a shared dot, so a substituted star, planet, and asteroid still read apart at a
+// glance.
+RenderTexture2D& BodyIconBake(sr::BodyKind kind) {
+    static std::unordered_map<sr::BodyKind, RenderTexture2D> bakes;
+    const auto it = bakes.find(kind);
+    if (it != bakes.end()) {
+        return it->second;
+    }
+
+    RenderTexture2D target = LoadRenderTexture(kBodyIconBakeSize, kBodyIconBakeSize);
+    BeginTextureMode(target);
+    ClearBackground(Color{0, 0, 0, 0});
+    const Vector2 center{kBodyIconBakeSize * 0.5f, kBodyIconBakeSize * 0.5f};
+    const float radius = kBodyIconBakeSize * 0.5f - 2.0f;
+    switch (kind) {
+        case sr::BodyKind::Star: DrawPoly(center, 8, radius, 0.0f, WHITE); break;
+        case sr::BodyKind::Planet: DrawCircleV(center, radius, WHITE); break;
+        case sr::BodyKind::Wreck: DrawPoly(center, 3, radius, 0.0f, WHITE); break;
+        case sr::BodyKind::Drop: DrawPoly(center, 4, radius, 45.0f, WHITE); break;
+        case sr::BodyKind::Asteroid: DrawPoly(center, 5, radius, 0.0f, WHITE); break;
+        case sr::BodyKind::Anomaly:
+            DrawRing(center, radius * 0.55f, radius, 0.0f, 360.0f, 24, WHITE);
+            break;
     }
     EndTextureMode();
 
@@ -105,7 +143,12 @@ void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& l
                    MapMarkerKind kind, float zoom) {
     const float drawnRadius = kMapMarkerRadius * zoom;
     if (drawnRadius < kMapMarkerMinVisiblePixels) {
-        return;  // Too small to read at all -- P5-05 owns substitution, this is just the floor.
+        // Too small to read at all. P5-05 (IsBodyCulled/NeedsIconSubstitution/DrawBodyIcon below)
+        // turned out to scope entirely to WorldRenderer's `BodyKind` objects -- a map marker is
+        // already the coarsest aggregate at its zoom level (features.md 8.1), so there is no
+        // smaller "substitute" for a territory blob the way a shrinking planet has one. This floor
+        // stays the only culling DrawMapMarker needs.
+        return;
     }
 
     const RenderTexture2D& bake = MapMarkerBake(kind);
@@ -121,6 +164,64 @@ void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& l
         DrawText(label.c_str(), static_cast<int>(screenPosition.x - kMapMarkerRadius),
                  static_cast<int>(screenPosition.y + kMapMarkerLabelOffset), 10,
                  sr::ui::kValueBright);
+    }
+}
+
+bool IsBodyCulled(const Vec2& worldPosition, float worldRadius, const CameraView& camera,
+                  float screenWidth, float screenHeight) {
+    const float halfWidth = (screenWidth * 0.5f) / camera.zoom;
+    const float halfHeight = (screenHeight * 0.5f) / camera.zoom;
+    const float left = camera.target.x - halfWidth - worldRadius;
+    const float right = camera.target.x + halfWidth + worldRadius;
+    const float top = camera.target.y - halfHeight - worldRadius;
+    const float bottom = camera.target.y + halfHeight + worldRadius;
+    return worldPosition.x < left || worldPosition.x > right || worldPosition.y < top ||
+           worldPosition.y > bottom;
+}
+
+bool NeedsIconSubstitution(float worldRadius, float zoom) {
+    return worldRadius * zoom < kBodyIconMinTrueScalePixels;
+}
+
+Color ColorForBodyKind(sr::BodyKind kind) {
+    switch (kind) {
+        case sr::BodyKind::Star: return GOLD;
+        case sr::BodyKind::Planet: return BLUE;
+        case sr::BodyKind::Wreck: return DARKGRAY;
+        case sr::BodyKind::Drop: return LIME;
+        case sr::BodyKind::Asteroid: return BROWN;
+        case sr::BodyKind::Anomaly: return PURPLE;
+    }
+    return WHITE;
+}
+
+void DrawBodyIcon(const Vec2& worldPosition, sr::BodyKind kind, const CameraView& camera) {
+    const Vec2 screenPos = WorldToScreen(worldPosition, camera);
+    const RenderTexture2D& bake = BodyIconBake(kind);
+    // Render textures are stored y-flipped relative to a normal texture -- the negative height is
+    // what un-flips it on the way back out (same as DrawMapMarker above).
+    const Rectangle source{0.0f, 0.0f, static_cast<float>(bake.texture.width),
+                           -static_cast<float>(bake.texture.height)};
+    const Rectangle dest{screenPos.x - kBodyIconRadius, screenPos.y - kBodyIconRadius,
+                         kBodyIconRadius * 2.0f, kBodyIconRadius * 2.0f};
+    DrawTexturePro(bake.texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, ColorForBodyKind(kind));
+}
+
+void DrawWorldBodyIcons(const entt::registry& registry, const CameraView& camera, float alpha) {
+    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenHeight = static_cast<float>(GetScreenHeight());
+    for (auto [entity, body, xf] : registry.view<sr::WorldBody, sr::WorldTransform>().each()) {
+        Vec2 position = xf.position;
+        if (const auto* prev = registry.try_get<sr::PreviousTransform>(entity)) {
+            position = Lerp(prev->position, xf.position, alpha);
+        }
+        if (IsBodyCulled(position, body.radius, camera, screenWidth, screenHeight)) {
+            continue;
+        }
+        if (!NeedsIconSubstitution(body.radius, camera.zoom)) {
+            continue;  // WorldRenderer::DrawWorldBodies already drew this one at true scale.
+        }
+        DrawBodyIcon(position, body.kind, camera);
     }
 }
 

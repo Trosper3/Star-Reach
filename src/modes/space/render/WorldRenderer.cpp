@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "modes/space/render/IconRenderer.h"
 #include "modes/space/render/LightingPass.h"
 #include "shared/blueprints/Taxonomy.h"
 #include "shared/components/Combat.h"
@@ -71,18 +72,6 @@ Color ColorForShell(ShellKind kind) {
     return WHITE;
 }
 
-Color ColorForBodyKind(BodyKind kind) {
-    switch (kind) {
-        case BodyKind::Star: return GOLD;
-        case BodyKind::Planet: return BLUE;
-        case BodyKind::Wreck: return DARKGRAY;
-        case BodyKind::Drop: return LIME;
-        case BodyKind::Asteroid: return BROWN;
-        case BodyKind::Anomaly: return PURPLE;
-    }
-    return WHITE;
-}
-
 // Scales a placeholder color by LightingPass's per-object brightness (LightingPass.h) -- the
 // closest thing to shading this renderer has until a real sprite/shader pipeline exists.
 // Channels clip at 255 rather than wrapping, which is what reproduces the "washes toward white
@@ -106,12 +95,27 @@ struct DrawableBody {
     BodyKind kind;
 };
 
-void DrawWorldBodies(const entt::registry& registry, float alpha) {
+// Off-camera bodies and bodies too small to read at true scale are both skipped here --
+// features.md 9.1's required camera-AABB cull and icon substitution (architecture.md's `BodyKind`
+// comment). The latter case is not simply omitted: IconRenderer::DrawWorldBodyIcons runs its own
+// pass over the same WorldBody entities, after DrawWorld's BeginMode2D/EndMode2D closes, and
+// substitutes a fixed-size icon for exactly the bodies this loop skipped for size. Both passes
+// share IsBodyCulled/NeedsIconSubstitution so a body is drawn exactly once, never both or neither.
+void DrawWorldBodies(const entt::registry& registry, const CameraView& camera, float alpha) {
+    const float screenWidth = static_cast<float>(GetScreenWidth());
+    const float screenHeight = static_cast<float>(GetScreenHeight());
+
     std::vector<DrawableBody> bodies;
     for (auto [entity, body, xf] : registry.view<WorldBody, WorldTransform>().each()) {
         Vec2 position = xf.position;
         if (const auto* prev = registry.try_get<PreviousTransform>(entity)) {
             position = InterpolatedPosition(xf, *prev, alpha);
+        }
+        if (IsBodyCulled(position, body.radius, camera, screenWidth, screenHeight)) {
+            continue;
+        }
+        if (NeedsIconSubstitution(body.radius, camera.zoom)) {
+            continue;
         }
         bodies.push_back(DrawableBody{position, body.radius, body.kind});
     }
@@ -204,7 +208,7 @@ void DrawWorld(const SystemWorld& world, const CameraView& camera, float alpha) 
     const entt::registry& registry = world.Registry();
 
     BeginMode2D(cam2d);
-    DrawWorldBodies(registry, alpha);
+    DrawWorldBodies(registry, camera, alpha);
     DrawShips(registry, alpha);
     DrawHardpoints(registry, alpha);
     DrawProjectiles(registry, alpha);
