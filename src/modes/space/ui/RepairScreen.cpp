@@ -207,8 +207,7 @@ void ToggleOrder(entt::registry& registry, entt::entity requester, entt::entity 
     if (alreadyActive) {
         registry.remove<RepairOrder>(requester);
     } else {
-        registry.emplace_or_replace<RepairOrder>(requester,
-                                                 RepairOrder{subject, hardpoint, 1.0f, 0.0f});
+        registry.emplace_or_replace<RepairOrder>(requester, RepairOrder{subject, hardpoint, 1.0f});
     }
 }
 

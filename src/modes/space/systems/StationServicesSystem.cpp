@@ -251,16 +251,25 @@ std::vector<entt::entity> RepairableHardpoints(const entt::registry& registry, e
 }
 
 // Bills `self` for `totalHp` of repair at `facility`'s grade-based rate, preferring self's own
-// Wallet, else the requester's FactionRef stock against ctx.economy. Returns false, leaving
-// `order` untouched, when nothing affordable exists to pay from -- the caller stalls rather than
-// drops the order.
+// Wallet, else the requester's FactionRef stock against ctx.economy. Returns false, leaving the
+// remainder untouched, when nothing affordable exists to pay from -- the caller stalls rather
+// than drops the order.
+//
+// The fractional remainder is carried on `self`'s own RepairBilling (shared/components/
+// StationServices.h), get_or_emplace'd here rather than threaded in from RepairOrder -- issue
+// #268: a RepairOrder is destroyed and recreated every time the player toggles repair off and
+// back on (modes/space/ui/RepairScreen.cpp's ToggleOrder), and a remainder living on it would
+// reset to zero on every restart, rounding every tick's charge down to zero forever regardless of
+// Wallet balance. RepairBilling outlives that toggle entirely, so restarting cannot launder away
+// an already-accrued fraction of a credit.
 bool ChargeRepairCost(const SystemContext& ctx, entt::entity self, entt::entity facility,
-                      float totalHp, RepairOrder& order) {
+                      float totalHp) {
     entt::registry& registry = ctx.Registry();
     const FacilityRef* facilityRef = registry.try_get<FacilityRef>(facility);
     const int grade = facilityRef != nullptr ? facilityRef->grade : 1;
     const int costPerHp = core::economy::RepairCostPerHp(grade);
-    const float owed = totalHp * static_cast<float>(costPerHp) + order.creditRemainder;
+    RepairBilling& billing = registry.get_or_emplace<RepairBilling>(self);
+    const float owed = totalHp * static_cast<float>(costPerHp) + billing.creditRemainder;
     const int spend = static_cast<int>(std::floor(owed));
 
     // architecture.md 12.30.4: "Wallet on a rig that has one, ctx.economy otherwise" -- billed
@@ -279,7 +288,7 @@ bool ChargeRepairCost(const SystemContext& ctx, entt::entity self, entt::entity 
         }
     }
     if (afforded) {
-        order.creditRemainder = owed - static_cast<float>(spend);
+        billing.creditRemainder = owed - static_cast<float>(spend);
     }
     return afforded;
 }
@@ -342,7 +351,7 @@ void ProcessRepairOrders(const SystemContext& ctx) {
             continue;  // The facility's rate delivers nothing this tick -- stalls, not gone.
         }
 
-        if (!ChargeRepairCost(ctx, self, facility, totalHp, order)) {
+        if (!ChargeRepairCost(ctx, self, facility, totalHp)) {
             continue;  // Stalls where the money ran out -- nothing owed, nothing refunded.
         }
 

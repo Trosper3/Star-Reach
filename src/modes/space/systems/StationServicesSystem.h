@@ -28,9 +28,12 @@ namespace sr::space::station_services_system {
 // station the requester owns -- "a station with a repair bay repairs itself") by up to the
 // facility's authored FacilityStats::ratePerSecond * dt, never past the order's targetFraction,
 // never a Destroyed hardpoint. Billed in whole credits per tick, with the fractional remainder
-// carried in the order (RepairOrder::creditRemainder) so a per-tick charge never rounds to zero.
-// Paid from the requester's own Wallet if it has one, else ctx.economy against its FactionRef's
-// stock -- an NPC's own repair, since it carries no Wallet. The order is dropped (never resumed)
+// carried on the requester (RepairBilling, not RepairOrder -- issue #268: RepairOrder is
+// destroyed and recreated every time the player toggles repair, and a remainder living there
+// would reset to zero on every restart, rounding every tick's charge down to zero forever) so
+// billing never rounds to zero. Paid from the requester's own Wallet if it has one, else
+// ctx.economy against its FactionRef's stock -- an NPC's own repair, since it carries no Wallet.
+// The order is dropped (never resumed)
 // on undock, when its subject/hardpoint is no longer valid, or once its facility is destroyed;
 // it merely stalls -- billing nothing, healing nothing, staying in place -- while its payer
 // cannot currently afford the tick's cost.

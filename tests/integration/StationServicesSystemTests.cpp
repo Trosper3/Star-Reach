@@ -1,4 +1,4 @@
-#include <catch2/catch_approx.hpp>
+﻿#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
@@ -239,7 +239,7 @@ TEST_CASE(
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -273,7 +273,7 @@ TEST_CASE(
     // would silently pass this test, so its absence here is deliberate, not an oversight.
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -299,7 +299,7 @@ TEST_CASE("RepairOrder completes and stops billing once its target fraction is r
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 0.6f, 0.0f});  // target 60/100
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 0.6f});  // target 60/100
 
     const SystemContext ctx = MakeContext(world, intents, content);
     station_services_system::Tick(ctx);  // Reaches the target this tick.
@@ -335,7 +335,7 @@ TEST_CASE(
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{destroyedHardpoint, livingHardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, entt::null, 1.0f, 0.0f});  // Repair All
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, entt::null, 1.0f});  // Repair All
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -362,7 +362,7 @@ TEST_CASE(
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 10);  // Nowhere near costPerHp(2) * 50 missing == 100
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -386,7 +386,7 @@ TEST_CASE("RepairOrder is dropped when the docked station has no living Repair f
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -411,7 +411,7 @@ TEST_CASE("Destroying the Repair hardpoint mid-order stops it that tick",
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
     registry.emplace<Destroyed>(facility);
 
     station_services_system::Tick(MakeContext(world, intents, content));
@@ -436,7 +436,7 @@ TEST_CASE("Undocking mid-order drops the RepairOrder", "[station-services][integ
     // No Docked -- already undocked before this tick runs.
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -464,7 +464,7 @@ TEST_CASE("A station the requester owns is a valid subject and its own hardpoint
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<FactionRef>(rig, FactionId("aegis"));
     registry.emplace<Wallet>(rig, 100);
-    registry.emplace<RepairOrder>(rig, RepairOrder{station, stationHardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{station, stationHardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -489,7 +489,7 @@ TEST_CASE(
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<FactionRef>(rig, FactionId("aegis"));
     registry.emplace<Wallet>(rig, 100);
-    registry.emplace<RepairOrder>(rig, RepairOrder{station, entt::null, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{station, entt::null, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));
 
@@ -515,7 +515,7 @@ TEST_CASE("An NPC with no Wallet repairs against ctx.economy",
     registry.emplace<Docked>(npc, station, entt::null);
     registry.emplace<FactionRef>(npc, FactionId("reavers"));  // No Wallet.
     registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f});
 
     SystemContext ctx = MakeContext(world, intents, content);
     ctx.economy = &economy;
@@ -545,7 +545,7 @@ TEST_CASE(
     registry.emplace<Docked>(npc, station, entt::null);
     registry.emplace<FactionRef>(npc, FactionId("reavers"));
     registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f});
 
     SystemContext ctx = MakeContext(world, intents, content);
     ctx.economy = &economy;
@@ -572,7 +572,7 @@ TEST_CASE("An NPC does not repair, and does not repair for free, with ctx.econom
     registry.emplace<Docked>(npc, station, entt::null);
     registry.emplace<FactionRef>(npc, FactionId("reavers"));
     registry.emplace<Rig>(npc, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(npc, RepairOrder{npc, hardpoint, 1.0f});
 
     station_services_system::Tick(MakeContext(world, intents, content));  // ctx.economy left null.
 
@@ -584,7 +584,7 @@ TEST_CASE("A repair spanning many ticks charges a total, not zero -- the roundin
           "[station-services][integration][repair]") {
     // architecture.md 12.30.4's own warning: billing per tick in whole credits at a slow rate
     // would round to zero every tick and make repair free again unless the fractional remainder
-    // is carried forward (RepairOrder::creditRemainder).
+    // is carried forward (RepairBilling, shared/components/StationServices.h).
     ContentLibrary content = Content();
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -599,7 +599,7 @@ TEST_CASE("A repair spanning many ticks charges a total, not zero -- the roundin
     registry.emplace<Docked>(rig, station, entt::null);
     registry.emplace<Wallet>(rig, 100);
     registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
-    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f, 0.0f});
+    registry.emplace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
 
     const SystemContext ctx = MakeContext(world, intents, content);
     for (int i = 0; i < 100; ++i) {
@@ -609,6 +609,43 @@ TEST_CASE("A repair spanning many ticks charges a total, not zero -- the roundin
     // 100 ticks * 0.1 HP == 10.0 HP restored; costPerHp(grade 1) == 2 -> 20 credits total.
     CHECK(registry.get<Health>(hardpoint).current == Approx(60.0f));
     CHECK(registry.get<Wallet>(rig).credits == 80);
+}
+
+TEST_CASE("Rapidly toggling a repair order cannot repeatedly dodge the fractional-credit carry",
+          "[station-services][integration][repair]") {
+    // issue #268: modes/space/ui/RepairScreen.cpp's ToggleOrder destroys and recreates
+    // RepairOrder every time the player clicks the repair button. If the fractional-credit
+    // remainder lived on RepairOrder itself (as it used to), each restart would reset it to
+    // zero, so a per-tick charge would round down to zero forever and heal for free regardless
+    // of Wallet balance. This simulates the exploit directly -- a fresh RepairOrder every tick,
+    // exactly what spamming the button produces -- as a regression test for RepairBilling
+    // persisting independent of that toggle.
+    ContentLibrary content = Content();
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+
+    const entt::entity station = MakeStation(registry, {});
+    AddRepairFacility(registry, content, station, 6.0f);  // 6 * (1/60) == 0.1 HP/tick
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 50.0f, 100.0f);
+
+    const entt::entity rig = registry.create();
+    registry.emplace<Docked>(rig, station, entt::null);
+    registry.emplace<Wallet>(rig, 0);  // Cannot afford even a single credit of repair.
+    registry.emplace<Rig>(rig, std::vector<entt::entity>{hardpoint});
+
+    const SystemContext ctx = MakeContext(world, intents, content);
+    for (int i = 0; i < 100; ++i) {
+        registry.emplace_or_replace<RepairOrder>(rig, RepairOrder{rig, hardpoint, 1.0f});
+        station_services_system::Tick(ctx);
+    }
+
+    // The old, buggy behaviour would have restored the full 10 HP the "rounding trap" case above
+    // shows 100 unthrottled ticks deliver -- for zero credits. Correct behaviour bounds any
+    // rounding leak to strictly less than one credit's worth of hull, ever, then stalls for good.
+    CHECK(registry.get<Health>(hardpoint).current < 51.0f);
+    CHECK(registry.get<Wallet>(rig).credits == 0);
 }
 
 TEST_CASE("Deposit moves a stack from the requester's cargo to the station's, free of charge",
