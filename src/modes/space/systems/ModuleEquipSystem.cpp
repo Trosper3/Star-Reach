@@ -49,8 +49,11 @@ void ProcessMountRequests(const SystemContext& ctx) {
             continue;
         }
 
-        if (!cargo_view::Withdraw(registry, self, ItemKind::Module, request.module.str(), 1)) {
-            continue;  // Not held anywhere in the requester's own cargo bays.
+        const entt::entity cargoSource =
+            request.sourceCargo != entt::null ? request.sourceCargo : self;
+        if (!cargo_view::Withdraw(registry, cargoSource, ItemKind::Module, request.module.str(),
+                                  1)) {
+            continue;  // Not held anywhere in the source's own cargo bays.
         }
 
         // The mount's real authored arc (Rig.h), not a hardcoded 0.0f -- a runtime-mounted
@@ -99,8 +102,11 @@ void ProcessUnmountRequests(const SystemContext& ctx) {
         // Refused, not silently discarded, if there is nowhere to put it back -- the same
         // "refuse rather than lose player state" rule RefactorSystem's scrap path already
         // follows. Nothing below runs; the mount stays exactly as it was.
+        const entt::entity cargoDestination =
+            request.destinationCargo != entt::null ? request.destinationCargo : self;
         const ItemStack refund{ItemKind::Module, moduleId.str(), 1, module->mass};
-        if (cargo_view::Deposit(registry, self, refund) != cargo_view::DepositResult::Deposited) {
+        if (cargo_view::Deposit(registry, cargoDestination, refund) !=
+            cargo_view::DepositResult::Deposited) {
             continue;
         }
 

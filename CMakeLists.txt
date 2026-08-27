@@ -267,6 +267,8 @@ add_library(sr_space STATIC
     src/modes/space/ui/CockpitHud.cpp
     src/modes/space/ui/BuildMenu.cpp
     src/modes/space/ui/EngineeringScreen.cpp
+    src/modes/space/ui/EngineeringScreenDraw.cpp
+    src/modes/space/ui/EngineeringScreenModel.cpp
     src/modes/space/ui/StorageMenu.cpp
     src/modes/space/ui/ModulesMenu.cpp
     src/modes/space/ui/ModulesMenuModel.cpp
