@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <entt/entity/registry.hpp>
 #include <vector>
 
@@ -25,7 +26,7 @@ namespace sr::space::ui::status_projection {
 // collapses one level at a time when the next one down would overlap. `StructuralAttachment` is
 // the collapse hierarchy (chassis -> armour segments -> functional mounts), so no layout is ever
 // spatially untruthful -- "shoot the port flank" survives every collapse.
-enum class DetailLevel {
+enum class DetailLevel : std::uint8_t {
     Full,      // Roomy: every living hardpoint, its own circle, coloured by its own integrity.
     Segments,  // Tight: chassis + armour segments, each coloured by its own subtree's aggregate.
     Marker,    // Hull outline only, coloured by whole-rig integrity.
