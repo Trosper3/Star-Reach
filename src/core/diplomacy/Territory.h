@@ -2,6 +2,8 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "shared/blueprints/Ids.h"
 
@@ -25,6 +27,14 @@ public:
     // Territory is queried far more often by systemId than walked by faction, and collapse is a
     // rare, one-shot event, not a per-tick operation.
     void ReleaseAll(const FactionId& faction);
+
+    // Every currently-claimed system and its owner -- for a reader building a galaxy-wide picture
+    // rather than looking up one id at a time. `NavigationMap`'s territory aggregation
+    // (architecture.md 12.35) is this class's first such reader. Unclaimed systems never appear:
+    // Territory only records claims, and there is no roster of "every system that exists" for it
+    // to draw on (that gap is documented at modes/space/ui/NavigationMap.h). Unordered -- callers
+    // that need a stable order already sort their own output.
+    std::vector<std::pair<std::string, FactionId>> ClaimedSystems() const;
 
 private:
     std::unordered_map<std::string, FactionId> owners_;

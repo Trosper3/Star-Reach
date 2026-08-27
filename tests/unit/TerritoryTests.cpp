@@ -1,5 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <string>
+#include <utility>
+
 #include "core/diplomacy/Territory.h"
 
 using sr::FactionId;
@@ -59,4 +63,35 @@ TEST_CASE("Territory ReleaseAll on a faction that owns nothing is a no-op", "[di
     territory.ReleaseAll(FactionId("reavers"));
 
     CHECK(territory.Owner("sol") == FactionId("aegis"));
+}
+
+TEST_CASE("Territory ClaimedSystems is empty with no claims", "[diplomacy]") {
+    Territory territory;
+    CHECK(territory.ClaimedSystems().empty());
+}
+
+TEST_CASE("Territory ClaimedSystems lists every claimed system and its owner", "[diplomacy]") {
+    Territory territory;
+    territory.Claim("sol", FactionId("aegis"));
+    territory.Claim("vega", FactionId("reavers"));
+
+    const auto claims = territory.ClaimedSystems();
+
+    REQUIRE(claims.size() == 2);
+    CHECK(std::find(claims.begin(), claims.end(),
+                    std::make_pair(std::string("sol"), FactionId("aegis"))) != claims.end());
+    CHECK(std::find(claims.begin(), claims.end(),
+                    std::make_pair(std::string("vega"), FactionId("reavers"))) != claims.end());
+}
+
+TEST_CASE("Territory ClaimedSystems omits a released system", "[diplomacy]") {
+    Territory territory;
+    territory.Claim("sol", FactionId("aegis"));
+    territory.Claim("vega", FactionId("reavers"));
+    territory.Release("sol");
+
+    const auto claims = territory.ClaimedSystems();
+
+    REQUIRE(claims.size() == 1);
+    CHECK(claims.front().first == "vega");
 }

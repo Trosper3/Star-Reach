@@ -25,4 +25,13 @@ void Territory::ReleaseAll(const FactionId& faction) {
     }
 }
 
+std::vector<std::pair<std::string, FactionId>> Territory::ClaimedSystems() const {
+    std::vector<std::pair<std::string, FactionId>> claims;
+    claims.reserve(owners_.size());
+    for (const auto& [systemId, owner] : owners_) {
+        claims.emplace_back(systemId, owner);
+    }
+    return claims;
+}
+
 }  // namespace sr::core::diplomacy

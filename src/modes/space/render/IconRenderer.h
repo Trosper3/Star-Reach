@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <entt/entity/registry.hpp>
 #include <optional>
 #include <string>
@@ -15,9 +16,8 @@
 // fixed-pixel-size marker projected FROM world space TO screen space, so it stays legible
 // regardless of zoom. Called after WorldRenderer, outside BeginMode2D/EndMode2D.
 //
-// "Map markers" (galaxy map icons, DiscoverySystem's discovered-system set) have no consumer
-// yet -- modes/space/ui/ (a separate, dependent issue) is what will eventually call this for
-// that. The aim reticle below is this issue's real, present-day consumer.
+// "Map markers" (galaxy map territory blobs, sensor-gated hostile contacts) are consumed by
+// modes/space/ui/NavigationMap.cpp and SensorContacts.cpp.
 namespace sr::space::render {
 
 // The PlayerControlled entity's current AimPoint, or nullopt if there is no player or the player
@@ -47,11 +47,28 @@ Vec2 ScreenToWorld(const Vec2& screenPosition, const CameraView& camera);
 // BeginMode2D/EndMode2D -- it does its own world-to-screen projection.
 void DrawAimReticle(const entt::registry& registry, const CameraView& camera);
 
-// A fixed-size dot with an optional label beneath it, at a SCREEN-space position the caller has
-// already projected (WorldToScreen above, or a map's own layout for positions with no world
-// coordinate at all -- architecture.md 12.6's galaxy/region zoom levels). The map-icon bake that
-// issue's Home line names: NavigationMap (modes/space/ui/) is the first consumer, for both
-// discovered-system markers (no world position) and sensor-gated hostile blips (projected).
-void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& label);
+// Which vector shape a marker bakes to (architecture.md 12.35, 15.1 finding 20) -- a map-specific
+// dispatch, deliberately not `sr::BodyKind` (shared/components/Physics.h): that enum names world
+// bodies (Star, Planet, Wreck...) a map marker never represents, since Territory blobs and fog
+// ghosts are aggregates/unknowns with no single body behind them.
+enum class MapMarkerKind : std::uint8_t {
+    Territory,  // A known territory-aggregate blob (architecture.md 12.35's Level-1 sub-scales).
+    Unknown,    // A present-but-unknown blob -- Territory knows a claim exists here, the viewing
+                // faction hasn't discovered it (features.md 8.3: "absence must never look like
+                // emptiness").
+    Hostile,    // A sensor-gated hostile contact (NavigationMap::VisibleHostileRigs).
+};
+
+// A marker at a SCREEN-space position the caller has already projected (WorldToScreen above, or
+// a map's own layout for positions with no world coordinate at all -- architecture.md 12.6's
+// galaxy/region zoom levels). `kind` selects a cached vector-shape bake (a small
+// `RenderTexture2D`, drawn once per kind and tinted per call rather than re-issuing immediate-mode
+// draw calls every frame -- features.md 8.2, architecture.md 15.1 finding 20) so a territory blob,
+// a fog-of-war ghost, and a hostile contact read as visibly different things, not just different
+// colors of the same dot. `zoom` sizes the marker and is where a future cull/substitution belongs
+// (architecture.md 15.1 finding 19 -- P5-05 owns the fuller version); today it only skips drawing
+// a marker too small to read. NavigationMap (modes/space/ui/) and SensorContacts are the callers.
+void DrawMapMarker(const Vec2& screenPosition, Color color, const std::string& label,
+                   MapMarkerKind kind, float zoom);
 
 }  // namespace sr::space::render
