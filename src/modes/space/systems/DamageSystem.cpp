@@ -29,9 +29,9 @@ void RegenerateShield(Shield& shield, float dt) {
 // for a generator that used to protect only its own housing regardless of what its capacity
 // implied to the player. A shield on the hit hardpoint itself always covers it, in every mode;
 // otherwise the rig's other shields are searched in Rig::children order for the first whose mode
-// reaches this hardpoint: Conformal unconditionally, Bubble within coverageRadius of its mount. A
-// Personal shield elsewhere on the rig never reaches past its own housing, so it is skipped here
-// exactly as every shield was before this function existed.
+// reaches this hardpoint (rig_attachment::ShieldCovers) -- shared with the status projection's
+// opposite-direction query (features.md 3.9), which enumerates a shield's coverage set rather than
+// a hardpoint's coverer.
 entt::entity FindCoveringShield(const entt::registry& registry, entt::entity hardpoint) {
     if (registry.all_of<Shield>(hardpoint)) {
         return hardpoint;
@@ -42,25 +42,14 @@ entt::entity FindCoveringShield(const entt::registry& registry, entt::entity har
     if (rig == nullptr) {
         return entt::null;
     }
-    const auto* targetXf = registry.try_get<WorldTransform>(hardpoint);
 
     for (const entt::entity candidate : rig->children) {
         if (candidate == hardpoint || registry.all_of<Destroyed>(candidate)) {
             continue;
         }
-        const auto* shield = registry.try_get<Shield>(candidate);
-        if (shield == nullptr) {
-            continue;
-        }
-        if (shield->coverage == ShieldCoverage::Conformal) {
+        if (registry.all_of<Shield>(candidate) &&
+            rig_attachment::ShieldCovers(registry, candidate, hardpoint)) {
             return candidate;
-        }
-        if (shield->coverage == ShieldCoverage::Bubble && targetXf != nullptr) {
-            const auto* shieldXf = registry.try_get<WorldTransform>(candidate);
-            if (shieldXf != nullptr &&
-                Distance(shieldXf->position, targetXf->position) <= shield->coverageRadius) {
-                return candidate;
-            }
         }
     }
     return entt::null;

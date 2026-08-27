@@ -12,6 +12,7 @@
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
 #include "shared/math/Angle.h"
+#include "shared/ui/HudTheme.h"
 
 namespace sr::space::render {
 
@@ -68,18 +69,6 @@ Color ColorForShell(ShellKind kind) {
         case ShellKind::Facility: return VIOLET;
     }
     return WHITE;
-}
-
-Color ColorForProjectile(DamageType type) {
-    switch (type) {
-        case DamageType::Energy: return SKYBLUE;
-        case DamageType::Kinetic: return PURPLE;
-        // Electric white-blue, deliberately separated from Energy's blue by luminance rather
-        // than hue -- Ion is absorbed by neither shield type and must read as the most
-        // distinguishable of the three (features.md section 3.9).
-        case DamageType::Ion: return Color{200, 235, 255, 255};
-    }
-    return YELLOW;
 }
 
 Color ColorForBodyKind(BodyKind kind) {
@@ -189,7 +178,7 @@ void DrawProjectiles(const entt::registry& registry, float alpha) {
          registry.view<WorldTransform, PreviousTransform, Velocity, Projectile>().each()) {
         (void)entity;
         const Vec2 position = InterpolatedPosition(xf, prev, alpha);
-        const Color color = ColorForProjectile(projectile.damageType);
+        const Color color = sr::ui::DamageTypeColor(projectile.damageType);
         const Vec2 tail = position - velocity.linear * kProjectileTracerSeconds;
 
         DrawLineV(ToRaylib(tail), ToRaylib(position), color);

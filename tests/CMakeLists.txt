@@ -9,6 +9,7 @@ add_executable(sr_tests
     unit/IconRendererTests.cpp
     unit/LightingPassTests.cpp
     unit/CockpitHudTests.cpp
+    unit/StatusProjectionTests.cpp
     unit/BridgeViewTests.cpp
     unit/BayViewTests.cpp
     unit/BlueprintJsonTests.cpp

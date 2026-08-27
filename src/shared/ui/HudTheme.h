@@ -2,7 +2,10 @@
 
 #include <raylib.h>
 
+#include <algorithm>
 #include <array>
+
+#include "shared/blueprints/Taxonomy.h"
 
 // shared/ui/ -- the HUD theme (architecture.md section 3; section 2.1's sr_shared_ui note).
 //
@@ -34,6 +37,36 @@ inline constexpr Color kDivider = {45, 68, 88, 150};
 inline constexpr Color kStatusGood = {60, 210, 130, 255};
 inline constexpr Color kStatusCaution = {235, 175, 60, 255};
 inline constexpr Color kStatusCritical = {230, 70, 70, 255};
+
+// features.md 3.9: "colour is condition," a continuous red -> caution -> good gradient as
+// `fraction` (1 = full health, 0 = destroyed) rises, over the same three status stops above --
+// promoted here from shared/ui/Widgets.cpp's own former private copy (Row's integrity-styled
+// rows) so the status projection's per-hardpoint colouring (modes/space/ui/StatusProjection.cpp)
+// reads on the identical scale rather than inventing a second gradient against the same three
+// colours.
+inline Color IntegrityColor(float fraction) {
+    fraction = std::clamp(fraction, 0.0f, 1.0f);
+    if (fraction < 0.5f) {
+        return ColorLerp(kStatusCritical, kStatusCaution, fraction * 2.0f);
+    }
+    return ColorLerp(kStatusCaution, kStatusGood, (fraction - 0.5f) * 2.0f);
+}
+
+// features.md 3.9's damage-type palette: one colour per type, shared by the projectile tracer
+// (WorldRenderer::ColorForProjectile), the status projection's shield loops, and eventually the
+// in-world shield shimmer (section 3.1's draw layer 5, not yet built) -- "one definition, three
+// readers." Purple over the intuitive yellow for Kinetic: yellow sits inside IntegrityColor's own
+// gradient above, and a yellow shield beside an amber-damaged hull would be unreadable. Ion is
+// separated from Energy by luminance rather than hue -- it is absorbed by neither shield type and
+// must read as the most distinguishable of the three.
+inline Color DamageTypeColor(DamageType type) {
+    switch (type) {
+        case DamageType::Energy: return SKYBLUE;
+        case DamageType::Kinetic: return PURPLE;
+        case DamageType::Ion: return Color{200, 235, 255, 255};
+    }
+    return YELLOW;
+}
 
 // -- Geometry -----------------------------------------------------------------------------
 // The vertex ring for a chamfered ("cut corner") rectangle, used for panel tabs and buttons.

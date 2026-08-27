@@ -10,25 +10,6 @@ namespace {
 constexpr int kFontSize = 12;
 constexpr float kRowTextPadding = 8.0f;
 
-unsigned char LerpChannel(unsigned char a, unsigned char b, float t) {
-    return static_cast<unsigned char>(static_cast<float>(a) +
-                                      (static_cast<float>(b) - static_cast<float>(a)) * t);
-}
-
-Color LerpColor(Color a, Color b, float t) {
-    return Color{LerpChannel(a.r, b.r, t), LerpChannel(a.g, b.g, t), LerpChannel(a.b, b.b, t), 255};
-}
-
-// features.md 3.9's green -> yellow -> orange -> red gradient, over the three status stops
-// HudTheme.h already carries (kStatusCritical/Caution/Good) rather than a fourth palette.
-Color IntegrityColor(float integrity) {
-    const float t = std::clamp(integrity, 0.0f, 1.0f);
-    if (t < 0.5f) {
-        return LerpColor(kStatusCritical, kStatusCaution, t * 2.0f);
-    }
-    return LerpColor(kStatusCaution, kStatusGood, (t - 0.5f) * 2.0f);
-}
-
 std::string RowText(const Row& row) {
     std::string text;
     if (row.glyph[0] != '\0') {
