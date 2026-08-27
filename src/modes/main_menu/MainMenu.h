@@ -48,6 +48,11 @@ public:
     bool ShouldStartGame() const { return startRequested_; }
     bool QuitRequested() const { return quitRequested_; }
 
+    // features.md 1.2: which of New Game's two choices set startRequested_ above. Only meaningful
+    // once ShouldStartGame() is true -- main.cpp reads it exactly once, in the same frame, to call
+    // SpaceFlight::RequestPlayPrologue before that game's OnEnter() runs.
+    bool PlayPrologueRequested() const { return playPrologueRequested_; }
+
 private:
     struct Star {
         float x = 0.0f;
@@ -63,6 +68,7 @@ private:
 
     bool startRequested_ = false;
     bool quitRequested_ = false;
+    bool playPrologueRequested_ = false;
 
     void InitStars();
     void UpdateStars(float realDeltaSeconds);

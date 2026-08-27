@@ -28,6 +28,7 @@
 #include "modes/space/ui/StorageMenu.h"
 #include "modes/space/ui/StorageScreen.h"
 #include "modes/space/ui/SystemMenu.h"
+#include "modes/space/ui/TutorialHud.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Facility.h"
 #include "shared/components/Identity.h"
@@ -137,36 +138,56 @@ void SpaceFlight::OnEnter() {
     // the same process (architecture.md 12.29 -- quit to main menu, then start a new game)
     // populates the new system on top of whatever `world_`/`clock_` still held from the last one,
     // producing two suns and two players sharing a registry. §12.29 imposes this requirement on
-    // step 1 even though the quit-to-menu path itself lands later.
-    world_ = SystemWorld("sol", "Sol");
+    // step 1 even though the quit-to-menu path itself lands later. Also covers features.md 1.2's
+    // re-entrancy rule for the prologue specifically: PopulatePrologueSystem below is called
+    // against this same freshly-reset `world_`, so playing it twice in one process never leaves
+    // two fleets or two anomalies.
+    world_ = playPrologueRequested_ ? SystemWorld("prologue", "The Golden Age")
+                                    : SystemWorld("sol", "Sol");
     clock_ = core::FixedTimestep{};
     // architecture.md 12.29: a latch, mirroring MainMenu::OnEnter() resetting its own
     // startRequested_/quitRequested_ -- without this, quitting to the menu and starting a new
     // game would read the prior game's confirmed quit and bounce straight back out.
     returnToMenuRequested_ = false;
 
-    PopulateWorld("sol");
-
     // architecture.md 12.36: resolved here, before the rig exists, rather than passed as
     // FactionId{} the way SpawnPlayerAt's own `faction.empty() -> blueprint->faction` fallback
-    // would -- ResolveSpawnPlacement needs a real FactionId to match a friendly DockingBay
-    // against, and there is no rig yet to read one off of. Unreachable in practice: the starting
-    // blueprint always resolves against loaded content.
+    // would -- both branches below need a real FactionId (ResolveSpawnPlacement to match a
+    // friendly DockingBay against; PopulatePrologueSystem to author a same-faction fleet), and
+    // there is no rig yet to read one off of. Unreachable in practice: the starting blueprint
+    // always resolves against loaded content.
     const ShipBlueprint* startingBlueprint = content_.FindShip(BlueprintId(kStartingBlueprint));
     const FactionId faction =
         startingBlueprint != nullptr ? startingBlueprint->faction : FactionId{};
 
-    // Falls back to the reference position itself (unreachable in practice: WorldGen always
-    // spawns a friendly station) rather than propagating nullopt -- OnEnter has no per-tick retry
-    // to lean on the way SpawnSystem::ResolveRespawns does.
-    const Vec2 spawnPosition =
-        spawn_system::ResolveSpawnPlacement(world_.Registry(), faction, Vec2{0.0f, 0.0f})
-            .value_or(Vec2{0.0f, 0.0f});
+    Vec2 spawnPosition{0.0f, 0.0f};
+    float spawnRotation = 0.0f;
+    if (playPrologueRequested_) {
+        // features.md 1.2's "Play the prologue": the fixed, hand-authored system, not
+        // PopulateWorld's procedural one. There is no docking bay in it for
+        // ResolveSpawnPlacement below to resolve against, so the placement comes back directly.
+        const world_gen::ProloguePlacement placement =
+            world_gen::PopulatePrologueSystem(world_, content_, faction);
+        spawnPosition = placement.playerPosition;
+        spawnRotation = placement.playerRotation;
+    } else {
+        // features.md 1.2's "Skip to the frontier": simply today's existing default start.
+        PopulateWorld("sol");
+
+        // Falls back to the reference position itself (unreachable in practice: WorldGen always
+        // spawns a friendly station) rather than propagating nullopt -- OnEnter has no per-tick
+        // retry to lean on the way SpawnSystem::ResolveRespawns does.
+        spawnPosition =
+            spawn_system::ResolveSpawnPlacement(world_.Registry(), faction, Vec2{0.0f, 0.0f})
+                .value_or(Vec2{0.0f, 0.0f});
+    }
+
     // A fresh network for a fresh save -- there is no prior NetworkOwner to carry forward the way
     // WarpToSystem's own call below does (architecture.md 12.30.6: "the player's network is
     // bootstrapped once per save").
     const KnowledgeNetworkId network = knowledge_.Create(core::knowledge::NetworkOwnerKind::Player);
-    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, 0.0f, Wallet{}, network);
+    SpawnPlayerAt(BlueprintId(kStartingBlueprint), faction, spawnPosition, spawnRotation, Wallet{},
+                  network);
 }
 
 void SpaceFlight::Update(float realDeltaSeconds) {
@@ -198,6 +219,7 @@ void SpaceFlight::Update(float realDeltaSeconds) {
     // through.
     if (ui::bridge_view::DockedStation(registry) == entt::null) {
         ui::comms_panel::Update(registry);
+        ui::tutorial_hud::Update(registry);
     }
     ui::flight_controls::Poll(intents_, kLocalPlayerActorId,
                               render::CameraView{cameraTarget_, cameraZoom_});
@@ -417,6 +439,7 @@ void SpaceFlight::Draw() const {
     if (!docked) {
         ui::cockpit_hud::Draw(registry, diplomacy_, knowledge_, world_.SystemId(), camera);
         ui::comms_panel::Draw(registry);
+        ui::tutorial_hud::Draw(registry);
     }
     ui::avionics_menu::Draw(world_.Registry(), playerFaction);
     const std::optional<ui::bridge_view::GaugeStatus> activeGauge =

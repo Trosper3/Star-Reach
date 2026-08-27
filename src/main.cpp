@@ -88,6 +88,18 @@ GalaxyState MakeGalaxyState() {
     return state;
 }
 
+// features.md 1.2: RequestPlayPrologue is SpaceFlight-specific, so this reads MainMenu's choice
+// directly against `game` rather than through the IGameMode pointer RunGame otherwise uses. Split
+// out purely to keep RunGame under tools/ci/check_sizes.py's function-length cap, the same reason
+// LoadGameContent/MakeGalaxyState above are their own functions.
+void StartGame(sr::modes::IGameMode*& activeMode, const sr::modes::main_menu::MainMenu& menu,
+               sr::space::SpaceFlight& game) {
+    activeMode->OnExit();
+    game.RequestPlayPrologue(menu.PlayPrologueRequested());
+    activeMode = &game;
+    activeMode->OnEnter();
+}
+
 // The actual entry point, split from main() below so that function can stay exception-free
 // (clang-tidy's bugprone-exception-escape, section 8's CI/CD table). std::filesystem calls in
 // FindContentDirectory can throw std::filesystem_error on a genuinely broken environment (a
@@ -146,9 +158,7 @@ int RunGame() {
         }
 
         if (activeMode == &menu && menu.ShouldStartGame()) {
-            activeMode->OnExit();
-            activeMode = &game;
-            activeMode->OnEnter();
+            StartGame(activeMode, menu, game);
         }
 
         // architecture.md 12.29: the mirror of the transition above -- before this, the only

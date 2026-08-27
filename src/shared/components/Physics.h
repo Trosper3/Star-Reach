@@ -89,4 +89,12 @@ struct Corona {
     float damagePerSecond = 0.0f;  // At the centre, scaled by (1 - d/range)^2 outward.
 };
 
+// The trigger volume around a BodyKind::Anomaly (features.md 1.2's Act I). Mirrors Corona's own
+// "one shape, a distinct effect radius" split from WorldBody::radius -- the anomaly's rendered
+// disc and the range at which crossing it fires the prologue's cataclysm are not the same number.
+// modes/space/systems/TutorialSystem.cpp is the only reader.
+struct AnomalyField {
+    float triggerRadius = 0.0f;
+};
+
 }  // namespace sr

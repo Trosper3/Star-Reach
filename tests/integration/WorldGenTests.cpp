@@ -8,12 +8,14 @@
 #include "modes/space/factories/WorldGen.h"
 #include "modes/space/systems/OrbitSystem.h"
 #include "modes/space/systems/SpawnSystem.h"
+#include "shared/components/Commander.h"
 #include "shared/components/Docking.h"
 #include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Loot.h"
 #include "shared/components/Mining.h"
 #include "shared/components/Orbit.h"
+#include "shared/components/Party.h"
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Spawn.h"
@@ -21,9 +23,11 @@
 #include "shared/rig/CargoView.h"
 
 using Catch::Approx;
+using sr::AnomalyField;
 using sr::Asteroid;
 using sr::AsteroidComposition;
 using sr::BodyKind;
+using sr::Commander;
 using sr::DockingBay;
 using sr::FactionId;
 using sr::FactionRef;
@@ -32,6 +36,8 @@ using sr::Health;
 using sr::HitRadius;
 using sr::Length;
 using sr::OrbitBody;
+using sr::PartyLeader;
+using sr::PartyMember;
 using sr::PlayerControlled;
 using sr::RespawnPending;
 using sr::Rig;
@@ -66,6 +72,66 @@ TEST_CASE("PopulateSystem seeds exactly one sun", "[world_gen]") {
 
     const auto view = world.Registry().view<GravityWell>();
     CHECK(std::distance(view.begin(), view.end()) == 1);
+}
+
+TEST_CASE("PopulatePrologueSystem seeds exactly one anomaly and one fleet",
+          "[world_gen][prologue]") {
+    const ContentLibrary content = Content();
+    SystemWorld world("prologue");
+    entt::registry& registry = world.Registry();
+
+    world_gen::PopulatePrologueSystem(world, content, FactionId("aegis_directorate"));
+
+    const auto anomalies = registry.view<AnomalyField, WorldBody>();
+    REQUIRE(std::distance(anomalies.begin(), anomalies.end()) == 1);
+    for (auto [entity, field, body] : anomalies.each()) {
+        (void)entity;
+        CHECK(field.triggerRadius > 0.0f);
+        CHECK(body.kind == BodyKind::Anomaly);
+    }
+
+    const auto leaders = registry.view<PartyLeader>();
+    REQUIRE(std::distance(leaders.begin(), leaders.end()) == 1);
+    for (auto [entity, leader] : leaders.each()) {
+        (void)entity;
+        CHECK(leader.members.size() == 2);
+    }
+
+    const auto members = registry.view<PartyMember>();
+    CHECK(std::distance(members.begin(), members.end()) == 2);
+
+    const auto commanders = registry.view<Commander>();
+    REQUIRE(std::distance(commanders.begin(), commanders.end()) == 1);
+
+    // Every rig this function spawned shares the requested faction (features.md 1.2: "a fleet of
+    // same-faction NPCs").
+    for (auto [entity, rig, faction] : registry.view<Rig, FactionRef>().each()) {
+        (void)entity;
+        (void)rig;
+        CHECK(faction.id == FactionId("aegis_directorate"));
+    }
+}
+
+TEST_CASE("PopulatePrologueSystem is re-entrant against a freshly reset world",
+          "[world_gen][prologue]") {
+    // architecture.md 12.29 / §12.24 step 1's re-entrancy rule, applied to features.md 1.2's own
+    // "the prologue must be re-entrant" requirement: two SystemWorlds populated independently
+    // (mirroring SpaceFlight::OnEnter's own world_ reset before every populate) must each end up
+    // with exactly one fleet and one anomaly, never a cumulative count.
+    const ContentLibrary content = Content();
+    const FactionId faction("aegis_directorate");
+
+    SystemWorld worldA("prologue");
+    world_gen::PopulatePrologueSystem(worldA, content, faction);
+    SystemWorld worldB("prologue");
+    world_gen::PopulatePrologueSystem(worldB, content, faction);
+
+    for (const SystemWorld* world : {&worldA, &worldB}) {
+        const auto anomalies = world->Registry().view<AnomalyField>();
+        CHECK(std::distance(anomalies.begin(), anomalies.end()) == 1);
+        const auto leaders = world->Registry().view<PartyLeader>();
+        CHECK(std::distance(leaders.begin(), leaders.end()) == 1);
+    }
 }
 
 TEST_CASE("PopulateSystem seeds a plausible number of planets", "[world_gen]") {
