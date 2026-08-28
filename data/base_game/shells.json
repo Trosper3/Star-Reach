@@ -7,8 +7,8 @@
       "hull": 120.0,
       "mass": 40.0,
       "moduleSlots": 1,
-      "radius": 12.0,
-      "hullRadius": 25.0,
+      "radius": 20.0,
+      "hullRadius": 45.0,
       "spriteLayer": "fighter/chassis_light",
       "acceptsKinds": []
     },
@@ -64,8 +64,8 @@
       "hull": 300.0,
       "mass": 150.0,
       "moduleSlots": 1,
-      "radius": 75.0,
-      "hullRadius": 150.0,
+      "radius": 90.0,
+      "hullRadius": 110.0,
       "spriteLayer": "station/core_hub",
       "acceptsKinds": []
     },
