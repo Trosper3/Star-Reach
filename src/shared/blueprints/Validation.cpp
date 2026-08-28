@@ -142,9 +142,16 @@ void CheckAdjacency(const ShipBlueprint& bp, ValidationResult& result) {
 }
 
 // Rule 10. Pairwise across every mount whose shell resolves: hit circles must stay disjoint, or
-// two overlapping hardpoints could never be aimed at separately (features.md 3.5). Positions are
-// MountBlueprint::localOffset, which is already root-relative (RigBlueprint.h), so no rig
-// transform is needed to compare two mounts' centres.
+// two overlapping hardpoints could never be aimed at separately (features.md 3.5) -- EXCEPT a
+// mount and its own `attachedTo` parent, which are allowed (and, per features.md 3.5's later
+// "sits on/under what it attaches to" pass, meant) to overlap: ProjectileSystem::FindHit already
+// resolves that case by "most-specific-wins" (the smaller hit circle takes the hit over its own
+// structural backstop, that function's own comment on a turret sitting in front of its chassis),
+// so nothing downstream assumed disjoint circles for this one relationship. Distinct siblings
+// (two mounts that both attach to the same parent, but not to each other) keep the disjoint
+// requirement -- that is what still keeps a turret aimable apart from the turret next to it.
+// Positions are MountBlueprint::localOffset, which is already root-relative (RigBlueprint.h), so
+// no rig transform is needed to compare two mounts' centres.
 void CheckSeparation(const ShipBlueprint& bp, const DefLibrary& library, ValidationResult& result) {
     const auto& mounts = bp.rig.mounts;
     for (std::size_t i = 0; i < mounts.size(); ++i) {
@@ -156,6 +163,10 @@ void CheckSeparation(const ShipBlueprint& bp, const DefLibrary& library, Validat
             const ShellDef* shellB = library.FindShell(mounts[j].shell);
             if (shellB == nullptr) {
                 continue;
+            }
+            if (mounts[j].attachedTo.str() == mounts[i].id.str() ||
+                mounts[i].attachedTo.str() == mounts[j].id.str()) {
+                continue;  // Directly attached -- overlap is legal (see comment above).
             }
             const float distance = Distance(mounts[i].localOffset, mounts[j].localOffset);
             const float minSeparation = shellA->radius + shellB->radius;

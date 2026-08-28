@@ -64,7 +64,7 @@
           "shell": "shell_cockpit",
           "attachedTo": "hold",
           "modules": ["crew_officer_i"],
-          "localOffset": { "x": -22.0, "y": 38.1051 }
+          "localOffset": { "x": -18.0, "y": 31.177 }
         }
       ]
     },
