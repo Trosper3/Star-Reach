@@ -2699,6 +2699,7 @@ settled.
 | **3** | **Time-to-milestone pacing** — first custom Template, first capital, first owned system. Deliberately left to be **read off `tools/economy_sim`'s derived curve**, not declared in advance | Balance passes, not construction | `features.md` §9 |
 | **4** | **Whether §9's multiverse expansion ever gets a lore hook.** Decided: base game is one galaxy, multiverse is real future scope. `lore.md` needs no change *now* | Nothing | `features.md` §9 |
 | **5** | **Whether a carried shell item can be installed at a mount, swapping in a different already-owned shell.** Raised 2026-08-23. Related to but distinct from the existing shell-grade-upgrade question above it in `features.md` §2.4 — this is a swap, not an upgrade. Needs a compatibility model for which shells fit which mounts (none exists — `MountBlueprint` authors exactly one `ShellId` per mount today) and a new `ItemKind::Shell` before it is buildable | A future Engineering task (would extend P4-12) | `features.md` §2.4 · `architecture.md` §12.30.5 "Shell items — an open question, distinct from the closed one" |
+| **6** | **In-system logistics — bridging abstract faction fleets into live gameplay.** Raised 2026-08-27 as issue #254. `DistressSystem` and §6.4's "NPC → NPC" abstract-resolution roll already exist to build on, but three things are unspec'd: where an in-transit faction fleet is tracked as an abstract record between systems, what a route-intersection trigger instantiates (full `NpcFactory` party vs. something lighter), and how a live encounter's outcome reconciles back into the abstract faction-economy ledger. The issue itself calls this a placeholder for a design pass, not yet in `Home:`/`Types:`/`Systems:`/`Tests:` shape | A future Phase 9 task (would sit beside P9-01's coarse tick and P9-02's operational facets) | issue #254 |
 
 **Not open, despite appearances:** capture/ownership transfer (settled as boarding-in-place
 2026-08-11 — `features.md` §9's entry was stale and has been fixed, see P11-07), the save model, the damage-type roster,
@@ -2801,67 +2802,67 @@ reads.
 
 | Task | Title | Issue | Merged |
 |---|---|:---:|:---:|
-| P0-01 | World bodies, hittability and the star hazard | #110 |  |
+| P0-01 | World bodies, hittability and the star hazard | #110 | ✅ |
 | P0-02 | The shared widget layer | #111 | ✅ |
-| P0-03 | Galaxy topology | #112 |  |
-| P0-04 | The schedule and `Docked` correctness sweep | #113 |  |
+| P0-03 | Galaxy topology | #112 | ✅ |
+| P0-04 | The schedule and `Docked` correctness sweep | #113 | ✅ |
 | P0-05 | The hardpoint lifecycle defect pack | #114 | ✅ |
 | P0-06 | `MountedModules` is the single mount record | #115 | ✅ |
-| P0-07 | Delete the `mobile` movement gate | #116 |  |
+| P0-07 | Delete the `mobile` movement gate | #116 | ✅ |
 | P0-08 | Rig aggregation: `RecomputeRigTotals` and the Sum/Max rule | #117 | ✅ |
-| P0-09 | Four new `ModuleKind`s for systems that have no module | #118 |  |
+| P0-09 | Four new `ModuleKind`s for systems that have no module | #118 | ✅ |
 | P0-10 | `CargoHold` moves onto the bay | #119 | ✅ |
 | P0-11 | The repair path defect pack | #120 | ✅ |
 | P0-12 | The research chain defect pack | #121 | ✅ |
-| P0-13 | The `Element` / `Material` rename — one pass or none | #122 |  |
-| P0-14 | Delete `TickCoarse` until it has a driver | #123 |  |
+| P0-13 | The `Element` / `Material` rename — one pass or none | #122 | ✅ |
+| P0-14 | Delete `TickCoarse` until it has a driver | #123 | ✅ |
 | P0-15 | Group 2 leftovers: text, tabs and one-liners | #124 | ✅ |
-| P0-16 | The schedule is tested | #125 |  |
-| P1-01 | `OnEnter`: the world and the player | #126 |  |
-| P1-02 | Player input through the intent queue | #127 |  |
-| P1-03 | Weapon groups, and no automatic target lock | #128 |  |
-| P1-04 | Camera, and the two render defects | #129 |  |
+| P0-16 | The schedule is tested | #125 | ✅ |
+| P1-01 | `OnEnter`: the world and the player | #126 | ✅ |
+| P1-02 | Player input through the intent queue | #127 | ✅ |
+| P1-03 | Weapon groups, and no automatic target lock | #128 | ✅ |
+| P1-04 | Camera, and the two render defects | #129 | ✅ |
 | P1-05 | A station to dock at | #130 | ✅ |
-| P1-06 | Death, respawn and the cull | #131 |  |
-| P1-07 | The system menu and quit to main menu | #132 |  |
-| P1-08 | M1 verification pass | #133 |  |
-| P2-01 | The damage-type effect table, and Ion | #165 |  |
-| P2-09 | What a kill leaves behind — the wreck path and the reaper | #166 |  |
-| P2-02 | Docked cascade destruction | #167 |  |
-| P2-03 | Shields, narrow-phase collision and the structural cascade | #168 |  |
-| P2-04 | Structural integrity and honest hit resolution | #169 |  |
-| P2-05 | Object scale, `hullRadius` and draw layers | #170 |  |
-| P2-06 | The crew shell | #171 |  |
+| P1-06 | Death, respawn and the cull | #131 | ✅ |
+| P1-07 | The system menu and quit to main menu | #132 | ✅ |
+| P1-08 | M1 verification pass | #133 | ✅ |
+| P2-01 | The damage-type effect table, and Ion | #165 | ✅ |
+| P2-09 | What a kill leaves behind — the wreck path and the reaper | #166 | ✅ |
+| P2-02 | Docked cascade destruction | #167 | ✅ |
+| P2-03 | Shields, narrow-phase collision and the structural cascade | #168 | ✅ |
+| P2-04 | Structural integrity and honest hit resolution | #169 | ✅ |
+| P2-05 | Object scale, `hullRadius` and draw layers | #170 | ✅ |
+| P2-06 | The crew shell | #171 | ✅ |
 | P2-12 | Directional ECM — click-and-hold jamming | #256 |  |
-| P2-07 | Capture — boarding in place | #172 |  |
-| P2-08 | Power allocation — the half the player commands | #173 |  |
+| P2-07 | Capture — boarding in place | #172 | ✅ |
+| P2-08 | Power allocation — the half the player commands | #173 | ✅ |
 | P2-10 | The opposition state machine | #174 | ✅ |
-| P2-11 | Faction commanders exist, and hold a system | #175 |  |
+| P2-11 | Faction commanders exist, and hold a system | #175 | ✅ |
 | P3-01 | The five null pointers, seeded relations, and the Reapers | #188 | ✅ |
 | P3-02 | Combat, docking and the map consult the matrix | #189 | ✅ |
 | P3-03 | Gameplay writes relations | #190 | ✅ |
 | P3-04 | The player's faction moves onto the player record | #192 | ✅ |
 | P3-05 | Fog of war migrates to knowledge networks | #191 | ✅ |
-| P4-01 | The router | #199 |  |
-| P4-02 | Screen 1 — the Bay | #200 |  |
-| P4-03 | Screen 2 — Storage | #201 |  |
-| P4-04 | Screen 3 — Repair | #202 |  |
-| P4-05 | Screen 4 — Engineering | #203 |  |
-| P4-06 | Screen 6 — Research, and its five missing producers | #204 |  |
-| P4-07 | Screen 5 — Manufacturing, Draft half | #205 |  |
-| P4-08 | The two flight overlays | #206 |  |
+| P4-01 | The router | #199 | ✅ |
+| P4-02 | Screen 1 — the Bay | #200 | ✅ |
+| P4-03 | Screen 2 — Storage | #201 | ✅ |
+| P4-04 | Screen 3 — Repair | #202 | ✅ |
+| P4-05 | Screen 4 — Engineering | #203 | ✅ |
+| P4-06 | Screen 6 — Research, and its five missing producers | #204 | ✅ |
+| P4-07 | Screen 5 — Manufacturing, Draft half | #205 | ✅ |
+| P4-08 | The two flight overlays | #206 | ✅ |
 | P4-09 | M3 verification pass | #207 | ✅ |
-| P4-10 | Router — gate a tab on its screen shipping | #219 |  |
-| P4-11 | Storage — sibling-hold selection | #220 |  |
-| P4-12 | Engineering — editing the station's own rig | #221 |  |
-| P4-13 | Research — the Codex | #222 |  |
+| P4-10 | Router — gate a tab on its screen shipping | #219 | ✅ |
+| P4-11 | Storage — sibling-hold selection | #220 | ✅ |
+| P4-12 | Engineering — editing the station's own rig | #221 | ✅ |
+| P4-13 | Research — the Codex | #222 | ✅ |
 | P4-14 | NPC logistics — spreading stock across holds | #223 (design issue, closed 2026-08-25 — deferred, see §12.30.3) |  |
-| P5-01 | The status display | #233 |  |
-| P5-02 | The flight HUD | #234 |  |
-| P5-03 | The comms surface | #235 |  |
-| P5-04 | Multi-scale territory navigation | #236 |  |
-| P5-05 | Icon culling and substitution | #237 |  |
-| P5-06 | Act I — the prologue | #238 |  |
+| P5-01 | The status display | #233 | ✅ |
+| P5-02 | The flight HUD | #234 | ✅ |
+| P5-03 | The comms surface | #235 | ✅ |
+| P5-04 | Multi-scale territory navigation | #236 | ✅ |
+| P5-05 | Icon culling and substitution | #237 | ✅ |
+| P5-06 | Act I — the prologue | #238 | ✅ |
 | P5-07 | Signature, detection, and ECM | #255 |  |
 | P6-01 | `Grade` in the taxonomy (§12.19a) | #240 |  |
 | P6-02 | Stat pools and rolled quality (§12.21) | #241 |  |
@@ -2905,7 +2906,7 @@ reads.
 | P10-06 | M8 verification pass |  |  |
 | P11-01 | The element roster |  |  |
 | P11-02 | The material families |  |  |
-| P11-03 | The module roster |  |  |
+| P11-03 | The module roster | #285 (filed retroactively — implemented in PR #284 ahead of P6-02/P11-02 dependencies, see issue) |  |
 | P11-04 | The shell roster and the faction registry |  |  |
 | P11-05 | The preset ship roster |  |  |
 | P11-06 | Nebulae, planet types and hazard content |  |  |
