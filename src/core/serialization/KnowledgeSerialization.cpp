@@ -39,6 +39,29 @@ bool GetStringSet(ByteReader& reader, std::unordered_set<std::string>& out) {
     return true;
 }
 
+// The one enum this pipeline decodes from untrusted bytes. Every other field is a POD whose whole
+// value range is legal, and every string is length-checked by ByteReader; an enum is the one shape
+// where a byte that decoded fine is still not a value the type can hold. A corrupt .sav yielding
+// ownerKind = 200 would be UB the moment it reached a switch, so this rejects the save the way
+// Taxonomy's FromString rejects an unknown token -- returning false rather than defaulting to the
+// first enumerator, which would silently relabel a Faction network as the Player's.
+//
+// ByteStream.h's header comment makes this load-bearing beyond save files: the same ByteReader is
+// the wire parser once net/ un-defers (Law 9), where the bytes arrive from a peer rather than
+// from disk.
+bool GetOwnerKind(ByteReader& reader, NetworkOwnerKind& out) {
+    const uint8_t raw = reader.Get<uint8_t>();
+    if (!reader.Ok()) {
+        return false;
+    }
+    switch (static_cast<NetworkOwnerKind>(raw)) {
+        case NetworkOwnerKind::Player:
+        case NetworkOwnerKind::Commander:
+        case NetworkOwnerKind::Faction: out = static_cast<NetworkOwnerKind>(raw); return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 void Encode(ByteWriter& writer, const KnowledgeNetwork& network) {
@@ -49,8 +72,7 @@ void Encode(ByteWriter& writer, const KnowledgeNetwork& network) {
 }
 
 bool Decode(ByteReader& reader, KnowledgeNetwork& out) {
-    out.ownerKind = static_cast<NetworkOwnerKind>(reader.Get<uint8_t>());
-    if (!reader.Ok()) {
+    if (!GetOwnerKind(reader, out.ownerKind)) {
         return false;
     }
     if (!GetStringSet(reader, out.unlockedBlueprints)) {

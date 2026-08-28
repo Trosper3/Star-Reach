@@ -8,6 +8,7 @@
 
 #include "core/knowledge/KnowledgeNetwork.h"
 #include "shared/blueprints/Ids.h"
+#include "shared/ui/Fonts.h"
 #include "shared/ui/Row.h"
 
 namespace sr::core {
@@ -108,8 +109,13 @@ void Update(entt::registry& registry, entt::entity vesselRoot,
             const core::knowledge::KnowledgeStore& knowledge, const core::ContentLibrary& content);
 
 // Draws the Codex panel when open: title and close button, the search field, faction/tier filter
-// chips, and one ListView per EntryKind (Modules, Shells, Materials). No-op while closed.
+// chips, and one bordered-icon-box row list per EntryKind (Modules, Shells, Materials) -- the same
+// row treatment Storage's/Research's own visual-chrome pass (issues #225/#227) gave every other
+// docked screen, in place of the generic sr::ui::ListView this file drew before. `fonts` is
+// shared/ui/Fonts.h's Orbitron/Exo2 pair, threaded in the same way SpaceFlight.cpp already threads
+// it to every other migrated screen. No-op while closed.
 void Draw(const entt::registry& registry, entt::entity vesselRoot,
-          const core::knowledge::KnowledgeStore& knowledge, const core::ContentLibrary& content);
+          const core::knowledge::KnowledgeStore& knowledge, const core::ContentLibrary& content,
+          const sr::ui::Fonts& fonts);
 
 }  // namespace sr::space::ui::codex_screen

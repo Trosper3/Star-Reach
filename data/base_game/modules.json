@@ -22,8 +22,14 @@
       "mass": 26.0,
       "powerDraw": 30.0,
       "powerLevels": {
-        "reduced": { "drawMultiplier": 0.6, "effectMultiplier": 0.7 },
-        "boosted": { "drawMultiplier": 1.8, "effectMultiplier": 1.6 }
+        "reduced": {
+          "drawMultiplier": 0.6,
+          "effectMultiplier": 0.7
+        },
+        "boosted": {
+          "drawMultiplier": 1.8,
+          "effectMultiplier": 1.6
+        }
       },
       "engine": {
         "thrustNewtons": 5200.0,
@@ -190,6 +196,1623 @@
         "command": 0.1,
         "sensors": 0.1,
         "repair": 0.1
+      }
+    },
+    {
+      "id": "autocannon_ii",
+      "displayName": "Autocannon II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 25.0,
+      "powerDraw": 15.0,
+      "weapon": {
+        "damage": 14.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.13,
+        "projectileSpeed": 1150.0,
+        "rangeUnits": 660.0,
+        "spreadRadians": 0.045,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "autocannon_iii",
+      "displayName": "Autocannon III",
+      "kind": "weapon",
+      "tier": 3,
+      "mass": 33.0,
+      "powerDraw": 22.0,
+      "weapon": {
+        "damage": 21.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.12,
+        "projectileSpeed": 1200.0,
+        "rangeUnits": 720.0,
+        "spreadRadians": 0.04,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "railgun_i",
+      "displayName": "Railgun I",
+      "kind": "weapon",
+      "mass": 34.0,
+      "powerDraw": 45.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.5,
+          "effectMultiplier": 0.55
+        },
+        "boosted": {
+          "drawMultiplier": 1.7,
+          "effectMultiplier": 1.35
+        }
+      },
+      "weapon": {
+        "damage": 85.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 2.4,
+        "projectileSpeed": 2200.0,
+        "rangeUnits": 1600.0,
+        "spreadRadians": 0.004,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "railgun_ii",
+      "displayName": "Railgun II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 45.0,
+      "powerDraw": 68.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.5,
+          "effectMultiplier": 0.55
+        },
+        "boosted": {
+          "drawMultiplier": 1.7,
+          "effectMultiplier": 1.35
+        }
+      },
+      "weapon": {
+        "damage": 135.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 2.2,
+        "projectileSpeed": 2400.0,
+        "rangeUnits": 1800.0,
+        "spreadRadians": 0.0035,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "railgun_iii",
+      "displayName": "Railgun III",
+      "kind": "weapon",
+      "tier": 3,
+      "mass": 59.0,
+      "powerDraw": 96.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.5,
+          "effectMultiplier": 0.55
+        },
+        "boosted": {
+          "drawMultiplier": 1.7,
+          "effectMultiplier": 1.35
+        }
+      },
+      "weapon": {
+        "damage": 205.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 2.0,
+        "projectileSpeed": 2600.0,
+        "rangeUnits": 2000.0,
+        "spreadRadians": 0.003,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "flak_battery_i",
+      "displayName": "Flak Battery I",
+      "kind": "weapon",
+      "mass": 22.0,
+      "powerDraw": 16.0,
+      "weapon": {
+        "damage": 5.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.9,
+        "projectileSpeed": 800.0,
+        "rangeUnits": 420.0,
+        "spreadRadians": 0.22,
+        "projectilesPerShot": 6
+      }
+    },
+    {
+      "id": "flak_battery_ii",
+      "displayName": "Flak Battery II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 29.0,
+      "powerDraw": 24.0,
+      "weapon": {
+        "damage": 7.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.85,
+        "projectileSpeed": 850.0,
+        "rangeUnits": 470.0,
+        "spreadRadians": 0.2,
+        "projectilesPerShot": 8
+      }
+    },
+    {
+      "id": "pulse_cannon_ii",
+      "displayName": "Pulse Cannon II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 19.0,
+      "powerDraw": 27.0,
+      "weapon": {
+        "damage": 24.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.33,
+        "projectileSpeed": 960.0,
+        "rangeUnits": 820.0,
+        "spreadRadians": 0.013,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "pulse_cannon_iii",
+      "displayName": "Pulse Cannon III",
+      "kind": "weapon",
+      "tier": 3,
+      "mass": 25.0,
+      "powerDraw": 39.0,
+      "weapon": {
+        "damage": 36.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.3,
+        "projectileSpeed": 1020.0,
+        "rangeUnits": 900.0,
+        "spreadRadians": 0.011,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "arc_beam_i",
+      "displayName": "Arc Beam I",
+      "kind": "weapon",
+      "mass": 16.0,
+      "powerDraw": 30.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.55,
+          "effectMultiplier": 0.5
+        },
+        "boosted": {
+          "drawMultiplier": 2.0,
+          "effectMultiplier": 1.5
+        }
+      },
+      "weapon": {
+        "damage": 3.5,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.06,
+        "projectileSpeed": 3000.0,
+        "rangeUnits": 480.0,
+        "spreadRadians": 0.002,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "arc_beam_ii",
+      "displayName": "Arc Beam II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 21.0,
+      "powerDraw": 45.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.55,
+          "effectMultiplier": 0.5
+        },
+        "boosted": {
+          "drawMultiplier": 2.0,
+          "effectMultiplier": 1.5
+        }
+      },
+      "weapon": {
+        "damage": 5.5,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.055,
+        "projectileSpeed": 3200.0,
+        "rangeUnits": 530.0,
+        "spreadRadians": 0.002,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "arc_beam_iii",
+      "displayName": "Arc Beam III",
+      "kind": "weapon",
+      "tier": 3,
+      "mass": 27.0,
+      "powerDraw": 64.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.55,
+          "effectMultiplier": 0.5
+        },
+        "boosted": {
+          "drawMultiplier": 2.0,
+          "effectMultiplier": 1.5
+        }
+      },
+      "weapon": {
+        "damage": 8.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.05,
+        "projectileSpeed": 3400.0,
+        "rangeUnits": 580.0,
+        "spreadRadians": 0.0015,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "plasma_lance_i",
+      "displayName": "Plasma Lance I",
+      "kind": "weapon",
+      "mass": 28.0,
+      "powerDraw": 52.0,
+      "weapon": {
+        "damage": 60.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 1.5,
+        "projectileSpeed": 700.0,
+        "rangeUnits": 900.0,
+        "spreadRadians": 0.01,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "plasma_lance_ii",
+      "displayName": "Plasma Lance II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 37.0,
+      "powerDraw": 78.0,
+      "weapon": {
+        "damage": 95.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 1.4,
+        "projectileSpeed": 760.0,
+        "rangeUnits": 980.0,
+        "spreadRadians": 0.009,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "ion_lance_i",
+      "displayName": "Ion Lance I",
+      "kind": "weapon",
+      "mass": 24.0,
+      "powerDraw": 38.0,
+      "weapon": {
+        "damage": 40.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 1.1,
+        "projectileSpeed": 1400.0,
+        "rangeUnits": 1000.0,
+        "spreadRadians": 0.008,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "ion_lance_ii",
+      "displayName": "Ion Lance II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 32.0,
+      "powerDraw": 57.0,
+      "weapon": {
+        "damage": 62.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 1.05,
+        "projectileSpeed": 1500.0,
+        "rangeUnits": 1100.0,
+        "spreadRadians": 0.007,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "ion_lance_iii",
+      "displayName": "Ion Lance III",
+      "kind": "weapon",
+      "tier": 3,
+      "mass": 42.0,
+      "powerDraw": 80.0,
+      "weapon": {
+        "damage": 92.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 1.0,
+        "projectileSpeed": 1600.0,
+        "rangeUnits": 1200.0,
+        "spreadRadians": 0.006,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "ion_burst_i",
+      "displayName": "Ion Burst I",
+      "kind": "weapon",
+      "mass": 15.0,
+      "powerDraw": 20.0,
+      "weapon": {
+        "damage": 8.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 0.22,
+        "projectileSpeed": 1200.0,
+        "rangeUnits": 620.0,
+        "spreadRadians": 0.03,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "ion_burst_ii",
+      "displayName": "Ion Burst II",
+      "kind": "weapon",
+      "tier": 2,
+      "mass": 20.0,
+      "powerDraw": 30.0,
+      "weapon": {
+        "damage": 12.5,
+        "damageType": "ion",
+        "fireIntervalSeconds": 0.2,
+        "projectileSpeed": 1280.0,
+        "rangeUnits": 680.0,
+        "spreadRadians": 0.027,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "aegis_lancer_ii",
+      "displayName": "Directorate Lancer",
+      "kind": "weapon",
+      "faction": "aegis_directorate",
+      "tier": 2,
+      "mass": 23.0,
+      "powerDraw": 34.0,
+      "weapon": {
+        "damage": 30.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.4,
+        "projectileSpeed": 1400.0,
+        "rangeUnits": 1050.0,
+        "spreadRadians": 0.002,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "kore_breaker_ii",
+      "displayName": "Kore Hullbreaker",
+      "kind": "weapon",
+      "faction": "kore_industries",
+      "tier": 2,
+      "mass": 52.0,
+      "powerDraw": 40.0,
+      "weapon": {
+        "damage": 165.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 2.9,
+        "projectileSpeed": 1600.0,
+        "rangeUnits": 1250.0,
+        "spreadRadians": 0.012,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "pyre_censer_ii",
+      "displayName": "Pyre Censer",
+      "kind": "weapon",
+      "faction": "pyre_ascendancy",
+      "tier": 2,
+      "mass": 30.0,
+      "powerDraw": 58.0,
+      "weapon": {
+        "damage": 48.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.5,
+        "projectileSpeed": 620.0,
+        "rangeUnits": 480.0,
+        "spreadRadians": 0.06,
+        "projectilesPerShot": 3
+      }
+    },
+    {
+      "id": "forgotten_scrapgun_i",
+      "displayName": "Scrapgun",
+      "kind": "weapon",
+      "faction": "the_forgotten",
+      "mass": 11.0,
+      "powerDraw": 7.0,
+      "weapon": {
+        "damage": 7.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.24,
+        "projectileSpeed": 720.0,
+        "rangeUnits": 380.0,
+        "spreadRadians": 0.11,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "concordance_disruptor_ii",
+      "displayName": "Concordance Disruptor",
+      "kind": "weapon",
+      "faction": "ai_concordance",
+      "tier": 2,
+      "mass": 21.0,
+      "powerDraw": 33.0,
+      "weapon": {
+        "damage": 58.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 0.95,
+        "projectileSpeed": 1800.0,
+        "rangeUnits": 1150.0,
+        "spreadRadians": 0.004,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "meridian_defender_ii",
+      "displayName": "Meridian Defender",
+      "kind": "weapon",
+      "faction": "meridian_star_corps",
+      "tier": 2,
+      "mass": 17.0,
+      "powerDraw": 16.0,
+      "weapon": {
+        "damage": 19.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 0.32,
+        "projectileSpeed": 1000.0,
+        "rangeUnits": 780.0,
+        "spreadRadians": 0.02,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "voidwalker_riftlance_iii",
+      "displayName": "Riftlance",
+      "kind": "weapon",
+      "faction": "voidwalkers",
+      "tier": 3,
+      "mass": 26.0,
+      "powerDraw": 71.0,
+      "weapon": {
+        "damage": 110.0,
+        "damageType": "ion",
+        "fireIntervalSeconds": 1.3,
+        "projectileSpeed": 2000.0,
+        "rangeUnits": 1450.0,
+        "spreadRadians": 0.003,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "zenith_longbore_iii",
+      "displayName": "Zenith Longbore",
+      "kind": "weapon",
+      "faction": "zenith_collective",
+      "tier": 3,
+      "mass": 48.0,
+      "powerDraw": 84.0,
+      "weapon": {
+        "damage": 190.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 2.6,
+        "projectileSpeed": 3000.0,
+        "rangeUnits": 2600.0,
+        "spreadRadians": 0.001,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "edenian_thornburst_ii",
+      "displayName": "Thornburst",
+      "kind": "weapon",
+      "faction": "edenian_pact",
+      "tier": 2,
+      "mass": 26.0,
+      "powerDraw": 21.0,
+      "weapon": {
+        "damage": 6.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.75,
+        "projectileSpeed": 900.0,
+        "rangeUnits": 500.0,
+        "spreadRadians": 0.18,
+        "projectilesPerShot": 9
+      }
+    },
+    {
+      "id": "reaper_unmaker_iii",
+      "displayName": "Unmaker",
+      "kind": "weapon",
+      "faction": "reapers",
+      "tier": 3,
+      "mass": 61.0,
+      "powerDraw": 105.0,
+      "weapon": {
+        "damage": 240.0,
+        "damageType": "energy",
+        "fireIntervalSeconds": 1.8,
+        "projectileSpeed": 1100.0,
+        "rangeUnits": 1300.0,
+        "spreadRadians": 0.008,
+        "projectilesPerShot": 1
+      }
+    },
+    {
+      "id": "deflector_ii",
+      "displayName": "Kinetic Deflector II",
+      "kind": "shield_generator",
+      "tier": 2,
+      "mass": 27.0,
+      "powerDraw": 53.0,
+      "shield": {
+        "capacity": 290.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 18.0,
+        "rechargeDelaySeconds": 3.2,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "deflector_iii",
+      "displayName": "Kinetic Deflector III",
+      "kind": "shield_generator",
+      "tier": 3,
+      "mass": 35.0,
+      "powerDraw": 76.0,
+      "shield": {
+        "capacity": 440.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 26.0,
+        "rechargeDelaySeconds": 3.0,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "dissipator_i",
+      "displayName": "Energy Dissipator I",
+      "kind": "shield_generator",
+      "mass": 19.0,
+      "powerDraw": 38.0,
+      "shield": {
+        "capacity": 165.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 14.0,
+        "rechargeDelaySeconds": 3.2,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "dissipator_ii",
+      "displayName": "Energy Dissipator II",
+      "kind": "shield_generator",
+      "tier": 2,
+      "mass": 26.0,
+      "powerDraw": 57.0,
+      "shield": {
+        "capacity": 265.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 21.0,
+        "rechargeDelaySeconds": 3.0,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "dissipator_iii",
+      "displayName": "Energy Dissipator III",
+      "kind": "shield_generator",
+      "tier": 3,
+      "mass": 34.0,
+      "powerDraw": 82.0,
+      "shield": {
+        "capacity": 400.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 30.0,
+        "rechargeDelaySeconds": 2.8,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "barrier_kinetic_i",
+      "displayName": "Kinetic Barrier I",
+      "kind": "shield_generator",
+      "mass": 8.0,
+      "powerDraw": 12.0,
+      "shield": {
+        "capacity": 90.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 9.0,
+        "rechargeDelaySeconds": 2.5,
+        "coverage": "personal"
+      }
+    },
+    {
+      "id": "barrier_energy_i",
+      "displayName": "Energy Barrier I",
+      "kind": "shield_generator",
+      "mass": 8.0,
+      "powerDraw": 13.0,
+      "shield": {
+        "capacity": 82.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 10.0,
+        "rechargeDelaySeconds": 2.4,
+        "coverage": "personal"
+      }
+    },
+    {
+      "id": "bubble_projector_i",
+      "displayName": "Bubble Projector I",
+      "kind": "shield_generator",
+      "mass": 30.0,
+      "powerDraw": 55.0,
+      "shield": {
+        "capacity": 220.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 11.0,
+        "rechargeDelaySeconds": 4.0,
+        "coverage": "bubble",
+        "coverageRadius": 60.0
+      }
+    },
+    {
+      "id": "bubble_projector_ii",
+      "displayName": "Bubble Projector II",
+      "kind": "shield_generator",
+      "tier": 2,
+      "mass": 39.0,
+      "powerDraw": 80.0,
+      "shield": {
+        "capacity": 340.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 16.0,
+        "rechargeDelaySeconds": 3.8,
+        "coverage": "bubble",
+        "coverageRadius": 85.0
+      }
+    },
+    {
+      "id": "aegis_bulwark_iii",
+      "displayName": "Directorate Bulwark",
+      "kind": "shield_generator",
+      "faction": "aegis_directorate",
+      "tier": 3,
+      "mass": 44.0,
+      "powerDraw": 95.0,
+      "shield": {
+        "capacity": 560.0,
+        "absorbs": "kinetic",
+        "rechargePerSecond": 24.0,
+        "rechargeDelaySeconds": 3.6,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "voidwalker_phase_veil_ii",
+      "displayName": "Phase Veil",
+      "kind": "shield_generator",
+      "faction": "voidwalkers",
+      "tier": 2,
+      "mass": 17.0,
+      "powerDraw": 49.0,
+      "shield": {
+        "capacity": 140.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 38.0,
+        "rechargeDelaySeconds": 1.4,
+        "coverage": "conformal"
+      }
+    },
+    {
+      "id": "power_cell_ii",
+      "displayName": "Fusion Cell II",
+      "kind": "power_cell",
+      "tier": 2,
+      "mass": 30.0,
+      "powerGeneration": 235.0,
+      "hullBonus": 14.0
+    },
+    {
+      "id": "power_cell_iii",
+      "displayName": "Fusion Cell III",
+      "kind": "power_cell",
+      "tier": 3,
+      "mass": 40.0,
+      "powerGeneration": 380.0,
+      "hullBonus": 18.0
+    },
+    {
+      "id": "compact_cell_i",
+      "displayName": "Compact Cell I",
+      "kind": "power_cell",
+      "mass": 12.0,
+      "powerGeneration": 95.0,
+      "hullBonus": 4.0
+    },
+    {
+      "id": "compact_cell_ii",
+      "displayName": "Compact Cell II",
+      "kind": "power_cell",
+      "tier": 2,
+      "mass": 17.0,
+      "powerGeneration": 160.0,
+      "hullBonus": 6.0
+    },
+    {
+      "id": "heavy_reactor_ii",
+      "displayName": "Heavy Reactor II",
+      "kind": "power_cell",
+      "tier": 2,
+      "mass": 52.0,
+      "powerGeneration": 320.0,
+      "hullBonus": 26.0
+    },
+    {
+      "id": "heavy_reactor_iii",
+      "displayName": "Heavy Reactor III",
+      "kind": "power_cell",
+      "tier": 3,
+      "mass": 72.0,
+      "powerGeneration": 520.0,
+      "hullBonus": 34.0
+    },
+    {
+      "id": "kore_dynamo_ii",
+      "displayName": "Kore Dynamo",
+      "kind": "power_cell",
+      "faction": "kore_industries",
+      "tier": 2,
+      "mass": 46.0,
+      "powerGeneration": 300.0,
+      "hullBonus": 30.0
+    },
+    {
+      "id": "concordance_lattice_iii",
+      "displayName": "Concordance Lattice",
+      "kind": "power_cell",
+      "faction": "ai_concordance",
+      "tier": 3,
+      "mass": 33.0,
+      "powerGeneration": 470.0,
+      "hullBonus": 8.0
+    },
+    {
+      "id": "ion_thruster_ii",
+      "displayName": "Ion Thruster II",
+      "kind": "engine",
+      "tier": 2,
+      "mass": 34.0,
+      "powerDraw": 45.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.6,
+          "effectMultiplier": 0.7
+        },
+        "boosted": {
+          "drawMultiplier": 1.8,
+          "effectMultiplier": 1.6
+        }
+      },
+      "engine": {
+        "thrustNewtons": 8400.0,
+        "turnTorque": 3000.0,
+        "maxSpeed": 470.0
+      }
+    },
+    {
+      "id": "ion_thruster_iii",
+      "displayName": "Ion Thruster III",
+      "kind": "engine",
+      "tier": 3,
+      "mass": 44.0,
+      "powerDraw": 66.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.6,
+          "effectMultiplier": 0.7
+        },
+        "boosted": {
+          "drawMultiplier": 1.8,
+          "effectMultiplier": 1.6
+        }
+      },
+      "engine": {
+        "thrustNewtons": 12800.0,
+        "turnTorque": 4300.0,
+        "maxSpeed": 520.0
+      }
+    },
+    {
+      "id": "burst_thruster_i",
+      "displayName": "Burst Thruster I",
+      "kind": "engine",
+      "mass": 18.0,
+      "powerDraw": 26.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.55,
+          "effectMultiplier": 0.6
+        },
+        "boosted": {
+          "drawMultiplier": 2.4,
+          "effectMultiplier": 2.0
+        }
+      },
+      "engine": {
+        "thrustNewtons": 3400.0,
+        "turnTorque": 3200.0,
+        "maxSpeed": 480.0
+      }
+    },
+    {
+      "id": "burst_thruster_ii",
+      "displayName": "Burst Thruster II",
+      "kind": "engine",
+      "tier": 2,
+      "mass": 24.0,
+      "powerDraw": 39.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.55,
+          "effectMultiplier": 0.6
+        },
+        "boosted": {
+          "drawMultiplier": 2.4,
+          "effectMultiplier": 2.0
+        }
+      },
+      "engine": {
+        "thrustNewtons": 5500.0,
+        "turnTorque": 4800.0,
+        "maxSpeed": 540.0
+      }
+    },
+    {
+      "id": "heavy_drive_i",
+      "displayName": "Heavy Drive I",
+      "kind": "engine",
+      "mass": 41.0,
+      "powerDraw": 34.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.7,
+          "effectMultiplier": 0.8
+        },
+        "boosted": {
+          "drawMultiplier": 1.3,
+          "effectMultiplier": 1.15
+        }
+      },
+      "engine": {
+        "thrustNewtons": 9600.0,
+        "turnTorque": 1200.0,
+        "maxSpeed": 300.0
+      }
+    },
+    {
+      "id": "heavy_drive_ii",
+      "displayName": "Heavy Drive II",
+      "kind": "engine",
+      "tier": 2,
+      "mass": 54.0,
+      "powerDraw": 50.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.7,
+          "effectMultiplier": 0.8
+        },
+        "boosted": {
+          "drawMultiplier": 1.3,
+          "effectMultiplier": 1.15
+        }
+      },
+      "engine": {
+        "thrustNewtons": 15200.0,
+        "turnTorque": 1750.0,
+        "maxSpeed": 330.0
+      }
+    },
+    {
+      "id": "heavy_drive_iii",
+      "displayName": "Heavy Drive III",
+      "kind": "engine",
+      "tier": 3,
+      "mass": 70.0,
+      "powerDraw": 73.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.7,
+          "effectMultiplier": 0.8
+        },
+        "boosted": {
+          "drawMultiplier": 1.3,
+          "effectMultiplier": 1.15
+        }
+      },
+      "engine": {
+        "thrustNewtons": 23000.0,
+        "turnTorque": 2400.0,
+        "maxSpeed": 360.0
+      }
+    },
+    {
+      "id": "meridian_cruise_ii",
+      "displayName": "Meridian Cruise Drive",
+      "kind": "engine",
+      "faction": "meridian_star_corps",
+      "tier": 2,
+      "mass": 29.0,
+      "powerDraw": 27.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.5,
+          "effectMultiplier": 0.72
+        },
+        "boosted": {
+          "drawMultiplier": 1.5,
+          "effectMultiplier": 1.4
+        }
+      },
+      "engine": {
+        "thrustNewtons": 7200.0,
+        "turnTorque": 2700.0,
+        "maxSpeed": 510.0
+      }
+    },
+    {
+      "id": "pyre_immolator_iii",
+      "displayName": "Pyre Immolator",
+      "kind": "engine",
+      "faction": "pyre_ascendancy",
+      "tier": 3,
+      "mass": 47.0,
+      "powerDraw": 88.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.8,
+          "effectMultiplier": 0.55
+        },
+        "boosted": {
+          "drawMultiplier": 3.0,
+          "effectMultiplier": 2.3
+        }
+      },
+      "engine": {
+        "thrustNewtons": 13500.0,
+        "turnTorque": 3900.0,
+        "maxSpeed": 560.0
+      }
+    },
+    {
+      "id": "forgotten_kludge_i",
+      "displayName": "Kludged Thruster",
+      "kind": "engine",
+      "faction": "the_forgotten",
+      "mass": 15.0,
+      "powerDraw": 19.0,
+      "powerLevels": {
+        "offline": {
+          "drawMultiplier": 0.0,
+          "effectMultiplier": 0.0
+        },
+        "reduced": {
+          "drawMultiplier": 0.5,
+          "effectMultiplier": 0.4
+        },
+        "boosted": {
+          "drawMultiplier": 2.2,
+          "effectMultiplier": 1.35
+        }
+      },
+      "engine": {
+        "thrustNewtons": 4100.0,
+        "turnTorque": 1900.0,
+        "maxSpeed": 400.0
+      }
+    },
+    {
+      "id": "armor_plate_ii",
+      "displayName": "Composite Plating II",
+      "kind": "armor",
+      "tier": 2,
+      "mass": 26.0,
+      "hullBonus": 105.0
+    },
+    {
+      "id": "armor_plate_iii",
+      "displayName": "Composite Plating III",
+      "kind": "armor",
+      "tier": 3,
+      "mass": 35.0,
+      "hullBonus": 165.0
+    },
+    {
+      "id": "ablative_layer_i",
+      "displayName": "Ablative Layer I",
+      "kind": "armor",
+      "mass": 10.0,
+      "hullBonus": 42.0
+    },
+    {
+      "id": "ablative_layer_ii",
+      "displayName": "Ablative Layer II",
+      "kind": "armor",
+      "tier": 2,
+      "mass": 15.0,
+      "hullBonus": 72.0
+    },
+    {
+      "id": "ballistic_plate_ii",
+      "displayName": "Ballistic Plating II",
+      "kind": "armor",
+      "tier": 2,
+      "mass": 40.0,
+      "hullBonus": 150.0
+    },
+    {
+      "id": "ballistic_plate_iii",
+      "displayName": "Ballistic Plating III",
+      "kind": "armor",
+      "tier": 3,
+      "mass": 54.0,
+      "hullBonus": 225.0
+    },
+    {
+      "id": "kore_slabplate_iii",
+      "displayName": "Kore Slabplate",
+      "kind": "armor",
+      "faction": "kore_industries",
+      "tier": 3,
+      "mass": 62.0,
+      "hullBonus": 270.0
+    },
+    {
+      "id": "forgotten_scrapweld_i",
+      "displayName": "Scrapweld Plating",
+      "kind": "armor",
+      "faction": "the_forgotten",
+      "mass": 9.0,
+      "hullBonus": 28.0
+    },
+    {
+      "id": "sensor_array_ii",
+      "displayName": "Sensor Array II",
+      "kind": "sensor",
+      "tier": 2,
+      "mass": 16.0,
+      "powerDraw": 23.0,
+      "sensor": {
+        "range": 3200.0
+      }
+    },
+    {
+      "id": "sensor_array_iii",
+      "displayName": "Sensor Array III",
+      "kind": "sensor",
+      "tier": 3,
+      "mass": 21.0,
+      "powerDraw": 34.0,
+      "sensor": {
+        "range": 4800.0
+      }
+    },
+    {
+      "id": "compact_sensor_i",
+      "displayName": "Compact Sensor I",
+      "kind": "sensor",
+      "mass": 6.0,
+      "powerDraw": 7.0,
+      "sensor": {
+        "range": 1300.0
+      }
+    },
+    {
+      "id": "zenith_farsight_iii",
+      "displayName": "Zenith Farsight",
+      "kind": "sensor",
+      "faction": "zenith_collective",
+      "tier": 3,
+      "mass": 24.0,
+      "powerDraw": 44.0,
+      "sensor": {
+        "range": 7000.0
+      }
+    },
+    {
+      "id": "cargo_bay_ii",
+      "displayName": "Cargo Bay II",
+      "kind": "cargo_bay",
+      "tier": 2,
+      "mass": 21.0,
+      "powerDraw": 7.0,
+      "cargoBay": {
+        "slotCount": 6,
+        "slotCapacity": 340.0
+      }
+    },
+    {
+      "id": "cargo_bay_iii",
+      "displayName": "Cargo Bay III",
+      "kind": "cargo_bay",
+      "tier": 3,
+      "mass": 28.0,
+      "powerDraw": 10.0,
+      "cargoBay": {
+        "slotCount": 8,
+        "slotCapacity": 460.0
+      }
+    },
+    {
+      "id": "bulk_hold_i",
+      "displayName": "Bulk Hold I",
+      "kind": "cargo_bay",
+      "mass": 24.0,
+      "powerDraw": 6.0,
+      "cargoBay": {
+        "slotCount": 2,
+        "slotCapacity": 700.0
+      }
+    },
+    {
+      "id": "bulk_hold_ii",
+      "displayName": "Bulk Hold II",
+      "kind": "cargo_bay",
+      "tier": 2,
+      "mass": 32.0,
+      "powerDraw": 8.0,
+      "cargoBay": {
+        "slotCount": 3,
+        "slotCapacity": 950.0
+      }
+    },
+    {
+      "id": "sorting_hold_i",
+      "displayName": "Sorting Hold I",
+      "kind": "cargo_bay",
+      "mass": 18.0,
+      "powerDraw": 9.0,
+      "cargoBay": {
+        "slotCount": 9,
+        "slotCapacity": 120.0
+      }
+    },
+    {
+      "id": "sorting_hold_ii",
+      "displayName": "Sorting Hold II",
+      "kind": "cargo_bay",
+      "tier": 2,
+      "mass": 24.0,
+      "powerDraw": 12.0,
+      "cargoBay": {
+        "slotCount": 12,
+        "slotCapacity": 165.0
+      }
+    },
+    {
+      "id": "meridian_manifest_ii",
+      "displayName": "Meridian Manifest Hold",
+      "kind": "cargo_bay",
+      "faction": "meridian_star_corps",
+      "tier": 2,
+      "mass": 22.0,
+      "powerDraw": 7.0,
+      "cargoBay": {
+        "slotCount": 8,
+        "slotCapacity": 400.0
+      }
+    },
+    {
+      "id": "fire_control_ii",
+      "displayName": "Fire Control II",
+      "kind": "fire_control",
+      "tier": 2,
+      "mass": 11.0,
+      "powerDraw": 18.0,
+      "fireControl": {
+        "turnRatePerSecond": 6.5
+      }
+    },
+    {
+      "id": "fire_control_iii",
+      "displayName": "Fire Control III",
+      "kind": "fire_control",
+      "tier": 3,
+      "mass": 14.0,
+      "powerDraw": 26.0,
+      "fireControl": {
+        "turnRatePerSecond": 9.5
+      }
+    },
+    {
+      "id": "aegis_targeting_iii",
+      "displayName": "Directorate Targeting Suite",
+      "kind": "fire_control",
+      "faction": "aegis_directorate",
+      "tier": 3,
+      "mass": 16.0,
+      "powerDraw": 30.0,
+      "fireControl": {
+        "turnRatePerSecond": 11.0
+      }
+    },
+    {
+      "id": "hyperdrive_ii",
+      "displayName": "Hyperdrive II",
+      "kind": "hyperdrive",
+      "tier": 2,
+      "mass": 38.0,
+      "powerDraw": 36.0
+    },
+    {
+      "id": "hyperdrive_iii",
+      "displayName": "Hyperdrive III",
+      "kind": "hyperdrive",
+      "tier": 3,
+      "mass": 47.0,
+      "powerDraw": 50.0
+    },
+    {
+      "id": "voidwalker_riftdrive_iii",
+      "displayName": "Riftdrive",
+      "kind": "hyperdrive",
+      "faction": "voidwalkers",
+      "tier": 3,
+      "mass": 34.0,
+      "powerDraw": 44.0
+    },
+    {
+      "id": "crew_officer_ii",
+      "displayName": "Crew Officer II",
+      "kind": "crew",
+      "tier": 2,
+      "mass": 7.0,
+      "crew": {
+        "operation": 0.25,
+        "command": 0.18,
+        "sensors": 0.18,
+        "repair": 0.18
+      }
+    },
+    {
+      "id": "crew_officer_iii",
+      "displayName": "Crew Officer III",
+      "kind": "crew",
+      "tier": 3,
+      "mass": 8.0,
+      "crew": {
+        "operation": 0.38,
+        "command": 0.28,
+        "sensors": 0.28,
+        "repair": 0.28
+      }
+    },
+    {
+      "id": "crew_pilot_i",
+      "displayName": "Pilot",
+      "kind": "crew",
+      "mass": 6.0,
+      "crew": {
+        "operation": 0.3,
+        "command": 0.0,
+        "sensors": 0.05,
+        "repair": 0.0
+      }
+    },
+    {
+      "id": "crew_pilot_ii",
+      "displayName": "Veteran Pilot",
+      "kind": "crew",
+      "tier": 2,
+      "mass": 7.0,
+      "crew": {
+        "operation": 0.48,
+        "command": 0.0,
+        "sensors": 0.08,
+        "repair": 0.0
+      }
+    },
+    {
+      "id": "crew_commander_i",
+      "displayName": "Commander",
+      "kind": "crew",
+      "mass": 6.0,
+      "crew": {
+        "operation": 0.05,
+        "command": 0.3,
+        "sensors": 0.0,
+        "repair": 0.0
+      }
+    },
+    {
+      "id": "crew_commander_ii",
+      "displayName": "Fleet Commander",
+      "kind": "crew",
+      "tier": 2,
+      "mass": 7.0,
+      "crew": {
+        "operation": 0.08,
+        "command": 0.48,
+        "sensors": 0.0,
+        "repair": 0.0
+      }
+    },
+    {
+      "id": "crew_sensor_officer_i",
+      "displayName": "Sensor Officer",
+      "kind": "crew",
+      "mass": 6.0,
+      "crew": {
+        "operation": 0.0,
+        "command": 0.0,
+        "sensors": 0.32,
+        "repair": 0.05
+      }
+    },
+    {
+      "id": "crew_sensor_officer_ii",
+      "displayName": "Chief Sensor Officer",
+      "kind": "crew",
+      "tier": 2,
+      "mass": 7.0,
+      "crew": {
+        "operation": 0.0,
+        "command": 0.0,
+        "sensors": 0.5,
+        "repair": 0.08
+      }
+    },
+    {
+      "id": "crew_engineer_i",
+      "displayName": "Ship Engineer",
+      "kind": "crew",
+      "mass": 6.0,
+      "crew": {
+        "operation": 0.0,
+        "command": 0.05,
+        "sensors": 0.0,
+        "repair": 0.32
+      }
+    },
+    {
+      "id": "crew_engineer_ii",
+      "displayName": "Chief Engineer",
+      "kind": "crew",
+      "tier": 2,
+      "mass": 7.0,
+      "crew": {
+        "operation": 0.0,
+        "command": 0.08,
+        "sensors": 0.0,
+        "repair": 0.5
+      }
+    },
+    {
+      "id": "repair_bay_ii",
+      "displayName": "Repair Bay II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 27.0,
+      "powerDraw": 23.0,
+      "facility": {
+        "kind": "repair",
+        "ratePerSecond": 8.5
+      }
+    },
+    {
+      "id": "repair_bay_iii",
+      "displayName": "Repair Bay III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 35.0,
+      "powerDraw": 33.0,
+      "facility": {
+        "kind": "repair",
+        "ratePerSecond": 13.0
+      }
+    },
+    {
+      "id": "manufacturing_bay_ii",
+      "displayName": "Manufacturing Bay II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 32.0,
+      "powerDraw": 27.0,
+      "facility": {
+        "kind": "manufacturing",
+        "ratePerSecond": 1.8
+      }
+    },
+    {
+      "id": "manufacturing_bay_iii",
+      "displayName": "Manufacturing Bay III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 42.0,
+      "powerDraw": 39.0,
+      "facility": {
+        "kind": "manufacturing",
+        "ratePerSecond": 2.9
+      }
+    },
+    {
+      "id": "research_lab_ii",
+      "displayName": "Research Lab II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 22.0,
+      "powerDraw": 21.0,
+      "facility": {
+        "kind": "research",
+        "ratePerSecond": 1.75
+      }
+    },
+    {
+      "id": "research_lab_iii",
+      "displayName": "Research Lab III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 29.0,
+      "powerDraw": 31.0,
+      "facility": {
+        "kind": "research",
+        "ratePerSecond": 2.8
+      }
+    },
+    {
+      "id": "docking_bay_ii",
+      "displayName": "Docking Bay II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 34.0,
+      "powerDraw": 30.0,
+      "facility": {
+        "kind": "docking",
+        "capacity": 8
+      }
+    },
+    {
+      "id": "docking_bay_iii",
+      "displayName": "Docking Bay III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 45.0,
+      "powerDraw": 43.0,
+      "facility": {
+        "kind": "docking",
+        "capacity": 14
+      }
+    },
+    {
+      "id": "trade_exchange_ii",
+      "displayName": "Trade Exchange II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 24.0,
+      "powerDraw": 22.0,
+      "facility": {
+        "kind": "trade"
+      }
+    },
+    {
+      "id": "trade_exchange_iii",
+      "displayName": "Trade Exchange III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 31.0,
+      "powerDraw": 31.0,
+      "facility": {
+        "kind": "trade"
+      }
+    },
+    {
+      "id": "engineering_workshop_i",
+      "displayName": "Engineering Workshop I",
+      "kind": "facility",
+      "mass": 14.0,
+      "powerDraw": 8.0,
+      "facility": {
+        "kind": "engineering",
+        "grade": 1
+      }
+    },
+    {
+      "id": "engineering_bay_ii",
+      "displayName": "Engineering Bay II",
+      "kind": "facility",
+      "tier": 2,
+      "mass": 29.0,
+      "powerDraw": 17.0,
+      "facility": {
+        "kind": "engineering",
+        "grade": 4
+      }
+    },
+    {
+      "id": "engineering_bay_iii",
+      "displayName": "Engineering Bay III",
+      "kind": "facility",
+      "tier": 3,
+      "mass": 38.0,
+      "powerDraw": 24.0,
+      "facility": {
+        "kind": "engineering",
+        "grade": 5
       }
     }
   ]

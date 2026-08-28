@@ -461,7 +461,7 @@ void SpaceFlight::Draw() const {
         const entt::entity vesselRoot = PlayerVesselRoot(registry, playerFaction);
         ui::storage_menu::Draw(registry, vesselRoot, content_, fonts);
         ui::modules_menu::Draw(registry, vesselRoot, content_, fonts);
-        ui::codex_screen::Draw(registry, vesselRoot, knowledge_, content_);
+        ui::codex_screen::Draw(registry, vesselRoot, knowledge_, content_, fonts);
     }
     // Drawn last so it sits on top of every other screen-space overlay -- the only pause in the
     // game (architecture.md 12.29).

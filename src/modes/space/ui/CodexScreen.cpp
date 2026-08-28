@@ -8,6 +8,7 @@
 
 #include "core/registries/ContentLibrary.h"
 #include "shared/components/NetworkOwner.h"
+#include "shared/ui/Fonts.h"
 #include "shared/ui/HudTheme.h"
 #include "shared/ui/UiInput.h"
 #include "shared/ui/Widgets.h"
@@ -19,12 +20,20 @@ constexpr float kPanelWidth = 760.0f;
 constexpr float kPanelTop = 90.0f;
 constexpr float kHeaderHeight = 28.0f;
 constexpr float kCloseButtonSize = 24.0f;
-constexpr float kSearchHeight = 24.0f;
-constexpr float kChipRowHeight = 22.0f;
+constexpr float kSearchHeight = 26.0f;
+// 28, matching BayView's/EngineeringScreenDraw's own kSiblingStripHeight -- the same chamfered
+// sr::ui::TabStrip widget, so the two chip rows read at the same height as every other screen's
+// sibling strip rather than a size unique to this file.
+constexpr float kChipRowHeight = 28.0f;
 constexpr float kRowGap = 8.0f;
 constexpr float kSectionLabelHeight = 18.0f;
 constexpr float kListHeight = 120.0f;
 constexpr int kMaxSearchLength = 40;
+// The bordered-icon-box row treatment's own sizes (ModulesMenu's/Storage's/Research's precedent) --
+// 4 rows fill kListHeight exactly, replacing the generic sr::ui::DrawListView's 6 flat text lines
+// this file drew before (issue #227's visual-chrome pass never reached this file).
+constexpr float kIconBoxSize = 22.0f;
+constexpr float kRowHeight = 30.0f;
 
 std::string ToUpper(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(),
@@ -312,8 +321,77 @@ void Update(entt::registry& registry, entt::entity vesselRoot,
     }
 }
 
+namespace {
+
+// architecture.md 2.2's function-length cap -- split out of Draw() below, one section each.
+
+// The label row + divider shared by all three sections: a dim title over a hairline rule --
+// mirrors ModulesMenu.cpp's own DrawColumnLabel / Research's/Storage's own SectionLayout label
+// treatment, this file's own precedent for a section header now that it draws through fonts too.
+void DrawSectionLabel(Rectangle bounds, const sr::ui::Fonts& fonts, const std::string& title) {
+    DrawTextEx(fonts.body, title.c_str(), {bounds.x, bounds.y}, 14.0f, 1.0f, sr::ui::kLabelDim);
+    const float dividerY = bounds.y + bounds.height;
+    DrawLineEx({bounds.x, dividerY}, {bounds.x + bounds.width, dividerY}, 1.0f, sr::ui::kDivider);
+}
+
+// One entry row: a bordered icon box (the entry's own glyph carries identity, features.md 3.9),
+// its display name, and its already-formatted "FACTION | TIER n" tag right-aligned and dim --
+// Storage's own single-line DrawStorageRow shape (no integrity/disabled channel: an unlocked
+// Codex entry carries neither), replacing the generic sr::ui::ListView's flat monogram-prefixed
+// text line this file drew before.
+void DrawCodexRow(Rectangle bounds, const sr::ui::Fonts& fonts, const sr::ui::Row& row) {
+    const Rectangle iconBox{bounds.x, bounds.y + (bounds.height - kIconBoxSize) / 2.0f,
+                            kIconBoxSize, kIconBoxSize};
+    DrawRectangleLinesEx(iconBox, 1.0f, sr::ui::kPanelChrome);
+    if (row.glyph[0] != '\0') {
+        const Vector2 glyphSize = MeasureTextEx(fonts.heading, row.glyph, 13.0f, 1.0f);
+        DrawTextEx(fonts.heading, row.glyph,
+                   {iconBox.x + (iconBox.width - glyphSize.x) / 2.0f,
+                    iconBox.y + (iconBox.height - glyphSize.y) / 2.0f},
+                   13.0f, 1.0f, sr::ui::kPanelChrome);
+    }
+
+    const float textX = iconBox.x + iconBox.width + 10.0f;
+    DrawTextEx(fonts.heading, row.label.c_str(), {textX, bounds.y + bounds.height / 2.0f - 8.0f},
+               14.0f, 1.0f, sr::ui::kValueBright);
+
+    const float valueWidth = MeasureTextEx(fonts.body, row.value.c_str(), 12.0f, 1.0f).x;
+    DrawTextEx(fonts.body, row.value.c_str(),
+               {bounds.x + bounds.width - valueWidth, bounds.y + bounds.height / 2.0f - 6.0f},
+               12.0f, 1.0f, sr::ui::kLabelDim);
+}
+
+// The row list, top to bottom inside `bounds`, divider rules between rows -- mirrors Storage's/
+// Research's own fixed (non-scrolling) row lists: this file never scrolled past kListHeight's
+// worth of rows before this pass either, so that stays out of this pass's scope.
+void DrawCodexRows(Rectangle bounds, const sr::ui::Fonts& fonts,
+                   const std::vector<sr::ui::Row>& rows, const std::string& emptyMessage) {
+    BeginScissorMode(static_cast<int>(bounds.x), static_cast<int>(bounds.y),
+                     static_cast<int>(bounds.width), static_cast<int>(bounds.height));
+    if (rows.empty()) {
+        DrawTextEx(fonts.body, emptyMessage.c_str(), {bounds.x, bounds.y}, 14.0f, 1.0f,
+                   sr::ui::kLabelDim);
+        EndScissorMode();
+        return;
+    }
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const float y = bounds.y + static_cast<float>(i) * kRowHeight;
+        if (y > bounds.y + bounds.height) {
+            break;
+        }
+        if (i > 0) {
+            DrawLineEx({bounds.x, y}, {bounds.x + bounds.width, y}, 1.0f, sr::ui::kDivider);
+        }
+        DrawCodexRow({bounds.x, y, bounds.width, kRowHeight}, fonts, rows[i]);
+    }
+    EndScissorMode();
+}
+
+}  // namespace
+
 void Draw(const entt::registry& registry, entt::entity vesselRoot,
-          const core::knowledge::KnowledgeStore& knowledge, const core::ContentLibrary& content) {
+          const core::knowledge::KnowledgeStore& knowledge, const core::ContentLibrary& content,
+          const sr::ui::Fonts& fonts) {
     if (!IsOpen(registry)) {
         return;
     }
@@ -321,16 +399,20 @@ void Draw(const entt::registry& registry, entt::entity vesselRoot,
     const Layout layout = ComputeLayout();
     sr::ui::DrawPanelFrame(PanelBounds());
 
-    DrawText("CODEX", static_cast<int>(layout.header.x), static_cast<int>(layout.header.y), 20,
-             sr::ui::kValueBright);
-    const Font font = GetFontDefault();
-    sr::ui::DrawChamferedButton(layout.closeButton, "X", font, 14.0f, sr::ui::kPanelGlass,
+    DrawTextEx(fonts.heading, "CODEX", {layout.header.x, layout.header.y}, 22.0f, 1.0f,
+               sr::ui::kValueBright);
+    sr::ui::DrawChamferedButton(layout.closeButton, "X", fonts.body, 14.0f, sr::ui::kPanelGlass,
                                 sr::ui::kStatusCritical, sr::ui::kValueBright);
 
-    const std::string searchLine =
-        "SEARCH: " + state.searchQuery + (state.searchQuery.empty() ? "_" : "");
-    DrawText(searchLine.c_str(), static_cast<int>(layout.search.x),
-             static_cast<int>(layout.search.y), 14, sr::ui::kLabelDim);
+    DrawRectangleLinesEx(layout.search, 1.0f, sr::ui::kPanelChrome);
+    const float searchTextY = layout.search.y + (layout.search.height - 14.0f) / 2.0f;
+    const Vector2 searchLabelSize = MeasureTextEx(fonts.body, "SEARCH ", 14.0f, 1.0f);
+    DrawTextEx(fonts.body, "SEARCH ", {layout.search.x + 8.0f, searchTextY}, 14.0f, 1.0f,
+               sr::ui::kLabelDim);
+    const std::string searchValue = state.searchQuery + (state.searchQuery.empty() ? "_" : "");
+    DrawTextEx(fonts.body, searchValue.c_str(),
+               {layout.search.x + 8.0f + searchLabelSize.x, searchTextY}, 14.0f, 1.0f,
+               sr::ui::kValueBright);
 
     const core::knowledge::KnowledgeNetwork* network = NetworkFor(registry, vesselRoot, knowledge);
     const std::vector<Entry> entries =
@@ -345,7 +427,7 @@ void Draw(const entt::registry& registry, entt::entity vesselRoot,
             factionSelected = static_cast<int>(i) + 1;
         }
     }
-    sr::ui::DrawTabStrip(layout.factionChips, factionLabels, factionSelected);
+    sr::ui::DrawTabStrip(layout.factionChips, factionLabels, factionSelected, fonts.body);
 
     const std::vector<int> tiers = DistinctTiers(entries);
     const std::vector<std::string> tierLabels = ChipLabels(tiers);
@@ -355,22 +437,19 @@ void Draw(const entt::registry& registry, entt::entity vesselRoot,
             tierSelected = static_cast<int>(i) + 1;
         }
     }
-    sr::ui::DrawTabStrip(layout.tierChips, tierLabels, tierSelected);
+    sr::ui::DrawTabStrip(layout.tierChips, tierLabels, tierSelected, fonts.body);
 
-    DrawText("MODULES", static_cast<int>(layout.moduleLabel.x),
-             static_cast<int>(layout.moduleLabel.y), 14, sr::ui::kLabelDim);
-    sr::ui::DrawListView(layout.moduleList, ToRows(OfKind(filtered, EntryKind::Module)), 0.0f,
-                         "NOTHING UNLOCKED");
+    DrawSectionLabel(layout.moduleLabel, fonts, "MODULES");
+    DrawCodexRows(layout.moduleList, fonts, ToRows(OfKind(filtered, EntryKind::Module)),
+                  "NOTHING UNLOCKED");
 
-    DrawText("SHELLS", static_cast<int>(layout.shellLabel.x), static_cast<int>(layout.shellLabel.y),
-             14, sr::ui::kLabelDim);
-    sr::ui::DrawListView(layout.shellList, ToRows(OfKind(filtered, EntryKind::Shell)), 0.0f,
-                         "NOTHING UNLOCKED");
+    DrawSectionLabel(layout.shellLabel, fonts, "SHELLS");
+    DrawCodexRows(layout.shellList, fonts, ToRows(OfKind(filtered, EntryKind::Shell)),
+                  "NOTHING UNLOCKED");
 
-    DrawText("MATERIALS", static_cast<int>(layout.materialLabel.x),
-             static_cast<int>(layout.materialLabel.y), 14, sr::ui::kLabelDim);
-    sr::ui::DrawListView(layout.materialList, ToRows(OfKind(filtered, EntryKind::Material)), 0.0f,
-                         "NOTHING UNLOCKED");
+    DrawSectionLabel(layout.materialLabel, fonts, "MATERIALS");
+    DrawCodexRows(layout.materialList, fonts, ToRows(OfKind(filtered, EntryKind::Material)),
+                  "NOTHING UNLOCKED");
 }
 
 }  // namespace sr::space::ui::codex_screen

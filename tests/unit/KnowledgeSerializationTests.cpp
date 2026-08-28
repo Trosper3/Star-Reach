@@ -1,7 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstdint>
+#include <vector>
+
 #include "core/serialization/KnowledgeSerialization.h"
 
+using sr::core::knowledge::KnowledgeNetwork;
 using sr::core::knowledge::KnowledgeStore;
 using sr::core::knowledge::NetworkEntryKind;
 using sr::core::knowledge::NetworkOwnerKind;
@@ -69,4 +73,39 @@ TEST_CASE("KnowledgeStore Decode fails on truncated bytes", "[knowledge]") {
     ByteReader reader(truncated);
     KnowledgeStore loaded;
     CHECK_FALSE(Decode(reader, loaded));
+}
+
+TEST_CASE("Decode rejects an ownerKind byte outside the enum", "[knowledge]") {
+    // NetworkOwnerKind has three enumerators; 200 is not one of them. Before GetOwnerKind, this
+    // static_cast produced an out-of-range enum that every later switch on it would hit as UB.
+    KnowledgeNetwork network;
+    network.ownerKind = NetworkOwnerKind::Faction;
+
+    ByteWriter writer;
+    Encode(writer, network);
+    std::vector<uint8_t> corrupted = writer.Data();
+    REQUIRE_FALSE(corrupted.empty());
+    corrupted[0] = 200;  // ownerKind is the first byte a network encodes.
+
+    ByteReader reader(corrupted);
+    KnowledgeNetwork loaded;
+    CHECK_FALSE(Decode(reader, loaded));
+}
+
+TEST_CASE("A store whose network carries a corrupt ownerKind is refused whole", "[knowledge]") {
+    // The rejection has to reach the store decoder too -- a save that loaded "most of" its
+    // networks and silently dropped one is the failure mode a bool return exists to prevent.
+    ByteWriter writer;
+    writer.Put(std::uint64_t{2});           // next id counter
+    writer.Put(std::uint32_t{1});           // network count
+    writer.PutString("1");                  // network id
+    writer.Put(static_cast<uint8_t>(200));  // ownerKind -- out of range
+    writer.Put(std::uint16_t{0});           // unlockedBlueprints
+    writer.Put(std::uint16_t{0});           // savedTemplates
+    writer.Put(std::uint16_t{0});           // discoveredSystems
+
+    ByteReader reader(writer.Data());
+    KnowledgeStore loaded;
+    CHECK_FALSE(Decode(reader, loaded));
+    CHECK(loaded.All().empty());
 }
