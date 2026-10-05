@@ -6,6 +6,7 @@
 
 #include "core/registries/ContentLibrary.h"
 #include "modes/space/factories/RigFactory.h"
+#include "shared/blueprints/ShipBlueprint.h"
 #include "shared/blueprints/Validation.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Comms.h"
@@ -258,6 +259,47 @@ TEST_CASE("Weapon hardpoints sharing a ModuleId share a weapon group", "[factory
     // Non-weapon hardpoints never get a group at all.
     const auto core = factory::FindHardpoint(registry, result.root, sr::MountId("core"));
     CHECK_FALSE(registry.all_of<sr::WeaponGroup>(core));
+}
+
+TEST_CASE("A mount carrying a weapon plus a second module gets exactly one WeaponGroup",
+          "[factory]") {
+    // Regression for the bug fixed alongside RigFactory.cpp's AttachModule: keying the weapon-
+    // group assignment off registry.all_of<Weapon>(hardpoint) rather than module.kind meant a
+    // hardpoint's SECOND module (fire_control_i here) was also treated as a weapon once the
+    // FIRST module (an actual Weapon) had already attached one -- mis-keying weaponGroupByModule
+    // on fire_control_i's own id and calling registry.emplace<WeaponGroup> a second time on an
+    // entity that already had one (UB; emplace requires the entity not already own the
+    // component). shell_wing_hardpoint_ii is real 2-slot content (data/base_game/shells.json),
+    // mirroring tools/sandbox/main.cpp's wing_aux mount -- the exact shape that first surfaced
+    // this.
+    ContentLibrary content = Content();
+    const sr::ShipBlueprint* vanguard = content.FindShip(sr::BlueprintId("aegis_vanguard"));
+    REQUIRE(vanguard != nullptr);
+
+    sr::ShipBlueprint blueprint = *vanguard;
+    blueprint.id = sr::BlueprintId("test_two_module_mount");
+    blueprint.structuralMassLimit += 100.0f;  // Headroom for fire_control_i's added mass.
+    for (auto& mount : blueprint.rig.mounts) {
+        if (mount.id == sr::MountId("wing_port")) {
+            mount.shell = sr::ShellId("shell_wing_hardpoint_ii");
+            mount.modules = {sr::ModuleId("pulse_cannon_i"), sr::ModuleId("fire_control_i")};
+        }
+    }
+    content.RegisterDraftedTemplate(blueprint);
+
+    SystemWorld world("sol");
+    factory::SpawnParams params;
+    params.blueprint = blueprint.id;
+    params.position = {0.0f, 0.0f};
+    const auto result = factory::Spawn(world, content, params);
+    REQUIRE(result.ok());
+
+    const entt::registry& registry = world.Registry();
+    const auto port = factory::FindHardpoint(registry, result.root, sr::MountId("wing_port"));
+    REQUIRE(registry.all_of<sr::Weapon>(port));
+    REQUIRE(registry.all_of<sr::FireControl>(port));
+    REQUIRE(
+        registry.all_of<sr::WeaponGroup>(port));  // emplace_or_replace, not a UB double-emplace.
 }
 
 TEST_CASE("A freshly spawned rig has every weapon group enabled", "[factory]") {

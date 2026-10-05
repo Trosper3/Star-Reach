@@ -46,13 +46,25 @@ void AttachModule(entt::registry& registry, entt::entity hardpoint, const Module
     const rig_attachment::PropulsionContribution propulsion =
         rig_attachment::AttachModuleComponents(registry, hardpoint, module, mount.traverseRadians);
 
-    if (registry.all_of<Weapon>(hardpoint)) {
+    // module.kind, not registry.all_of<Weapon>(hardpoint): a mount with more than one module
+    // (features.md's not-yet-built moduleSlots-bonus tiers, architecture.md 12.22's "a 2-slot
+    // turret fits weapon plus fire control") attaches a Weapon on one iteration of this function
+    // and something else (FireControl, say) on another -- the hardpoint keeps carrying that
+    // Weapon component into every later iteration, so all_of<Weapon>(hardpoint) stayed true for
+    // every module afterward too, not just the one that was actually a weapon. That mis-keyed
+    // weaponGroupByModule on the LATER module's own id (inventing it a bogus new group) and then
+    // called registry.emplace<WeaponGroup> a second time on a hardpoint that already had one --
+    // UB, since emplace requires the entity not already own the component. Every shipped shell is
+    // still moduleSlots: 1 today, so no authored content has ever hit this; a two-module mount is
+    // possible today only via a hand-built ShipBlueprint (tools/), which is exactly what
+    // MakeWeaponVarietyBlueprint's wing_aux mount does (tools/sandbox/main.cpp).
+    if (module.kind == ModuleKind::Weapon) {
         auto [entry, inserted] = aggregate.weaponGroupByModule.try_emplace(
             module.id, static_cast<std::uint8_t>(aggregate.weaponGroupByModule.size()));
         if (inserted && entry->second > kMaxWeaponGroup) {
             entry->second = kMaxWeaponGroup;
         }
-        registry.emplace<WeaponGroup>(hardpoint, entry->second);
+        registry.emplace_or_replace<WeaponGroup>(hardpoint, entry->second);
     }
 
     if (propulsion.present) {

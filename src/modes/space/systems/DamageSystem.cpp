@@ -1,6 +1,8 @@
 #include "modes/space/systems/DamageSystem.h"
 
 #include <algorithm>
+#include <optional>
+#include <vector>
 
 #include "core/registries/DamageTypeEffects.h"
 #include "shared/blueprints/Taxonomy.h"
@@ -17,23 +19,40 @@
 namespace sr::space::damage_system {
 namespace {
 
-void RegenerateShield(Shield& shield, float dt) {
+// `satisfaction` is that shield's rig's PowerBudget.shields (1.0 if the hardpoint has no
+// ParentRig/PowerBudget to consult, the same "unpowered scenario defaults to full satisfaction"
+// convention WeaponSystem::RigSatisfaction already establishes for weapons) -- a browned-out
+// shield's post-hit cooldown counts down slower and its regen is slower once it resumes, mirroring
+// how WeaponSystem scales cooldown recovery by PowerBudget.weapons. Before this,
+// PowerBudget.shields was computed every tick (PowerSystem.cpp) but had no reader at all (Power.h's
+// own comment on the field: "shields/facilities... wait on their own consumer") -- this is that
+// consumer.
+void RegenerateShield(Shield& shield, float dt, float satisfaction) {
     if (shield.rechargeCooldown > 0.0f) {
-        shield.rechargeCooldown = std::max(0.0f, shield.rechargeCooldown - dt);
+        shield.rechargeCooldown = std::max(0.0f, shield.rechargeCooldown - dt * satisfaction);
         return;
     }
-    shield.current = std::min(shield.max, shield.current + shield.rechargePerSecond * dt);
+    shield.current =
+        std::min(shield.max, shield.current + shield.rechargePerSecond * dt * satisfaction);
 }
 
-// Which living Shield on `hardpoint`'s rig actually covers it (architecture.md 12.22) -- the fix
-// for a generator that used to protect only its own housing regardless of what its capacity
-// implied to the player. A shield on the hit hardpoint itself always covers it, in every mode;
-// otherwise the rig's other shields are searched in Rig::children order for the first whose mode
-// reaches this hardpoint (rig_attachment::ShieldCovers) -- shared with the status projection's
-// opposite-direction query (features.md 3.9), which enumerates a shield's coverage set rather than
-// a hardpoint's coverer.
+float RigShieldSatisfaction(const entt::registry& registry, entt::entity rigRoot) {
+    const auto* budget = registry.try_get<PowerBudget>(rigRoot);
+    return budget != nullptr ? budget->shields : 1.0f;
+}
+
+// Which living, powered Shield on `hardpoint`'s rig actually covers it (architecture.md 12.22) --
+// the fix for a generator that used to protect only its own housing regardless of what its
+// capacity implied to the player. A shield on the hit hardpoint itself always covers it, in every
+// mode; otherwise the rig's other shields are searched in Rig::children order for the first whose
+// mode reaches this hardpoint (rig_attachment::ShieldCovers) -- shared with the status
+// projection's opposite-direction query (features.md 3.9), which enumerates a shield's coverage
+// set rather than a hardpoint's coverer. Skips a PowerShed candidate exactly like WeaponSystem
+// skips a shed weapon mount: "a browned-out mount goes offline entirely rather than just running
+// at reduced effect" (architecture.md 13.3 finding F) applies to a shield generator the same as a
+// gun -- an offline generator projects no field, not a weaker one.
 entt::entity FindCoveringShield(const entt::registry& registry, entt::entity hardpoint) {
-    if (registry.all_of<Shield>(hardpoint)) {
+    if (registry.all_of<Shield>(hardpoint) && !registry.all_of<PowerShed>(hardpoint)) {
         return hardpoint;
     }
 
@@ -44,7 +63,7 @@ entt::entity FindCoveringShield(const entt::registry& registry, entt::entity har
     }
 
     for (const entt::entity candidate : rig->children) {
-        if (candidate == hardpoint || registry.all_of<Destroyed>(candidate)) {
+        if (candidate == hardpoint || registry.any_of<Destroyed, PowerShed>(candidate)) {
             continue;
         }
         if (registry.all_of<Shield>(candidate) &&
@@ -53,6 +72,34 @@ entt::entity FindCoveringShield(const entt::registry& registry, entt::entity har
         }
     }
     return entt::null;
+}
+
+// Where an absorbed hit's flash should render (ShieldImpactFlash's own comment has the full
+// rationale): Personal and Conformal both flash exactly on the hit hardpoint, since Personal only
+// ever covers its own hardpoint and Conformal's "hull contact point" is that same hardpoint's
+// position; Bubble flashes out at the point on its own coverageRadius circle nearest the hit.
+// nullopt when either hardpoint has no WorldTransform -- true of any real spawned rig, but not of
+// a unit test's hand-built bare entity, and a missing flash is a fine thing to skip silently
+// where a missing Health or Shield would not be.
+std::optional<Vec2> ComputeShieldImpactPosition(const entt::registry& registry,
+                                                const Shield& shield, entt::entity coveringShield,
+                                                entt::entity hitHardpoint) {
+    const auto* hitXf = registry.try_get<WorldTransform>(hitHardpoint);
+    if (hitXf == nullptr) {
+        return std::nullopt;
+    }
+    if (shield.coverage != ShieldCoverage::Bubble) {
+        return hitXf->position;
+    }
+    const auto* shieldXf = registry.try_get<WorldTransform>(coveringShield);
+    if (shieldXf == nullptr) {
+        return std::nullopt;
+    }
+    const Vec2 toHit = hitXf->position - shieldXf->position;
+    // A hit landing exactly on the shield generator's own center has no direction to project
+    // outward along -- falls back to a fixed direction rather than dividing by zero.
+    const Vec2 direction = Length(toHit) > 0.0f ? Normalized(toHit) : Vec2{1.0f, 0.0f};
+    return shieldXf->position + direction * shield.coverageRadius;
 }
 
 // Splits `pending` between the shield covering this hardpoint (architecture.md 12.22) and the
@@ -74,6 +121,21 @@ void ApplyToHealthAndShield(entt::registry& registry, entt::entity hardpoint,
             absorbed = std::min(shield.current, pending.amount);
             shield.current -= absorbed;
             shield.rechargeCooldown = shield.rechargeDelaySeconds;
+            if (const std::optional<Vec2> impactPosition =
+                    ComputeShieldImpactPosition(registry, shield, coveringShield, hardpoint)) {
+                // Only Personal's flash shape needs the hit hardpoint's own shell size (see
+                // ShieldImpactFlash's comment); left at 0 for every other mode, where
+                // WorldRenderer never reads it.
+                const auto* hitRadius = registry.try_get<HitRadius>(hardpoint);
+                registry.emplace_or_replace<ShieldImpactFlash>(
+                    coveringShield,
+                    ShieldImpactFlash{
+                        .worldPosition = *impactPosition,
+                        .type = pending.type,
+                        .coverage = shield.coverage,
+                        .hardpointRadius = hitRadius != nullptr ? hitRadius->value : 0.0f,
+                        .secondsRemaining = kShieldImpactFlashSeconds});
+            }
         }
     }
 
@@ -161,13 +223,39 @@ void CascadeDockedDestruction(entt::registry& registry) {
     }
 }
 
+// Counts every live ShieldImpactFlash down by dt and drops it once its lifetime expires. Runs
+// before this tick's own damage pass so a hit landing THIS tick (which (re-)sets its flash to a
+// full kShieldImpactFlashSeconds via emplace_or_replace) is never aged down in the same tick it
+// was created. Collecting expired entities first rather than removing mid-iteration: entt's view
+// iteration over a component's own storage is not safe to erase from as it goes.
+void AgeShieldImpactFlashes(entt::registry& registry, float dt) {
+    std::vector<entt::entity> expired;
+    for (auto [entity, flash] : registry.view<ShieldImpactFlash>().each()) {
+        flash.secondsRemaining -= dt;
+        if (flash.secondsRemaining <= 0.0f) {
+            expired.push_back(entity);
+        }
+    }
+    for (const entt::entity entity : expired) {
+        registry.remove<ShieldImpactFlash>(entity);
+    }
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
     entt::registry& registry = ctx.Registry();
 
-    for (auto [hardpoint, shield] : registry.view<Shield>(entt::exclude<Destroyed>).each()) {
-        RegenerateShield(shield, ctx.dt);
+    AgeShieldImpactFlashes(registry, ctx.dt);
+
+    // exclude<PowerShed>: an offline generator does not passively recharge either --
+    // RegenerateShield's own comment.
+    for (auto [hardpoint, shield] :
+         registry.view<Shield>(entt::exclude<Destroyed, PowerShed>).each()) {
+        const auto* parent = registry.try_get<ParentRig>(hardpoint);
+        const float satisfaction =
+            parent != nullptr ? RigShieldSatisfaction(registry, parent->root) : 1.0f;
+        RegenerateShield(shield, ctx.dt, satisfaction);
     }
 
     for (auto [hardpoint, pending, health] : registry.view<PendingDamage, Health>().each()) {

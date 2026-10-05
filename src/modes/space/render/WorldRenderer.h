@@ -6,6 +6,10 @@
 #include "modes/space/data/SystemWorld.h"
 #include "shared/math/Vec2.h"
 
+namespace sr {
+struct Rig;
+}  // namespace sr
+
 // modes/space/render/ -- the presentation layer for the space mode (architecture.md section 3,
 // first vertical slice step 8).
 //
@@ -30,7 +34,10 @@ struct CameraView {
 //   DrawWorldBodies    // Star -> Planet -> Wreck -> Drop -> Asteroid -> Anomaly (BodyKind order)
 //   DrawShips          // rig roots -- a heading marker only; the hull is DrawHardpoints below
 //   DrawHardpoints     // rig children
+//   DrawShields        // persistent per-coverage-mode field, features.md 3.5
 //   DrawProjectiles
+//   DrawBeams
+//   DrawShieldImpacts  // transient per-hit flash, drawn last so it always shows on top
 //
 // `alpha` is the fixed-timestep interpolation fraction (SpaceFlight::InterpolationAlpha) -- each
 // entity is drawn at PreviousTransform blended toward WorldTransform, not at raw simulation
@@ -50,5 +57,12 @@ bool HasVisiblePropulsion(const entt::registry& registry, entt::entity entity);
 // a hull turns (architecture.md 12.16 item 19). Pure with respect to the registry -- unit-testable
 // without a window, the same pattern HasVisiblePropulsion above uses.
 std::vector<entt::entity> SortedHardpointsForDraw(const entt::registry& registry);
+
+// The rig's living chassis mount (ShellRole::kind == ShellKind::Chassis), or entt::null if none
+// -- what DrawShields' Conformal case follows instead of every hardpoint's own bulk (its own
+// comment in WorldRenderer.cpp has the full rationale). Pure with respect to the registry --
+// unit-testable without a window, the same pattern HasVisiblePropulsion/SortedHardpointsForDraw
+// above use.
+entt::entity FindChassisHardpoint(const entt::registry& registry, const Rig& rig);
 
 }  // namespace sr::space::render

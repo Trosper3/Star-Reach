@@ -10,6 +10,7 @@
 #include "modes/space/systems/WeaponSystem.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Health.h"
 #include "shared/components/Power.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Targeting.h"
@@ -70,7 +71,18 @@ std::pair<entt::entity, entt::entity> MakeArmedRig(entt::registry& registry, con
 }
 
 Weapon ReadyWeapon() {
-    return Weapon{10.0f, DamageType::Kinetic, 0.5f, 900.0f, 750.0f, 0.0f, 1, 0.0f};
+    // Named fields, not positional: Weapon grew behavior-modifier fields after projectilesPerShot,
+    // so a trailing positional cooldown value would land in `continuous` instead.
+    Weapon weapon;
+    weapon.damage = 10.0f;
+    weapon.damageType = DamageType::Kinetic;
+    weapon.fireIntervalSeconds = 0.5f;
+    weapon.projectileSpeed = 900.0f;
+    weapon.rangeUnits = 750.0f;
+    weapon.spreadRadians = 0.0f;
+    weapon.projectilesPerShot = 1;
+    weapon.cooldown = 0.0f;
+    return weapon;
 }
 
 }  // namespace
@@ -343,6 +355,458 @@ TEST_CASE("A freshly spawned aegis_vanguard fires its wing cannons dead ahead", 
     }
 
     CHECK(registry.storage<Projectile>().size() > 0);
+}
+
+TEST_CASE("A chargeToFire+homing weapon fires once charge completes and the lock holds",
+          "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    // lockon_missile_i's exact authored stats (data/base_game/modules.json), plus explicit
+    // consistency=1.0/accuracyRadians=0.0 (their own defaults) so this fixture does not silently
+    // drift if Weapon ever grows another field between accuracyRadians and cooldown.
+    Weapon lockOnMissile{40.0f,   DamageType::Kinetic,
+                         0.5f,    650.0f,
+                         1000.0f, 0.0f,
+                         1,       false,
+                         4.0f,    true,
+                         1.2f,    1,
+                         0.0f,    6.0f,
+                         1.0f,    0.0f,
+                         0.0f,    6.0f};
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, lockOnMissile);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    for (int i = 0; i < 120; ++i) {
+        registry.emplace_or_replace<FireIntent>(root);
+        weapon_system::Tick(MakeContext(world, intents, content));
+    }
+
+    CHECK(registry.get<Weapon>(hardpoint).lockedTarget == enemyHardpoint);
+    CHECK(registry.get<Weapon>(hardpoint).chargeSeconds == Approx(1.2f));
+    REQUIRE(registry.storage<Projectile>().size() >= 1);
+}
+
+TEST_CASE("A chargeToFire+homing weapon keeps its lock but holds fire once ammo depletes",
+          "[weapon]") {
+    // Regression for the exact symptom a chargeToFire+homing weapon presents once its rack runs
+    // dry: charge/lock still succeed (they do not consume ammo), but ReadyToFire's outOfAmmo gate
+    // blocks the final shot -- "locks onto a target but does not fire anything" is the correct,
+    // by-design behavior for maxAmmo reaching 0, not a bug, since there is no reload mechanic
+    // (WeaponStats::maxAmmo's own comment). This proves the lock/charge readout alone cannot tell
+    // the two apart -- only the ammo readout can.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    Weapon lockOnMissile{40.0f,   DamageType::Kinetic,
+                         0.5f,    650.0f,
+                         1000.0f, 0.0f,
+                         1,       false,
+                         4.0f,    true,
+                         1.2f,    1,
+                         0.0f,    6.0f,
+                         1.0f,    0.0f,
+                         0.0f,    0.0f};
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, lockOnMissile);  // ammoRemaining pre-set to 0 above.
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    for (int i = 0; i < 120; ++i) {
+        registry.emplace_or_replace<FireIntent>(root);
+        weapon_system::Tick(MakeContext(world, intents, content));
+    }
+
+    CHECK(registry.get<Weapon>(hardpoint).lockedTarget == enemyHardpoint);
+    CHECK(registry.get<Weapon>(hardpoint).chargeSeconds == Approx(1.2f));
+    CHECK(registry.storage<Projectile>().size() == 0);
+}
+
+TEST_CASE("A weapon with consistency 0 deviates a shot away from the aim direction", "[weapon]") {
+    // Regression for WeaponStats::consistency/accuracyRadians: consistency=0 forces every shot
+    // onto the "miss" branch, so its fired direction must differ from the dead-on bearing every
+    // other test's default consistency=1 fixtures always produce.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    Weapon weapon = ReadyWeapon();
+    weapon.consistency = 0.0f;
+    weapon.accuracyRadians = 1.0f;
+    const auto [root, hardpoint] = MakeArmedRig(registry, weapon);
+    (void)hardpoint;
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.storage<Projectile>().size() == 1);
+    const entt::entity shot = registry.view<Projectile>().front();
+    // 0.0 is the dead-on bearing toward the target at (100, 0) from the mount at (0, 0).
+    CHECK(registry.get<WorldTransform>(shot).rotation != Approx(0.0f));
+}
+
+TEST_CASE("A continuous weapon queues damage scaled by dt and satisfaction, and leaves a BeamState",
+          "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+    registry.emplace<PowerBudget>(root, 50.0f, 100.0f, 0.5f);
+
+    Weapon weapon = ReadyWeapon();
+    weapon.continuous = true;
+    weapon.damage = 100.0f;  // Per second (WeaponStats::continuous's own comment), not per hit.
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    // No Projectile entity: a beam has no travel time (WeaponStats::continuous's own comment).
+    CHECK(registry.storage<Projectile>().size() == 0);
+    REQUIRE(registry.all_of<sr::PendingDamage>(enemyHardpoint));
+    const auto& pending = registry.get<sr::PendingDamage>(enemyHardpoint);
+    CHECK(pending.amount == Approx(50.0f));  // 100/s * 1.0s * 0.5 satisfaction.
+    CHECK(pending.type == DamageType::Kinetic);
+    CHECK(pending.source == root);
+    REQUIRE(registry.all_of<sr::BeamState>(hardpoint));
+    CHECK(registry.get<sr::BeamState>(hardpoint).endPoint.x == Approx(100.0f));
+}
+
+TEST_CASE("A continuous weapon's BeamState is cleared the tick it stops firing", "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    Weapon weapon = ReadyWeapon();
+    weapon.continuous = true;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+    REQUIRE(registry.all_of<sr::BeamState>(hardpoint));
+
+    // FireIntent already cleared itself at the end of the previous Tick (Tick's own trailing
+    // registry.clear<FireIntent>()) -- this tick genuinely has none, the same as a released
+    // trigger.
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    CHECK_FALSE(registry.all_of<sr::BeamState>(hardpoint));
+}
+
+TEST_CASE("A continuous weapon with finite ammo drains it by dt per second of fire, not per shot",
+          "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    Weapon weapon = ReadyWeapon();
+    weapon.continuous = true;
+    weapon.maxAmmo = 10.0f;
+    weapon.ammoRemaining = 10.0f;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content, 2.0f));
+
+    CHECK(registry.get<Weapon>(hardpoint).ammoRemaining == Approx(8.0f));
+}
+
+TEST_CASE(
+    "A burstCount weapon fires its shots burstIntervalSeconds apart and withholds the normal "
+    "cooldown until the burst finishes",
+    "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    Weapon weapon = ReadyWeapon();
+    weapon.burstCount = 3;
+    weapon.burstIntervalSeconds = 0.1f;
+    weapon.fireIntervalSeconds = 1.0f;
+    const auto [root, hardpoint] = MakeArmedRig(registry, weapon);
+    registry.emplace<FireIntent>(root);
+
+    // First tick fires shot 1 of 3 immediately (FireDiscrete) and starts the burst's own timer.
+    weapon_system::Tick(MakeContext(world, intents, content, 0.0f));
+    CHECK(registry.storage<Projectile>().size() == 1);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 2);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.0f));  // Withheld mid-burst.
+
+    // FireIntent is not re-applied from here -- a burst plays out on its own timer "regardless of
+    // continued FireIntent/charge state" (WeaponStats::burstCount's own comment).
+    weapon_system::Tick(
+        MakeContext(world, intents, content, 0.1f));  // Elapses burstIntervalSeconds.
+    CHECK(registry.storage<Projectile>().size() == 2);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 1);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(0.0f));
+
+    weapon_system::Tick(MakeContext(world, intents, content, 0.1f));
+    CHECK(registry.storage<Projectile>().size() == 3);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 0);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(1.0f));  // Set on the final shot.
+}
+
+TEST_CASE("A burst stops early if ammo runs out mid-burst", "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    Weapon weapon = ReadyWeapon();
+    weapon.burstCount = 3;
+    weapon.burstIntervalSeconds = 0.1f;
+    weapon.maxAmmo = 2.0f;
+    weapon.ammoRemaining = 2.0f;
+    const auto [root, hardpoint] = MakeArmedRig(registry, weapon);
+    registry.emplace<FireIntent>(root);
+
+    weapon_system::Tick(MakeContext(world, intents, content, 0.0f));  // Shot 1/3, ammo 2 -> 1.
+    CHECK(registry.storage<Projectile>().size() == 1);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 2);
+
+    weapon_system::Tick(MakeContext(world, intents, content, 0.1f));  // Shot 2/3, ammo 1 -> 0.
+    CHECK(registry.storage<Projectile>().size() == 2);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 1);
+
+    // Shot 3 would be due, but ammoRemaining is now 0 -- TickBurst's own outOfAmmo branch ends
+    // the burst without firing it and applies the normal cooldown anyway.
+    weapon_system::Tick(MakeContext(world, intents, content, 0.1f));
+    CHECK(registry.storage<Projectile>().size() == 2);
+    CHECK(registry.get<Weapon>(hardpoint).burstShotsRemaining == 0);
+    CHECK(registry.get<Weapon>(hardpoint).cooldown == Approx(weapon.fireIntervalSeconds));
+}
+
+TEST_CASE(
+    "A plain finite-ammo weapon stops firing once ammo depletes, with no charge or lock involved",
+    "[weapon]") {
+    // The chargeToFire+homing lock-on tests already cover ammo depletion for THAT combination;
+    // this covers the far more common case of an ordinary discrete weapon with a limited rack.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    Weapon weapon = ReadyWeapon();
+    weapon.fireIntervalSeconds = 0.0f;  // Ready again immediately, so only ammo gates the 3rd shot.
+    weapon.maxAmmo = 2.0f;
+    weapon.ammoRemaining = 2.0f;
+    const auto [root, hardpoint] = MakeArmedRig(registry, weapon);
+
+    registry.emplace<FireIntent>(root);
+    weapon_system::Tick(MakeContext(world, intents, content, 0.0f));
+    CHECK(registry.storage<Projectile>().size() == 1);
+    CHECK(registry.get<Weapon>(hardpoint).ammoRemaining == Approx(1.0f));
+
+    registry.emplace<FireIntent>(root);
+    weapon_system::Tick(MakeContext(world, intents, content, 0.0f));
+    CHECK(registry.storage<Projectile>().size() == 2);
+    CHECK(registry.get<Weapon>(hardpoint).ammoRemaining == Approx(0.0f));
+
+    registry.emplace<FireIntent>(root);
+    weapon_system::Tick(MakeContext(world, intents, content, 0.0f));
+    CHECK(registry.storage<Projectile>().size() == 2);  // Out of ammo -- no third shot.
+}
+
+TEST_CASE(
+    "A continuous+homing weapon with no charge aims at the nearest eligible hardpoint on its own, "
+    "ignoring the cursor",
+    "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    // 90 degrees off the mount's forward axis, and far from where AimPoint below points -- only
+    // an actual auto-seek (ResolveAimPoint's continuous+homing branch), not the cursor, can steer
+    // a shot here.
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{0.0f, 100.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{500.0f, 0.0f});  // Cursor points dead ahead instead.
+
+    Weapon weapon = ReadyWeapon();
+    weapon.continuous = true;
+    weapon.homingTurnRatePerSecond = sr::kPi;
+    weapon.rangeUnits = 200.0f;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    // Several ticks: the arc must slew from its spawned currentOffset (0.0) to the auto-seek
+    // target's bearing (+90 degrees) before it comes on-target.
+    for (int i = 0; i < 10; ++i) {
+        registry.emplace_or_replace<FireIntent>(root);
+        weapon_system::Tick(MakeContext(world, intents, content));
+    }
+
+    REQUIRE(registry.all_of<sr::PendingDamage>(enemyHardpoint));
+}
+
+TEST_CASE("Releasing a chargeToFire+homing weapon's trigger resets its charge and lock",
+          "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    Weapon weapon = ReadyWeapon();
+    weapon.chargeToFire = true;
+    weapon.chargeSecondsToFire = 2.0f;
+    weapon.homingTurnRatePerSecond = sr::kPi;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    registry.emplace<FireIntent>(root);
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f));  // Charges 1s of 2s, locks on.
+
+    REQUIRE(registry.get<Weapon>(hardpoint).lockedTarget == enemyHardpoint);
+    REQUIRE(registry.get<Weapon>(hardpoint).chargeSeconds == Approx(1.0f));
+
+    // FireIntent already cleared itself at the end of the previous Tick -- this tick genuinely has
+    // none, the same as a released trigger.
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Weapon>(hardpoint).chargeSeconds == Approx(0.0f));
+    CHECK((registry.get<Weapon>(hardpoint).lockedTarget == entt::null));
+    CHECK(registry.storage<Projectile>().size() == 0);
+}
+
+TEST_CASE(
+    "A chargeToFire+homing weapon's lock breaks and resets if the locked target dies mid-charge",
+    "[weapon]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity enemyRig = registry.create();
+    const entt::entity enemyHardpoint = registry.create();
+    registry.emplace<WorldTransform>(enemyHardpoint, Vec2{100.0f, 0.0f}, 0.0f);
+    registry.emplace<sr::HitRadius>(enemyHardpoint, 5.0f);
+    registry.emplace<sr::ParentRig>(enemyHardpoint, enemyRig);
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<Target>(root);
+    registry.emplace<AimPoint>(root, Vec2{100.0f, 0.0f});
+
+    Weapon weapon = ReadyWeapon();
+    weapon.chargeToFire = true;
+    weapon.chargeSecondsToFire = 2.0f;
+    weapon.homingTurnRatePerSecond = sr::kPi;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Weapon>(hardpoint, weapon);
+    registry.emplace<FiringArc>(hardpoint, sr::kPi, 0.0f, 100.0f);
+    registry.get<Rig>(root).children.push_back(hardpoint);
+
+    registry.emplace<FireIntent>(root);
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f));
+    REQUIRE(registry.get<Weapon>(hardpoint).lockedTarget == enemyHardpoint);
+
+    registry.emplace<Destroyed>(enemyHardpoint);
+    registry.emplace<FireIntent>(root);  // Still held.
+
+    weapon_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Weapon>(hardpoint).chargeSeconds == Approx(0.0f));
+    CHECK((registry.get<Weapon>(hardpoint).lockedTarget == entt::null));
+    CHECK(registry.storage<Projectile>().size() == 0);
 }
 
 TEST_CASE("A hardpoint with no WeaponGroup fires regardless of the rig's enabled mask",

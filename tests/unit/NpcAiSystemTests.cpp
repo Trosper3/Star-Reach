@@ -29,6 +29,7 @@ using sr::FireIntent;
 using sr::GravityWell;
 using sr::Health;
 using sr::PartyMember;
+using sr::PendingDamage;
 using sr::PlayerLocation;
 using sr::RepairBilling;
 using sr::RepairOrder;
@@ -487,4 +488,89 @@ TEST_CASE("NpcAiSystem holds station once within escort range instead of continu
     CHECK(registry.get<AiBehavior>(seeker).state == AiState::Escort);
     CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
     CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+}
+
+TEST_CASE(
+    "NpcAiSystem closes toward an assigned harvest target beyond hold range without draining yet",
+    "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity asteroid =
+        MakeTargetRig(registry, Vec2{0.0f, 1000.0f});  // beyond hold range
+    registry.emplace<Health>(asteroid, 60.0f, 60.0f);
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, entt::null, asteroid);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Harvest);
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.5f));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+    CHECK_FALSE(registry.all_of<PendingDamage>(asteroid));
+}
+
+TEST_CASE("NpcAiSystem holds station and drains a harvest target once within hold range",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity asteroid = MakeTargetRig(registry, Vec2{100.0f, 0.0f});  // inside hold range
+    registry.emplace<Health>(asteroid, 60.0f, 60.0f);
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, entt::null, asteroid);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Harvest);
+    CHECK(registry.get<ThrustInput>(seeker).turn == Approx(0.0f));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+    REQUIRE(registry.all_of<PendingDamage>(asteroid));
+    const auto& damage = registry.get<PendingDamage>(asteroid);
+    CHECK(damage.amount == Approx(20.0f * (1.0f / 60.0f)));
+    CHECK((damage.source == seeker));
+}
+
+TEST_CASE("NpcAiSystem clears a harvest target with no Health and falls back to Patrol",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity notHarvestable = MakeTargetRig(registry, Vec2{100.0f, 0.0f});  // no Health
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, entt::null, notHarvestable);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Patrol);
+    CHECK((registry.get<AiBehavior>(seeker).harvestTarget == entt::null));
+    CHECK(registry.get<ThrustInput>(seeker).forward == Approx(0.0f));
+}
+
+TEST_CASE("NpcAiSystem prioritizes a live hostile Target over an assigned harvest target",
+          "[npc_ai]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity seeker = MakeSeeker(registry);
+    const entt::entity enemy = MakeTargetRig(registry, Vec2{500.0f, 0.0f});
+    const entt::entity asteroid = MakeTargetRig(registry, Vec2{100.0f, 0.0f});
+    registry.emplace<Health>(asteroid, 60.0f, 60.0f);
+    registry.get<Target>(seeker).rig = enemy;
+    registry.emplace<AiBehavior>(seeker, AiState::Patrol, entt::null, asteroid);
+
+    npc_ai_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<AiBehavior>(seeker).state == AiState::Attack);
+    CHECK((registry.get<AiBehavior>(seeker).harvestTarget == asteroid));
+    CHECK_FALSE(registry.all_of<PendingDamage>(asteroid));
+    CHECK(registry.all_of<FireIntent>(seeker));
 }

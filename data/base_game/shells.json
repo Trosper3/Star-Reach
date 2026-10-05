@@ -36,6 +36,18 @@
       "acceptsKinds": ["weapon", "fire_control", "crew"]
     },
     {
+      "id": "shell_wing_hardpoint_ii",
+      "displayName": "Wing Hardpoint II",
+      "kind": "weapon",
+      "hull": 45.0,
+      "mass": 11.0,
+      "moduleSlots": 2,
+      "crewSlots": 1,
+      "radius": 5.0,
+      "spriteLayer": "fighter/wing_hardpoint",
+      "acceptsKinds": ["weapon", "fire_control", "crew"]
+    },
+    {
       "id": "shell_power_bay",
       "displayName": "Power Bay",
       "kind": "power_cell",

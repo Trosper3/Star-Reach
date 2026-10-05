@@ -15,10 +15,12 @@ using sr::HitRadius;
 using sr::LocalTransform;
 using sr::PreviousTransform;
 using sr::Propulsion;
+using sr::Rig;
 using sr::ShellKind;
 using sr::ShellRole;
 using sr::Vec2;
 using sr::WorldTransform;
+using sr::space::render::FindChassisHardpoint;
 using sr::space::render::HasVisiblePropulsion;
 using sr::space::render::SortedHardpointsForDraw;
 
@@ -103,4 +105,32 @@ TEST_CASE("SortedHardpointsForDraw excludes a destroyed hardpoint", "[world-rend
     const std::vector<entt::entity> order = SortedHardpointsForDraw(registry);
     REQUIRE(order.size() == 1);
     CHECK(order.front() == alive);
+}
+
+TEST_CASE("FindChassisHardpoint finds the chassis among a rig's other hardpoints",
+          "[world-renderer][chassis]") {
+    entt::registry registry;
+    const entt::entity chassis = MakeHardpoint(registry, ShellKind::Chassis, 0, 0.0f);
+    const entt::entity reactor = MakeHardpoint(registry, ShellKind::PowerCell, 0, 0.0f);
+    const Rig rig{{reactor, chassis}};
+
+    CHECK(FindChassisHardpoint(registry, rig) == chassis);
+}
+
+TEST_CASE("FindChassisHardpoint returns null for a rig with no chassis mount",
+          "[world-renderer][chassis]") {
+    entt::registry registry;
+    const entt::entity reactor = MakeHardpoint(registry, ShellKind::PowerCell, 0, 0.0f);
+    const Rig rig{{reactor}};
+
+    CHECK((FindChassisHardpoint(registry, rig) == entt::null));
+}
+
+TEST_CASE("FindChassisHardpoint ignores a destroyed chassis mount", "[world-renderer][chassis]") {
+    entt::registry registry;
+    const entt::entity chassis = MakeHardpoint(registry, ShellKind::Chassis, 0, 0.0f);
+    registry.emplace<Destroyed>(chassis);
+    const Rig rig{{chassis}};
+
+    CHECK((FindChassisHardpoint(registry, rig) == entt::null));
 }

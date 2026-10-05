@@ -1,11 +1,24 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 
 #include "shared/blueprints/Ids.h"
 #include "shared/blueprints/Taxonomy.h"
 
 namespace sr {
+
+// A raylib-independent RGBA color -- the same "not raylib's type" reasoning as shared/math/Vec2.h:
+// every component below this line must be constructible in a headless unit test and in tools/,
+// and shared/ may not include raylib (architecture.md Law 8). Conversion to raylib's Color happens
+// at the render boundary, in shared/ui/ or a mode's render/ directory, never here.
+struct ColorRGBA {
+    std::uint8_t r = 255;
+    std::uint8_t g = 255;
+    std::uint8_t b = 255;
+    std::uint8_t a = 255;
+};
 
 // Stat blocks. Every module carries all of them; only the one matching its kind is meaningful.
 //
@@ -21,6 +34,90 @@ struct WeaponStats {
     float rangeUnits = 0.0f;
     float spreadRadians = 0.0f;
     int projectilesPerShot = 1;
+
+    // Independent behavior modifiers, every one optional and defaulted off -- every existing
+    // authored weapon leaves all seven at their defaults and fires exactly as it always has.
+    // WeaponSystem composes them rather than branching on an exclusive "weapon type": each one
+    // changes what a specific other field/step means rather than adding a parallel code path, so
+    // any combination (a bursting homing missile, a chargeable beam) falls out of the same tick
+    // logic instead of needing its own case.
+
+    // Continuous hitscan while FireIntent holds, instead of a discrete Projectile per shot --
+    // `damage` becomes damage PER SECOND rather than per hit, and `projectileSpeed`/
+    // `spreadRadians`/`projectilesPerShot` are meaningless (a beam has no travel time and no
+    // pellet fan). WeaponSystem hit-tests directly and queues PendingDamage every tick it fires;
+    // no Projectile entity is ever created for one.
+    bool continuous = false;
+
+    // >0 bends the fired shot toward a target rather than flying the straight line `FromAngle`
+    // gives it. What it bends TOWARD depends on the other flags below (see WeaponSystem's
+    // EffectiveAimPoint/homing comments): a discrete projectile curves its own velocity heading
+    // after launch (ProjectileSystem); a continuous beam bends its live firing direction every
+    // tick instead. Aiming BEFORE the shot is fired stays cursor-driven either way unless
+    // `chargeToFire` also acquired a lock -- features.md 3.2's "no target lock" governs assisted
+    // AIMING, not whether an already-fired/already-locked shot can track afterward.
+    float homingTurnRatePerSecond = 0.0f;
+
+    // Gates firing behind a hold-to-charge windup: while FireIntent holds (and, if
+    // `homingTurnRatePerSecond` is also set, while a lock acquired on the press that started this
+    // hold remains alive -- see WeaponSystem's lock-acquisition comment), charge accumulates
+    // toward `chargeSecondsToFire`; releasing early resets it to zero, no shot fired. Once charge
+    // is complete *while still held*, the weapon fires -- a discrete weapon fires once right then
+    // (and keeps re-firing every `fireIntervalSeconds` for as long as the hold/lock survives,
+    // driven by the ordinary cooldown gate, not by re-charging); a continuous weapon just starts
+    // beaming from that tick on. There is deliberately no separate "release to fire" path: a
+    // beam has no discrete instant for a release to trigger, so both behaviors share the one rule
+    // "may fire once charge is full and FireIntent still holds."
+    bool chargeToFire = false;
+    float chargeSecondsToFire = 0.0f;
+
+    // >1 fires this many activations spaced `burstIntervalSeconds` apart per trigger, before the
+    // normal `fireIntervalSeconds` cooldown starts -- a timed sequence, distinct from
+    // `projectilesPerShot`'s simultaneous fan. Once the first shot of a burst fires, the rest play
+    // out on their own timer regardless of continued FireIntent/charge state (a full "mag dump"
+    // per pull), stopping early only if ammo runs out mid-burst.
+    int burstCount = 1;
+    float burstIntervalSeconds = 0.0f;
+
+    // -1 (default) is unlimited, matching every weapon's behavior before this field existed. A
+    // non-negative value is a depleting pool: 1.0 per discrete shot (or per burst activation), or
+    // 1.0 per second of continuous fire (WeaponSystem::Tick's ammo comment) -- float rather than
+    // int so both drain rates share one field/one gate (`ammoRemaining <= 0.0f`) instead of a
+    // per-shot-count type needing a separate continuous-rate concept. Reaching zero simply stops
+    // the mount from firing again; there is no reload/resupply mechanic yet.
+    float maxAmmo = -1.0f;
+
+    // Chance [0, 1] that a fired shot flies exactly at the aim direction; the complement chance
+    // it instead deviates by a random angle within +/-accuracyRadians below. Defaults to 1.0 --
+    // every existing weapon fires dead-on every time, exactly as before this field existed.
+    // Applies per discrete shot (each pellet of a projectilesPerShot fan rolls independently);
+    // meaningless for a continuous weapon, which has no discrete shot to roll for.
+    //
+    // Deliberately NOT the same axis as spreadRadians: spreadRadians fans multiple SIMULTANEOUS
+    // pellets across a fixed, deterministic cone (a shotgun's spread pattern, reproducible from
+    // the weapon's stats alone); this is a per-shot RANDOM deviation representing shot-to-shot
+    // inconsistency, not pattern shape. The roll is still a pure function of (hardpoint, pellet
+    // index, tick) -- never rand()/<random> -- matching MiningSystem::RollPercent's own comment on
+    // why: Law 2's coarse-tick fast-forward needs every time-dependent decision reproducible from
+    // the same inputs.
+    float consistency = 1.0f;
+
+    // Maximum random angular deviation, radians either side of the aim direction, applied on the
+    // (1 - consistency) fraction of shots that miss the dead-on roll. Meaningless when consistency
+    // is 1.0 (the default).
+    float accuracyRadians = 0.0f;
+
+    // Overrides shared/ui/HudTheme.h's DamageTypeColor default for this weapon's projectiles/beam
+    // -- a mod, or a base-game module, can give a signature look (a faction's distinctive laser
+    // color, say) without inventing a new DamageType just to get a different color. Authored in
+    // JSON as a "colorOverride" hex string ("RRGGBB" or "RRGGBBAA"; core/registries/
+    // BlueprintJson.cpp parses it and silently leaves this nullopt on anything malformed, the same
+    // "fail open on cosmetic content" idea WeaponSystem::GroupEnabled already applies to an
+    // unassigned weapon group) rather than as a nested {r,g,b,a} object -- simpler to author and
+    // parse than adding a fifth JsonReader::Optional overload just for this one field. Absent (not
+    // a zero-initialized color) so an author who genuinely wants transparent black is never
+    // confused with one who set nothing.
+    std::optional<ColorRGBA> colorOverride;
 };
 
 struct ShieldStats {

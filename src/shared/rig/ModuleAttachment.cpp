@@ -38,6 +38,45 @@ PowerCategory PowerCategoryFor(ModuleKind kind) {
     }
 }
 
+// Split out of AttachRoleComponents purely for its own length (architecture.md 2.2's cap) --
+// Weapon's construction call alone is sixteen fields wide.
+void AttachWeapon(entt::registry& registry, entt::entity hardpoint, const WeaponStats& stats,
+                  float mountTraverseRadians) {
+    // Designated initializers, not positional: Weapon has grown three times since this call was
+    // first written (consistency/accuracyRadians, then colorOverride), and a positional list this
+    // long silently mis-assigns every trailing argument the next time it grows -- exactly what
+    // happened to a positional test fixture (not this call) the first time, elsewhere in this
+    // same project history. ammoRemaining is the one runtime field seeded from authored data
+    // (maxAmmo); every other unnamed runtime field's own default member initializer (Combat.h) is
+    // already correct for a freshly attached weapon.
+    registry.emplace_or_replace<Weapon>(
+        hardpoint, Weapon{
+                       .damage = stats.damage,
+                       .damageType = stats.damageType,
+                       .fireIntervalSeconds = stats.fireIntervalSeconds,
+                       .projectileSpeed = stats.projectileSpeed,
+                       .rangeUnits = stats.rangeUnits,
+                       .spreadRadians = stats.spreadRadians,
+                       .projectilesPerShot = stats.projectilesPerShot,
+                       .continuous = stats.continuous,
+                       .homingTurnRatePerSecond = stats.homingTurnRatePerSecond,
+                       .chargeToFire = stats.chargeToFire,
+                       .chargeSecondsToFire = stats.chargeSecondsToFire,
+                       .burstCount = stats.burstCount,
+                       .burstIntervalSeconds = stats.burstIntervalSeconds,
+                       .maxAmmo = stats.maxAmmo,
+                       .consistency = stats.consistency,
+                       .accuracyRadians = stats.accuracyRadians,
+                       .ammoRemaining = stats.maxAmmo,
+                       .colorOverride = stats.colorOverride,
+                   });
+    // A FireControl module may already be mounted here (mount.modules' order isn't guaranteed),
+    // in which case its rate applies immediately instead of the kPi baseline.
+    const auto* fireControl = registry.try_get<FireControl>(hardpoint);
+    const float turnRate = fireControl != nullptr ? fireControl->turnRatePerSecond : kPi;
+    registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, turnRate);
+}
+
 // Attaches the role components specific to `module.kind` -- everything AttachModuleComponents
 // itself does not already handle uniformly for every kind (HardpointMass, PowerSource/PowerLoad).
 // Split out purely to keep AttachModuleComponents under architecture.md 2.2's function-length cap;
@@ -46,19 +85,9 @@ PropulsionContribution AttachRoleComponents(entt::registry& registry, entt::enti
                                             const ModuleDef& module, float mountTraverseRadians) {
     PropulsionContribution propulsion;
     switch (module.kind) {
-        case ModuleKind::Weapon: {
-            const WeaponStats& stats = module.weapon;
-            registry.emplace_or_replace<Weapon>(hardpoint, stats.damage, stats.damageType,
-                                                stats.fireIntervalSeconds, stats.projectileSpeed,
-                                                stats.rangeUnits, stats.spreadRadians,
-                                                stats.projectilesPerShot, 0.0f);
-            // A FireControl module may already be mounted here (mount.modules' order isn't
-            // guaranteed), in which case its rate applies immediately instead of the kPi baseline.
-            const auto* fireControl = registry.try_get<FireControl>(hardpoint);
-            const float turnRate = fireControl != nullptr ? fireControl->turnRatePerSecond : kPi;
-            registry.emplace_or_replace<FiringArc>(hardpoint, mountTraverseRadians, 0.0f, turnRate);
+        case ModuleKind::Weapon:
+            AttachWeapon(registry, hardpoint, module.weapon, mountTraverseRadians);
             break;
-        }
         case ModuleKind::ShieldGenerator: {
             const ShieldStats& stats = module.shield;
             registry.emplace_or_replace<Shield>(

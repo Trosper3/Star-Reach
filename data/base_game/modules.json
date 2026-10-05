@@ -66,7 +66,9 @@
         "projectileSpeed": 1100.0,
         "rangeUnits": 600.0,
         "spreadRadians": 0.05,
-        "projectilesPerShot": 1
+        "projectilesPerShot": 1,
+        "consistency": 0.65,
+        "accuracyRadians": 0.05
       }
     },
     {
@@ -779,6 +781,87 @@
       }
     },
     {
+      "id": "beam_lance_i",
+      "displayName": "Beam Lance I",
+      "kind": "weapon",
+      "mass": 18.0,
+      "powerDraw": 26.0,
+      "weapon": {
+        "damage": 9.0,
+        "damageType": "energy",
+        "rangeUnits": 500.0,
+        "continuous": true,
+        "colorOverride": "00FF66"
+      }
+    },
+    {
+      "id": "tracking_beam_i",
+      "displayName": "Tracking Beam I",
+      "kind": "weapon",
+      "mass": 17.0,
+      "powerDraw": 24.0,
+      "weapon": {
+        "damage": 6.0,
+        "damageType": "energy",
+        "rangeUnits": 450.0,
+        "continuous": true,
+        "homingTurnRatePerSecond": 3.0
+      }
+    },
+    {
+      "id": "seeker_missile_i",
+      "displayName": "Seeker Missile I",
+      "kind": "weapon",
+      "mass": 20.0,
+      "powerDraw": 18.0,
+      "weapon": {
+        "damage": 25.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 1.5,
+        "projectileSpeed": 500.0,
+        "rangeUnits": 900.0,
+        "projectilesPerShot": 1,
+        "homingTurnRatePerSecond": 2.5
+      }
+    },
+    {
+      "id": "lockon_missile_i",
+      "displayName": "Lock-On Missile I",
+      "kind": "weapon",
+      "mass": 24.0,
+      "powerDraw": 28.0,
+      "weapon": {
+        "damage": 40.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 0.5,
+        "projectileSpeed": 650.0,
+        "rangeUnits": 1000.0,
+        "projectilesPerShot": 1,
+        "homingTurnRatePerSecond": 4.0,
+        "chargeToFire": true,
+        "chargeSecondsToFire": 1.2,
+        "maxAmmo": 6
+      }
+    },
+    {
+      "id": "chain_burst_i",
+      "displayName": "Chain Burst I",
+      "kind": "weapon",
+      "mass": 17.0,
+      "powerDraw": 14.0,
+      "weapon": {
+        "damage": 8.0,
+        "damageType": "kinetic",
+        "fireIntervalSeconds": 1.0,
+        "projectileSpeed": 1000.0,
+        "rangeUnits": 550.0,
+        "spreadRadians": 0.02,
+        "projectilesPerShot": 1,
+        "burstCount": 3,
+        "burstIntervalSeconds": 0.08
+      }
+    },
+    {
       "id": "deflector_ii",
       "displayName": "Kinetic Deflector II",
       "kind": "shield_generator",
@@ -909,6 +992,21 @@
         "rechargeDelaySeconds": 3.8,
         "coverage": "bubble",
         "coverageRadius": 85.0
+      }
+    },
+    {
+      "id": "bubble_projector_energy_i",
+      "displayName": "Bubble Projector (Energy) I",
+      "kind": "shield_generator",
+      "mass": 30.0,
+      "powerDraw": 55.0,
+      "shield": {
+        "capacity": 220.0,
+        "absorbs": "energy",
+        "rechargePerSecond": 11.0,
+        "rechargeDelaySeconds": 4.0,
+        "coverage": "bubble",
+        "coverageRadius": 60.0
       }
     },
     {

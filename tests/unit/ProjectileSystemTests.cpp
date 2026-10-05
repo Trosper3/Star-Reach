@@ -11,6 +11,7 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
+#include "shared/math/Angle.h"
 
 using Catch::Approx;
 using sr::DamageType;
@@ -240,6 +241,67 @@ TEST_CASE(
     CHECK_FALSE(registry.valid(shot));
     CHECK(registry.all_of<PendingDamage>(nearHardpoint));
     CHECK_FALSE(registry.all_of<PendingDamage>(farHardpoint));
+}
+
+TEST_CASE("A dumb-fire homing projectile steers toward the nearest eligible hardpoint every tick",
+          "[projectile]") {
+    // Projectile::homingTarget's own comment: a plain (non-locked) homing shot re-seeks the
+    // nearest eligible hardpoint every tick rather than remembering one.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity shooterRig = registry.create();
+    const entt::entity targetRig = registry.create();
+    // Off to the +y side of the shot's initial straight-line (+x) heading -- a homing shot must
+    // curve toward it instead of flying straight past.
+    MakeHardpoint(registry, targetRig, Vec2{50.0f, 50.0f}, 5.0f);
+
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{100.0f, 0.0f}, 10.0f,
+                                             DamageType::Kinetic, shooterRig, 1000.0f);
+    registry.get<Projectile>(shot).homingTurnRatePerSecond = sr::kPi;  // Fast enough to see it.
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    REQUIRE(registry.valid(shot));
+    // Velocity has rotated off the pure +x heading, toward the target's +y side.
+    CHECK(registry.get<Velocity>(shot).linear.y > 0.0f);
+}
+
+TEST_CASE(
+    "A locked homing projectile whose target dies flies straight forever instead of re-seeking",
+    "[projectile]") {
+    // Projectile::homingWasLocked's own comment: a locked missile whose target dies goes
+    // permanently dumb rather than opportunistically retargeting.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity shooterRig = registry.create();
+    const entt::entity targetRig = registry.create();
+    const entt::entity lockedTarget = MakeHardpoint(registry, targetRig, Vec2{50.0f, 50.0f}, 5.0f);
+    const entt::entity otherRig = registry.create();
+    // A second, closer candidate: if the shot went dumb-fire (re-seeking) instead of staying
+    // permanently straight, it would curve toward THIS one once the lock breaks.
+    MakeHardpoint(registry, otherRig, Vec2{10.0f, 10.0f}, 5.0f);
+
+    const entt::entity shot = MakeProjectile(registry, Vec2{0.0f, 0.0f}, Vec2{100.0f, 0.0f}, 10.0f,
+                                             DamageType::Kinetic, shooterRig, 1000.0f);
+    auto& projectile = registry.get<Projectile>(shot);
+    projectile.homingTurnRatePerSecond = sr::kPi;
+    projectile.homingTarget = lockedTarget;
+    projectile.homingWasLocked = true;
+
+    registry.destroy(lockedTarget);  // The lock's target is gone before this tick runs.
+
+    projectile_system::Tick(MakeContext(world, intents, content, 1.0f / 60.0f));
+
+    REQUIRE(registry.valid(shot));
+    CHECK(registry.get<Projectile>(shot).homingTurnRatePerSecond == Approx(0.0f));
+    // Still flying the original straight line -- no curve toward the other, closer candidate.
+    CHECK(registry.get<Velocity>(shot).linear.y == Approx(0.0f));
 }
 
 TEST_CASE("ProjectileSystem accumulates damage from two hits on the same hardpoint in one tick",

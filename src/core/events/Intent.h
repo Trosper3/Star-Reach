@@ -55,12 +55,24 @@ struct AimIntent {
     Vec2 worldPosition;
 };
 
-// Flip one of the actor's rig's ten weapon groups on/off (features.md 3.6). Pushed once per key
-// press, never held -- FlightControls uses IsKeyPressed, not IsKeyDown, so this toggles rather
-// than chatters while the key stays down.
-struct ToggleWeaponGroupIntent {
+// The actor's full ten-group enabled mask for this tick (features.md 3.6), pushed every frame
+// like SetThrottleIntent/AimIntent rather than as an edge-triggered "flip bit i" event.
+// FlightControls owns the toggle bookkeeping (which key flips which bit, on its up-edge) and
+// settles it into this one absolute value every frame; PlayerInputSystem just assigns it.
+//
+// An edge-triggered flip intent looked simpler but is not safe under this queue's real lifecycle:
+// it is pushed on exactly the one real frame a key transitions, yet FixedTimestep
+// (kFixedDeltaSeconds = 1/60s) runs zero fixed ticks on most real frames and more than one during
+// catch-up -- Window.cpp caps rendering at 144 FPS, deliberately decoupled from the 60 Hz
+// simulation rate -- so a bit-flip intent could be silently dropped (zero ticks ever saw it
+// before IntentQueue::Clear()) or double-applied (two ticks in one catch-up frame both saw the
+// same push), depending on how the two rates happened to land that frame. An absolute "this is
+// the mask now" value is immune to both failure modes the same way ThrustInput already is:
+// assigning it zero or several times within the same real frame always converges on the same
+// result.
+struct SetWeaponGroupsIntent {
     ActorId actor;
-    std::uint8_t groupIndex = 0;
+    std::uint16_t mask = 0x03FFu;
 };
 
 // Instantiate a blueprint. The macro-loop payoff of Law 3: this is a request to build *data*,
@@ -115,7 +127,7 @@ struct SaveTemplateIntent {
 };
 
 using Intent = std::variant<SetThrottleIntent, FireWeaponsIntent, SetTargetIntent, AimIntent,
-                            ToggleWeaponGroupIntent, SpawnBlueprintIntent, PitchTemplateIntent,
+                            SetWeaponGroupsIntent, SpawnBlueprintIntent, PitchTemplateIntent,
                             SaveTemplateIntent>;
 
 }  // namespace sr::core

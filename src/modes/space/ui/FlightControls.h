@@ -21,8 +21,12 @@ namespace sr::space::ui::flight_controls {
 //     mouse position -- features.md 3.2's "the cursor is the aim point," and WeaponSystem needs a
 //     fresh value even on a frame the mouse did not move, the same "every frame, not just on
 //     change" idiom as the throttle intent above;
-//   - one ToggleWeaponGroupIntent per weapon-group key (1-0) pressed this frame -- IsKeyPressed,
-//     not IsKeyDown, so holding a key toggles once rather than chattering (features.md 3.6).
+//   - one SetWeaponGroupsIntent, every frame, carrying the settled ten-group enabled mask this
+//     file tracks internally -- weapon-group keys (1-0) flip a bit on their up-edge (IsKeyPressed,
+//     not IsKeyDown, so holding a key toggles once rather than chattering, features.md 3.6), but
+//     the intent itself is pushed as an absolute value every frame, the same "every frame, not
+//     just on change" idiom as AimIntent below, so PlayerInputSystem can simply assign it
+//     regardless of how many (or how few) fixed ticks land in this real frame.
 //
 // Called from SpaceFlight::Update before clock_.Advance, same as AvionicsMenu::Update: the queue
 // is cleared only after the whole fixed-step loop runs, so one intent pushed here is visible to

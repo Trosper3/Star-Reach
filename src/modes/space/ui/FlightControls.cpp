@@ -15,6 +15,15 @@ namespace {
 constexpr int kWeaponGroupKeys[10] = {KEY_ONE, KEY_TWO,   KEY_THREE, KEY_FOUR, KEY_FIVE,
                                       KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE, KEY_ZERO};
 
+// Settled weapon-group enable state: flipped on each key's up-edge (IsKeyPressed, so holding a
+// key toggles once rather than chattering), then pushed as one absolute value every frame --
+// SetWeaponGroupsIntent's own comment (core/events/Intent.h) explains why an edge-triggered
+// "flip bit i" push is not safe under this queue's real lifecycle. Static, matching
+// AvionicsMenu.cpp's gHeldSeconds precedent: this is input-layer bookkeeping for the single local
+// player Poll() is ever called for, not game state -- EnabledWeaponGroups on the rig itself
+// remains the actual source of truth PlayerInputSystem/WeaponSystem read.
+std::uint16_t gWeaponGroupMask = 0x03FFu;
+
 }  // namespace
 
 void Poll(core::IntentQueue& out, ActorId self, const render::CameraView& camera) {
@@ -34,9 +43,10 @@ void Poll(core::IntentQueue& out, ActorId self, const render::CameraView& camera
 
     for (int i = 0; i < 10; ++i) {
         if (IsKeyPressed(kWeaponGroupKeys[i])) {
-            out.Push(core::ToggleWeaponGroupIntent{self, static_cast<std::uint8_t>(i)});
+            gWeaponGroupMask ^= static_cast<std::uint16_t>(1u << i);
         }
     }
+    out.Push(core::SetWeaponGroupsIntent{self, gWeaponGroupMask});
 }
 
 }  // namespace sr::space::ui::flight_controls
