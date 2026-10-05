@@ -6,6 +6,7 @@
 #include "shared/components/Ai.h"
 #include "shared/components/Combat.h"
 #include "shared/components/Docking.h"
+#include "shared/components/Health.h"
 #include "shared/components/Identity.h"
 #include "shared/components/Orbit.h"
 #include "shared/components/Physics.h"
@@ -192,10 +193,50 @@ void Engage(entt::registry& registry, AiBehavior& behavior, entt::entity self, T
     registry.emplace_or_replace<FireIntent>(self);
 }
 
-// One rig's full state-machine evaluation for this tick: reset, dodge, flee, or engage/escort/
-// patrol, in that priority order.
+// Closes on `harvestXf` until within kHarvestHoldRangeUnits, then holds and drains -- the same
+// turn-then-burn shape PursueEscort already uses.
+constexpr float kHarvestHoldRangeUnits = 150.0f;
+constexpr float kHarvestDamagePerSecond = 20.0f;
+
+// A live, positioned harvestTarget with Health to drain: close distance, then hold and enqueue
+// PendingDamage against it every tick once in range -- the same non-weapon enqueue idiom
+// HazardSystem/CollisionSystem already use (`source` need not be a hardpoint). Flows through the
+// existing generic DamageSystem -> Destroyed -> MiningSystem pipeline unchanged. Returns false
+// (and clears a stale harvestTarget) if there is nothing valid to harvest, so HandleRig can fall
+// back to PatrolOrEscort the same way a lost hostile Target already does.
+bool TryHarvest(entt::registry& registry, AiBehavior& behavior, entt::entity self,
+                const WorldTransform& xf, ThrustInput& thrust, float dt) {
+    if (behavior.harvestTarget == entt::null || !registry.valid(behavior.harvestTarget) ||
+        !registry.all_of<WorldTransform, Health>(behavior.harvestTarget)) {
+        behavior.harvestTarget = entt::null;
+        return false;
+    }
+
+    behavior.state = AiState::Harvest;
+    const WorldTransform& targetXf = registry.get<WorldTransform>(behavior.harvestTarget);
+    const Vec2 toTarget = targetXf.position - xf.position;
+    if (Length(toTarget) > kHarvestHoldRangeUnits) {
+        const float headingError = AngleDelta(xf.rotation, ToAngle(toTarget));
+        thrust.turn = std::clamp(headingError * kTurnGainPerRadian, -1.0f, 1.0f);
+        if (std::abs(headingError) <= kHeadingToleranceRadians) {
+            thrust.forward = 1.0f;
+        }
+        return true;
+    }
+
+    registry.emplace_or_replace<PendingDamage>(
+        behavior.harvestTarget,
+        PendingDamage{kHarvestDamagePerSecond * dt, DamageType::Kinetic, self});
+    return true;
+}
+
+// One rig's full state-machine evaluation for this tick: reset, dodge, flee, engage, harvest, or
+// escort/patrol, in that priority order. A live hostile Target always outranks an assigned
+// harvestTarget (a threat interrupts a mining run); harvestTarget itself is left untouched by
+// Engage, so the run resumes once the threat clears.
 void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazards,
-               entt::entity self, Target& target, WorldTransform& xf, ThrustInput& thrust) {
+               entt::entity self, Target& target, WorldTransform& xf, ThrustInput& thrust,
+               float dt) {
     // Reset every tick: a rig that lost its target coasts and stops asking to fire, rather than
     // holding whatever throttle and FireIntent it last had.
     thrust = ThrustInput{};
@@ -232,12 +273,16 @@ void HandleRig(entt::registry& registry, const std::vector<GravityHazard>& hazar
 
     const bool hasTarget = target.rig != entt::null && registry.valid(target.rig) &&
                            registry.all_of<WorldTransform>(target.rig);
-    if (!hasTarget) {
-        PatrolOrEscort(registry, behavior, xf, thrust);
+    if (hasTarget) {
+        Engage(registry, behavior, self, target, xf, thrust);
         return;
     }
 
-    Engage(registry, behavior, self, target, xf, thrust);
+    if (TryHarvest(registry, behavior, self, xf, thrust, dt)) {
+        return;
+    }
+
+    PatrolOrEscort(registry, behavior, xf, thrust);
 }
 
 // architecture.md 12.30.4: "who pays when the repaired rig is not the player's" -- an NPC's
@@ -284,7 +329,7 @@ void Tick(const SystemContext& ctx) {
                                                .view<Target, WorldTransform, ThrustInput>(
                                                    entt::exclude<PlayerLocation, Docked, Uncrewed>)
                                                .each()) {
-        HandleRig(registry, hazards, self, target, xf, thrust);
+        HandleRig(registry, hazards, self, target, xf, thrust, ctx.dt);
     }
 
     EmitNpcRepairOrders(registry);

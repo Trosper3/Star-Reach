@@ -167,7 +167,7 @@ TEST_CASE("PlayerInputSystem drops an AimIntent naming an unresolvable ActorId",
     CHECK_NOTHROW(player_input_system::Tick(MakeContext(world, intents, content)));
 }
 
-TEST_CASE("PlayerInputSystem flips one bit of EnabledWeaponGroups per ToggleWeaponGroupIntent",
+TEST_CASE("PlayerInputSystem assigns EnabledWeaponGroups from SetWeaponGroupsIntent's mask",
           "[player_input]") {
     SystemWorld world("sol");
     entt::registry& registry = world.Registry();
@@ -176,14 +176,16 @@ TEST_CASE("PlayerInputSystem flips one bit of EnabledWeaponGroups per ToggleWeap
 
     const entt::entity actor = MakeActor(registry, ActorId{1});
     registry.emplace<EnabledWeaponGroups>(actor);  // Default: all ten groups on.
-    intents.Push(sr::core::ToggleWeaponGroupIntent{ActorId{1}, 2});
+    intents.Push(sr::core::SetWeaponGroupsIntent{ActorId{1}, static_cast<std::uint16_t>(1u << 2)});
 
     player_input_system::Tick(MakeContext(world, intents, content));
-    CHECK((registry.get<EnabledWeaponGroups>(actor).mask & (1u << 2)) == 0);
+    CHECK(registry.get<EnabledWeaponGroups>(actor).mask == (1u << 2));
 
-    // Toggling again flips it back on.
-    intents.Clear();
-    intents.Push(sr::core::ToggleWeaponGroupIntent{ActorId{1}, 2});
+    // Applying the same intent across more than one tick -- FixedTimestep's catch-up case, or
+    // simply a real frame the queue is not cleared between (SpaceFlight.cpp's clock_.Advance/
+    // ConsumeStep loop) -- must converge on the same mask rather than compounding. This is
+    // exactly the failure mode an edge-triggered "flip bit i" intent had (see
+    // SetWeaponGroupsIntent's comment in core/events/Intent.h).
     player_input_system::Tick(MakeContext(world, intents, content));
-    CHECK((registry.get<EnabledWeaponGroups>(actor).mask & (1u << 2)) != 0);
+    CHECK(registry.get<EnabledWeaponGroups>(actor).mask == (1u << 2));
 }

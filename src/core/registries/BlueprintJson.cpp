@@ -1,10 +1,48 @@
 #include "core/registries/BlueprintJson.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace sr::core {
 namespace {
+
+// "RRGGBB" or "RRGGBBAA" (alpha defaults to 0xFF when omitted) -- a modder-familiar convention,
+// simpler to author than a nested {r,g,b,a} object and simpler to parse than adding a fifth
+// JsonReader::Optional overload just for this one field (WeaponStats::colorOverride's own
+// comment). Returns nullopt for anything that is not exactly 6 or 8 valid hex digits, so a typo
+// silently falls back to DamageTypeColor rather than failing content load over a cosmetic field.
+std::optional<ColorRGBA> ParseHexColor(const std::string& hex) {
+    if (hex.size() != 6 && hex.size() != 8) {
+        return std::nullopt;
+    }
+    const auto hexByte = [&](std::size_t index) -> std::optional<std::uint8_t> {
+        try {
+            std::size_t consumed = 0;
+            const unsigned long value = std::stoul(hex.substr(index, 2), &consumed, 16);
+            return consumed == 2 ? std::optional<std::uint8_t>(static_cast<std::uint8_t>(value))
+                                 : std::nullopt;
+        } catch (const std::exception&) {
+            return std::nullopt;
+        }
+    };
+    const std::optional<std::uint8_t> r = hexByte(0);
+    const std::optional<std::uint8_t> g = hexByte(2);
+    const std::optional<std::uint8_t> b = hexByte(4);
+    if (!r.has_value() || !g.has_value() || !b.has_value()) {
+        return std::nullopt;
+    }
+    ColorRGBA color{*r, *g, *b, 255};
+    if (hex.size() == 8) {
+        const std::optional<std::uint8_t> a = hexByte(6);
+        if (!a.has_value()) {
+            return std::nullopt;
+        }
+        color.a = *a;
+    }
+    return color;
+}
 
 void ParsePowerLevelStats(const JsonReader& reader, const char* key, PowerLevelStats& out) {
     const JsonReader stats = reader.Child(key, key);
@@ -30,6 +68,21 @@ void ParseWeaponStats(const JsonReader& reader, WeaponStats& out) {
     stats.Optional("rangeUnits", out.rangeUnits);
     stats.Optional("spreadRadians", out.spreadRadians);
     stats.Optional("projectilesPerShot", out.projectilesPerShot);
+    stats.Optional("continuous", out.continuous);
+    stats.Optional("homingTurnRatePerSecond", out.homingTurnRatePerSecond);
+    stats.Optional("chargeToFire", out.chargeToFire);
+    stats.Optional("chargeSecondsToFire", out.chargeSecondsToFire);
+    stats.Optional("burstCount", out.burstCount);
+    stats.Optional("burstIntervalSeconds", out.burstIntervalSeconds);
+    stats.Optional("maxAmmo", out.maxAmmo);
+    stats.Optional("consistency", out.consistency);
+    stats.Optional("accuracyRadians", out.accuracyRadians);
+
+    std::string colorOverrideHex;
+    stats.Optional("colorOverride", colorOverrideHex);
+    if (!colorOverrideHex.empty()) {
+        out.colorOverride = ParseHexColor(colorOverrideHex);
+    }
 }
 
 void ParseShieldStats(const JsonReader& reader, ShieldStats& out) {

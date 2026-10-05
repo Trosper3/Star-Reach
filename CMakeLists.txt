@@ -354,6 +354,33 @@ target_include_directories(sr_economy_sim PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/too
 add_executable(economy_sim tools/economy_sim/main.cpp)
 target_link_libraries(economy_sim PRIVATE sr_economy_sim)
 
+# --- sandbox : the player-interaction sandbox -------------------------------------------------
+# tools/sandbox/main.cpp -- links sr_space directly and drives the real RigFactory/systems/render
+# code against its own private SystemWorld, the same "real code, private world" shape
+# MenuVignette.cpp already uses inside sr_menu. Not sr_menu itself: this has its own window and
+# main(), so it is a sibling executable, not a mode.
+add_executable(sandbox tools/sandbox/main.cpp)
+target_link_libraries(sandbox PRIVATE sr_space)
+
+# SYSTEM: see sr_space's identical declaration above -- main.cpp includes <raylib.h> directly for
+# its own overlay text the way MenuVignette.cpp and FlightControls.cpp already do at this layer.
+target_include_directories(sandbox SYSTEM PRIVATE
+    $<TARGET_PROPERTY:EnTT::EnTT,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
+# --- ai_behaviors : the NPC AI-behavior showcase sandbox ----------------------------------------
+# tools/ai_behaviors/main.cpp -- separate from tools/sandbox on purpose: showcases NpcAiSystem's
+# real Patrol/Chase/Attack/Flee/Escort states with a minimal roster (player + a few NPC rigs +
+# decorative asteroids), not layered onto the weapons/shields tool.
+add_executable(ai_behaviors tools/ai_behaviors/main.cpp)
+target_link_libraries(ai_behaviors PRIVATE sr_space)
+
+target_include_directories(ai_behaviors SYSTEM PRIVATE
+    $<TARGET_PROPERTY:EnTT::EnTT,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:raylib,INTERFACE_INCLUDE_DIRECTORIES>
+)
+
 if(SR_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)

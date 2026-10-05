@@ -22,8 +22,11 @@ using sr::Destroyed;
 using sr::Docked;
 using sr::EnginePropulsion;
 using sr::Health;
+using sr::HitRadius;
 using sr::ParentRig;
 using sr::PendingDamage;
+using sr::PowerBudget;
+using sr::PowerShed;
 using sr::PowerSource;
 using sr::Propulsion;
 using sr::Rig;
@@ -31,6 +34,7 @@ using sr::ShellKind;
 using sr::ShellRole;
 using sr::Shield;
 using sr::ShieldCoverage;
+using sr::ShieldImpactFlash;
 using sr::StructuralAttachment;
 using sr::Targetable;
 using sr::WorldTransform;
@@ -74,6 +78,9 @@ TEST_CASE("DamageSystem applies matching-type damage to the shield before the hu
     CHECK(registry.get<Health>(hardpoint).current == Approx(100.0f));
     CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(3.5f));
     CHECK_FALSE(registry.all_of<PendingDamage>(hardpoint));
+    // Regression: this hardpoint has no WorldTransform (unlike any real spawned rig), which
+    // ComputeShieldImpactPosition must tolerate by skipping the flash rather than crashing.
+    CHECK_FALSE(registry.all_of<ShieldImpactFlash>(hardpoint));
 }
 
 TEST_CASE("DamageSystem lets mismatched damage bypass the shield entirely", "[damage]") {
@@ -147,6 +154,15 @@ TEST_CASE("DamageSystem's Bubble shield covers a neighbouring hardpoint within i
 
     CHECK(registry.get<Shield>(generator).current == Approx(30.0f));
     CHECK(registry.get<Health>(wing).current == Approx(100.0f));
+    // The flash sits on the bubble's own coverageRadius perimeter, toward the hit -- (15, 0) on
+    // the line from generator (0, 0) through wing (10, 0) -- not at wing's own position (10, 0)
+    // and not at the generator's (0, 0).
+    REQUIRE(registry.all_of<ShieldImpactFlash>(generator));
+    const auto& flash = registry.get<ShieldImpactFlash>(generator);
+    CHECK(flash.worldPosition.x == Approx(15.0f));
+    CHECK(flash.worldPosition.y == Approx(0.0f));
+    CHECK(flash.coverage == ShieldCoverage::Bubble);
+    CHECK(flash.type == DamageType::Kinetic);
 }
 
 TEST_CASE("DamageSystem's Bubble shield does not cover a hardpoint outside its radius",
@@ -203,6 +219,65 @@ TEST_CASE("DamageSystem's Conformal shield covers every hardpoint on the rig reg
 
     CHECK(registry.get<Shield>(generator).current == Approx(30.0f));
     CHECK(registry.get<Health>(tail).current == Approx(100.0f));
+    // Conformal's flash is the hull contact point -- tail's own position (2000, 0), far from the
+    // generator that actually absorbed it (0, 0) -- not the generator's own housing.
+    REQUIRE(registry.all_of<ShieldImpactFlash>(generator));
+    const auto& flash = registry.get<ShieldImpactFlash>(generator);
+    CHECK(flash.worldPosition.x == Approx(2000.0f));
+    CHECK(flash.worldPosition.y == Approx(0.0f));
+    CHECK(flash.coverage == ShieldCoverage::Conformal);
+}
+
+TEST_CASE("DamageSystem's Personal shield leaves an impact flash on its own hardpoint",
+          "[damage][coverage]") {
+    // A Personal hit always lands on the shield's own housing (FindCoveringShield's first
+    // check), so its flash carries that hardpoint's own HitRadius -- WorldRenderer's Personal
+    // shape rings that shell rather than a fixed size.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, sr::Vec2{5.0f, -3.0f}, 0.0f);
+    registry.emplace<HitRadius>(hardpoint, 7.0f);
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Energy, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Personal, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 20.0f, DamageType::Energy, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    REQUIRE(registry.all_of<ShieldImpactFlash>(hardpoint));
+    const auto& flash = registry.get<ShieldImpactFlash>(hardpoint);
+    CHECK(flash.worldPosition.x == Approx(5.0f));
+    CHECK(flash.worldPosition.y == Approx(-3.0f));
+    CHECK(flash.coverage == ShieldCoverage::Personal);
+    CHECK(flash.type == DamageType::Energy);
+    CHECK(flash.hardpointRadius == Approx(7.0f));
+}
+
+TEST_CASE("DamageSystem ages out an expired shield impact flash", "[damage]") {
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<WorldTransform>(hardpoint, sr::Vec2{0.0f, 0.0f}, 0.0f);
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 0.0f, 0.0f, 0.0f,
+                             ShieldCoverage::Personal, 0.0f);
+    registry.emplace<PendingDamage>(hardpoint, 20.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+    REQUIRE(registry.all_of<ShieldImpactFlash>(hardpoint));
+
+    // A second tick with dt beyond the flash's own lifetime -- AgeShieldImpactFlashes runs before
+    // this tick's own (nonexistent, this time) damage pass, so nothing resets it.
+    damage_system::Tick(MakeContext(world, intents, content, sr::kShieldImpactFlashSeconds + 1.0f));
+
+    CHECK_FALSE(registry.all_of<ShieldImpactFlash>(hardpoint));
 }
 
 TEST_CASE(
@@ -338,6 +413,70 @@ TEST_CASE("DamageSystem does not regenerate a shield while its post-hit cooldown
 
     CHECK(registry.get<Shield>(hardpoint).rechargeCooldown == Approx(1.0f));
     CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
+}
+
+TEST_CASE("DamageSystem scales shield regen by the rig's PowerBudget.shields satisfaction",
+          "[damage]") {
+    // Regression: PowerBudget.shields was computed every tick (PowerSystem.cpp) but had no
+    // reader at all until now (Power.h's own comment: "shields/facilities... wait on their own
+    // consumer") -- the same architecture.md 13.3 finding F class of gap WeaponSystem already
+    // closed for PowerBudget.weapons/cooldown recovery.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity root = registry.create();
+    registry.emplace<Rig>(root);
+    registry.emplace<PowerBudget>(root, 0.0f, 0.0f, 1.0f, 0.5f, 1.0f, 1.0f);
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Shield>(hardpoint, 50.0f, 100.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<ParentRig>(hardpoint, root);
+
+    damage_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    // Full rate would be +10; at 0.5 satisfaction it is +5.
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(55.0f));
+}
+
+TEST_CASE("DamageSystem does not regenerate a PowerShed shield at all", "[damage]") {
+    // "A browned-out mount goes offline entirely rather than just running at reduced effect"
+    // (architecture.md 13.3 finding F) applies to a shield generator the same as a weapon mount.
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Shield>(hardpoint, 50.0f, 100.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PowerShed>(hardpoint);
+
+    damage_system::Tick(MakeContext(world, intents, content, 1.0f));
+
+    CHECK(registry.get<Shield>(hardpoint).current == Approx(50.0f));
+}
+
+TEST_CASE("DamageSystem lets damage through a PowerShed shield as if it were not there",
+          "[damage]") {
+    // An offline generator projects no field at all, not a weaker one -- the same reasoning as
+    // the regen test above, but for absorption (FindCoveringShield's own comment).
+    SystemWorld world("sol");
+    entt::registry& registry = world.Registry();
+    sr::core::IntentQueue intents;
+    sr::core::ContentLibrary content;
+
+    const entt::entity hardpoint = registry.create();
+    registry.emplace<Health>(hardpoint, 100.0f, 100.0f);
+    registry.emplace<Shield>(hardpoint, 50.0f, 50.0f, DamageType::Kinetic, 10.0f, 3.5f, 0.0f);
+    registry.emplace<PowerShed>(hardpoint);
+    registry.emplace<PendingDamage>(hardpoint, 30.0f, DamageType::Kinetic, entt::null);
+
+    damage_system::Tick(MakeContext(world, intents, content));
+
+    CHECK(registry.get<Shield>(hardpoint).current ==
+          Approx(50.0f));  // Untouched -- did not absorb.
+    CHECK(registry.get<Health>(hardpoint).current == Approx(70.0f));  // Took the hit instead.
 }
 
 TEST_CASE(

@@ -6696,6 +6696,70 @@ dead by mis-click while being chased is not a decision anyone means to make.*
 hostile to a gamepad — a continuous cursor aim point plus box selection plus fourteen discrete
 actions. Recorded now because it is cheap to note and expensive to discover after the UI is built.
 
+#### Weapon behavior modifiers — built, not just designed ✅
+
+*Settled 2026-09-15, built and verified via `tools/sandbox/`'s player-interaction sandbox (see that
+file's own Milestone comments for the step-by-step history) rather than designed here first and
+implemented later — the reverse of this document's usual order, worth recording because it means
+the shape below was pressure-tested against real `WeaponSystem`/`ProjectileSystem`/`WorldRenderer`
+code before being written down, not after.*
+
+§3.6's own case for ten weapon groups over three was that weapon behavior sits on "an explicitly
+unbounded axis — penetration, damage-over-time, disable, splash, tracking." `shared/blueprints/
+ModuleDef.h`'s `WeaponStats` (and the matching runtime fields on `shared/components/Combat.h`'s
+`Weapon`) now actually carries seven independent, composable points on that axis — flags, not an
+exclusive weapon "type" — every one optional and defaulted to reproduce a plain gun exactly, so no
+previously-authored module changed behavior when these landed:
+
+| Field | What it does |
+|---|---|
+| `continuous` | Beam: per-tick hitscan while held, no `Projectile` entity — `WorldRenderer::DrawBeams` reads a `BeamState` component instead. |
+| `homingTurnRatePerSecond` | Curves a fired projectile's own velocity after launch (`ProjectileSystem::ApplyHoming`), or — for a `continuous` weapon, which has no travel time to curve over — bends its live aim point toward the nearest target every tick instead. |
+| `chargeToFire` / `chargeSecondsToFire` | Hold-to-charge; auto-fires the instant charge completes while still held. Deliberately no separate "release to fire" step — a beam has no discrete instant for one to trigger, so a discrete weapon and a beam share the one rule. |
+| `burstCount` / `burstIntervalSeconds` | A timed multi-shot sequence per trigger pull, distinct from `spreadRadians`'s simultaneous pellet fan. |
+| `maxAmmo` | `-1` (default) is unlimited; a non-negative value depletes 1.0 per shot or 1.0 per second of continuous fire. No reload/resupply mechanic exists yet. |
+| `consistency` / `accuracyRadians` | Chance a shot fires dead-on vs. randomly deviating within a range — a pure function of `(hardpoint, pellet index, tick)`, never `rand()`, so it replays identically under Law 2's fast-forward (`WeaponSystem::Hash32`/`ApplyAccuracy`, the same idiom `MiningSystem::RollPercent` already established). |
+| `colorOverride` | Overrides `DamageTypeColor`'s default for a weapon's projectiles/beam — an "RRGGBB"/"RRGGBBAA" hex string, modder-authorable without touching C++, so a faction (or a mod) can have a signature laser color without inventing a new `DamageType`. |
+
+**The full lock-on missile** (`chargeToFire` + `homingTurnRatePerSecond` + `maxAmmo` together,
+`data/base_game/modules.json`'s `lockon_missile_i`) is these flags composing, not an eighth
+special-cased mode: press on a target to acquire a lock (a small world-space pick radius around
+the cursor), hold to charge and auto-track the lock regardless of where the cursor drifts
+afterward, release early and the charge resets to zero.
+
+**Three real production bugs surfaced building this, all fixed in the same work:**
+- `WeaponSystem::SpawnProjectiles` spawned a shot offset toward the hardpoint's shell edge, but
+  `WorldRenderer` draws every hardpoint as a circle centered on its own `WorldTransform` — the
+  offset only ever misaligned the shot from what is actually drawn, reading as firing from behind
+  the ship depending on which way the offset happened to point that tick.
+- `RigFactory::AttachModule` decided which weapon group a hardpoint belonged to by checking
+  whether the hardpoint *currently* carried a `Weapon` component, not whether the *module just
+  being attached* was the weapon — harmless while every shipped shell carried exactly one module,
+  but a hardpoint carrying two (the tier-slot experiment below) could double-emplace `WeaponGroup`
+  on itself, undefined behavior in EnTT.
+- The weapon-group hotkeys could silently drop or double-apply a press: the game renders at
+  144 FPS against a 60 Hz simulation tick, so most real frames run zero fixed ticks, and the old
+  edge-triggered `ToggleWeaponGroupIntent` pushed on one of those frames was cleared before any
+  tick ever saw it. Fixed by replacing it with `SetWeaponGroupsIntent`, which carries the settled
+  mask value every frame instead of a one-shot flip — the same idempotent-under-variable-tick-count
+  shape `SetThrottleIntent`/`AimIntent` already relied on.
+
+**The tier-slot experiment**: `shared/blueprints/Validation.cpp`'s `MountCapacity` rule (module
+count within `ShellDef::moduleSlots`) had never actually been exercised by any authored ship, since
+every shipped weapon shell authors `moduleSlots: 1`. `data/base_game/shells.json`'s new
+`shell_wing_hardpoint_ii` (`moduleSlots: 2`) is the first real content to mount two modules — a
+weapon plus a `FireControl` module — on one hardpoint, the exact case architecture.md §12.22
+already described but nothing had built. It works today without the rarity-ladder `moduleSlots`
+bonus tiers §2.7 describes; those remain undesigned in code, only the mechanical two-module mount
+itself was proven out.
+
+See `tools/sandbox/main.cpp` for the full build-out (movement, then weapons/combat, then weapon
+variety and switching, then a wider roster plus the tier-slot experiment, then the behavior-
+modifier system above) and `tests/unit/WeaponSystemTests.cpp` for the regression coverage —
+including two tests distinguishing "a chargeToFire+homing weapon that is simply out of ammo"
+(working as designed, no reload built) from an actual firing bug, the exact question that came up
+verifying this in-game.
+
 
 ### 3.7 Collision, Ramming & Structural Destruction 📋
 

@@ -54,14 +54,14 @@ void Tick(const SystemContext& ctx) {
         registry.emplace_or_replace<AimPoint>(entity, AimPoint{intent.worldPosition});
     });
 
-    ctx.intents.ForEach<core::ToggleWeaponGroupIntent>(
-        [&](const core::ToggleWeaponGroupIntent& intent) {
+    ctx.intents.ForEach<core::SetWeaponGroupsIntent>(
+        [&](const core::SetWeaponGroupsIntent& intent) {
             const entt::entity entity = Resolve(registry, intent.actor);
             if (entity == entt::null) {
                 return;
             }
             if (auto* groups = registry.try_get<EnabledWeaponGroups>(entity)) {
-                groups->mask ^= static_cast<std::uint16_t>(1u << intent.groupIndex);
+                groups->mask = intent.mask;
             }
         });
 }

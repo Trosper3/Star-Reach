@@ -9,6 +9,7 @@
 #include "shared/components/Physics.h"
 #include "shared/components/Rig.h"
 #include "shared/components/Transform.h"
+#include "shared/math/Angle.h"
 #include "shared/math/Vec2.h"
 
 namespace sr::space::projectile_system {
@@ -92,6 +93,68 @@ void QueueDamage(entt::registry& registry, entt::entity hardpoint, float amount,
     }
 }
 
+// Nearest hardpoint (by HitRadius + WorldTransform) to `point`, excluding `excludeRoot`'s own rig
+// and anything already destroyed -- a dumb-fire homing projectile's every-tick reacquisition
+// (Projectile::homingTarget's own comment). Not FindHit above: that is a segment-crossing test for
+// "what did this tick's travel cross," this is a plain nearest-point search for "what should I now
+// steer toward," and conflating them would make FindHit take an unused direction argument for
+// every projectile that never homes.
+entt::entity FindNearestForHoming(const entt::registry& registry, entt::entity excludeRoot,
+                                  const Vec2& point) {
+    entt::entity best = entt::null;
+    float bestDistSq = 0.0f;
+    for (auto [hardpoint, hitRadius, hpXf] : registry.view<HitRadius, WorldTransform>().each()) {
+        (void)hitRadius;
+        const auto* parent = registry.try_get<ParentRig>(hardpoint);
+        if ((parent != nullptr && parent->root == excludeRoot) ||
+            registry.all_of<Destroyed>(hardpoint)) {
+            continue;
+        }
+        const float distSq = DistanceSquared(point, hpXf.position);
+        if (best == entt::null || distSq < bestDistSq) {
+            best = hardpoint;
+            bestDistSq = distSq;
+        }
+    }
+    return best;
+}
+
+// Bends `velocity` toward `projectile.homingTarget` (or, absent one, the nearest eligible
+// hardpoint) at `projectile.homingTurnRatePerSecond` -- the same RotateToward/AngleDelta math
+// WeaponSystem::AimAt already uses for turret traverse, since steering is just traverse with no
+// physical mount to swing. A locked target (homingWasLocked) that dies is not replaced: the shot
+// goes dumb and flies straight from then on (Projectile::homingWasLocked's own comment); a
+// dumb-fire shot (homingWasLocked false) keeps re-seeking instead.
+void ApplyHoming(const entt::registry& registry, Projectile& projectile, const Vec2& position,
+                 Velocity& velocity, float dt) {
+    if (projectile.homingTurnRatePerSecond <= 0.0f) {
+        return;
+    }
+
+    bool targetValid = projectile.homingTarget != entt::null &&
+                       registry.valid(projectile.homingTarget) &&
+                       !registry.all_of<Destroyed>(projectile.homingTarget);
+    if (!targetValid) {
+        if (projectile.homingWasLocked) {
+            projectile.homingTurnRatePerSecond = 0.0f;  // Lock broken permanently; fly straight.
+            return;
+        }
+        projectile.homingTarget = FindNearestForHoming(registry, projectile.shooter, position);
+        targetValid = projectile.homingTarget != entt::null;
+    }
+    if (!targetValid) {
+        return;
+    }
+
+    const Vec2 targetPos = registry.get<WorldTransform>(projectile.homingTarget).position;
+    const float speed = Length(velocity.linear);
+    const float currentDirection = ToAngle(velocity.linear);
+    const float desiredDirection = ToAngle(targetPos - position);
+    const float newDirection =
+        RotateToward(currentDirection, desiredDirection, projectile.homingTurnRatePerSecond * dt);
+    velocity.linear = FromAngle(newDirection) * speed;
+}
+
 }  // namespace
 
 void Tick(const SystemContext& ctx) {
@@ -100,13 +163,17 @@ void Tick(const SystemContext& ctx) {
 
     for (auto [entity, xf, prev, velocity, projectile] :
          registry.view<WorldTransform, PreviousTransform, Velocity, Projectile>().each()) {
+        ApplyHoming(registry, projectile, xf.position, velocity, ctx.dt);
+
         const Vec2 oldPos = xf.position;
         const Vec2 step = velocity.linear * ctx.dt;
         const Vec2 newPos = oldPos + step;
 
         prev = PreviousTransform{oldPos, xf.rotation};
         xf.position = newPos;
-        projectile.remainingRange -= Length(step);
+        const float stepLength = Length(step);
+        projectile.remainingRange -= stepLength;
+        projectile.distanceTraveled += stepLength;
 
         const entt::entity hit = FindHit(registry, projectile, oldPos, newPos);
         if (hit != entt::null) {
