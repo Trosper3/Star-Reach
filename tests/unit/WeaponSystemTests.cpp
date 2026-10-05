@@ -71,7 +71,18 @@ std::pair<entt::entity, entt::entity> MakeArmedRig(entt::registry& registry, con
 }
 
 Weapon ReadyWeapon() {
-    return Weapon{10.0f, DamageType::Kinetic, 0.5f, 900.0f, 750.0f, 0.0f, 1, 0.0f};
+    // Named fields, not positional: Weapon grew behavior-modifier fields after projectilesPerShot,
+    // so a trailing positional cooldown value would land in `continuous` instead.
+    Weapon weapon;
+    weapon.damage = 10.0f;
+    weapon.damageType = DamageType::Kinetic;
+    weapon.fireIntervalSeconds = 0.5f;
+    weapon.projectileSpeed = 900.0f;
+    weapon.rangeUnits = 750.0f;
+    weapon.spreadRadians = 0.0f;
+    weapon.projectilesPerShot = 1;
+    weapon.cooldown = 0.0f;
+    return weapon;
 }
 
 }  // namespace
